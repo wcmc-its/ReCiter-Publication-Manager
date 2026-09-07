@@ -15,6 +15,10 @@ interface FuncProps {
     personIdentifier: string,
     // Steer an in-PubMed work to the scored PubMed add path (switches to the PubMed tab).
     onAddViaPubMed: (pmid: number, item: any) => void,
+    // Accept a PMID for this person without leaving the tab — a real gold-standard write, the
+    // same one the PubMed Add tab makes. Required, not optional: the card renders its primary
+    // "Add" button off pubmedPmid alone, so a tab that omits this ships a dead button.
+    onAcceptPmid: (pmid: number, item: any) => Promise<any>,
     // Current status of a PMID in this person's record, to annotate search results.
     getPmidStatus: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
     // Signed-in curator's CWID, from useSession(). Gates the Delete button to the row's
@@ -131,6 +135,20 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
         return (body && body.pmid) != null ? Number(body.pmid) : null
     }
 
+    // Direct-accept: the card's primary "Add" for an in-PubMed work. Mirrors
+    // TabScopusAuthorships.doAcceptPmid on the shared addStates map. Before this existed the
+    // button rendered here and silently did nothing, because the tab passed no onAcceptPmid.
+    const doAcceptPmid = (pmid: number, item: any) => {
+        const articleId = item.articleId
+        setAddState(articleId, { status: "adding" })
+        return props.onAcceptPmid(pmid, item)
+            .then(() => { setAddState(articleId, { status: "accepted" }) })
+            .catch((err: any) => {
+                setAddState(articleId, { status: "idle" })
+                toast.error("Could not accept: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+            })
+    }
+
     const doAdd = async (item: any, force: boolean) => {
         if (!uid) { toast.error("Person is still loading — try again in a moment.", { position: "top-right", autoClose: 2500, theme: "colored" }); return }
         const articleId = item.articleId
@@ -245,6 +263,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                                 addState={addStates[item.articleId]}
                                 onAdd={(it) => doAdd(it, false)}
                                 onAddAnyway={(it) => doAdd(it, true)}
+                                onAcceptPmid={(pmid, it) => doAcceptPmid(pmid, it)}
                                 onAddViaPubMed={(pmid, it) => props.onAddViaPubMed(pmid, it)}
                                 recordStatusOf={props.getPmidStatus}
                             />

@@ -2151,7 +2151,32 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         if (!(await reciterIdentitySet([cwid])).size) {
           return res.status(422).send(`${row.top_name || cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
         }
-        if (isScopus) {
+        // "Same paper — accept PMID N": the curator has adjudicated this scopus row against its
+        // producer-flagged PubMed twin and says the two are one work. Accepting is then
+        // equivalent to accepting that PMID — a real gold-standard `known` write — rather than
+        // creating an ExternalArticle that duplicates an article already in PubMed. The PMID
+        // comes from the ROW (row.matched_pmid), never from the request: the client asserts only
+        // "yes, same work", so no caller can nominate an arbitrary PMID to accept.
+        // row.pmid is NULL on every scopus row, hence acceptPmid rather than the outer `pmid`.
+        // ponytail: single-candidate rows only — the MULTI_CANDIDATE guard above already turns
+        // multis away, so no homonym rejections arise here. Widen `assign` if they ever do.
+        const sameWork = isScopus && String(body.samePmid) === "true";
+        if (sameWork && row.matched_pmid == null) {
+          return res.status(400).send("Row has no matched_pmid to accept as the same work");
+        }
+        const acceptPmid = sameWork ? Number(row.matched_pmid) : (pmid as number);
+        // The twin PMID comes from ReCiter's own candidate set for this person, so "they already
+        // accepted it" is the ORDINARY case here, not an edge one — it is often exactly why the
+        // producer flagged a twin. Accepting again is worse than a no-op: Java's UPDATE merge
+        // returns 200 without changing anything, we would log a spurious ACCEPTED feedback row and
+        // decrement the pending count, and — the real damage — reopen would then DELETE a
+        // gold-standard acceptance this action never created. There is nothing to accept, so say
+        // so and point at the action that does fit: closing the scopus row as a duplicate.
+        // Mirrors the same guard `assign` already applies (getKnownPmidsByCwid, below).
+        if (sameWork && (await getKnownPmidsByCwid([cwid]))[cwid]?.has(acceptPmid)) {
+          return res.status(422).send(`${row.top_name || cwid} has already accepted PMID ${acceptPmid} — nothing to accept. Use "Same paper — dismiss" to close this Scopus row as a duplicate.`);
+        }
+        if (isScopus && !sameWork) {
           const resp = await addExternalArticle(cwid, scopusExternalPayload(row), reviewer, force);
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
@@ -2173,13 +2198,22 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         }
         // Data-integrity guard: never let an accept add pmid to knownpmids while it's still
         // sitting in rejectedpmids for the same identity (see goldStandardRejections.ts).
-        if ((await getRejectedPmidsByCwid([cwid]))[cwid]?.has(pmid as number)) {
+        if ((await getRejectedPmidsByCwid([cwid]))[cwid]?.has(acceptPmid)) {
           return res.status(409).send(`${row.top_name || cwid} already rejected this article — cannot accept without reviewing that rejection first`);
         }
-        const gs = await writeGoldStandard(cwid, pmid as number, "known", "UPDATE", curator.userID);
+        const gs = await writeGoldStandard(cwid, acceptPmid, "known", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
-        await models.AuthorshipReview.update({ status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() }, { where: { id } });
-        try { await appendFeedbackLog(curator.userID, cwid, pmid as number, "ACCEPTED"); }
+        // matched_pmid_verdict='same' is written ONLY here, and only together with the terminal
+        // status in the same update: openStatusWhere lets ANY non-null verdict back into the open
+        // queue, so a 'same' left on a status="open" row would bounce it out of "Possible
+        // duplicates" and straight back into the feed. status="accepted" is what resolves it; the
+        // verdict is what records WHY, and what tells reopen below to undo a gold-standard write
+        // rather than an ExternalArticle.
+        await models.AuthorshipReview.update({
+          status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date(),
+          ...(sameWork ? { matched_pmid_verdict: "same" as const } : {}),
+        }, { where: { id } });
+        try { await appendFeedbackLog(curator.userID, cwid, acceptPmid, "ACCEPTED"); }
         catch (e) { console.log("[authorships] feedbacklog (accept) non-fatal:", e); }
         break;
       }
@@ -2415,7 +2449,15 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
       }
       case "reopen": {
         const reverseCwid = row.resolution_cwid || cwid;
-        if (isScopus) {
+        // A scopus row accepted as its PubMed twin ("Same paper — accept PMID N") wrote a gold
+        // standard entry and NO ExternalArticle, so it must take the gold-standard undo branch
+        // below, not the ExternalArticle revoke — otherwise reopen clears the row and leaves the
+        // PMID permanently accepted with nothing left pointing at it. matched_pmid_verdict is the
+        // marker because accept wrote it in the same update as the terminal status.
+        const wasSameWork = isScopus && row.matched_pmid_verdict === "same";
+        // row.pmid is NULL on scopus rows; the gold standard entry to delete is the twin's PMID.
+        const undoPmid = wasSameWork ? Number(row.matched_pmid) : (pmid as number);
+        if (isScopus && !wasSameWork) {
           // undo a scopus accept/assign = revoke the ExternalArticle (reject/dismiss wrote none).
           if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
             const resp = await deleteExternalArticle(reverseCwid, `SCOPUS:${row.external_id}`);
@@ -2442,7 +2484,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           if (wasLocalOnly) {
             console.log(`[authorships] reopen ${id}: ${reverseCwid} local-only assign, nothing to undo for the assignee`);
           } else {
-            const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
+            const gs = await writeGoldStandard(reverseCwid, undoPmid, "known", "DELETE", curator.userID);
             if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
           }
           // F-2: ...and the homonym rejections that assign wrote alongside it, REGARDLESS of
@@ -2475,17 +2517,25 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
             if (gs !== 200) return res.status(502).send(`Gold-standard undo failed for ${target} (${gs})`);
           }
         }
-        await models.AuthorshipReview.update({ status: "open", snooze_until: null, resolved_at: null, resolution_cwid: null, reviewer }, { where: { id } });
+        // Clearing a 'same' verdict is part of the undo, not bookkeeping: openStatusWhere sends
+        // any verdicted row to the open feed, so leaving it set would reopen the row into the
+        // wrong queue instead of back into "Possible duplicates" where the curator found it.
+        // A 'distinct' verdict is deliberately NOT cleared — "never re-flag" outlives a reopen.
+        await models.AuthorshipReview.update({
+          status: "open", snooze_until: null, resolved_at: null, resolution_cwid: null, reviewer,
+          ...(wasSameWork ? { matched_pmid_verdict: null } : {}),
+        }, { where: { id } });
         break;
       }
       case "verdict": {
-        // "Different papers" from the PubMed-twin panel. Only stops future re-flagging — it is
-        // NOT a resolution of the row, so status/reviewer/resolved_at/note are untouched and the
-        // row stays wherever it was (open queue, once matched_pmid_verdict='distinct' takes it
-        // out of the "duplicates" view per openStatusWhere above). 'same' is never written here
-        // or anywhere else — "same paper" is expressed by dismissing the row with a note instead.
+        // "Different papers" from the PubMed-twin panel: stops future re-flagging, resolves
+        // nothing, so status/reviewer/resolved_at/note stay untouched and the row drops to the
+        // open queue per openStatusWhere. Open rows ONLY — this writes 'distinct' blind, and on a
+        // resolved row that would clobber the 'same' a same-work accept wrote, which is the flag
+        // telling reopen to undo a gold-standard write rather than an ExternalArticle.
         if (body.verdict !== "distinct") return res.status(400).send('verdict must be "distinct"');
         if (row.matched_pmid == null) return res.status(400).send("Row has no matched_pmid to give a verdict on");
+        if (row.status !== "open") return res.status(409).send(`Row is already ${row.status} — reopen it before changing the verdict`);
         await models.AuthorshipReview.update({ matched_pmid_verdict: "distinct" }, { where: { id } });
         break;
       }

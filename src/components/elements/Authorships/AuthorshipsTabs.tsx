@@ -1696,8 +1696,13 @@ const AuthorshipsTabs = () => {
         fetchRecentActivity();
       })
       .catch((e) => {
-        // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error
-        const scopusDup = e?.status === 409 && row.source === "scopus" && (action === "accept" || action === "assign");
+        // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error.
+        // A same-work accept is excluded: it never calls addExternalArticle, so its only 409 is the
+        // already-rejected guard, and "Force add anyway" would answer it by creating the very
+        // duplicate ExternalArticle the curator just said not to create. That 409 belongs in the
+        // plain error toast, where its message ("already rejected this article") is the right advice.
+        const scopusDup = e?.status === 409 && row.source === "scopus"
+          && (action === "accept" || action === "assign") && !extra?.samePmid;
         // Both 422s are the same shape — "allowed, but say you meant it" — and each names the
         // confirmation flag it wants back. The consequences are opposite, so the prompts they
         // raise differ (see ConflictEntry.kind and the banner below); the plumbing doesn't.
@@ -4554,16 +4559,36 @@ const compareCellStyle = (state: CompareState): CSSProperties => ({
 });
 const emDash = <span style={{ color: "#94a3b8" }}>—</span>;
 
-// Same paper / Different papers — the only two writes this panel makes, both reusing the
-// standard onAction→doAction path (see doAction's `action !== "verdict"` undo suppression):
-// dismiss/{reason:"dup_of_matched_pmid"} composes its note server-side (case "dismiss" in
-// authorships.controller.ts); verdict/{verdict:"distinct"} only ever writes 'distinct' — 'same'
-// is never sent or stored anywhere, "same paper" IS the dismiss above.
-const CounterpartActions = ({ acting, onAction }: {
-  acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
-}) => (
-  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-    <button style={btn("accept", acting)} disabled={acting}
+// Three writes, all on the standard onAction→doAction path (see doAction's undo suppression):
+//  - accept/{samePmid:true}  — "same work, and this person wrote it": a real gold-standard
+//    `known` write for matched_pmid, NOT an ExternalArticle. Server reads the PMID off the row.
+//  - dismiss/{reason:"dup_of_matched_pmid"} — "same work, but that is all I am saying": closes
+//    the scopus row as a duplicate and asserts nothing about who authored it. Composed
+//    server-side (case "dismiss" in authorships.controller.ts).
+//  - verdict/{verdict:"distinct"} — "different works". Only ever writes 'distinct'.
+// The first two are deliberately separate buttons: deduplicating a row and attributing a
+// publication to a person are different claims, and the panel is reachable without the curator
+// having formed the second one. Accept only renders for a single_candidate row, because the
+// server's MULTI_CANDIDATE guard turns multis away before it ever reaches the same-work branch.
+const CounterpartActions = ({ row: r, acting, onAction }: {
+  row: AuthorshipRow; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
+}) => {
+  // Same three preconditions the server enforces, so the button is never a dead end: a
+  // multi-candidate row 409s (use "Pick one"), and a row whose proposed identity has no ReCiter
+  // Identity record 422s — which is why the card's own right rail already withholds Accept for it
+  // (identity_in_reciter===false renders the "No ReCiter identity" pill instead). Missing that
+  // check here would put an Accept back on exactly the rows the rest of the UI hides it from.
+  const canAcceptSame = !!r.single_candidate && r.matched_pmid != null && r.identity_in_reciter !== false;
+  return (
+  <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+    {canAcceptSame && (
+      <button style={btn("accept", acting)} disabled={acting}
+        title={`Accept PMID ${r.matched_pmid} for ${r.top_name || r.top_cwid} — the same gold-standard write an Accept on the PubMed row makes`}
+        onClick={(e) => { e.stopPropagation(); onAction("accept", { samePmid: true }); }}>
+        {`Same paper — accept PMID ${r.matched_pmid}`}
+      </button>
+    )}
+    <button style={btn(canAcceptSame ? "soft" : "accept", acting)} disabled={acting}
       onClick={(e) => { e.stopPropagation(); onAction("dismiss", { reason: "dup_of_matched_pmid" }); }}>
       Same paper — dismiss
     </button>
@@ -4572,7 +4597,8 @@ const CounterpartActions = ({ acting, onAction }: {
       Different papers
     </button>
   </div>
-);
+  );
+};
 
 // PubMed-twin adjudication panel (#951 Layer 2) — mounted in the isExpanded block for any row
 // carrying a producer-flagged matched_pmid. Fetches POST /api/db/authorships/counterpart on
@@ -4618,7 +4644,7 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
           <IconAlert size={15} style={{ marginTop: 1 }} />
           <span>PubMed record {pmid} could not be fetched ({state.message}).</span>
         </div>
-        <CounterpartActions acting={acting} onAction={onAction} />
+        <CounterpartActions row={r} acting={acting} onAction={onAction} />
       </div>
     );
   }
@@ -4702,7 +4728,7 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
         )}
       </div>
 
-      <CounterpartActions acting={acting} onAction={onAction} />
+      <CounterpartActions row={r} acting={acting} onAction={onAction} />
     </div>
   );
 };

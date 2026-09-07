@@ -222,7 +222,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
         };
         dispatch(reciterUpdatePublication(identityData.uid, request));
 
-        updatePublicationAssertion(newObject, "ACCEPTED", undefined);
+        updatePublicationAssertion(newObject, "ACCEPTED", prevTabFor(newObject.pmid));
       });
   }
 
@@ -237,6 +237,18 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
       }
     }
     return null;
+  }
+
+  // Which tab updatePublicationAssertion must take this PMID OUT of, or undefined if it is in
+  // none. Needed because the "Same as PMID N" candidates come from ReCiter's own candidate set
+  // for this person, so the article is normally ALREADY listed in one of the tabs — and
+  // updatePublicationAssertion only removes from the tab matching prevUserAssertion. Passing
+  // undefined (correct for the primary Add button, which is gated on the PMID being in no tab)
+  // would leave the article listed twice with an inflated count. Tab values are
+  // 'NULL' | 'ACCEPTED' | 'REJECTED'; getPmidStatus reports the first of those as 'PENDING'.
+  const prevTabFor = (pmid: number): any => {
+    const status = getPmidStatus(pmid);
+    return status === 'PENDING' ? 'NULL' : status === 'REJECTED' ? 'REJECTED' : undefined;
   }
 
   // `https://doi.org/`, `http://doi.org/`, and `doi:` are all the same identifier prefixed
@@ -405,6 +417,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
         <TabAddExternalPublication
           personIdentifier={reciterData.reciter?.personIdentifier}
           onAddViaPubMed={handleAddViaPubMed}
+          onAcceptPmid={handleAcceptPmid}
           getPmidStatus={getPmidStatus}
           viewerCwid={session?.data?.username}
         />

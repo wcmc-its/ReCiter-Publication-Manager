@@ -129,6 +129,26 @@ function blockedHeadline(matches?: Array<{ type?: string }>): string {
     return "This publication is already in the person's record."
 }
 
+// The PMIDs a 409 WARNING names, for the "Same as PMID N" affordance below.
+//
+// `matchedId` is a free-form string whose meaning depends on `type` — a DOI for the DOI_* types,
+// a PMID for the PMID_* ones — and ReCiter does not promise it parses as a number. So this reads
+// it defensively rather than trusting it: DOI-typed matches are excluded outright, and whatever
+// survives must still look like a PMID (all digits; PubMed is nowhere near 9 of them). Anything
+// unrecognised simply yields no button, leaving today's "Add anyway" as the only affordance —
+// the safe direction, because a missed offer costs a duplicate the curator can still clean up,
+// while a wrong one accepts an unrelated article onto a person's record.
+const samePmidCandidates = (matches?: Array<{ type?: string; matchedId?: string }>): number[] => {
+    const seen = new Set<number>()
+    for (const m of matches || []) {
+        if (m.type && m.type.includes('DOI')) continue
+        const id = (m.matchedId || '').trim()
+        if (!/^\d{1,8}$/.test(id)) continue
+        seen.add(Number(id))
+    }
+    return Array.from(seen)
+}
+
 const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const { item, mode, addState } = props
     // list-mode Reject note — optional, threaded through onReject on click. Preview-mode
@@ -278,6 +298,41 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                             </div>
                         ))}
                         <div className={styles.warningActions}>
+                            {/* "Same as PMID N" — the third answer this prompt was missing. Until now
+                                the only ways out were "Add anyway" (creates a duplicate record) and
+                                walking away (abandons a real publication); neither is right when the
+                                candidate genuinely IS this work. Routes to the same onAcceptPmid the
+                                DOI-probe path already uses, so it makes a real gold-standard accept
+                                rather than an external record. One button per candidate: the check
+                                can name several, and only the curator can say which — see the
+                                recurring-section-title case (three issues of "Hepatology Highlights",
+                                three different articles) that this prompt cannot distinguish. */}
+                            {props.onAcceptPmid && samePmidCandidates(addState?.matches).map((candidate) => {
+                                // A candidate PMID comes from ReCiter's candidate set for THIS person,
+                                // so it is usually already in their record — including, sometimes, as a
+                                // rejection. Accepting it would then silently un-reject it, because
+                                // Java's UPDATE merge drops the PMID from rejectedPmids. Never offer a
+                                // bare "Same as" for an article the person has already ruled on: say
+                                // what the record holds and let them go change it deliberately.
+                                const known = props.recordStatusOf && props.recordStatusOf(candidate)
+                                if (known) return (
+                                    <span key={candidate} className={styles.matchRow}>
+                                        PMID {candidate} — {known === 'ACCEPTED' ? 'already in this person’s record'
+                                            : known === 'REJECTED' ? 'previously rejected for this person; reverse it in the Rejected tab if it is the same work'
+                                                : 'already a pending suggestion — accept it in the Suggested tab'}
+                                    </span>
+                                )
+                                return (
+                                    <button
+                                        key={candidate}
+                                        className={styles.btnAdd}
+                                        title={`Accept PMID ${candidate} for this person instead of adding a separate external record`}
+                                        onClick={() => props.onAcceptPmid && props.onAcceptPmid(candidate, item)}
+                                    >
+                                        Same as PMID {candidate}
+                                    </button>
+                                )
+                            })}
                             <button
                                 className={styles.btnAnyway}
                                 onClick={() => props.onAddAnyway && props.onAddAnyway(item)}
@@ -309,14 +364,21 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         Adding&#8230;
                     </button>
                 )}
+                {/* Gated on onAcceptPmid, not just pubmedPmid: rendering this pair off the PMID alone
+                    is what made the OpenAlex tab's primary "Add" a silent no-op — the handler was
+                    `props.onAcceptPmid && props.onAcceptPmid(...)` against an undefined prop, so the
+                    button looked live and did nothing. A consumer that cannot accept a PMID now shows
+                    only "Add via PubMed →" instead of a button that lies. */}
                 {mode === 'preview' && status !== 'added' && status !== 'accepted' && status !== 'adding' && pubmedPmid && !recStatus && (
                     <div className={styles.pubmedActions}>
+                        {props.onAcceptPmid && (
                         <button
                             className={styles.btnAdd}
                             onClick={() => props.onAcceptPmid && props.onAcceptPmid(pubmedPmid, item)}
                         >
                             <CheckIcon style={{ fontSize: 14 }} /> Add
                         </button>
+                        )}
                         <button
                             className={styles.btnPubmedSecondary}
                             onClick={() => props.onAddViaPubMed && props.onAddViaPubMed(pubmedPmid, item)}

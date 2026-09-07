@@ -315,7 +315,12 @@ assert(handleAcceptPmidSrc.indexOf("const handleAcceptPmid") === 0, "handleAccep
 assert(/fetch\(`\/api\/reciter\/pubmed-article\/\$\{pmid\}`/.test(handleAcceptPmidSrc), "fetches GET /api/reciter/pubmed-article/{pmid}");
 assert(/Authorization:\s*reciterConfig\.backendApiKey/.test(handleAcceptPmidSrc), "carries Authorization: reciterConfig.backendApiKey, same header pattern as the tab's other client calls");
 assert(/dispatch\(reciterUpdatePublication\(identityData\.uid,\s*request\)\)/.test(handleAcceptPmidSrc), "dispatches reciterUpdatePublication(identityData.uid, request)");
-assert(/updatePublicationAssertion\(newObject,\s*"ACCEPTED",\s*undefined\)/.test(handleAcceptPmidSrc), "calls updatePublicationAssertion(article, 'ACCEPTED', undefined)");
+// prevUserAssertion was `undefined` while the ONLY caller was the card's primary Add button,
+// which is gated on !recordStatusOf(pmid) -- a PMID in no tab, so there was nothing to remove.
+// The "Same as PMID N" button broke that precondition: its candidates come from ReCiter's own
+// candidate set for the person, so the article is normally already listed. Passing undefined
+// there left it listed twice with an inflated tab count, so the call now resolves the tab.
+assert(/updatePublicationAssertion\(newObject,\s*"ACCEPTED",\s*prevTabFor\(newObject\.pmid\)\)/.test(handleAcceptPmidSrc), "calls updatePublicationAssertion(article, 'ACCEPTED', prevTabFor(pmid))");
 assert(!/onTabChange/.test(handleAcceptPmidSrc), "does NOT call onTabChange — stays on the current tab, unlike handleAddViaPubMed");
 assert(!/UpdatePubMadeData/.test(handleAcceptPmidSrc), "does NOT dispatch UpdatePubMadeData — there is no PubMed-tab search list to prune here");
 assert(/throw new Error\(\(body\s*&&\s*body\.message\)\s*\|\|\s*`HTTP \$\{r\.status\}`\)/.test(handleAcceptPmidSrc), "rejects with a message on a non-200/missing-article response from the route");
