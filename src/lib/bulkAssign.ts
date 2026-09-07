@@ -224,21 +224,42 @@ export function bucketRejectFailures(reasons: RejectFailureReason[]): {
 // same {cwid,name,hasIdentity} shape authorshipLookupCwid returns, reused verbatim from the
 // bulk-assign confirm path above rather than re-derived). Pure so the four branches are
 // directly assertable (scripts/check-bulk-assign.mjs) without a component or a network call.
+// What a directory (WCM ED / Cornell Ithaca) knows about an identifier ReCiter does not — the
+// `directory` block authorshipLookupCwid returns when hasIdentity is false, reused verbatim
+// rather than re-derived. `mintable` is false when the record has no given/family name and so
+// cannot satisfy ReCiter's mandatory fields; `wcmCwidHasIdentity` is the duplicate-person
+// bridge, and when it is true the write lands on `wcmCwid`, NOT on what was typed.
+export interface TypedCwidDirectoryHit {
+  source: "wcm" | "cornell";
+  name: string;
+  title: string | null;
+  dept: string | null;
+  wcmCwid: string | null;
+  wcmCwidHasIdentity: boolean;
+  mintable: boolean;
+}
+
 export type TypedCwidLookupState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "resolved"; cwid: string; name: string | null; hasIdentity: boolean };
+  | {
+    status: "resolved"; cwid: string; name: string | null; hasIdentity: boolean;
+    directory?: TypedCwidDirectoryHit | null;
+  };
 
 export interface TypedCwidPreview {
   text: string;
   tone: "neutral" | "warn";
 }
 
-// Mirrors the same two resolved shapes case "assign"'s own 422s already put in front of a
-// curator (no-identity's "records your decision on this row only" and off-candidate's "no name
-// on file anywhere" parenthetical) — this just says the same thing ahead of the round-trip
-// instead of after it.
+// Mirrors the resolved shapes case "assign"'s own 422s already put in front of a curator
+// (no-identity's "records your decision on this row only", the mint confirm's "creates a
+// ReCiter identity", and off-candidate's "no name on file anywhere" parenthetical) — this just
+// says the same thing ahead of the round-trip instead of after it. The ORDER of the
+// no-identity branches below mirrors assignGate's exactly: bridge, then mintable directory hit,
+// then the pre-existing local-only fallback. Getting that order wrong would promise a curator
+// one outcome and deliver another.
 export function typedCwidPreview(state: TypedCwidLookupState): TypedCwidPreview | null {
   switch (state.status) {
     case "idle": return null;
@@ -246,6 +267,21 @@ export function typedCwidPreview(state: TypedCwidLookupState): TypedCwidPreview 
     case "error": return { text: state.message, tone: "warn" };
     case "resolved":
       if (!state.hasIdentity) {
+        const d = state.directory;
+        if (d?.wcmCwid && d.wcmCwidHasIdentity) {
+          return {
+            text: `→ ${d.name}: same person as ${d.wcmCwid} in ReCiter — will assign to ${d.wcmCwid}`,
+            tone: "warn",
+          };
+        }
+        if (d?.mintable) {
+          const where = d.source === "wcm" ? "WCM directory" : "Cornell directory";
+          const desc = [d.title, d.dept].map((v) => String(v || "").trim()).filter(Boolean).join(", ");
+          return {
+            text: `→ ${d.name}${desc ? ` · ${desc}` : ""} (${where}) — not in ReCiter; assigning creates their identity`,
+            tone: "warn",
+          };
+        }
         return { text: `→ ${state.cwid}: no ReCiter identity — records on this row only`, tone: "warn" };
       }
       if (!state.name) {

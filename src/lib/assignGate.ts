@@ -4,16 +4,26 @@
 // authorships.controller.ts ends in a DynamoDB / ReCiter / MySQL write, so the table cannot
 // be exercised in place without doing damage.
 //
-//   confirm_no_identity   ReCiter has never heard of them → 422, ask once (#925)
+//   confirm_no_identity   ReCiter has never heard of them, and neither directory has → 422,
+//                         ask once (#925)
 //   local_only            …confirmed → resolve the row, write nothing downstream (#925)
+//   confirm_mint          ReCiter has never heard of them but a DIRECTORY has → 422, ask once
+//                         and NAME them, because confirming CREATES their identity and then
+//                         writes their real publication record
+//   mint_and_write        …confirmed → POST /reciter/identity/ from the directory record, then
+//                         fall through to the authoritative write
 //   confirm_off_candidate a real person the AAR producer did not propose → 422, ask once and
 //                         NAME them, because confirming writes their real publication record
 //   write                 the unchanged authoritative assign (on-candidate, or confirmed)
-export type AssignGate = "confirm_no_identity" | "local_only" | "confirm_off_candidate" | "write";
+export type AssignGate =
+  | "confirm_no_identity" | "local_only"
+  | "confirm_mint" | "mint_and_write"
+  | "confirm_off_candidate" | "write";
 
 export function assignGate(o: {
   offCandidate: boolean;         // chosen cwid is neither top_cwid nor in candidate_cwids_json
   hasIdentity: boolean;          // reciterIdentitySet() found a named `person` row for it
+  inDirectory: boolean;          // WCM ED / Cornell Ithaca knows them (src/lib/directory.ts)
   confirmNoIdentity: boolean;    // client re-sent confirmNoIdentity:"true"
   confirmOffCandidate: boolean;  // client re-sent confirmOffCandidate:"true"
 }): AssignGate {
@@ -21,7 +31,22 @@ export function assignGate(o: {
   // write is possible at all. Its confirmation deliberately does not stand in for the
   // off-candidate one — they warn about opposite consequences ("nothing is written" vs
   // "something IS written to a person you didn't pick from a list").
-  if (!o.hasIdentity) return o.confirmNoIdentity ? "local_only" : "confirm_no_identity";
+  //
+  // A directory hit splits that branch in two, and the split is the point of the feature.
+  // "No identity" used to mean "no downstream write is POSSIBLE" — true only because nothing
+  // could create one. A live directory record makes it possible, so the same keystrokes now
+  // reach a real attribution instead of a local-only note nothing downstream can see. Measured
+  // 2026-09-07: 67 people / 255 rows are already sitting in that local-only state, and at least
+  // 6 of them resolve in the Cornell directory right now (kjc39 = Kevin J. Cummings, Professor,
+  // CVM Public and Ecosystem Health).
+  //
+  // The client flag is deliberately the SAME confirmNoIdentity it already sends — only the
+  // 422's message and the work behind the confirmation differ — so the existing retry path
+  // (doAction's 422 → banner → re-send with confirmNoIdentity:"true") needs no new branch.
+  if (!o.hasIdentity) {
+    if (o.inDirectory) return o.confirmNoIdentity ? "mint_and_write" : "confirm_mint";
+    return o.confirmNoIdentity ? "local_only" : "confirm_no_identity";
+  }
   if (o.offCandidate && !o.confirmOffCandidate) return "confirm_off_candidate";
   return "write";
 }

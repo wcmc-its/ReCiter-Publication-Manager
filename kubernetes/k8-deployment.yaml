@@ -165,6 +165,59 @@ spec:
             # Scopus lookups at the Scopus Retrieval Tool. Prod value is http://reciter-scopus-prod.
             - name: RECITER_SCOPUS_API_URL
               value: http://reciter-scopus-dev
+            # Directory lookup behind the /authorships typed-cwid box (src/lib/directory.ts).
+            # Every one is `optional: true` on purpose: with a source's three vars unset that
+            # source is simply absent and the assign path falls back to exactly today's
+            # behaviour, so this can deploy before the secrets are populated.
+            #
+            # NEVER name any of these NEXT_PUBLIC_* — that prefix ships the value to the browser
+            # (config/local.js:168 does it deliberately for the backend api key), and these are
+            # LDAP bind credentials.
+            #
+            # WCM ED: ldaps://ed.weill.cornell.edu:636, bind
+            # cn=reciter,ou=binds,dc=weill,dc=cornell,dc=edu — the same service account
+            # reciter-inst-client binds with nightly (password in
+            # reciter-inst-secrets/LDAP_BIND_PASSWORD), so egress from this cluster is proven.
+            - name: WCM_ED_LDAP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-dev-secrets
+                  key: WCM_ED_LDAP_URL
+                  optional: true
+            - name: WCM_ED_LDAP_BIND_DN
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-dev-secrets
+                  key: WCM_ED_LDAP_BIND_DN
+                  optional: true
+            - name: WCM_ED_LDAP_BIND_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-dev-secrets
+                  key: WCM_ED_LDAP_BIND_PASSWORD
+                  optional: true
+            # Cornell Ithaca: ldaps://query.directory.cornell.edu:636, base
+            # ou=People,o=Cornell University,c=us. Credentials already exist in Secrets Manager
+            # as scholars/<env>/directory/cornell-ithaca-ldap, and the bind is proven from an
+            # AWS egress IP — Scholars has had it live in prod since 2026-08-27.
+            - name: CORNELL_LDAP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-dev-secrets
+                  key: CORNELL_LDAP_URL
+                  optional: true
+            - name: CORNELL_LDAP_BIND_DN
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-dev-secrets
+                  key: CORNELL_LDAP_BIND_DN
+                  optional: true
+            - name: CORNELL_LDAP_BIND_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-dev-secrets
+                  key: CORNELL_LDAP_BIND_PASSWORD
+                  optional: true
           ports:
             - containerPort: 3000
               name: reciter-pm
