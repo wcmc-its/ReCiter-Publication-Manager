@@ -65,6 +65,17 @@ export interface SelectableRow {
 // the "Accept near-certain"/"Select all matching" bar, and authorshipSelectable server-side
 // all agree on this. Unchanged by T4 — a multi-candidate row must never satisfy it, which is
 // what keeps "Accept selected" from ever bulk-accepting one of the newly-selectable rows.
+//
+// ROUND 2, ITEM 2 — DECIDED: bulk does NOT get the rejection override. A single curator
+// overturning one person's own "not mine" is a judgment they make while looking at the row;
+// doing it to n rows from a toolbar is unattended, and the confirm that makes it deliberate
+// (the server's 409 PRIOR_REJECTION banner, per row, naming the person) has nowhere to appear.
+// So `!row.top_already_rejected` stays in both predicates below, and — the part that actually
+// enforces it — no bulk caller ever sends confirmOverrideRejection at all, because
+// doBulkAssign's flags come from assignConfirmFlags(), which knows only the off-candidate/
+// no-identity split. A multi-candidate bulk assign landing on a candidate who already rejected
+// therefore still gets the 409, and is counted in bucketAssignFailures' `conflict409` bucket
+// and named in the "Assigned k of N" toast, exactly as before.
 export function isAcceptEligible(row: SelectableRow): boolean {
   return !!row.single_candidate && row.identity_in_reciter !== false
     && !row.top_already_rejected && !!row.top_cwid;

@@ -12,6 +12,7 @@ import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldS
 import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
 import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
+import { cleanDisplayName } from "../../src/lib/displayName";
 import {
   lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured,
   type DirectoryPerson,
@@ -723,7 +724,9 @@ async function personNames(cwids: Array<string | undefined | null>): Promise<Rec
   });
   const out: Record<string, string> = {};
   found.forEach((p) => {
-    const name = [p.firstName, p.middleName, p.lastName].map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+    // cleanDisplayName because this mirror's middleName can hold a comma-joined variant list
+    // ("Young,Y"), which the space-join below would otherwise pass straight through.
+    const name = cleanDisplayName([p.firstName, p.middleName, p.lastName].map((v) => String(v || "").trim()).filter(Boolean).join(" "));
     if (name) out[String(p.personIdentifier)] = name;
   });
   return out;
@@ -867,7 +870,11 @@ async function identityLabel(cwid: string): Promise<string> {
     .map((v) => String(v || "").trim()).filter(Boolean).join(" ");
   const legalName = [row?.givenName, row?.middleName, row?.surname]
     .map((v) => String(v || "").trim()).filter(Boolean).join(" ");
-  const name = bylineName || legalName || await identityPrimaryName(cwid);
+  // One cleanDisplayName over the CHOSEN name covers all three sources at once — `person`,
+  // the `identity` roster and identityPrimaryName's DynamoDB item each expose their own
+  // middleName, and any of them can hold the comma-joined "Young,Y" variant list. Applied
+  // after the fallback chain, not inside it, so the source ordering above is unchanged.
+  const name = cleanDisplayName(bylineName || legalName || await identityPrimaryName(cwid));
   if (!name) return "";
   const dept = String(row?.primaryAcademicDepartment || "").trim();
   return dept ? `${name} · ${dept}` : name;
@@ -1148,6 +1155,13 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
         : [];
       return {
         ...json,
+        // The AAR producer bakes top_name off the same `person` mirror personNames() reads, so
+        // it carries the same comma-joined middle-name variant list ("Rowan Ashford,A Vance").
+        // Cleaning it once here fixes every card/panel/toast that renders top_name instead of
+        // wrapping each of them. Null/empty is passed through untouched rather than flattened
+        // to "", so the client's `top_name || top_cwid` fallbacks keep their exact behaviour.
+        // Display only — buildWhere's `top_name LIKE` still filters on the stored string.
+        top_name: json.top_name ? cleanDisplayName(json.top_name) : json.top_name,
         pmid_sibling_count: map[siblingKey(r)] || 1,
         // false → the proposed identity can't be accepted into ReCiter (UI hides Accept)
         identity_in_reciter: !r.top_cwid || knownIdentities.has(String(r.top_cwid)),
@@ -1982,7 +1996,13 @@ export const authorshipRecentActivity = async (req: NextApiRequest, res: NextApi
     // dismiss never set resolution_cwid and top_name is right there, so the client picks
     // per-row rather than swapping wholesale.
     const names = await personNames(rows.map((r) => r.resolution_cwid));
-    rows.forEach((r) => { r.resolution_name = r.resolution_cwid ? names[String(r.resolution_cwid)] : undefined; });
+    rows.forEach((r) => {
+      r.resolution_name = r.resolution_cwid ? names[String(r.resolution_cwid)] : undefined;
+      // Same clean the list response applies to top_name. Without it this panel rendered the
+      // stored "Rowan Ashford,A Vance" beside a card showing "Rowan Ashford Vance" — the same
+      // person, the same page, two spellings.
+      if (r.top_name) r.top_name = cleanDisplayName(r.top_name);
+    });
     res.send({ rows });
   } catch (e) {
     console.log(e);
@@ -2265,7 +2285,9 @@ async function homonymRejectionTargets(
 
 // POST /api/db/authorships/action — single-row curator action.
 // body: { id, action: "accept"|"reject"|"snooze"|"dismiss"|"assign"|"reopen", cwid?, force? }
-// cwid is required only for "assign"; force retries a scopus Accept past a 409 WARNING.
+// cwid is required only for "assign"; force retries a scopus Accept past a 409 WARNING, and
+// confirmOverrideRejection retries an assign past the 409 PRIOR_REJECTION guard (clearing the
+// prior rejection as part of the same write — see that guard).
 export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const curator = await resolveCurator(req);
@@ -2284,6 +2306,10 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
     const cwid = row.top_cwid as string | undefined;
     const reviewer = curator.cwid || String(curator.userID);
     const force = String(body.force) === "true";
+    // Round 2, item 2: the curator's explicit "yes, overturn that prior rejection". Same
+    // confirm-on-submit shape as confirmNoIdentity/confirmOffCandidate — absent by default, so
+    // every unattended caller (the bulk assign loop included) keeps hitting the 409.
+    const overrideRejection = String(body.confirmOverrideRejection) === "true";
 
     switch (action) {
       case "accept": {
@@ -2294,7 +2320,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         if (!row.single_candidate) return res.status(409).json({ code: "MULTI_CANDIDATE", message: "Multiple candidates — use \"Pick one\" to assign" });
         // 422 (not 409) so the client's scopus force-add prompt doesn't fire for this
         if (!(await reciterIdentitySet([cwid])).size) {
-          return res.status(422).send(`${row.top_name || cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
+          return res.status(422).send(`${cleanDisplayName(row.top_name) || cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
         }
         // "Same paper — accept PMID N": the curator has adjudicated this scopus row against its
         // producer-flagged PubMed twin and says the two are one work. Accepting is then
@@ -2319,7 +2345,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // so and point at the action that does fit: closing the scopus row as a duplicate.
         // Mirrors the same guard `assign` already applies (getKnownPmidsByCwid, below).
         if (sameWork && (await getKnownPmidsByCwid([cwid]))[cwid]?.has(acceptPmid)) {
-          return res.status(422).send(`${row.top_name || cwid} has already accepted PMID ${acceptPmid} — nothing to accept. Use "Same paper — dismiss" to close this Scopus row as a duplicate.`);
+          return res.status(422).send(`${cleanDisplayName(row.top_name) || cwid} has already accepted PMID ${acceptPmid} — nothing to accept. Use "Same paper — dismiss" to close this Scopus row as a duplicate.`);
         }
         if (isScopus && !sameWork) {
           const resp = await addExternalArticle(cwid, scopusExternalPayload(row), reviewer, force);
@@ -2344,7 +2370,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // Data-integrity guard: never let an accept add pmid to knownpmids while it's still
         // sitting in rejectedpmids for the same identity (see goldStandardRejections.ts).
         if ((await getRejectedPmidsByCwid([cwid]))[cwid]?.has(acceptPmid)) {
-          return res.status(409).send(`${row.top_name || cwid} already rejected this article — cannot accept without reviewing that rejection first`);
+          return res.status(409).send(`${cleanDisplayName(row.top_name) || cwid} already rejected this article — cannot accept without reviewing that rejection first`);
         }
         const gs = await writeGoldStandard(cwid, acceptPmid, "known", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
@@ -2634,13 +2660,79 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() }, { where: { id } });
           break;
         }
+        // Whether this assign actually deleted a prior rejection, so a later failure can put it
+        // back rather than leaving the person with neither an acceptance nor their "not mine".
+        let overturned = false;
         // Data-integrity guard: never let an assign add pmid to knownpmids while it's still
         // sitting in rejectedpmids for the same identity (see goldStandardRejections.ts).
+        //
+        // Round 2, item 2 — the guard is not deleted, it is given a sanctioned way through. The
+        // curator IS allowed to overturn a prior rejection from the queue, but only by saying so:
+        // without confirmOverrideRejection this still refuses and nothing is written, and WITH it
+        // the refusal's own advice ("review that rejection first") is what actually happens —
+        // the rejection is DELETED from the gold standard before the `known` merge below, so the
+        // pmid is never in both lists, not even for an instant. A failed DELETE aborts with 502
+        // rather than falling through to a write that would break exactly that invariant.
+        //
+        // The 409 becomes JSON so the client can route it into the row's inline confirm banner
+        // (the MULTI_CANDIDATE precedent above) instead of the generic "nothing was saved" toast;
+        // an older client just renders `message` as the plain text it used to get.
+        //
+        // Not reversed by `reopen`: reopen deletes the `known` this writes, but it does not put
+        // the old rejection back — the curator overturned it deliberately, and the row carries no
+        // record of what it was. Worth knowing before assuming reopen is a full undo here.
         if ((await getRejectedPmidsByCwid([target]))[target]?.has(pmid as number)) {
-          return res.status(409).send(`${target} already rejected this article — cannot assign without reviewing that rejection first`);
+          if (!overrideRejection) {
+            const who = await identityLabel(target);
+            // F-2, the third copy of this preview (confirm_no_identity and confirm_mint carry the
+            // other two): an ordinary on-candidate assign raises NO confirm at all today, so this
+            // is the one place a curator ever sees, BEFORE the write, that assigning also records
+            // "not mine" for the row's other candidates. Same homonymRejectionTargets() the write
+            // below uses, so the promise and the write cannot drift.
+            const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+            let alsoRejectedNote = "";
+            if (alsoRejected.length) {
+              const names = await Promise.all(alsoRejected.map(async (c) => {
+                const who = await identityLabel(c);
+                return who ? `${who} (${c})` : c;
+              }));
+              alsoRejectedNote = ` It also records "not mine" for ${names.join(", ")}.`;
+            }
+            return res.status(409).json({
+              code: "PRIOR_REJECTION",
+              cwid: target,
+              alsoRejected,
+              message: `${who ? `${who} · ${target}` : target} already rejected this article on their own `
+                + "curation page. Confirming OVERTURNS that rejection and adds the article to their "
+                + `publication record — the same write an Accept makes.${alsoRejectedNote}`,
+            });
+          }
+          const undo = await writeGoldStandard(target, pmid as number, "rejected", "DELETE", curator.userID);
+          if (undo !== 200) {
+            return res.status(502).send(
+              `Could not clear ${target}'s previous rejection (${undo}) — nothing was written.`);
+          }
+          overturned = true;
         }
         const gs = await writeGoldStandard(target, pmid as number, "known", "UPDATE", curator.userID);
-        if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
+        if (gs !== 200) {
+          // An override that gets this far has ALREADY deleted the person's "not mine". Saying
+          // "nothing was saved" here — which is what the bare message did, and what the client
+          // renders verbatim — would be false twice over: their rejection is gone, and because
+          // the guard above reads gold-standard state, the retry would then sail through as an
+          // ORDINARY assign with no confirmation and no banner. Put the rejection back, and if
+          // that fails too, say exactly what is now missing instead of implying it is intact.
+          if (overturned) {
+            const restore = await writeGoldStandard(target, pmid as number, "rejected", "UPDATE", curator.userID);
+            return res.status(502).send(
+              restore === 200
+                ? `Gold-standard write failed (${gs}). ${target}'s previous rejection has been put back — nothing changed.`
+                : `Gold-standard write failed (${gs}), and ${target}'s previous rejection could NOT be restored (${restore}). `
+                  + "Their \"not mine\" for this article is gone from the gold standard — re-assign to finish the "
+                  + "override, or ask them to reject it again on their own curation page.");
+          }
+          return res.status(502).send(`Gold-standard write failed (${gs})`);
+        }
         // ...and the other homonyms. Same write "None of these" makes for each of them, so
         // /curate, the feedback log and the model all see an ordinary curator "not mine"
         // rather than a new kind of record. See homonymRejections() for what it excludes.
