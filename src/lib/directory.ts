@@ -85,7 +85,14 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
   const id = first(e.weillCornellEduCWID) ?? first(e.uid);
   if (!id) return null;
   const given = first(e.givenName), sn = first(e.sn);
-  const types = clean(all(e.weillCornellEduPersonTypeCode)).map((t) => `wcm-${t.toLowerCase()}`);
+  // NO PREFIX. `weillCornellEduPersonTypeCode` already carries ReCiter's own person-type
+  // vocabulary verbatim -- "academic-faculty-weillfulltime", "affiliate-cornell",
+  // "employee-exempt" -- confirmed 2026-09-08 against both ED (17 distinct values over 400
+  // people, none containing whitespace) and a live Identity record: paa2013 holds exactly
+  // these strings unprefixed. Prefixing them invents a parallel vocabulary that no cohort
+  // filter matches, and `affiliate-cornell` (live on 483 people) is one of the strings it
+  // would break.
+  const types = clean(all(e.weillCornellEduPersonTypeCode)).map((t) => t.toLowerCase());
   return {
     id, source: "wcm",
     name: first(e.displayName) || clean([given, sn]).join(" ") || id,
@@ -93,6 +100,14 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
     title: first(e.title),
     dept: first(e.weillCornellEduDepartment),
     emails: clean(all(e.mail)).map((m) => m.toLowerCase()),
+    // ponytail: `wcm-directory` is deliberately NOT a real ReCiter person type, and is the one
+    // invented string left in this file. 45 of the 61 WCM people minted on 2026-09-08 landed
+    // here, because ED genuinely returns no weillCornellEduPersonTypeCode for them (verified
+    // per-uid: skt2001 and evakiani have an ED entry and zero codes). An empty personTypes is
+    // the worse failure -- it hides accepted articles from reporting, ~34k of them across
+    // 1,521 uids on the last measurement -- so a non-empty placeholder wins. It is prefixed so
+    // it can never be mistaken for a real type. Replace it once someone decides what an
+    // ED-typeless person should actually be.
     personTypes: types.length ? types : ["wcm-directory"],
     wcmCwid: null,
   };
@@ -107,6 +122,48 @@ const CORNELL_ATTRS = [
   "cornelleduprimaryaffiliation", "cornelleduaffiliation", "cornelledutype", "cornellEduCWID",
 ] as const;
 
+// The canonical Cornell person-type vocabulary, and the only place it is spelled in this repo.
+// It must stay identical to sync_cornell_ithaca_identities.AFFILIATION_VALUES, because both
+// write `personTypes` on the same DynamoDB Identity records and ReCiterDB's
+// identity_index.CORNELL_PERSON_TYPES reads whichever got there first. Two spellings of one
+// concept means the label silently degrades to the "Cornell Ithaca" floor.
+//
+// ORDER IS LOAD-BEARING — longest first, and each hit is cut out of the string before the next
+// is tried, so "retired faculty" cannot also be read as "faculty" and "former postdoc" cannot
+// also be read as... nothing else, but the same rule protects both. This mirrors the Python
+// scanner exactly; the Cornell attribute is properly multi-valued here rather than the
+// undelimited xlsx blob the sync has to cope with, but the vocabulary must still match.
+const CORNELL_AFFILIATION_VALUES = [
+  "retired faculty", "former postdoc", "email list", "temporary", "affiliate",
+  "exception", "emeritus", "academic", "student", "retiree", "faculty",
+  "alumni", "staff",
+] as const;
+
+// A directory value that matches nothing known still has to become a well-formed token: raw
+// values carry spaces and slashes ("exception - w/sponsor"), and `cornell-exception - w/sponsor`
+// is not something any consumer can match on. Runs of non-alphanumerics collapse to one hyphen.
+const slugType = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+export function cornellPersonTypes(raw: string[]): string[] {
+  const out = new Set<string>();
+  for (const value of raw) {
+    let s = value.toLowerCase();
+    let matched = false;
+    for (const known of CORNELL_AFFILIATION_VALUES) {
+      if (s.includes(known)) {
+        s = s.split(known).join("|");          // cut it out, as the Python scanner does
+        out.add(`cornell-${known.replace(/ /g, "-")}`);
+        matched = true;
+      }
+    }
+    if (!matched) {
+      const slug = slugType(value);
+      if (slug) out.add(`cornell-${slug}`);
+    }
+  }
+  return [...out].sort();
+}
+
 export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerson | null {
   const id = first(e.uid);
   if (!id) return null;
@@ -115,9 +172,9 @@ export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerso
   // Ithaca onboarding plan relies on does not carry at all.
   const given = first(e.cornelleduprefgivenname) || first(e.givenName);
   const sn = first(e.cornelleduprefsn) || first(e.sn);
-  const types = clean([
+  const types = cornellPersonTypes(clean([
     ...all(e.cornelleduaffiliation), first(e.cornelleduprimaryaffiliation), first(e.cornelledutype),
-  ]).map((t) => `cornell-${t.toLowerCase()}`);
+  ]));
   return {
     id, source: "cornell",
     name: first(e.displayName) || clean([given, sn]).join(" ") || id,
