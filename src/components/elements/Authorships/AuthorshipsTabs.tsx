@@ -16,6 +16,7 @@ import {
   typedCwidPreview,
 } from "../../../lib/bulkAssign";
 import type { CandidateLite, TypedCwidLookupState } from "../../../lib/bulkAssign";
+import { cleanDisplayName } from "../../../lib/displayName";
 
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
@@ -128,7 +129,13 @@ interface ConflictEntry {
   //                     gates to "Pick one". Not retried — fetchData(true) below refreshes the
   //                     row so the card itself flips to the Pick-one controls; this banner is
   //                     explanation only, no confirm action.
-  kind: "dup" | "no_identity" | "off_candidate" | "multi_candidate";
+  // "prior_rejection" — 409 PRIOR_REJECTION (round 2, item 2): the picked candidate already
+  //                     rejected this exact article on their own /curate page. Retried with
+  //                     confirmOverrideRejection:"true", which makes the server CLEAR that
+  //                     rejection and then assign, as one operation. This is the only confirm an
+  //                     ordinary on-candidate assign ever raises, so its message carries the
+  //                     "…and this also records 'not mine' for X, Y" clause too.
+  kind: "dup" | "no_identity" | "off_candidate" | "multi_candidate" | "prior_rejection";
   action_label?: string;   // confirm-button text; kind decides it, held here for the log
   extra?: Record<string, any>;
   message: string;
@@ -185,7 +192,9 @@ interface Candidate {
   affil_dept_match?: boolean;
   given_match?: string;
   // true → this candidate already rejected this exact pmid via their own /curate page
-  // (GoldStandard.rejectedpmids) — must never be the highlighted lead, radio stays disabled.
+  // (GoldStandard.rejectedpmids) — must never be the highlighted lead. Round 2, item 2: the
+  // radio IS pickable, because the curator may overturn that rejection; the server's 409
+  // PRIOR_REJECTION confirm is what keeps it deliberate.
   already_rejected?: boolean;
 }
 
@@ -730,6 +739,25 @@ const Tip = ({ children, ...rest }: any) => (
 // ---- pure helpers --------------------------------------------------------
 const hasWcm = (aff?: string) => !!aff && WCM_RE.test(aff);
 
+// Cornell email identifiers off a raw affiliation string.
+// PubMed writes the corresponding author's address into the affiliation itself, as
+// "... Electronic address: abc1001@med.cornell.edu." At all three Cornell domains the local
+// part IS the person identifier -- cornell.edu an Ithaca NetID, med.cornell.edu a WCM CWID,
+// qatar-med.cornell.edu a WCM-Qatar one -- so an exact match to a candidate's cwid is the
+// strongest signal this queue has, stronger than any score (see MultiEvidence).
+// ANCHORED ON BOTH SIDES, because a near-miss here would silently pin the wrong person: the
+// domain is spelled out immediately after the "@" so "x@notcornell.edu" can never match, and
+// the two lookaheads reject "cornell.edu.evil.com" and "cornell.eduX" while still allowing the
+// sentence-final period PubMed almost always writes after the address.
+// One string can carry SEVERAL addresses (a row's affiliations arrive concatenated in the one
+// author_affiliation TEXT column), so every match is returned -- lowercased, de-duplicated,
+// first-seen order. A local part matching no candidate is NOT an error: it is someone ReCiter
+// may not know, which is what AssignOther's directory lookup exists for. Never invent a
+// candidate from one.
+const CORNELL_EMAIL_RE = /[A-Za-z0-9._%+-]+@(?:med\.|qatar-med\.)?cornell\.edu(?![A-Za-z0-9-])(?!\.[A-Za-z0-9])/gi;
+export const cornellEmailIds = (aff?: string): string[] =>
+  Array.from(new Set((aff?.match(CORNELL_EMAIL_RE) || []).map((a) => a.split("@")[0].toLowerCase())));
+
 // Wrap the WCM institution token in <mark>. Returns React nodes (one match).
 const highlightAffiliation = (text?: string): ReactNode => {
   if (!text) return null;
@@ -765,11 +793,18 @@ const formatActivityDate = (timestamp?: string): string => {
   return d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
 };
 
+// c.name is baked by the AAR producer off the same `person` mirror the server's personNames()
+// reads, so it carries that mirror's comma-joined middle-name variant list — "Rowan Ashford,Y
+// Han" (src/lib/displayName.ts). Cleaned once HERE, at the single point the blob is parsed,
+// rather than at each of the render sites downstream (the Pick-one radio rows, the bulk
+// "Assign selected to…" picker via rowCandidateLites): every consumer of a Candidate reads the
+// name for display only — cwid is what the writes key on — so nothing is keyed off the raw form.
 const parseCandidates = (json?: string): Candidate[] => {
   if (!json) return [];
   try {
     const parsed = JSON.parse(json);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((c: Candidate) => (c && c.name ? { ...c, name: cleanDisplayName(c.name) } : c));
   } catch {
     return [];
   }
@@ -967,8 +1002,8 @@ const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
 };
 
 // §2.6's 296px identity hover card (mockup:337-369). Name + CWID, then whatever of
-// department / division / affiliation the row actually carries, then the byline names this
-// person has already published under.
+// department / division / affiliation the identity actually carries, then the byline names
+// this person has already published under.
 //
 // The three states of the names block are deliberately distinct, because two of them look the
 // same from the client and mean opposite things:
@@ -979,24 +1014,36 @@ const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
 //                               rows exist WITH userAssertion='ACCEPTED', the only state this
 //                               card counts; 5,662 is the all-states figure and is not the
 //                               claim. Calling this "no accepted papers" is a lie)
-const IdentityHoverCard = ({ row: r, priorNames }: { row: AuthorshipRow; priorNames?: PriorNames }) => {
-  const hasDetail = !!(r.top_dept || r.top_division || r.top_institution);
+//
+// Takes the identity's fields rather than the row, because it has TWO feeds: the row's proposed
+// identity on L2, and every candidate inside MultiEvidence on a multi-candidate row — which is
+// where a curator choosing among homonyms most needs to see who has published as whom. A
+// Candidate carries name/cwid/dept and nothing else, so division/institution are optional and
+// the detail block simply shrinks.
+const IdentityHoverCard = ({ name, cwid, dept, division, institution, priorNames }: {
+  name?: string | null; cwid?: string | null; dept?: string | null;
+  division?: string | null; institution?: string | null; priorNames?: PriorNames;
+}) => {
+  const hasDetail = !!(dept || division || institution);
   return (
-    <span onClick={(e) => e.stopPropagation()}
+    // preventDefault as well as stopPropagation: inside MultiEvidence this popup renders within
+    // the candidate's <label>, and a stray click on the card's own text would otherwise activate
+    // the label and silently move the curator's radio to whoever they were only reading about.
+    <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
       style={{ position: "absolute", top: "100%", left: 0, zIndex: 60, width: 296, paddingTop: 8, display: "block", cursor: "default" }}>
       <span style={{
         display: "flex", flexDirection: "column", gap: 10, background: "#fff", border: `1px solid ${CTRL.border}`,
         borderRadius: 8, boxShadow: "0 14px 34px rgba(27,36,50,0.18)", padding: "13px 15px",
         fontWeight: 400, letterSpacing: 0, color: CTRL.ink }}>
         <span style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{r.top_name || r.top_cwid}</span>
-          <span style={{ fontSize: 13, color: CTRL.accent }}>{r.top_cwid}</span>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{name || cwid}</span>
+          <span style={{ fontSize: 13, color: CTRL.accent }}>{cwid}</span>
         </span>
         {hasDetail && (
           <span style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13, color: "#4a5262", lineHeight: 1.45 }}>
-            {r.top_dept && <span>{r.top_dept}</span>}
-            {r.top_division && <span style={{ color: "#6f7889" }}>{r.top_division}</span>}
-            {r.top_institution && <span style={{ color: "#6f7889" }}>{r.top_institution}</span>}
+            {dept && <span>{dept}</span>}
+            {division && <span style={{ color: "#6f7889" }}>{division}</span>}
+            {institution && <span style={{ color: "#6f7889" }}>{institution}</span>}
           </span>
         )}
         <span style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
@@ -1709,18 +1756,23 @@ const AuthorshipsTabs = () => {
         // raise differ (see ConflictEntry.kind and the banner below); the plumbing doesn't.
         // MULTI_CANDIDATE checked ahead of scopusDup: both are plain 409s, and a scopus row can
         // hit the multi-candidate gate too (it's checked before the isScopus branch server-side).
+        // PRIOR_REJECTION sits with MULTI_CANDIDATE ahead of scopusDup for the same reason:
+        // both are 409s carrying a code, and a bare `scopusDup ?` earlier would swallow one on a
+        // scopus row into a "Force add anyway" prompt that answers a different question.
         const kind: ConflictEntry["kind"] | null =
           e?.status === 422 && e?.code === "NO_RECITER_IDENTITY" ? "no_identity"
             : e?.status === 422 && e?.code === "OFF_CANDIDATE" ? "off_candidate"
               : e?.status === 409 && e?.code === "MULTI_CANDIDATE" ? "multi_candidate"
-                : scopusDup ? "dup" : null;
+                : e?.status === 409 && e?.code === "PRIOR_REJECTION" ? "prior_rejection"
+                  : scopusDup ? "dup" : null;
         if (kind) {
           const entry: ConflictEntry = {
             id: row.id, action, kind,
             extra: kind === "no_identity" ? { ...extra, confirmNoIdentity: "true" }
               : kind === "off_candidate" ? { ...extra, confirmOffCandidate: "true" }
-                : kind === "multi_candidate" ? { ...extra }
-                  : { ...extra, force: "true" },
+                : kind === "prior_rejection" ? { ...extra, confirmOverrideRejection: "true" }
+                  : kind === "multi_candidate" ? { ...extra }
+                    : { ...extra, force: "true" },
             message: String(e?.message || e),
             matches: Array.isArray(e?.matches) ? e.matches : [],
             wcm_author: row.wcm_author, top_name: row.top_name, ts: Date.now(),
@@ -3231,10 +3283,13 @@ const AuthorshipsTabs = () => {
             onAssignOther={() => focusAssignOther(r.id)}
             onNarrowPmid={() => narrowToPmid(r.pmid)}
             onFindOthers={() => findOthersLikeThis(r.wcm_author)}
-            // §2.6 hover card: `undefined` means "not asked yet / still in flight", which the
-            // card renders as a loading line. An answered cwid always has an entry.
-            priorNames={r.top_cwid ? priorNames[r.top_cwid] : undefined}
-            onHoverIdentity={() => requestPriorNames(r.top_cwid)}
+            // §2.6 hover card: the whole per-cwid cache, because a multi-candidate card hovers
+            // its CANDIDATES too and there is no way to know up front which ones. A missing key
+            // means "not asked yet / still in flight", which the card renders as a loading line;
+            // an answered cwid always has an entry. requestPriorNames is passed straight through
+            // — its asked-set ref is what keeps N candidates to at most N requests, ever.
+            priorNames={priorNames}
+            onHoverIdentity={requestPriorNames}
             // Session conflict if this curator just hit it; otherwise rehydrate the one
             // persisted on the row, so a refresh (or a different curator) still sees why.
             conflict={conflicts[r.id] ?? (r.accept_conflict ? {
@@ -3738,10 +3793,11 @@ interface CardProps {
   onAssignOther: () => void;
   onNarrowPmid: () => void;
   onFindOthers: () => void;
-  // §2.6 identity hover card. undefined = not fetched yet (or in flight); the parent owns the
-  // per-cwid cache, so a card never re-requests what another card already asked for.
-  priorNames?: PriorNames;
-  onHoverIdentity: () => void;
+  // §2.6 identity hover card. The parent's per-cwid cache, keyed by cwid: a missing key = not
+  // fetched yet (or in flight). The parent owns it, so a card never re-requests what another
+  // card — or another candidate row on this same card — already asked for.
+  priorNames: Record<string, PriorNames>;
+  onHoverIdentity: (cwid?: string | null) => void;
   conflict?: ConflictEntry;
   onClearConflict: () => void;
 }
@@ -3784,7 +3840,7 @@ const AuthorshipCard = ({
   useEffect(() => cancelHover, []);
   const openIdentityHover = () => {
     cancelHover();
-    hoverTimer.current = setTimeout(() => { setIdentityHover(true); onHoverIdentity(); }, 220);
+    hoverTimer.current = setTimeout(() => { setIdentityHover(true); onHoverIdentity(r.top_cwid); }, 220);
   };
   const closeIdentityHover = () => { cancelHover(); setIdentityHover(false); };
 
@@ -3853,7 +3909,9 @@ const AuthorshipCard = ({
                       style={{ color: "#2563eb", textDecoration: "none" }}>{r.top_cwid}</a>
                   )}
                   {identityHover && (
-                    <IdentityHoverCard row={r} priorNames={priorNames} />
+                    <IdentityHoverCard name={r.top_name} cwid={r.top_cwid} dept={r.top_dept}
+                      division={r.top_division} institution={r.top_institution}
+                      priorNames={r.top_cwid ? priorNames[r.top_cwid] : undefined} />
                   )}
                 </span>
                 <span style={{ color: "#94a3b8" }}>· {r.top_person_type}{r.top_dept ? `, ${r.top_dept}` : ""}</span>
@@ -4057,8 +4115,9 @@ const AuthorshipCard = ({
           <div style={{ fontWeight: 700, marginBottom: 3 }}>
             {conflict.kind === "no_identity" ? "No ReCiter identity"
               : conflict.kind === "off_candidate" ? "Not a proposed candidate — this writes their record"
-                : conflict.kind === "multi_candidate" ? "This row now has multiple candidates"
-                  : "Possible duplicate"}
+                : conflict.kind === "prior_rejection" ? "This person already rejected this article"
+                  : conflict.kind === "multi_candidate" ? "This row now has multiple candidates"
+                    : "Possible duplicate"}
             {" — "}{conflict.wcm_author || conflict.top_name || r.wcm_author}
           </div>
           <div style={{ marginBottom: 6 }}>{conflict.message}</div>
@@ -4083,7 +4142,8 @@ const AuthorshipCard = ({
                 style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>
                 {conflict.kind === "no_identity" ? "Assign anyway — record on this row only"
                   : conflict.kind === "off_candidate" ? "Yes — add to their publication record"
-                    : "Force add anyway"}
+                    : conflict.kind === "prior_rejection" ? "Overturn the rejection and assign"
+                      : "Force add anyway"}
               </button>
             )}
             <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>
@@ -4098,7 +4158,8 @@ const AuthorshipCard = ({
         <div style={{ padding: "0 15px 14px 43px", fontSize: 13, color: "#475569" }}>
           {isMulti ? (
             <MultiEvidence row={r} candidates={candidates} pickedCwid={pickedCwid} acting={acting}
-              onPick={onPick} onAction={onAction} />
+              onPick={onPick} onAction={onAction}
+              priorNames={priorNames} onHoverIdentity={onHoverIdentity} />
           ) : (
             <SingleEvidence row={r} wcm={wcm} isAbsent={isAbsent} />
           )}
@@ -4289,12 +4350,18 @@ const HomonymNote = ({ listed, typed }: { listed: number; typed: number }) => ty
 );
 
 // multi-candidate disambiguation panel (F11)
-const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onAction }: {
+const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onAction, priorNames, onHoverIdentity }: {
   row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean;
   onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
+  // the parent's per-cwid prior-names cache and its fetcher — see CardProps
+  priorNames: Record<string, PriorNames>; onHoverIdentity: (cwid?: string | null) => void;
 }) => {
-  // rank by full given-name match first, then IO desc, then matcher confidence desc --
-  // the same key the AAR producer now writes server-side. io_score is on a 0-100 scale, so
+  // rank by email-address match first (round 2 item 1, spelled out below), then full
+  // given-name match, then IO desc, then matcher confidence desc -- the last three are the
+  // same key the AAR producer now writes server-side. The email arm has no server-side
+  // counterpart: nothing in this repo but the helper below reads an address out of an
+  // affiliation, so the producer's ordering never knows about it and this sort is what makes
+  // it real. io_score is on a 0-100 scale, so
   // a 0.62 is the model saying "not this person"; ranking on IO alone let any faintly-scored
   // homonym take the lead over a byline-exact name match. IO and then confidence break the
   // remaining ties (a candidate production never retrieved -- io_score null -- still carries
@@ -4304,23 +4371,66 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
   // but they stay VISIBLE in the rendered list below (`visible` is still built from the raw
   // `candidates` prop) so a curator who remembers "5 candidates" isn't confused by only 4.
   const eligibleForLead = candidates.filter((c) => !c.already_rejected);
+  // Round 2, item 1: an email local part off the row's raw affiliation that equals a
+  // candidate's cwid is DECISIVE -- the paper printed the person's address, so it outranks
+  // every score below it and a candidate the model scored 0.62 still takes the card.
+  // Computed once per card off r.author_affiliation, which is row-level (the whole byline's
+  // affiliation text), so several candidates on one row can match if several addresses appear.
+  const emailIds = cornellEmailIds(r.author_affiliation);
+  const isEmail = (c: Candidate) => (emailIds.indexOf(String(c.cwid || "").toLowerCase()) > -1 ? 1 : 0);
   const isFull = (c: Candidate) => (c.given_match === "full" ? 1 : 0);
-  const ranked = [...eligibleForLead].sort((a, b) => isFull(b) - isFull(a) ||
+  const ranked = [...eligibleForLead].sort((a, b) => isEmail(b) - isEmail(a) || isFull(b) - isFull(a) ||
     (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1));
-  // a full name match is never folded away behind "Show all", scored or not.
-  const unfolded = ranked.filter((c) => isFull(c) || c.io_score != null);
-  const folded = ranked.filter((c) => !isFull(c) && c.io_score == null);
+  // an email match or a full name match is never folded away behind "Show all", scored or not.
+  const unfolded = ranked.filter((c) => isEmail(c) || isFull(c) || c.io_score != null);
+  const folded = ranked.filter((c) => !isEmail(c) && !isFull(c) && c.io_score == null);
   const [showAll, setShowAll] = useState(false);
+  // §2.6's identity hover card, per candidate. This is the row where a curator most needs it —
+  // "which of these five homonyms has already published as this byline name" is the question the
+  // panel is asking — so it is the same card, the same parent-owned cache and the same 220ms
+  // hover-intent delay the L2 line uses (see AuthorshipCard), only keyed by cwid instead of a
+  // boolean because a row has N candidates and at most one popup may be open.
+  // Nothing is requested on render: onHoverIdentity IS the parent's requestPriorNames, whose
+  // asked-set ref means sweeping all five candidates costs at most five requests for the life of
+  // the page, however many times the pointer crosses them again.
+  const [hoverCwid, setHoverCwid] = useState<string | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelHover = () => { if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; } };
+  useEffect(() => cancelHover, []);
+  const openHover = (cwid?: string) => {
+    cancelHover();
+    // a candidate the producer listed without a cwid has nothing to look up, and opening on ""
+    // would strand that popup on "Loading…" (requestPriorNames drops a blank cwid on the floor)
+    if (!cwid) return;
+    hoverTimer.current = setTimeout(() => { setHoverCwid(cwid); onHoverIdentity(cwid); }, 220);
+  };
+  const closeHover = () => { cancelHover(); setHoverCwid(null); };
   const anyDeptMatch = candidates.some((c) => c.affil_dept_match);
-  // lead = the top-ranked candidate, but only when it is actually strong: a full given-name
-  // match, or an IO-scored one, or a confidence that is itself meaningful (>=0.5) -- a flat
-  // tie among all-weak candidates should still highlight nobody.
+  // lead = the top-ranked candidate, but only when it is actually strong: an email-address
+  // match, a full given-name match, or an IO-scored one, or a confidence that is itself
+  // meaningful (>=0.5) -- a flat tie among all-weak candidates should still highlight nobody.
+  // The email arm is what stops an unscored, name-mismatched candidate whose ADDRESS is on the
+  // paper from being ranked first and then highlighted as nobody.
   const top = ranked[0];
-  const lead = top && (isFull(top) || top.io_score != null || (top.confidence ?? 0) >= 0.5) ? top : undefined;
+  const lead = top && (isEmail(top) || isFull(top) || top.io_score != null || (top.confidence ?? 0) >= 0.5) ? top : undefined;
   // The Assign button writes the PRODUCTION gold standard, so it must reflect an
   // EXPLICIT curator pick — never a silent default. We highlight the top-ranked
   // candidate (lead) as a visual hint only; selectedCwid drives the radio state but
   // Assign is gated on pickedCwid below so opening/mis-clicking a card can't write GS.
+  // ONE exception, per the owner (round 2, item 1): an email match is not the matcher
+  // guessing, it is the paper naming the person, so it seeds the pick FOR REAL. It writes the
+  // parent's `picked` map rather than a local default precisely so the Assign gate below sees
+  // an actual pick and lights up -- a pre-selected radio over a dead button would be worse
+  // than no pre-selection at all.
+  // `!pickedCwid` is the no-stomp guard: the seed fires only while the row has no pick at all,
+  // so a curator's own click is never overwritten, and collapsing/re-expanding the card cannot
+  // undo one either (`picked` lives in the page and outlives this component).
+  // Already-rejected candidates are excluded by construction -- emailCwid comes off `ranked`,
+  // which is built from eligibleForLead -- so a rejected email match still gets the badge below
+  // and can still be picked BY HAND (round 2, item 2), but is never seeded automatically: an
+  // override has to be somebody's decision, not a default.
+  const emailCwid = ranked.find((c) => isEmail(c))?.cwid;
+  useEffect(() => { if (!pickedCwid && emailCwid) onPick(emailCwid); }, [pickedCwid, emailCwid, onPick]);
   const selectedCwid = pickedCwid;
   // when nothing survives the fold, there is nothing to show in the default view —
   // auto-expand the folded list so the curator always has a visible choice to pick.
@@ -4338,6 +4448,10 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
   // difference between a candidate cwid and an accepted_by cwid must not silently drop the
   // badge off the one candidate the curator most needs it on.
   const acceptedByCwids = new Set((r.accepted_by || []).map((a) => String(a.cwid || "").toLowerCase()));
+  // Round 2, item 2: is the CURRENT pick a candidate who already rejected this article? Drives
+  // the Assign button's label only — never its disabled state, which is a plain "has the curator
+  // picked anyone at all".
+  const pickedRejected = !!pickedCwid && candidates.some((c) => c.cwid === pickedCwid && c.already_rejected);
 
   return (
     <>
@@ -4355,32 +4469,49 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
           const checked = c.cwid === selectedCwid;
           const rejected = c.already_rejected === true;
           const acceptedElsewhere = acceptedByCwids.has(String(c.cwid || "").toLowerCase());
+          // Round 2, item 2: an already-rejected candidate is PICKABLE — the curator is
+          // allowed to overturn that rejection from here. It stays red-bordered, dimmed and
+          // chipped so the state is never lost, and the two things that make the override
+          // explicit rather than silent sit downstream: the Assign button relabels itself,
+          // and the server's 409 raises a confirm banner naming the person before anything
+          // is written. What deliberately does NOT change: rejected candidates are still
+          // excluded from `eligibleForLead`, so overridability never lets one jump the
+          // ranking, become the highlighted lead, or seed the radio on its own.
           return (
             <label key={c.cwid || i} onClick={(e) => e.stopPropagation()} style={{
               display: "flex", alignItems: "center", gap: 11, padding: "9px 11px",
               border: `1px solid ${isLead ? "#bbf7d0" : rejected ? "#fecaca" : "#e8edf2"}`, borderRadius: 7, marginBottom: 7,
-              cursor: rejected ? "not-allowed" : "pointer",
+              cursor: "pointer",
               background: isLead ? "#f0fdf4" : rejected ? "#fef2f2" : "#fff",
               opacity: rejected ? 0.8 : 1,
             }}>
-              <input type="radio" name={`m${r.id}`} checked={checked} disabled={rejected} onChange={() => onPick(c.cwid)}
+              <input type="radio" name={`m${r.id}`} checked={checked} onChange={() => onPick(c.cwid)}
                 onClick={(e) => e.stopPropagation()}
                 style={{ accentColor: "#2563eb", flex: "none" }} />
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0f172a" }}>
+                {/* the candidate's name + cwid is the hover target AND the popup's positioning
+                    context. The popup renders INSIDE it on purpose: a child never fires
+                    mouseleave on its parent, so the pointer can travel down into the card. */}
+                <span onMouseEnter={() => openHover(c.cwid)} onMouseLeave={closeHover}
+                  style={{ position: "relative", display: "inline-block", fontSize: 13.5, fontWeight: 600, color: "#0f172a" }}>
                   {c.name}{" "}
                   {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
+                  {hoverCwid === c.cwid && (
+                    <IdentityHoverCard name={c.name} cwid={c.cwid} dept={c.dept} priorNames={priorNames[c.cwid]} />
+                  )}
                 </span>
                 <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>
                   {c.person_type}{c.dept ? ` · ${c.dept}` : ""}{!hasWcm(r.author_affiliation) ? " · ⚠ no WCM string" : ""}
                 </span>
-                {(c.given_match === "full" || c.affil_dept_match || rejected || acceptedElsewhere) && (
+                {(!!isEmail(c) || c.given_match === "full" || c.affil_dept_match || rejected || acceptedElsewhere) && (
                   <span style={{ display: "flex", gap: 5, marginTop: 4, flexWrap: "wrap" }}>
                     {/* already-rejected (GoldStandard) takes precedence — shown ahead of any match chips */}
                     {rejected && <Chip kind="warn">Already rejected</Chip>}
                     {/* #990: this candidate is the accepted_by rival named on the card above —
                         picking them here would just re-confirm the existing slot conflict. */}
                     {acceptedElsewhere && <Chip kind="warn">Accepted this article</Chip>}
+                    {/* decisive (round 2, item 1) -- leads the match chips it outranks */}
+                    {!!isEmail(c) && <Chip kind="ok">Email match</Chip>}
                     {c.given_match === "full" && <Chip kind="ok">Full name match</Chip>}
                     {c.affil_dept_match && <Chip kind="ok">Dept match</Chip>}
                   </span>
@@ -4412,12 +4543,15 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
         )}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
-        {/* defense in depth: the radio being disabled already prevents picking a rejected
-            candidate through the UI, but this closes any edge-case gap cheaply. */}
-        <button style={btn("accept", acting || !pickedCwid || candidates.find((c) => c.cwid === pickedCwid)?.already_rejected)}
-          disabled={acting || !pickedCwid || candidates.find((c) => c.cwid === pickedCwid)?.already_rejected}
+        {/* Round 2, item 2: an already-rejected pick no longer blocks Assign — it RENAMES it, so
+            the curator reads what they are about to do before the click, and the server's
+            confirm banner names the person after it. (This replaced a "defense in depth" block
+            on already_rejected; the server is the real gate either way, and it now answers with
+            a 409 PRIOR_REJECTION confirm rather than a dead end.) */}
+        <button style={btn("accept", acting || !pickedCwid)}
+          disabled={acting || !pickedCwid}
           onClick={(e) => { e.stopPropagation(); pickedCwid && onAction("assign", { cwid: pickedCwid }); }}>
-          <IconCheck /> Assign selected
+          <IconCheck /> {pickedRejected ? "Override rejection & assign" : "Assign selected"}
         </button>
         <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
           <IconX /> Reject all
