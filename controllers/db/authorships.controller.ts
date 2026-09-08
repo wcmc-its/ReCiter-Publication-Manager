@@ -144,7 +144,7 @@ const INSTITUTION_BUCKETS: Record<string, string[]> = {
 // author_affiliation text printed on the paper — a person whose roster value is "Weill Cornell
 // Medical College" routinely appears on a byline reading "Weill Cornell Medicine", so reusing
 // the roster literals here would match almost nothing. Patterns were validated against live
-// production data (all 12 buckets return plausible counts in one pass over the open rows).
+// production data (all 13 buckets return plausible counts in one pass over the open rows).
 // `wcmExclude` keeps buckets disjoint: "Weill Cornell" also matches the Qatar campus, which has
 // its own bucket, so wcm subtracts it rather than double-counting.
 const INSTITUTION_BYLINE_PATTERNS: Record<string, string[]> = {
@@ -188,7 +188,7 @@ const BYLINE_EXCLUDE: Record<string, string[]> = {
  * rows — the summary asks for the person/either basis (the `institutions` facet) and the byline
  * basis (the `authorInstitutions` facet) together, and running them as two queries would mean
  * two scans. Measured on the dev DB over the open queue: 12 SUMs (either) 315 ms, the same 12
- * plus 12 byline_-prefixed SUMs 534 ms, byline alone 322 ms — one combined query is ~100 ms
+ * plus 13 byline_-prefixed SUMs 534 ms, byline alone 322 ms — one combined query is ~100 ms
  * cheaper than two separate ones and holds one scan instead of two.
  */
 function institutionFacetAttributes(basis: InstitutionBasis, alias = ""): any[] {
@@ -1708,7 +1708,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     // client's SUMMARY_BLIND_BODY_KEYS / buildFilterBody output to.
     //
     // Why it exists (production regression, measured 2026-09-04 from inside reciter-pm-prod).
-    // The byline half of the institution facet is 12 leading-wildcard LIKEs over the
+    // The byline half of the institution facet is 13 leading-wildcard LIKEs over the
     // author_affiliation TEXT column — unindexable by construction, so it scans. Over the
     // "Last 2 years" open queue (9,858 rows) the facet query alone measured:
     //     12 SUMs, basis=person ................................  76 ms

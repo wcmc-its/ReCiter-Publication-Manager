@@ -206,7 +206,7 @@ interface Summary {
   // `institutions` is the person/HR basis behind IDENTITY AFFILIATION, `authorInstitutions` the
   // byline basis behind ARTICLE AFFILIATION. They are independent lists, ANDed by the server.
   institutions?: Array<{ key: string; n: number }>;
-  // ABSENT unless the request carried `includeAuthorInstitutions: true` — its 12 byline LIKEs
+  // ABSENT unless the request carried `includeAuthorInstitutions: true` — its 13 byline LIKEs
   // cost 563 ms of a 896 ms endpoint on production, so they are opt-in (see fetchSummary).
   // Absent means "not computed": render a loading state, never a zero. Present-and-[] is a
   // different, legitimate answer ("computed, no bucket matched") and the server never conflates
@@ -1366,7 +1366,7 @@ const AuthorshipsTabs = () => {
   const baseSummaryBody = useMemo(() => JSON.stringify(buildSummaryBody(filters)), [filters]);
 
   // ---- the Article-affiliation facet is fetched ON DEMAND ------------------------------
-  // Its 12 byline_ SUMs are 12 leading-wildcard LIKEs over author_affiliation and measured
+  // Its 13 byline_ SUMs are 13 leading-wildcard LIKEs over author_affiliation and measured
   // 563 ms of the endpoint's 896 ms on production (2026-09-04, "Last 2 years" open queue) —
   // paid on EVERY load by #983, for a list only visible while the Affiliation popover is open.
   // So `includeAuthorInstitutions: true` rides the summary body, and only while that popover
