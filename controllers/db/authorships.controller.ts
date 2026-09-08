@@ -131,6 +131,12 @@ const INSTITUTION_BUCKETS: Record<string, string[]> = {
   lincoln: ["Lincoln Medical and Mental Health Center"],
   columbia: ["Columbia University College of Physicians and Surgeons", "Columbia University"],
   sidra: ["SIDRA Medical and Research Center"],
+  // Cornell's non-WCM campuses. These are exact literals, so "Weill Cornell Medical College"
+  // cannot land here. 38 people on prod 2026-09-08 ("Cornell University" 37,
+  // "Cornell University-Ithaca" 1) — below the >=100 bar the other buckets were picked by, and
+  // included anyway: the byline side is the point of this bucket, and omitting the roster side
+  // would make the `roster` and `either` bases silently disagree with `byline` for one label.
+  cornell: ["Cornell University", "Cornell University-Ithaca"],
 };
 
 // Byline-affiliation patterns for the same buckets. Distinct from INSTITUTION_BUCKETS because
@@ -155,10 +161,26 @@ const INSTITUTION_BYLINE_PATTERNS: Record<string, string[]> = {
   lincoln: ["Lincoln Medical"],
   columbia: ["Columbia University"],
   sidra: ["Sidra"],
+  cornell: ["Cornell University"],
 };
 
 // "Weill Cornell" matches the Qatar campus too; wcm excludes it so the buckets stay disjoint.
-const BYLINE_EXCLUDE: Record<string, string[]> = { wcm: ["Qatar"] };
+//
+// `cornell` needs the same treatment for a less obvious reason, measured on prod 2026-09-08:
+// of the 1,708 open rows whose byline contains "Cornell University", 631 are WCM papers whose
+// affiliation reads "…Weill Cornell Medicine, Cornell University, New York…". Without the
+// subtraction those 631 would sit in BOTH wcm and cornell, and the disjointness this file
+// maintains everywhere else would quietly stop holding for the two largest Cornell buckets.
+//
+// The Weill spellings are not interchangeable, which is why there are four. "Weill Cornell"
+// misses the old institutional name — "Cornell University Weill Medical College" — and there
+// are live rows carrying "Weill Medical College" or "Weill Graduate" with no "Weill Cornell"
+// anywhere in the string. Excluding only the obvious form leaves 1,077 rows; excluding all
+// four leaves 940, and spot-checking the 137 difference shows every one of them is WCM.
+const BYLINE_EXCLUDE: Record<string, string[]> = {
+  wcm: ["Qatar"],
+  cornell: ["Weill Cornell", "Weill-Cornell", "Weill Medical College", "Weill Graduate"],
+};
 
 /**
  * One SUM(...) column per bucket key, counting rows that match that bucket under `basis`.
