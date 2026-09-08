@@ -12,6 +12,10 @@ import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldS
 import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
 import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
+import {
+  lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured,
+  type DirectoryPerson,
+} from "../../src/lib/directory";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
@@ -876,6 +880,35 @@ async function identityPrimaryName(uid: string): Promise<string> {
 // different Identity record than the write path would.
 export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
+    // Free-text NAME search, the "long shot" half. A separate field from `cwid` on purpose:
+    // this one only ever drives a READ against a directory, so it can accept the spaces a name
+    // needs. The /^[A-Za-z0-9]{1,32}$/ on `cwid` below is load-bearing — it is what puts the
+    // usc_/ucsd_/fredhutch_ external-validation cohorts out of typing range — and nothing here
+    // widens it. A curator who can only read "K. Cummings" off a byline had no way to reach
+    // that person before; every WCM staff member and every Ithaca author is in this case, since
+    // inst-client's roster query is (weillCornellEduPersonTypeCode=academic) and Ithaca is a
+    // different directory entirely.
+    const q = String(req.body?.q || "").trim();
+    if (q) {
+      if (q.length > 64) return res.status(400).send("search term too long");
+      const people = await searchDirectoryPeople(q);
+      // Which of these does ReCiter already know? A curator searching by name must be told
+      // "this one is already in ReCiter" so they pick the identity that exists rather than
+      // minting a duplicate of it — and for a Cornell person that also means surfacing the WCM
+      // cwid their directory record publishes.
+      const known = await reciterIdentitySet(
+        people.flatMap((p) => [p.id, p.id.toLowerCase(), p.wcmCwid].filter(Boolean) as string[]));
+      return res.send({
+        configured: directoryConfigured(),
+        matches: people.map((p) => ({
+          id: p.id, source: p.source, name: p.name, title: p.title, dept: p.dept,
+          email: p.emails[0] ?? null,
+          hasIdentity: known.has(p.id) || known.has(p.id.toLowerCase()),
+          wcmCwid: p.wcmCwid, wcmCwidHasIdentity: !!(p.wcmCwid && known.has(p.wcmCwid)),
+        })),
+      });
+    }
+
     const typed = String(req.body?.cwid || "").trim();
     if (!typed) return res.status(400).send("cwid is required");
     if (!/^[A-Za-z0-9]{1,32}$/.test(typed)) return res.status(400).send("cwid must be alphanumeric");
@@ -887,7 +920,27 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
     // to look up for a cwid ReCiter has no Identity record for; the client tells that story
     // itself (hasIdentity: false), not a null name pretending to be one.
     const name = hasIdentity ? ((await identityLabel(cwid)) || null) : null;
-    res.send({ cwid, name, hasIdentity });
+    // …and when ReCiter has no Identity, ask the directories. This is the only place the preview
+    // can learn that a "no ReCiter identity" identifier is nonetheless a real, nameable person —
+    // which turns the assign from a local-only note into a mint-then-write, so the curator has
+    // to see it BEFORE they submit, not only on the 422 afterwards. Behind !hasIdentity, so the
+    // common path costs no LDAP round-trip at all.
+    const dir = hasIdentity ? null : await lookupDirectoryPerson(cwid);
+    const bridgeFound = dir?.wcmCwid ? await reciterIdentitySet([dir.wcmCwid]) : null;
+    res.send({
+      cwid, name, hasIdentity,
+      directory: dir && {
+        id: dir.id, source: dir.source, name: dir.name, title: dir.title, dept: dir.dept,
+        email: dir.emails[0] ?? null,
+        // The duplicate-person bridge, surfaced at lookup time so the preview can say where the
+        // write will actually land. See DirectoryPerson.wcmCwid in src/lib/directory.ts.
+        wcmCwid: dir.wcmCwid,
+        wcmCwidHasIdentity: !!(dir.wcmCwid && bridgeFound?.has(dir.wcmCwid)),
+        // A directory record with no given or family name cannot satisfy ReCiter's mandatory
+        // fields, so say so here rather than letting the confirm promise a mint that 500s.
+        mintable: directoryIdentityPayload(dir) !== null,
+      },
+    });
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));
@@ -1963,6 +2016,76 @@ async function writeGoldStandard(
   }
 }
 
+// Create a ReCiter identity from a directory record — POST /reciter/identity/, the same
+// endpoint scripts/sync_ad_hoc_identities.py and the Cornell Ithaca sync use, with the same
+// body shape (src/lib/directory.ts's directoryIdentityPayload mirrors that script's
+// build_identity so a person minted here and one bulk-loaded later are comparable records).
+//
+// POST, not the bulk PUT /reciter/save/identities/: this is one person, and more importantly
+// POST /reciter/identity/ is only reachable when the uid does NOT already exist in this flow
+// (assignGate's mint branch requires reciterIdentitySet to have missed it), so there is no
+// live record to merge with and none of the read-merge-replace hazard that made the bulk sync
+// strip mtw1's orcid.
+//
+// Returns the upstream status; the caller aborts on anything but 200 rather than proceeding to
+// a gold-standard write against an identity that may not exist. Note ReCiter answers a failed
+// mandatory-field validation with 500 and a plain-text body, not a 4xx.
+async function mintIdentity(identity: Record<string, any>): Promise<number> {
+  try {
+    const resp = await fetch(`${reciterConfig.reciter.reciterApiBaseUrl}/reciter/identity/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": reciterConfig.reciter.adminApiKey,
+        "User-Agent": "reciter-pub-manager-server",
+      },
+      body: JSON.stringify(identity),
+    });
+    if (resp.status !== 200) {
+      console.log(`[authorships] mint identity ${identity.uid} -> ${resp.status}`, await resp.text());
+    }
+    return resp.status;
+  } catch (e) {
+    console.log("[authorships] mint identity failed:", e);
+    return 500;
+  }
+}
+
+// Enrol a freshly-minted person in the nightly scoring cycle, so they can curate their own
+// publications from here on rather than owning exactly the one article that was just assigned.
+//
+// A minted identity by itself is inert: nothing retrieves candidate articles for it, so
+// /curate/<uid> renders an empty page forever. `reporting_ad_hoc_feature_generator_execution` is
+// the existing opt-in for that — ReCiterDB's nightly cron reads it
+// (update/executeFeatureGenerator.py:165-171, `frequency='weekly'` firing on DAYOFWEEK(CURRENT_DATE())=7,
+// i.e. every Saturday)
+// and calls /reciter/feature-generator/by/uid for each row. Same table and same convention
+// scripts/sync_ad_hoc_identities.py already uses; `type` is a label only, not used in the cron's
+// filtering. `weekly` rather than `monthly` because it is what the live table actually runs on
+// (292 GradSchool + 50 CenterHealthEquity weekly vs 30 monthly, measured 2026-09-07) and because
+// a <=7-day lag is what makes "curate prospectively" mean anything; monthly fires on day 7 only.
+//
+// Opt-in per person, never a scan: this enrols exactly the people a curator has attributed a
+// publication to, which is what keeps it away from the failure mode the Cornell Ithaca
+// onboarding plan's R5 describes (a roster-wide DynamoDB scan hitting NCBI with 15,000 users on
+// the first Sunday of an odd month).
+//
+// Non-fatal by design. The attribution is the write that matters and it has already landed by
+// the time this runs; a person who is not enrolled can be enrolled later, whereas failing the
+// request here would leave the curator staring at a 502 for an assign that actually succeeded.
+// The source table has no unique constraint (see the ad-hoc runbook), hence the explicit
+// existence check rather than an upsert.
+async function registerForFeatureGenerator(uid: string) {
+  const existing: any[] = await sequelize.query(
+    "SELECT personIdentifier FROM reporting_ad_hoc_feature_generator_execution WHERE personIdentifier = :uid LIMIT 1",
+    { replacements: { uid }, type: QueryTypes.SELECT });
+  if (existing.length) return;
+  await sequelize.query(
+    "INSERT INTO reporting_ad_hoc_feature_generator_execution (personIdentifier, frequency, type) "
+    + "VALUES (:uid, 'weekly', 'AuthorshipsDirectoryAssign')",
+    { replacements: { uid }, type: QueryTypes.INSERT });
+}
+
 // Append an AdminFeedbackLog row (pubmed accept/reject/assign only — PMID-keyed).
 async function appendFeedbackLog(userID: number, personIdentifier: string, pmid: number, feedback: "ACCEPTED" | "REJECTED") {
   const active: any = await models.AdminUser.findOne({ where: { userID, status: 1 }, attributes: ["userID"] });
@@ -2238,11 +2361,57 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // (reciterIdentitySet dedupes). See canonicalCwid for why an exact hit beats the
         // lowercased one rather than the other way round.
         const found = await reciterIdentitySet([chosen, chosen.toLowerCase()]);
-        const target = canonicalCwid(chosen, found);
+        let target = canonicalCwid(chosen, found);
+        let hasIdentity = found.has(target);
+
+        // THIRD fact, when ReCiter has never heard of them: does a live directory have them?
+        // WCM staff are structurally absent from `identity` (inst-client's roster query is
+        // (weillCornellEduPersonTypeCode=academic), LdapIdentityDaoImpl.java:545) and Ithaca
+        // people are in a different directory entirely — so "no ReCiter identity" has never
+        // meant "not a real person", it meant "nothing here could create one". Now something
+        // can. Only asked on the !hasIdentity path, so the ordinary assign costs no LDAP call.
+        let dir: DirectoryPerson | null = null;
+        let bridgedFrom: string | null = null;
+        if (!hasIdentity) {
+          dir = await lookupDirectoryPerson(target);
+          // DUPLICATE-PERSON BRIDGE. Cornell's directory publishes `cornellEduCWID` for people
+          // who also hold a WCM appointment. Minting the netid as a second identity is how
+          // Martin Wells ended up as mtw1 (24 pubs) AND maw2065 (65 pubs) — 89 publications
+          // split across two records for one human, already broken in production before any of
+          // this shipped. So when the directory says "this netid IS that cwid", the write goes
+          // to the cwid.
+          //
+          // It re-targets on the ATTRIBUTE'S PRESENCE, not on whether that cwid already holds an
+          // identity. A cwid with no identity yet is not a reason to mint the netid instead —
+          // inst-client will create the cwid record on its own schedule, and the person would
+          // then hold two. Minting under the cwid is the only choice that stays correct whenever
+          // that happens.
+          //
+          // Never silent: the curator typed one identifier and the write lands on another, so
+          // both onward paths ask first. An existing cwid falls through to confirm_off_candidate
+          // (a bridged cwid is by definition not a produced candidate); a cwid with no identity
+          // becomes a mint under the CWID, and confirm_mint names the person before anything
+          // happens. bridgedFrom is what lets both messages explain the substitution.
+          if (dir?.wcmCwid) {
+            const bridge = await reciterIdentitySet([dir.wcmCwid]);
+            bridgedFrom = target;
+            target = dir.wcmCwid;
+            if (bridge.has(dir.wcmCwid)) {
+              hasIdentity = true;
+              dir = null; // they already exist; there is nothing to mint
+            } else {
+              dir = { ...dir, id: dir.wcmCwid }; // mint under the cwid, not the netid
+            }
+          }
+        }
+        // A directory record with no given/family name cannot satisfy ReCiter's mandatory
+        // fields (application.properties:391), so it is NOT a mintable directory hit and the
+        // gate must fall back to the pre-existing local-only path rather than promise a mint
+        // that would 500 on the POST.
+        const mintPayload = dir ? directoryIdentityPayload(dir) : null;
         const offCandidate = !allowed.has(target);
-        const hasIdentity = found.has(target);
         const gate = assignGate({
-          offCandidate, hasIdentity,
+          offCandidate, hasIdentity, inDirectory: mintPayload !== null,
           confirmNoIdentity: String(body.confirmNoIdentity) === "true",
           confirmOffCandidate: String(body.confirmOffCandidate) === "true",
         });
@@ -2282,6 +2451,43 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
               + `is no identity to add it to.${alsoRejectedNote} Confirm to proceed.`,
           });
         }
+        // The same question, asked of a person a DIRECTORY can name — and therefore a different
+        // promise. Confirming here creates their ReCiter identity from the live directory record
+        // and then makes the ordinary authoritative write, so the curator is authorising a real
+        // attribution, not a local note. That is a bigger consequence than the branch above, so
+        // the message names them, says which directory they came from, and says plainly that
+        // an identity will be created.
+        //
+        // Reuses code NO_RECITER_IDENTITY and the client's existing confirmNoIdentity retry
+        // flag deliberately (assignGate's header explains why): the browser needs no new branch,
+        // only this text. `localOnly: false` is what tells an updated client the two apart.
+        if (gate === "confirm_mint") {
+          const d = dir as DirectoryPerson;
+          const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+          let alsoRejectedNote = "";
+          if (alsoRejected.length) {
+            const names = await Promise.all(alsoRejected.map(async (c) => {
+              const who = await identityLabel(c);
+              return who ? `${who} (${c})` : c;
+            }));
+            alsoRejectedNote = ` It also records "not mine" for ${names.join(", ")}.`;
+          }
+          const where = d.source === "wcm" ? "the WCM Enterprise Directory" : "the Cornell (Ithaca) directory";
+          const desc = [d.title, d.dept].map((v) => String(v || "").trim()).filter(Boolean).join(", ");
+          return res.status(422).json({
+            code: "NO_RECITER_IDENTITY",
+            localOnly: false,
+            willMint: true,
+            cwid: target,
+            offCandidate,
+            alsoRejected,
+            directory: { source: d.source, name: d.name, title: d.title, dept: d.dept },
+            message: `${d.name}${desc ? ` · ${desc}` : ""} · ${target} is not in ReCiter, but `
+              + `${where} has them. Confirming CREATES a ReCiter identity for this person and `
+              + "ADDS this article to their publication record — the same write an Accept makes. "
+              + `Check the identifier.${alsoRejectedNote}`,
+          });
+        }
         // Data-integrity guard, the same direction as the rejectedpmids one ~60 lines down but
         // for the opposite list: don't let an assign write a no-op gold-standard merge (plus a
         // bogus ACCEPTED FeedbackLog row) over a target who already has THIS pmid in knownpmids
@@ -2314,11 +2520,21 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // on; this single-row confirm-on-submit is unchanged and still doesn't need it.)
         if (gate === "confirm_off_candidate") {
           const who = await identityLabel(target);
+          // When the bridge re-targeted, say so first: the curator typed one identifier and is
+          // being asked to authorise a write against another, and the reason (same human, two
+          // campus identifiers) is not something they can infer from the two strings.
+          const bridgeNote = bridgedFrom
+            ? `${bridgedFrom} is a Cornell (Ithaca) NetID whose directory record names ${target} `
+              + "as the same person's WCM identifier, so this assign is proposed against their "
+              + "existing ReCiter identity rather than creating a second one. "
+            : "";
           return res.status(422).json({
             code: "OFF_CANDIDATE",
             cwid: target,
             offCandidate: true,
-            message: `${who ? `${who} · ${target}` : `${target} (no name on file anywhere — check the identifier)`}`
+            ...(bridgedFrom ? { bridgedFrom } : {}),
+            message: bridgeNote
+              + `${who ? `${who} · ${target}` : `${target} (no name on file anywhere — check the identifier)`}`
               + " was not one of the candidates proposed for this authorship. Confirming ADDS this article "
               + "to that person's publication record — the same write an Accept makes. Check the identifier.",
           });
@@ -2353,7 +2569,33 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           }
           break;
         }
-        // gate === "write": everything below is the authoritative assign, unchanged. An
+        if (gate === "mint_and_write") {
+          // Create the identity the rest of this branch is about to write into, from the live
+          // directory record the curator just confirmed against. Ordered before every write on
+          // purpose: writeGoldStandard has no identity check of its own (ReCiterController
+          // validates only that the body is non-null), so a failed mint followed by a
+          // successful gold-standard write is exactly the orphaned-attribution shape
+          // reciterIdentitySet exists to prevent. A non-200 aborts with 502 and writes nothing.
+          //
+          // Deliberately NOT followed by a confirm_off_candidate round-trip: a person who did
+          // not exist a moment ago cannot have been one of the producer's candidates, so that
+          // confirm would be a second modal asking the same question the mint confirm already
+          // answered ("this ADDS the article to their publication record").
+          const st = await mintIdentity(mintPayload as Record<string, any>);
+          if (st !== 200) {
+            return res.status(502).send(
+              `Could not create a ReCiter identity for ${target} (${st}) — nothing was written.`);
+          }
+          // …and enrol them for ongoing scoring, so this assign is the START of their record
+          // rather than the whole of it: the nightly cron will retrieve and score their
+          // candidate articles, and /curate/<uid> becomes a page they can actually work.
+          // Non-fatal — see registerForFeatureGenerator.
+          try { await registerForFeatureGenerator(target); }
+          catch (e) { console.log("[authorships] feature-generator enrolment non-fatal:", e); }
+        }
+        // gate === "write": everything below is the authoritative assign, unchanged — and a
+        // just-minted "mint_and_write" falls into it byte-for-byte, which is the point: a person
+        // who exists as of ten lines ago is assigned exactly the way anyone else is. An
         // off-candidate assign that got confirmed lands here and is byte-for-byte an
         // on-candidate one — same rejectedpmids guard, same gold-standard write, same
         // feedback log — which is also what keeps `reopen` sound: it has an identity, so

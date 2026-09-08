@@ -4446,12 +4446,75 @@ const AssignOther = ({ rowId, acting, onAction }: {
   // itself: a later keystroke bumps it, and a response whose seq no longer matches is dropped
   // even if it lands after a newer one (out-of-order network replies).
   const [lookupState, setLookupState] = useState<TypedCwidLookupState>({ status: "idle" });
+  // Directory NAME-search results, when the typed string is a name rather than an identifier
+  // (or is an identifier nothing recognises). Null = no search has answered for this string;
+  // [] = searched and nobody matched. Cleared on every keystroke alongside lookupState, for the
+  // same reason: a stale list must never outlive the string that produced it.
+  const [matches, setMatches] = useState<any[] | null>(null);
   const requestSeq = useRef(0);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); }, []);
 
+  const post = useCallback((payload: Record<string, string>) =>
+    fetch("/api/db/authorships/lookup", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify(payload),
+    }).then(async (r) => {
+      if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+      return r.json();
+    }), []);
+
+  // One lookup cycle for `val`, guarded by `seq` so an out-of-order reply for a string the
+  // curator has since changed is dropped. Identifier-shaped input asks the cwid question
+  // first, because that is the cheap one and the common answer; only when ReCiter has never
+  // heard of it AND no directory recognises it as an identifier do we spend a second
+  // round-trip treating the same characters as a surname. Anything with a space can only ever
+  // be a name.
+  const runLookup = useCallback((val: string, seq: number) => {
+    const isIdentifier = /^[A-Za-z0-9]{1,32}$/.test(val);
+    setLookupState({ status: "loading" });
+    (isIdentifier ? post({ cwid: val }) : post({ q: val }).then((d) => ({ searchOnly: d })))
+      .then(async (d: any) => {
+        if (requestSeq.current !== seq) return;
+        if (d.searchOnly) { setLookupState({ status: "idle" }); setMatches(d.searchOnly.matches || []); return; }
+        setLookupState({
+          status: "resolved", cwid: String(d.cwid || val),
+          name: d.name ?? null, hasIdentity: !!d.hasIdentity, directory: d.directory ?? null,
+        });
+        if (!d.hasIdentity && !d.directory) {
+          const s = await post({ q: val });
+          if (requestSeq.current !== seq) return;
+          setMatches(s.matches || []);
+        }
+      })
+      .catch((e) => {
+        if (requestSeq.current !== seq) return;
+        setLookupState({ status: "error", message: String(e?.message || e) });
+      });
+  }, [post]);
+
+  // Picking a search result puts its identifier in the box and re-asks the cwid question about
+  // it, rather than assigning straight off the row: the write must be authorised against what
+  // the SERVER resolves the identifier to, never against a label the search happened to render.
+  // Same trust boundary the bulk confirm dialog enforces. When the bridge says this Cornell
+  // person already holds a WCM identity, the box takes THAT identifier — the one the write
+  // will land on.
+  const pick = useCallback((m: any) => {
+    const id = m.wcmCwidHasIdentity && m.wcmCwid ? String(m.wcmCwid) : String(m.id);
+    setOtherCwid(id);
+    setMatches(null);
+    requestSeq.current += 1;
+    runLookup(id, requestSeq.current);
+  }, [runLookup]);
+
+  // A name is not submittable — it is a search term, and the server's assign route would 400 on
+  // it. Picking a result turns it into an identifier, which is submittable. Keeping this in one
+  // predicate means the button and Enter agree.
+  const submittable = /^[A-Za-z0-9]{1,32}$/.test(otherCwid.trim());
+
   const submitOther = useCallback(() => {
-    if (!otherCwid || acting) return;
+    if (!submittable || acting) return;
+    const typedId = otherCwid.trim();
     // Resolved AND for this exact string (lookupState is reset on every keystroke, so a
     // "resolved" status can only describe otherCwid as it stands right now) → one-click write,
     // reusing the same {cwid,name,hasIdentity} shape and the same assignConfirmFlags the
@@ -4461,12 +4524,21 @@ const AssignOther = ({ rowId, acting, onAction }: {
     // unconditionally is harmless on the rows where the typed cwid happens to already be
     // on-candidate). Anything else (idle/loading/error) — today's unconfirmed call, unchanged;
     // the existing 422 → banner path (doAction's catch) still handles it.
-    if (lookupState.status === "resolved") {
+    // A resolved answer whose assignee has no ReCiter identity but WHOM A DIRECTORY CAN NAME is
+    // deliberately excluded from the one-click path: confirming it mints an identity and writes
+    // a real publication record, which is a bigger consequence than the inline preview alone
+    // should be allowed to authorise. Those go the unconfirmed route and get the server's
+    // confirm_mint 422, which names the person, their department and which directory they came
+    // from before anything happens. Same for the bridge, where the write lands on a DIFFERENT
+    // identifier than the one in the box.
+    const needsServerConfirm = lookupState.status === "resolved"
+      && !lookupState.hasIdentity && !!lookupState.directory;
+    if (lookupState.status === "resolved" && !needsServerConfirm) {
       onAction("assign", { cwid: lookupState.cwid, ...assignConfirmFlags(true, lookupState.hasIdentity) });
     } else {
-      onAction("assign", { cwid: otherCwid });
+      onAction("assign", { cwid: typedId });
     }
-  }, [otherCwid, acting, lookupState, onAction]);
+  }, [otherCwid, acting, lookupState, onAction, submittable]);
 
   // every handler stops propagation: the card is click-to-expand, so an unguarded click or
   // Enter inside this input collapses the card out from under the curator mid-type.
@@ -4476,51 +4548,35 @@ const AssignOther = ({ rowId, acting, onAction }: {
         <label htmlFor={`otherCwid-${rowId}`} style={{ fontSize: 11.5, color: "#94a3b8" }}>
           Someone else:
         </label>
-        <input id={`otherCwid-${rowId}`} value={otherCwid} placeholder="cwid"
+        <input id={`otherCwid-${rowId}`} value={otherCwid} placeholder="cwid or name"
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => {
-            const val = e.target.value.trim();
+            // NOT trimmed here (it used to be): a name needs an interior space, and trimming
+            // the controlled value on every keystroke made one impossible to type. Trimming
+            // happens where it matters instead — at lookup and at submit.
+            const val = e.target.value;
             setOtherCwid(val);
             if (debounceTimer.current) clearTimeout(debounceTimer.current);
             requestSeq.current += 1; // invalidate any in-flight/pending lookup for the old value
             setLookupState({ status: "idle" }); // EVERY keystroke — a resolved answer never outlives its string
-            if (val.length < 4) return;
+            setMatches(null);
+            const q = val.trim();
+            if (q.length < 3) return;
             const seq = requestSeq.current;
-            debounceTimer.current = setTimeout(() => {
-              setLookupState({ status: "loading" });
-              fetch("/api/db/authorships/lookup", {
-                credentials: "same-origin", method: "POST", headers: apiHeaders,
-                body: JSON.stringify({ cwid: val }),
-              })
-                .then(async (r) => {
-                  if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
-                  return r.json();
-                })
-                .then((d) => {
-                  if (requestSeq.current !== seq) return; // a newer keystroke fired since
-                  setLookupState({
-                    status: "resolved", cwid: String(d.cwid || val),
-                    name: d.name ?? null, hasIdentity: !!d.hasIdentity,
-                  });
-                })
-                .catch((e) => {
-                  if (requestSeq.current !== seq) return;
-                  setLookupState({ status: "error", message: String(e?.message || e) });
-                });
-            }, 350);
+            debounceTimer.current = setTimeout(() => runLookup(q, seq), 350);
           }}
           onKeyDown={(e) => {
-            if (e.key !== "Enter" || !otherCwid || acting) return;
+            if (e.key !== "Enter" || !otherCwid.trim() || acting) return;
             e.preventDefault(); e.stopPropagation();
             submitOther();
           }}
           style={{
-            width: 92, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
+            width: 168, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
             borderRadius: 4, color: "#334155",
           }} />
         {/* never disabled on lookupState — a slow/errored lookup must not block the button,
             it only changes which onAction call submitOther makes. */}
-        <button style={btn("accept", acting || !otherCwid)} disabled={acting || !otherCwid}
+        <button style={btn("accept", acting || !submittable)} disabled={acting || !submittable}
           onClick={(e) => { e.stopPropagation(); submitOther(); }}>
           Assign
         </button>
@@ -4537,6 +4593,34 @@ const AssignOther = ({ rowId, acting, onAction }: {
           </div>
         );
       })()}
+      {matches !== null && (
+        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 4, textAlign: "right" }}>
+          {matches.length === 0 ? (
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>no directory match</div>
+          ) : matches.map((m) => (
+            <button key={`${m.source}:${m.id}`} onClick={(e) => { e.stopPropagation(); pick(m); }}
+              style={{
+                display: "block", width: "100%", textAlign: "right", background: "none",
+                border: "none", borderTop: "1px solid #f1f5f9", padding: "3px 0", cursor: "pointer",
+                fontSize: 11.5, color: "#334155",
+              }}>
+              <span style={{ fontWeight: 600 }}>{m.name}</span>
+              <span style={{ color: "#94a3b8" }}>
+                {" · "}{m.id}{" · "}{m.source === "wcm" ? "WCM" : "Cornell"}
+                {m.dept ? ` · ${m.dept}` : ""}
+              </span>
+              {/* Says what picking this row will actually do, before it is picked: land on an
+                  identity that already exists, redirect to the same person's WCM identifier, or
+                  create a new identity. */}
+              <span style={{ color: m.hasIdentity ? "#059669" : "#b45309" }}>
+                {m.hasIdentity ? " · in ReCiter"
+                  : m.wcmCwidHasIdentity ? ` · same person as ${m.wcmCwid} in ReCiter`
+                    : " · will create identity"}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </>
   );
 };

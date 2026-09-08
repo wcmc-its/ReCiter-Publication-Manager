@@ -24,7 +24,8 @@ import { assignGate, canonicalCwid } from "../src/lib/assignGate.ts";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const G = (o) => assignGate({
-  offCandidate: false, hasIdentity: true, confirmNoIdentity: false, confirmOffCandidate: false, ...o,
+  offCandidate: false, hasIdentity: true, inDirectory: false,
+  confirmNoIdentity: false, confirmOffCandidate: false, ...o,
 });
 
 let n = 0;
@@ -49,6 +50,29 @@ check("no identity + confirmed => local-only",
   G({ hasIdentity: false, confirmNoIdentity: true }), "local_only");
 check("no identity is asked even when on-candidate",
   G({ hasIdentity: false, offCandidate: false }), "confirm_no_identity");
+
+// NEW: no ReCiter identity, but a live directory (WCM ED / Cornell Ithaca) can name them.
+// Same question, different promise — confirming CREATES the identity and then writes for real,
+// so the branch must not be reachable without a confirm, and must not fall back to local_only.
+check("no identity + in directory + unconfirmed => mint confirm",
+  G({ hasIdentity: false, inDirectory: true }), "confirm_mint");
+check("no identity + in directory + confirmed => mint then write",
+  G({ hasIdentity: false, inDirectory: true, confirmNoIdentity: true }), "mint_and_write");
+check("in directory is asked even when on-candidate",
+  G({ hasIdentity: false, inDirectory: true, offCandidate: false }), "confirm_mint");
+check("in directory is asked even when off-candidate",
+  G({ hasIdentity: false, inDirectory: true, offCandidate: true }), "confirm_mint");
+// The directory only matters when ReCiter is silent. A person ReCiter already knows is never
+// re-minted, whatever a directory says about them.
+check("has identity wins over a directory hit (on-candidate)",
+  G({ hasIdentity: true, inDirectory: true }), "write");
+check("has identity wins over a directory hit (off-candidate)",
+  G({ hasIdentity: true, inDirectory: true, offCandidate: true }), "confirm_off_candidate");
+// A directory record with no usable name is NOT a directory hit — the controller passes
+// inDirectory: directoryIdentityPayload(dir) !== null, so an unmintable record must land back
+// on the pre-existing local-only path rather than promise a mint that would fail.
+check("unmintable directory record falls back to local-only",
+  G({ hasIdentity: false, inDirectory: false, confirmNoIdentity: true }), "local_only");
 
 // UNCHANGED: the ordinary pick-a-candidate assign never sees a confirm.
 check("on-candidate + identity => write, no confirm",
@@ -91,12 +115,16 @@ check("...and the lowercase form of a colliding pair still resolves to itself",
 // named by the queue but has no DynamoDB identity at all.
 const ROW_CANDIDATES = ["aaa2014"];
 const DDB = ddb("aaa2014", "aaa2010");
+// 'kjc39' is in neither the row nor DynamoDB, but the Cornell directory names them (Kevin J.
+// Cummings) — a real case from the 2026-09-07 local-only backlog. 'aaa2001' is in nothing.
+const DIRECTORY = new Set(["kjc39"]);
 const decide = (typed, confirms = {}) => {
   const found = DDB;                                   // reciterIdentitySet([typed, lower])
   const target = canonicalCwid(typed, found);          // <- the fix
   const gate = assignGate({
     offCandidate: !new Set(ROW_CANDIDATES).has(target),
     hasIdentity: found.has(target),
+    inDirectory: DIRECTORY.has(target),
     confirmNoIdentity: false, confirmOffCandidate: false, ...confirms,
   });
   return `${target} / ${gate}`;
@@ -109,12 +137,15 @@ check("off-candidate, has identity aaa2010", decide("aaa2010"), "aaa2010 / confi
 check("  ...once confirmed                ", decide("aaa2010", { confirmOffCandidate: true }), "aaa2010 / write");
 check("no ReCiter identity         aaa2001", decide("aaa2001"), "aaa2001 / confirm_no_identity");
 check("  ...once confirmed                ", decide("aaa2001", { confirmNoIdentity: true }), "aaa2001 / local_only");
+check("no identity, directory has it kjc39", decide("kjc39"), "kjc39 / confirm_mint");
+check("  ...once confirmed                ", decide("kjc39", { confirmNoIdentity: true }), "kjc39 / mint_and_write");
 
 // The regression this guards: WITHOUT canonicalCwid, the merged DynamoDB-backed oracle sends
 // a mis-cased cwid down the local-only path — the curator is told a real person has no ReCiter
 // identity, and confirming files the authorship where their publication list will never see it.
 const unfixed = assignGate({
   offCandidate: !new Set(ROW_CANDIDATES).has("Aaa2014"), hasIdentity: DDB.has("Aaa2014"),
+  inDirectory: false,
   confirmNoIdentity: false, confirmOffCandidate: false,
 });
 check("pre-fix, the same keystrokes went to the wrong path", unfixed, "confirm_no_identity");

@@ -218,7 +218,10 @@ check("...only scopus and 'no other candidate left' remain",
 check("homonymRejections is called with singleCandidate: false unconditionally",
   /singleCandidate: false/.test(hrt), true);
 
-const localOnly = assign.slice(assign.indexOf('if (gate === "local_only") {'), assign.indexOf('// gate === "write":'));
+// Ends at the mint branch, not at the write comment: `mint_and_write` was inserted between the
+// two, and it is the opposite policy — it goes on to write for the assignee — so it must not be
+// scanned as if it were part of local_only.
+const localOnly = assign.slice(assign.indexOf('if (gate === "local_only") {'), assign.indexOf('if (gate === "mint_and_write") {'));
 check("local_only block located", localOnly.length > 200, true);
 check("local_only records the same homonym rejections the write path does",
   /const alsoRejected = await homonymRejectionTargets\(row, target, pmid as number\);/.test(localOnly), true);
@@ -230,6 +233,26 @@ check("the assignee themselves still gets nothing written directly (no writeGold
   /writeGoldStandard\(target,/.test(localOnly)
     || /addExternalArticle\(target,/.test(localOnly)
     || /appendFeedbackLog\(curator\.userID, target,/.test(localOnly), false);
+
+// The branch that splits local_only in two: a person a directory can name gets an identity
+// created and then the ordinary write, so the ONE thing this block must not do is write for the
+// assignee itself — that has to stay the shared write path below, or the two would drift.
+const mintBlock = assign.slice(assign.indexOf('if (gate === "mint_and_write") {'), assign.indexOf('// gate === "write":'));
+check("mint_and_write block located", mintBlock.length > 200, true);
+check("it mints before anything else, from the confirmed directory payload",
+  /await mintIdentity\(mintPayload as Record<string, any>\)/.test(mintBlock), true);
+check("a failed mint aborts with 502 rather than writing an orphaned attribution",
+  /return res\.status\(502\)/.test(mintBlock), true);
+check("it enrols the new person for ongoing scoring, so they can curate prospectively",
+  /registerForFeatureGenerator\(target\)/.test(mintBlock), true);
+check("enrolment is non-fatal — the attribution has already landed by then",
+  /try \{ await registerForFeatureGenerator\(target\); \}/.test(mintBlock), true);
+check("it writes NO gold standard of its own — that stays the shared write path below",
+  /writeGoldStandard\(/.test(mintBlock)
+    || /addExternalArticle\(/.test(mintBlock)
+    || /appendFeedbackLog\(/.test(mintBlock), false);
+check("and it sits BEFORE the authoritative write, so the identity exists when that runs",
+  assign.indexOf('if (gate === "mint_and_write") {') < assign.indexOf('// gate === "write":'), true);
 
 const confirmNoIdentity = assign.slice(assign.indexOf('if (gate === "confirm_no_identity") {'), assign.indexOf('// Data-integrity guard, the same direction'));
 check("confirm_no_identity block located", confirmNoIdentity.length > 200, true);
