@@ -23,7 +23,7 @@
 import assert from "node:assert/strict";
 import {
   escapeLdapFilter, buildNameFilter, projectWcmPerson, projectCornellPerson,
-  directoryIdentityPayload,
+  directoryIdentityPayload, cornellPersonTypes,
 } from "../src/lib/directory.ts";
 import { typedCwidPreview } from "../src/lib/bulkAssign.ts";
 
@@ -100,8 +100,16 @@ const staff = projectWcmPerson({
   weillCornellEduPersonTypeCode: ["staff"], title: "Research Coordinator",
 });
 check("wcm: the CWID is the identifier, not the uid attribute", staff.id, "abc9001");
-check("wcm: person types are namespaced so they can't be mistaken for Cornell's",
-  staff.personTypes, ["wcm-staff"]);
+// REVERSED 2026-09-08. This previously asserted ["wcm-staff"], on the rationale that the types
+// should be namespaced so they could not be mistaken for Cornell's. The namespacing bought
+// nothing — WCM's vocabulary is `academic-*` / `employee-*` / `affiliate-*` / `student-*` and
+// Cornell's is `cornell-*`, already disjoint — and it cost a great deal: ED hands back
+// ReCiter's OWN person types verbatim, so prefixing them produced a parallel vocabulary no
+// cohort filter matches. Confirmed against a live Identity record: paa2013 carries
+// "academic-faculty-weillfulltime" and "affiliate-cornell" unprefixed. 16 of the 61 people
+// minted on 2026-09-08 were written with the prefixed form and needed repairing.
+check("wcm: person types pass through unprefixed — ED already speaks ReCiter's vocabulary",
+  staff.personTypes, ["staff"]);
 check("wcm: emails are lowercased", staff.emails, ["jane.doe@med.cornell.edu"]);
 check("wcm: middle name is carried — it reaches primaryName.middleInitial below",
   staff.middleName, "Quinn");
@@ -162,5 +170,44 @@ check("an unmintable, unbridged directory hit falls back to the local-only warni
 check("a person ReCiter already knows is unaffected by any of this",
   typedCwidPreview({ status: "resolved", cwid: "aer2006", name: "Tony Rosen", hasIdentity: true }),
   { text: "→ Tony Rosen", tone: "neutral" });
+
+// ------------------------------------------------- 5. person-type vocabulary (2026-09-08)
+// The bugs this guards, both found by inspecting records PM had already written to prod:
+// `cornell-former postdoc` carried a SPACE where every other reader and writer uses
+// `cornell-former-postdoc`, and WCM's codes were prefixed into a parallel vocabulary that no
+// cohort filter matches.
+console.log("\nperson-type vocabulary — one spelling per concept:");
+
+check("a space becomes a hyphen",
+  cornellPersonTypes(["former postdoc"]), ["cornell-former-postdoc"]);
+check("and the value is lowercased first",
+  cornellPersonTypes(["Retired Faculty"]), ["cornell-retired-faculty"]);
+ok("longest-first with removal: 'retired faculty' is not ALSO read as 'faculty'",
+  !cornellPersonTypes(["retired faculty"]).includes("cornell-faculty"));
+check("but a bare 'faculty' still maps",
+  cornellPersonTypes(["faculty"]), ["cornell-faculty"]);
+check("a known term wrapped in noise resolves to the known term",
+  cornellPersonTypes(["exception - w/sponsor"]), ["cornell-exception"]);
+ok("an unknown value still slugifies to a well-formed token",
+  cornellPersonTypes(["Visiting Scholar / Guest"]).every((t) => /^cornell-[a-z0-9-]+$/.test(t)));
+ok("NOTHING this emits may contain whitespace",
+  cornellPersonTypes(["former postdoc", "retired faculty", "exception - w/sponsor",
+                      "Visiting Scholar / Guest", "email list"]).every((t) => !/\s/.test(t)));
+
+const wcmTyped = projectWcmPerson({ uid: "aaa1001", weillCornellEduCWID: "aaa1001", sn: "Test",
+  weillCornellEduPersonTypeCode: ["academic-faculty-weillfulltime", "affiliate-cornell"] });
+check("WCM codes pass through UNPREFIXED — they are already ReCiter's vocabulary",
+  wcmTyped.personTypes, ["academic-faculty-weillfulltime", "affiliate-cornell"]);
+ok("...so affiliate-cornell, live on 483 people, is not mangled",
+  wcmTyped.personTypes.includes("affiliate-cornell"));
+check("a typeless ED record still gets a non-empty placeholder (empty hides articles)",
+  projectWcmPerson({ uid: "bbb1001", weillCornellEduCWID: "bbb1001", sn: "Bare" }).personTypes,
+  ["wcm-directory"]);
+
+const cor = projectCornellPerson({ uid: "zz99", sn: "Test", cornelleduaffiliation: ["former postdoc"] });
+check("the campus marker leads every Cornell record — campus scoping keys on it",
+  cor.personTypes[0], "cornell-ithaca");
+ok("and the projected type is the hyphenated form",
+  cor.personTypes.includes("cornell-former-postdoc"));
 
 console.log(`\n${n}/${n} passed\n`);

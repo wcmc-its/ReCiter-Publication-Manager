@@ -46,7 +46,13 @@ assert(!/catch/.test(fn), 'does not swallow AWS errors (must surface as a 500, n
 // Present: reported bug (brf9046) + the two highest-volume cwids the `person` mirror missed.
 // Absent: the departed cohort the guard was originally written for.
 const PRESENT = ['brf9046', 'ack7001', 'stetson', 'aaa2014']
-const ABSENT = ['lbm2001', 'maf2086', 'kmf2001']
+// maf2086 (Mauro Ferrari) was dropped from ABSENT on 2026-09-08: the local-only backfill
+// (scripts/mint-local-only-identities.mjs --execute) minted him along with 66 others, so he is
+// no longer an example of anything. lbm2001 and kmf2001 were re-checked against live DynamoDB
+// the same day and are still absent, so the assertion keeps its teeth. These are live-data
+// fixtures — anything that creates identities can invalidate them, and the fix is to re-check
+// and re-pick, never to weaken the assertion.
+const ABSENT = ['lbm2001', 'kmf2001']
 // Byte-exactness is the premise canonicalCwid rests on (src/lib/assignGate.ts): a curator who
 // capitalises a perfectly real cwid MUST miss here, which is why the assign path asks for the
 // typed form and its lowercase together. If DynamoDB ever became case-folding this assert
