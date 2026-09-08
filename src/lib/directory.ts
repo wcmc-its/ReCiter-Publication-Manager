@@ -45,8 +45,11 @@ export type DirectoryPerson = {
   title: string | null;
   dept: string | null;
   emails: string[];
-  /** Directory-native person types, prefixed by source so WCM's and Cornell's vocabularies can
-   *  never be mistaken for each other downstream. Never empty — ReCiter hides people with an
+  /** Directory-native person types, in each directory's OWN vocabulary: WCM's ED codes
+   *  unprefixed (`affiliate-cornell`), Cornell's `cornell-`-prefixed (`cornell-faculty`).
+   *  Deliberately not source-prefixed — the readers downstream match `cornell-%` as a prefix,
+   *  which already separates the two namespaces, and a `wcm-` prefix would put a second
+   *  spelling of every WCM type into Identity. Never empty — ReCiter hides people with an
    *  empty personTypes (see project memory: empty personTypes hides ~34k accepted articles). */
   personTypes: string[];
   /** Cornell only: `cornellEduCWID`, published for people who ALSO hold a WCM identity. This is
