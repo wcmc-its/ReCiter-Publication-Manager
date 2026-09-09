@@ -106,17 +106,54 @@ const rowB = [{ cwid: "abv9001", name: "Andrew B Vickers" }];
 const rowC = [{ cwid: "abv9001", name: "Andrew B Vickers" }, { cwid: "zzz0000", name: "Zach Vickers" }];
 
 const union = unionCandidates([rowA, rowB, rowC]);
-check("abv9001 proposed by all 3 rows, ranked first", union[0], { cwid: "abv9001", name: "Andrew B Vickers", matches: 3 });
+check("with no scores anywhere, coverage still orders the list", union[0],
+  { cwid: "abv9001", name: "Andrew B Vickers", score: null, matches: 3 });
 check("the two 1-match candidates trail it, tie broken by cwid", union.slice(1), [
-  { cwid: "amv2003", name: "Alan M Vickers", matches: 1 },
-  { cwid: "zzz0000", name: "Zach Vickers", matches: 1 },
+  { cwid: "amv2003", name: "Alan M Vickers", score: null, matches: 1 },
+  { cwid: "zzz0000", name: "Zach Vickers", score: null, matches: 1 },
 ]);
 check("a row proposing the same cwid twice still counts once",
-  unionCandidates([[{ cwid: "abv9001" }, { cwid: "abv9001" }]]), [{ cwid: "abv9001", name: undefined, matches: 1 }]);
+  unionCandidates([[{ cwid: "abv9001" }, { cwid: "abv9001" }]]),
+  [{ cwid: "abv9001", name: undefined, score: null, matches: 1 }]);
 check("a later sighting fills in a name the first omitted",
   unionCandidates([[{ cwid: "abv9001" }], [{ cwid: "abv9001", name: "Andrew B Vickers" }]]),
-  [{ cwid: "abv9001", name: "Andrew B Vickers", matches: 2 }]);
+  [{ cwid: "abv9001", name: "Andrew B Vickers", score: null, matches: 2 }]);
 check("empty selection -> empty union", unionCandidates([]), []);
+
+// SCORE leads the sort, not coverage. The live case: three "David Victor" rows where a weak
+// homonym covered the whole selection and the strong candidate covered it too, so the picker
+// listed the weak one first — disagreeing with the card directly beneath it.
+console.log("\n...ordered by score, with coverage as the tie-break:");
+const victor = unionCandidates([
+  [{ cwid: "dav9002", name: "Daryl J. Victor", score: 2.1 },
+    { cwid: "dwv2001", name: "David W. Victor", score: 91.4 }],
+  [{ cwid: "dav9002", name: "Daryl J. Victor", score: 2.1 },
+    { cwid: "dwv2001", name: "David W. Victor", score: 91.4 },
+    { cwid: "jdvicto", name: "Jonathan David Victor", score: 40.0 }],
+  [{ cwid: "dav9002", name: "Daryl J. Victor", score: 2.1 },
+    { cwid: "dwv2001", name: "David W. Victor", score: 91.4 }],
+]);
+check("the highest score leads even though coverage ties",
+  victor.map((c) => c.cwid), ["dwv2001", "jdvicto", "dav9002"]);
+check("...and coverage is still reported on every line",
+  victor.map((c) => c.matches), [3, 1, 3]);
+check("equal scores fall back to coverage",
+  unionCandidates([
+    [{ cwid: "aaa1", score: 5 }, { cwid: "bbb2", score: 5 }],
+    [{ cwid: "bbb2", score: 5 }],
+  ]).map((c) => c.cwid), ["bbb2", "aaa1"]);
+check("the strongest sighting of a person wins when rows disagree",
+  unionCandidates([
+    [{ cwid: "aaa1", name: "A", score: 3 }],
+    [{ cwid: "aaa1", name: "A", score: 77 }],
+  ])[0].score, 77);
+// "unscored" and "scored zero" are different claims; only one is evidence against a person.
+check("an UNSCORED candidate sorts last, not as a zero",
+  unionCandidates([[{ cwid: "unscored" }, { cwid: "zero", score: 0 }]]).map((c) => c.cwid),
+  ["zero", "unscored"]);
+check("...and a negative score still outranks having none",
+  unionCandidates([[{ cwid: "unscored" }, { cwid: "neg", score: -5 }]]).map((c) => c.cwid),
+  ["neg", "unscored"]);
 
 // ---------------------------------------------------------------------------------------
 console.log("\npartition for a chosen (already-canonicalized) cwid — B-8: onCandidate/offCandidate, nobody skipped:");

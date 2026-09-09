@@ -107,14 +107,27 @@ export function isBulkSelectable(row: SelectableRow, statusView: string): boolea
 export interface CandidateLite {
   cwid: string;
   name?: string;
+  /** Identity-only score, the same number the card's rail and the row's "top IO" show.
+   *  Optional: a caller that has none passes nothing and those entries sort last. */
+  score?: number | null;
 }
 
 // The union of candidates proposed across a set of selected rows, each annotated with how
 // many of those rows propose it — "Name (cwid) — matches k of N selected" in the bulk-assign
-// picker, sorted by k desc. `rowCandidateLists` is the caller's own per-row candidate
-// extraction (parseCandidates(row.candidate_cwids_json) for a multi row, a single
+// picker. `rowCandidateLists` is the caller's own per-row candidate extraction
+// (parseCandidates(row.candidate_cwids_json) for a multi row, a single
 // [{cwid: top_cwid, name: top_name}] for a single-candidate one) — kept out of this file so
 // it carries no JSON-parsing or AuthorshipRow-shaped dependency.
+//
+// SORTED BY SCORE DESC, not by match count. Match count says how much of the SELECTION a
+// candidate covers, which is a property of what the curator happened to tick; score says how
+// likely this person actually wrote the papers, which is the question being answered. Ranking
+// by coverage put a 3-of-3 weak homonym above the high-match candidate on the card below it
+// (dav9002 over dwv2001), i.e. the list disagreed with the cards it summarises. Coverage is
+// still shown on every line and breaks ties.
+//
+// A candidate with no score sorts last rather than as zero: "unscored" and "scored zero" are
+// different claims, and only one of them is evidence against the person.
 export function unionCandidates(rowCandidateLists: CandidateLite[][]): Array<CandidateLite & { matches: number }> {
   const byCwid = new Map<string, CandidateLite & { matches: number }>();
   for (const list of rowCandidateLists) {
@@ -123,11 +136,20 @@ export function unionCandidates(rowCandidateLists: CandidateLite[][]): Array<Can
       if (!c?.cwid || seen.has(c.cwid)) continue;
       seen.add(c.cwid);
       const existing = byCwid.get(c.cwid);
-      if (existing) { existing.matches += 1; if (!existing.name && c.name) existing.name = c.name; }
-      else byCwid.set(c.cwid, { cwid: c.cwid, name: c.name, matches: 1 });
+      if (existing) {
+        existing.matches += 1;
+        if (!existing.name && c.name) existing.name = c.name;
+        // The same person can carry a different score on each row (different paper, different
+        // evidence). Keep the strongest — it is the one that justifies their position here.
+        if (c.score != null && (existing.score == null || c.score > existing.score)) {
+          existing.score = c.score;
+        }
+      } else byCwid.set(c.cwid, { cwid: c.cwid, name: c.name, score: c.score ?? null, matches: 1 });
     }
   }
-  return [...byCwid.values()].sort((a, b) => b.matches - a.matches || a.cwid.localeCompare(b.cwid));
+  const rank = (c: CandidateLite) => (c.score == null ? -Infinity : c.score);
+  return [...byCwid.values()].sort((a, b) =>
+    rank(b) - rank(a) || b.matches - a.matches || a.cwid.localeCompare(b.cwid));
 }
 
 // Which selected rows already have the chosen cwid as one of THEIR OWN proposed candidates
