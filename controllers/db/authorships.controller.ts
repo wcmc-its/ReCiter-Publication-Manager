@@ -632,15 +632,23 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
   // clause here would make a missing-date row vanish permanently instead of just holding
   // it. Require entrez_date to be non-null before comparing, so a NULL date falls through
   // to "show the row" rather than "hide it forever."
-  and.push({
+  and.push(immatureScopusExclusion());
+
+  return and.length ? { [Op.and]: and } : {};
+}
+
+// The immaturity hold above, as its own predicate so the "Show N others like this" grouped
+// COUNT can apply the identical clause. buildWhere applies this to EVERY list query
+// unconditionally; a count that omitted it would promise a curator rows the list is holding
+// back, which is the count-vs-filter disagreement this whole pair exists to prevent.
+function immatureScopusExclusion(): any {
+  return {
     [Op.not]: {
       source: "scopus",
       doi: null,
       entrez_date: { [Op.and]: [{ [Op.ne]: null }, { [Op.gt]: maturityCutoffStr() }] },
     },
-  });
-
-  return and.length ? { [Op.and]: and } : {};
+  };
 }
 
 // same-document sibling key: pubmed → pmid, scopus → external_id (co-authorships on one doc).
@@ -1066,7 +1074,15 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     // the pmid_sibling_count grouped COUNTs just above, generalized from an exact pmid/
     // external_id match to authorKey()'s first-token/last-token equality (see buildWhere's
     // likeAuthor block and authorKey's own comment for why and its ceiling).
-    const likeOpenWhere = openStatusWhere({ statusView: "open" });
+    // #1011: the count's scope is open + name key + the unconditional immaturity hold, and
+    // NOTHING else. That narrowness is deliberate and now matched on the other side: clicking
+    // the button widens the list to exactly this same scope (LIKE_WIDEN_PATCH in
+    // AuthorshipsTabs.tsx) instead of intersecting it with whatever chips were already on
+    // screen, so N and the row count you land on agree. Before that, three active chips could
+    // and did remove 4 of the 5 rows a "Show 5 others like this" button had just promised.
+    // If you add a predicate to buildWhere that is NOT driven by a filter the widen patch
+    // clears, add it here too or the two drift apart again.
+    const likeOpenWhere = { [Op.and]: [openStatusWhere({ statusView: "open" }), immatureScopusExclusion()] };
     const pageAuthorKeys = [...new Set(rows.map((r: any) => authorKey(r.wcm_author)).filter(Boolean))];
     let likeCountMap: Record<string, number> = {};
     if (pageAuthorKeys.length) {

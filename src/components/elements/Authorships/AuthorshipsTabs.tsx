@@ -517,6 +517,30 @@ const filterResetPatch = (): Partial<AuthorshipFilters> => {
   return patch;
 };
 
+// #1011: what "Show N others like this" clears when it is clicked. The server's like_count is
+// ONE grouped COUNT over open + name key (+ the immaturity hold) — deliberately blind to every
+// other chip, because the button's promise is "here is the rest of this person's pile". The
+// filtered list, though, ANDs the name key onto every active filter, so the two answered
+// different questions: a card offering "Show 5 others like this" landed on "Showing 1 of 1"
+// once an Article-affil chip and the default date window had removed the other four.
+//
+// So the click widens the list to the count's own scope. These are every buildWhere predicate
+// EXCEPT the status branch and the name key, set to their WIDEST value — not FILTER_DEFAULTS,
+// which still narrows via selectedInstitutions ["wcm"] and the 24-month default window.
+// statusView goes to "open" because the count always does (the overflow menu offers this button
+// from the snoozed/dismissed views too).
+//
+// Nothing is silently lost: the prior filter set is stashed and restored when the "Like: …"
+// chip is dismissed, exactly as selectReport does for the report views.
+const LIKE_WIDEN_PATCH: Partial<AuthorshipFilters> = {
+  lane: "all", classification: "all", search: "",
+  selectedTypes: [], selectedInstitutions: [], selectedAuthorAffiliations: [],
+  source: "all", selectedPubTypes: [],
+  dateFrom: "", dateTo: "",
+  statusView: "open",
+  hideNoSuggestion: false, hideNoIdentity: false,
+};
+
 // Two filter values are "the same" when a write of one over the other is a no-op. Arrays are
 // compared by content because several call sites re-set an already-empty list (the
 // source-leaves-scopus reset, "Clear selection"); with one shared object a fresh [] would
@@ -1248,9 +1272,14 @@ const AuthorshipsTabs = () => {
   //
   // Guarded on !loading so it cannot fire against the empty rows a fetch shows mid-flight, and
   // scoped to likeAuthor: every other filter is one the curator chose and should keep.
+  //
+  // #1011: exits via clearLikeAuthor (through a ref, since that callback is declared further
+  // down), so the auto-exit ALSO restores the filters the button widened away. Clearing
+  // likeAuthor alone would drop the curator back into a queue silently missing their chips.
+  const clearLikeRef = useRef<() => void>();
   useEffect(() => {
-    if (!loading && rows.length === 0 && filters.likeAuthor.trim()) setLikeAuthor("");
-  }, [loading, rows.length, filters.likeAuthor, setLikeAuthor]);
+    if (!loading && rows.length === 0 && filters.likeAuthor.trim()) clearLikeRef.current?.();
+  }, [loading, rows.length, filters.likeAuthor]);
   const [actingId, setActingId] = useState<number | null>(null);
   // scopus Accept/Assign can 409 on a likely-duplicate ExternalArticle; the backend retries past
   // it with force:"true". This holds the pending action so the curator can confirm "Force add".
@@ -1560,6 +1589,12 @@ const AuthorshipsTabs = () => {
   // reading "All time" makes the other one visible.
   const reportFilterStash = useRef<
     { preset: string; from: string; to: string; institutions: string[] } | null>(null);
+  // #1011's twin of the above, for "Show N others like this": that button widens the list to
+  // the count's scope (LIKE_WIDEN_PATCH), and this holds everything it cleared so both exits —
+  // the "Like: …" chip and the auto-exit on an emptied view — restore it. Whole-object snapshot
+  // rather than a key list: LIKE_WIDEN_PATCH can grow a key and this needs no edit to match.
+  const likeFilterStash = useRef<
+    { filters: AuthorshipFilters; preset: string; searchInput: string } | null>(null);
   const selectReport = useCallback((next: ReportView) => {
     if (!reportView && next) {
       reportFilterStash.current = {
@@ -2119,10 +2154,41 @@ const AuthorshipsTabs = () => {
   // driving case for this rework. The text box (`search`/`searchInput`) is left untouched, so
   // it keeps working as its own independent filter. Page reset to 0 is already handled by the
   // pendingPageReset effect above, which watches filterBody (likeAuthor is now part of it).
+  //
+  // #1011: it also WIDENS the list to the count's own scope (LIKE_WIDEN_PATCH), stashing the
+  // filters it clears so dismissing the "Like: …" chip puts them straight back. Without that
+  // widening the button promised N and delivered N ∩ (every other chip) — see LIKE_WIDEN_PATCH.
+  // One patch object, so the widening and the like filter land in a single refetch.
   const findOthersLikeThis = useCallback((wcmAuthor?: string) => {
     if (!wcmAuthor) return;
-    setLikeAuthor(wcmAuthor);
-  }, [setLikeAuthor]);
+    // Stash only on ENTRY. Clicking the button again from inside a like view (a card for a
+    // different name) must not overwrite the snapshot with the already-widened state — that
+    // would restore the widening instead of the curator's chips.
+    if (!likeFilterStash.current) {
+      likeFilterStash.current = { filters: { ...filters }, preset: datePreset, searchInput };
+    }
+    setDatePreset("any");
+    setSearchInput("");
+    patchFilters({ ...LIKE_WIDEN_PATCH, likeAuthor: wcmAuthor });
+  }, [patchFilters, filters, datePreset, searchInput]);
+
+  // Leaving the like view restores whatever it widened away. Used by BOTH exits — dismissing
+  // the "Like: …" chip and the auto-exit when the last row in the view is resolved — so neither
+  // can strand a curator in a silently-widened queue.
+  const clearLikeAuthor = useCallback(() => {
+    const stashed = likeFilterStash.current;
+    likeFilterStash.current = null;
+    if (!stashed) { setLikeAuthor(""); return; }
+    setDatePreset(stashed.preset);
+    setSearchInput(stashed.searchInput);
+    // sort is deliberately NOT restored. It is the one key the widen never touched (see
+    // WIDEN_EXEMPT in check-authorships-filter-body.mjs), so a curator who re-sorted while
+    // inside the like view chose that sort — restoring the snapshot's would be exactly the
+    // "changing one control loses another" failure this file's stash pattern exists to avoid.
+    const { sort: _keepCurrentSort, ...restored } = stashed.filters;
+    patchFilters({ ...restored, likeAuthor: "" });
+  }, [patchFilters, setLikeAuthor]);
+  useEffect(() => { clearLikeRef.current = clearLikeAuthor; }, [clearLikeAuthor]);
 
   // T4: single-candidate rows keep the pre-existing accept-eligible gate (no-ReCiter-identity,
   // already-rejected, no proposed identity at all (#938) stay unselectable). Multi-candidate
@@ -2267,6 +2333,11 @@ const AuthorshipsTabs = () => {
   // the search chip must also empty the text box that debounces into it, and the date chip goes
   // through applyDatePreset because the preset recomputes dateFrom/dateTo.
   const removeChip = (chip: FilterChip) => {
+    // #1011: the "like" chip is the third exception — clearing likeAuthor also has to put back
+    // the filters "Show N others like this" widened away, so it goes through clearLikeAuthor
+    // instead of its own patch. (Its patch stays {likeAuthor:""} so filterChips remains pure
+    // and the chip still reads as "remove this filter" everywhere else.)
+    if (chip.id === "like") { clearLikeAuthor(); return; }
     if (Object.keys(chip.patch).length > 0) patchFilters(chip.patch);
     if (chip.preset) applyDatePreset(chip.preset);
     if (chip.id === "search") setSearchInput("");

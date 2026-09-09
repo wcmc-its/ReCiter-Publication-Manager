@@ -527,5 +527,65 @@ dep("an unready Article facet renders a placeholder, never a 0",
 dep("an unready Article facet blanks the count column too",
   /\{authorFacetsReady \? inst\.n\.toLocaleString\(\) : "—"\}/);
 
+// ---- #1011: the count and the filtered list must ask the same question -------------------
+// The bug: "Show N others like this" counted over open + name key alone, while the list it
+// filtered to ANDed the name key onto every OTHER active chip. A card promising 5 landed on
+// "Showing 1 of 1". The fix widens the list to the count's scope on click (LIKE_WIDEN_PATCH),
+// and this is the assertion the handoff asked for, stated purely: given ANY filter state, the
+// body posted after the widen must be the body of the widest possible state. If they are equal
+// byte for byte then the list can only be scoping on status + name key, which is exactly what
+// the server counts.
+console.log(`\n8. "Show N others like this": widened list scope == counted scope (#1011)`);
+const widen = new Function(`return (${literalAfter(workSrc, "const LIKE_WIDEN_PATCH: Partial<AuthorshipFilters> = ", "\n};", "LIKE_WIDEN_PATCH")});`)();
+
+// (a) every filter key is either cleared by the patch or deliberately exempt. Driven off the
+// live FILTER_DEFAULTS key list, so a filter added in a later phase fails HERE — loudly, in the
+// one place that knows the count cannot see it — instead of silently re-opening the bug.
+//   likeAuthor  the filter being APPLIED, obviously not cleared
+//   sort        a view preference, not a predicate: buildWhere never reads it (RESET_EXEMPT)
+const WIDEN_EXEMPT = new Set(["likeAuthor", "sort"]);
+for (const k of keys) {
+  if (WIDEN_EXEMPT.has(k)) {
+    if (k in widen) fail(`LIKE_WIDEN_PATCH must not touch ${k} (${k === "sort" ? "view preference" : "the filter being applied"})`);
+    else pass(`${k} is exempt from the widen, and untouched`);
+  } else if (k in widen) pass(`${k} is cleared by LIKE_WIDEN_PATCH`);
+  else fail(`${k} is a filter the like-count cannot see, and LIKE_WIDEN_PATCH does not clear it — ` +
+            `the button will promise more rows than the list shows`);
+}
+
+// (b) the widen actually erases state, whatever was set. Two very different starting points,
+// both widened, must post byte-identical bodies (sort aside, which is exempt by design).
+const WIDEST = { ...MOUNT, ...widen, sort: "io", likeAuthor: "Anita Karimi" };
+const widenedFrom = (state) => JSON.stringify(currentBody({ ...state, ...widen, likeAuthor: "Anita Karimi" }));
+const target = JSON.stringify(currentBody(WIDEST));
+for (const [name, state] of Object.entries({
+  "the reported case (article affil + date window + identity affil)":
+    s({ selectedInstitutions: [], selectedAuthorAffiliations: ["wcm"], dateFrom: "2024-09-04", dateTo: "2026-09-04" }),
+  "every filter off its default at once": { ...STATES["every filter off its default at once"], sort: "io" },
+  "a dismissed-queue row (the overflow menu offers the button there too)":
+    s({ statusView: "dismissed", hideNoIdentity: true, source: "scopus", sort: "io" }),
+})) {
+  if (widenedFrom(state) === target) pass(`widening from ${name} lands on the counted scope`);
+  else fail(`widening from ${name} still carries a filter the count cannot see:\n` +
+            `       got:    ${widenedFrom(state)}\n       wanted: ${target}`);
+}
+
+// (c) both exits from the like view restore what it widened away — a curator must never be left
+// in a silently-widened queue. Source-level, since the stash is a ref inside the component.
+dep("the click stashes the filters it is about to widen away",
+  /likeFilterStash\.current = \{ filters: \{ \.\.\.filters \}, preset: datePreset, searchInput \};/);
+// Re-clicking the button from INSIDE a like view (a card for another name) must not overwrite
+// the snapshot with the already-widened state, or the restore puts back the widening.
+dep("the stash is taken on entry only, never overwritten mid-view",
+  /if \(!likeFilterStash\.current\) \{\n\s*likeFilterStash\.current = \{ filters:/);
+// ...and the restore must leave sort alone: it is the one key the widen never cleared, so a
+// sort chosen inside the like view is the curator's, not the snapshot's.
+dep("the restore does not put back the snapshot's sort",
+  /const \{ sort: _keepCurrentSort, \.\.\.restored \} = stashed\.filters;/);
+dep("dismissing the \u201cLike: \u2026\u201d chip restores them instead of just clearing likeAuthor",
+  /if \(chip\.id === "like"\) \{ clearLikeAuthor\(\); return; \}/);
+dep("the auto-exit on an emptied like view restores them too",
+  /if \(!loading && rows\.length === 0 && filters\.likeAuthor\.trim\(\)\) clearLikeRef\.current\?\.\(\);/);
+
 console.log(failures === 0 ? `\nOK — no request body changed\n` : `\n${failures} FAILURE(S)\n`);
 process.exit(failures === 0 ? 0 : 1);
