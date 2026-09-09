@@ -24,6 +24,7 @@ import assert from "node:assert/strict";
 import {
   escapeLdapFilter, buildNameFilter, projectWcmPerson, projectCornellPerson,
   directoryIdentityPayload, cornellPersonTypes, ldapDate,
+  institutionForPrimaryOrg, PRIMARY_ORG_INSTITUTION,
 } from "../src/lib/directory.ts";
 import { typedCwidPreview } from "../src/lib/bulkAssign.ts";
 
@@ -331,5 +332,59 @@ check("case and padding do not defeat the mapping",
   directoryIdentityPayload({
     ...nyp, primaryOrg: " nyp ", givenName: "A", familyName: "B",
   }).primaryInstitution, "New York-Presbyterian Hospital");
+
+// The whole table, ported from the Institutional Client's getVerbosePrimaryOrganization().
+// These literals must stay identical to that switch — the nightly job rewrites the same field on
+// the same records, so a divergence here means an author's institution flips spelling depending
+// on which system last wrote it.
+console.log("\norg table — the same 30 literals the nightly job writes:");
+check("MSKCC", institutionForPrimaryOrg("MSKCC"), "Memorial Sloan Kettering Cancer Center");
+check("HSS", institutionForPrimaryOrg("HSS"), "Hospital for Special Surgery");
+check("WCMC-Q, hyphen and all", institutionForPrimaryOrg("WCMC-Q"),
+  "Weill Cornell Medical College in Qatar");
+check("NYPQ is NOT folded into NYP", institutionForPrimaryOrg("NYPQ"),
+  "New York Presbyterian - Queens");
+check("...and NYP is still itself", institutionForPrimaryOrg("NYP"),
+  "New York-Presbyterian Hospital");
+check("a token with a SPACE in it", institutionForPrimaryOrg("CU GHS"),
+  "Cornell University Gannette Health Services");
+check("a mixed-case token matches case-insensitively", institutionForPrimaryOrg("cmcithaca"),
+  "Cayuga Medical Center of Ithaca");
+check("WCMC maps to the College spelling the nightly job uses, not 'Weill Cornell Medicine'",
+  institutionForPrimaryOrg("WCMC"), "Weill Cornell Medical College");
+check("an unknown token resolves to nothing, so the caller can fall back",
+  institutionForPrimaryOrg("NOT-A-REAL-ORG"), null);
+check("null in, null out", institutionForPrimaryOrg(null), null);
+ok("all 30 IC cases are present", Object.keys(PRIMARY_ORG_INSTITUTION).length === 30);
+
+console.log("\nboth org attributes are read, because ED publishes both:");
+check("the bare attribute alone works",
+  projectWcmPerson({
+    uid: "h1", weillCornellEduCWID: "h1", sn: "A", weillCornellEduPrimaryOrg: "HSS",
+  }).primaryOrg, "HSS");
+check("the LONG attribute alone works — the one the Institutional Client reads",
+  projectWcmPerson({
+    uid: "h2", weillCornellEduCWID: "h2", sn: "B", weillCornellEduPrimaryOrganization: "MSKCC",
+  }).primaryOrg, "MSKCC");
+check("...including when it wears a ;option suffix, as gallric's does",
+  projectWcmPerson({
+    uid: "h3", weillCornellEduCWID: "h3", sn: "C",
+    "weillCornellEduPrimaryOrganization;affiliate": "NYP",
+  }).primaryOrg, "NYP");
+// If the two disagree, the resolvable one is the useful answer.
+check("when the two disagree, the token that maps to an institution wins",
+  projectWcmPerson({
+    uid: "h4", weillCornellEduCWID: "h4", sn: "D",
+    weillCornellEduPrimaryOrg: "GARBAGE", weillCornellEduPrimaryOrganization: "HSS",
+  }).primaryOrg, "HSS");
+check("if NEITHER maps, the bare attribute is still surfaced rather than dropped",
+  projectWcmPerson({
+    uid: "h5", weillCornellEduCWID: "h5", sn: "E",
+    weillCornellEduPrimaryOrg: "MYSTERY", weillCornellEduPrimaryOrganization: "ALSO-MYSTERY",
+  }).primaryOrg, "MYSTERY");
+check("...and an unmappable token still falls back to the derived institution on mint",
+  directoryIdentityPayload({
+    ...nyp, primaryOrg: "MYSTERY", givenName: "A", familyName: "B",
+  }).primaryInstitution, "Weill Cornell Medicine");
 
 console.log(`\n${n}/${n} passed\n`);

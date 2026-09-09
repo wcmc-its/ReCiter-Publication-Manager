@@ -150,7 +150,12 @@ const createdOf = (e: Record<string, unknown>) => {
 const WCM_ATTRS = [
   "uid", "weillCornellEduCWID", "displayName", "givenName", "weillCornellEduMiddleName", "sn",
   "mail", "weillCornellEduDepartment", "weillCornellEduPersonTypeCode", "title",
-  "weillCornellEduPrimaryOrg", "weillCornellEduPrimaryDepartment", ...CREATED_ATTRS,
+  // BOTH org spellings. gallric carries `weillCornellEduPrimaryOrg` bare and
+  // `weillCornellEduPrimaryOrganization;affiliate` (2026-09-09 prod probe), and the
+  // Institutional Client reads the LONGER one — so asking for only one of them would disagree
+  // with the nightly job about who an author works for.
+  "weillCornellEduPrimaryOrg", "weillCornellEduPrimaryOrganization",
+  "weillCornellEduPrimaryDepartment", ...CREATED_ATTRS,
 ] as const;
 
 export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | null {
@@ -181,7 +186,15 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
     title: first(e.title),
     dept: depts[0] ?? null,
     depts,
-    primaryOrg: attrFirst(e, "weillCornellEduPrimaryOrg"),
+    // Prefer a token this app can actually resolve to an institution. gallric carries the same
+    // "NYP" in both attributes, but if they ever disagree, the one we can map is the useful
+    // answer and the bare attribute is only the tie-break.
+    primaryOrg: [
+      attrFirst(e, "weillCornellEduPrimaryOrg"),
+      attrFirst(e, "weillCornellEduPrimaryOrganization"),
+    ].find((o) => institutionForPrimaryOrg(o))
+      ?? attrFirst(e, "weillCornellEduPrimaryOrg")
+      ?? attrFirst(e, "weillCornellEduPrimaryOrganization"),
     created: createdOf(e),
     emails: clean(all(e.mail)).map((m) => m.toLowerCase()),
     // ponytail: `wcm-directory` is deliberately NOT a real ReCiter person type, and is the one
@@ -394,18 +407,61 @@ export const directoryConfigured = () => wcmEnv() !== null || cornellEnv() !== n
  *  than sending a body the API will 500 on. Field shape follows
  *  scripts/sync_cornell_ithaca_identities.py's build_identity() so a person minted here and the
  *  same person loaded by the bulk Ithaca sync are byte-comparable records. */
-/** ED's `weillCornellEduPrimaryOrg` is a short token ("NYP"); `person.primaryInstitution` is
- *  curated free text. This maps the tokens seen so far onto the literal ALREADY IN USE, and must
- *  stay identical to INSTITUTION_BUCKETS in controllers/db/authorships.controller.ts — the same
- *  rule cornellPersonTypes() lives under, and for the same reason: two spellings of one
- *  institution silently split it across two buckets in every report that groups by institution.
+/** ED's primary-org attribute is a short token ("NYP"); `person.primaryInstitution` is curated
+ *  free text. This maps token -> institution.
  *
- *  Deliberately a allow-list, not a passthrough. An unrecognised token falls back to the
+ *  PORTED VERBATIM from the Institutional Client, which has owned this mapping all along:
+ *  ReCiter-Institutional-Client `LdapIdentityDaoImpl.getVerbosePrimaryOrganization()`
+ *  (~line 1327), all 30 cases. That job writes the same `primaryInstitution` field on the same
+ *  DynamoDB records every night, so a person who is minted here and later appears in the ED
+ *  academic roster must not have their institution rewritten to a different spelling of the same
+ *  place. Keep the two identical — the same rule cornellPersonTypes() lives under, and for the
+ *  same reason: two spellings of one institution silently split it across two buckets in every
+ *  report that groups by institution (INSTITUTION_BUCKETS in authorships.controller.ts).
+ *
+ *  Deliberately an allow-list, not a passthrough. An unrecognised token falls back to the
  *  directory-derived label rather than writing a raw ED string into a curated vocabulary, so a
- *  new org code cannot invent a 71st distinct primaryInstitution value on its own. */
-const PRIMARY_ORG_INSTITUTION: Record<string, string> = {
+ *  new org code cannot invent a distinct primaryInstitution value on its own. */
+export const PRIMARY_ORG_INSTITUTION: Record<string, string> = {
+  MSKCC: "Memorial Sloan Kettering Cancer Center",
+  WCMC: "Weill Cornell Medical College",
+  CUCPS: "Columbia University College of Physicians and Surgeons",
   NYP: "New York-Presbyterian Hospital",
+  "WCMC-Q": "Weill Cornell Medical College in Qatar",
+  NYMH: "New York Methodist Hospital",
+  HSS: "Hospital for Special Surgery",
+  NYPQ: "New York Presbyterian - Queens",
+  RI: "Rogosin Institute",
+  SIDRA: "SIDRA Medical and Research Center",
+  HMC: "Hamad Medical Corporation",
+  WMBMRI: "Winifred Masterson Burke Medical Research Institute",
+  HMH: "Houston Methodist Hospital",
+  RU: "Rockefeller University",
+  LMMHC: "Lincoln Medical and Mental Health Center",
+  Cornell: "Cornell University",
+  AspH: "Aspetar Hospital",
+  CMCIthaca: "Cayuga Medical Center of Ithaca",
+  PHCC: "Primary Health Care Corporation (Qatar)",
+  BHC: "The Brooklyn Hospital Center",
+  FMMP: "Feto-Maternal Medical Polyclinic (Qatar)",
+  HMRI: "Houston Methodist Research Institute",
+  JamaicaH: "Jamaica Hospital",
+  ANH: "Amsterdam Nursing Home",
+  Lenox: "Lenox Hill Hospital",
+  "CU GHS": "Cornell University Gannette Health Services",
+  FlushHMC: "Flushing Hospital Medical Center",
+  AHP: "American Hospital of Paris",
+  LaGuardH: "La Guardia Hospital",
+  UGMA: "University Group Medical Associates",
 };
+
+// Tokens are mixed-case in ED ("AspH", "CMCIthaca", "CU GHS"), and the two attributes that carry
+// them do not have to agree on case, so match case-insensitively rather than trusting the
+// spelling above to be what comes back.
+const ORG_INSTITUTION_BY_KEY = new Map(
+  Object.entries(PRIMARY_ORG_INSTITUTION).map(([k, v]) => [k.trim().toUpperCase(), v]));
+export const institutionForPrimaryOrg = (org: string | null): string | null =>
+  (org && ORG_INSTITUTION_BY_KEY.get(org.trim().toUpperCase())) || null;
 
 export function directoryIdentityPayload(p: DirectoryPerson): Record<string, any> | null {
   const given = String(p.givenName || "").trim(), family = String(p.familyName || "").trim();
@@ -420,7 +476,7 @@ export function directoryIdentityPayload(p: DirectoryPerson): Record<string, any
   // it fall back to which directory answered. ou=people holds NewYork-Presbyterian people, so
   // deriving this from `source` alone minted gallric as "Weill Cornell Medicine" and
   // authorships.controller's `wcm` bucket counted him as WCM in reporting.
-  const institution = (p.primaryOrg && PRIMARY_ORG_INSTITUTION[p.primaryOrg.trim().toUpperCase()])
+  const institution = institutionForPrimaryOrg(p.primaryOrg)
     || (p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University");
   const out: Record<string, any> = {
     uid: p.id,
