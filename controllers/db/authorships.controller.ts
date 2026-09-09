@@ -1906,6 +1906,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
 // 5,662 total = 4,449 ACCEPTED + 713 REJECTED + 500 pending, which this table stores as '' not 'PENDING'). Do not quote the wider number here.
 const PRIOR_NAMES_CWID_CAP = 50;
 const PRIOR_NAMES_NAME_CAP = 8;
+const PRIOR_NAMES_PAPER_CAP = 5;
 
 export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
@@ -1948,10 +1949,82 @@ export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResp
         names[cwid] = names[cwid].slice(0, PRIOR_NAMES_NAME_CAP);
       }
     }
+    // ---- recent accepted papers ------------------------------------------------
+    // The card's whole job is "is this the same person?", and a byline name alone often
+    // cannot settle it — two WCM Lis publishing in the same field look identical by name.
+    // Titles do settle it: a curator reading "prostate cancer / cholesterol metabolism"
+    // against a proteomics core scientist knows in one glance. Rides the same
+    // (personIdentifier, pmid) index the names query above already walked, so this adds a
+    // second pass over rows already in the buffer pool, not a new access path.
+    const acceptedRows: any[] = await models.PersonArticle.findAll({
+      attributes: ["personIdentifier", "pmid"],
+      where: { personIdentifier: { [Op.in]: cwids }, userAssertion: "ACCEPTED" },
+      raw: true,
+    });
+    // Highest pmid first as a recency proxy, so the title lookup is bounded by
+    // PAPER_CAP * cwids rather than by the most prolific person's whole bibliography.
+    // pmid order is not strictly publication order, which is why the rendered line shows
+    // the YEAR from analysis_summary_article and does not claim to be "most recent".
+    const byCwid: Record<string, number[]> = {};
+    for (const r of acceptedRows) {
+      const cw = String(r.personIdentifier);
+      (byCwid[cw] ||= []).push(Number(r.pmid));
+    }
+    const wantPmids = new Set<number>();
+    for (const cw of Object.keys(byCwid)) {
+      byCwid[cw].sort((a, b) => b - a);
+      byCwid[cw] = byCwid[cw].slice(0, PRIOR_NAMES_PAPER_CAP);
+      byCwid[cw].forEach((p) => wantPmids.add(p));
+    }
+    const titleRows: any[] = wantPmids.size
+      ? await models.AnalysisSummaryArticle.findAll({
+          attributes: ["pmid", "articleTitle", "articleYear"],
+          where: { pmid: { [Op.in]: [...wantPmids] } },
+          raw: true,
+        })
+      : [];
+    const titleByPmid = new Map<number, { title: string; year?: number }>(
+      titleRows.map((t) => [Number(t.pmid), { title: String(t.articleTitle || ""), year: t.articleYear ?? undefined }]));
+    const papers: Record<string, Array<{ pmid: number; title: string; year?: number }>> = {};
+    for (const cw of Object.keys(byCwid)) {
+      papers[cw] = byCwid[cw]
+        .map((pm) => ({ pmid: pm, ...(titleByPmid.get(pm) || { title: "" }) }))
+        .filter((x) => x.title)
+        .sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    }
+
+    // ---- roster identity -------------------------------------------------------
+    // Two different names, deliberately both: `identity` carries the HR/LDAP LEGAL name and
+    // `person` the DynamoDB Identity PUBLISHING name, and they disagree often enough to
+    // matter — a card showing only the legal name is why "we aren't checking the primary
+    // name" gets reported when the matcher was in fact right. The client renders the pair
+    // only when they differ, so the common case stays quiet.
+    const identityRows: any[] = await models.Identity.findAll({
+      attributes: ["cwid", "givenName", "middleName", "surname", "primaryTitle", "primaryAcademicDivision"],
+      where: { cwid: { [Op.in]: cwids } }, raw: true,
+    });
+    const personRows: any[] = await models.Person.findAll({
+      attributes: ["personIdentifier", "firstName", "middleName", "lastName"],
+      where: { personIdentifier: { [Op.in]: cwids } }, raw: true,
+    });
+    const pubName = new Map<string, string>(personRows.map((p) => [String(p.personIdentifier),
+      [p.firstName, p.middleName, p.lastName].map((x) => String(x || "").trim()).filter(Boolean).join(" ")]));
+    const identity: Record<string, { legalName?: string; publishingName?: string; title?: string; division?: string }> = {};
+    for (const r of identityRows) {
+      const cw = String(r.cwid);
+      const legal = [r.givenName, r.middleName, r.surname].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+      identity[cw] = {
+        legalName: legal || undefined,
+        publishingName: pubName.get(cw) || undefined,
+        title: String(r.primaryTitle || "").trim() || undefined,
+        division: String(r.primaryAcademicDivision || "").trim() || undefined,
+      };
+    }
+
     // Every requested cwid gets an entry, so the client can tell "asked and has none" from
     // "never asked" without tracking its own request bookkeeping.
-    for (const c of cwids) { names[c] ||= []; accepted[c] ||= 0; }
-    res.send({ names, accepted, more: dropped });
+    for (const c of cwids) { names[c] ||= []; accepted[c] ||= 0; papers[c] ||= []; }
+    res.send({ names, accepted, more: dropped, papers, identity });
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));

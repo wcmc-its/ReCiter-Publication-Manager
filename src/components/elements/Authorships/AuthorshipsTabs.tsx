@@ -172,6 +172,13 @@ interface PriorNames {
   names: Array<{ first: string; last: string; n: number }>;
   accepted: number;
   more?: number;
+  // Titles of accepted papers. A byline name alone often cannot separate two WCM homonyms
+  // publishing in the same field; what they have already published usually can.
+  papers?: Array<{ pmid: number; title: string; year?: number }>;
+  // Roster names, both of them: `identity` holds the HR/LDAP LEGAL name, `person` the
+  // DynamoDB PUBLISHING name. They disagree often enough that showing only the legal one
+  // reads as "the matcher ignored the primary name" when it did nothing of the kind.
+  identity?: { legalName?: string; publishingName?: string; title?: string; division?: string };
 }
 
 interface Candidate {
@@ -979,8 +986,22 @@ const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
 //                               rows exist WITH userAssertion='ACCEPTED', the only state this
 //                               card counts; 5,662 is the all-states figure and is not the
 //                               claim. Calling this "no accepted papers" is a lie)
-const IdentityHoverCard = ({ row: r, priorNames }: { row: AuthorshipRow; priorNames?: PriorNames }) => {
-  const hasDetail = !!(r.top_dept || r.top_division || r.top_institution);
+const IdentityHoverCard = ({ subject, priorNames }: {
+  // Takes a plain identity rather than an AuthorshipRow so the multi-candidate list can show
+  // the same card per CANDIDATE. It was row-shaped and therefore single-candidate-only, which
+  // is precisely backwards: the row that needs an identity dossier most is the homonym row
+  // asking a curator to choose among five people with the same surname.
+  subject: { name?: string; cwid?: string; dept?: string; division?: string; institution?: string };
+  priorNames?: PriorNames;
+}) => {
+  const r = subject;
+  const id = priorNames?.identity;
+  // Only worth the line when it says something the header does not: a legal name that differs
+  // from the publishing name is the useful case, an identical pair is noise.
+  const norm = (x?: string) => (x || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const showLegal = !!id?.legalName && norm(id.legalName) !== norm(id.publishingName) && norm(id.legalName) !== norm(r.name);
+  const showPublishing = !!id?.publishingName && norm(id.publishingName) !== norm(r.name);
+  const hasDetail = !!(r.dept || r.division || r.institution || id?.title);
   return (
     <span onClick={(e) => e.stopPropagation()}
       style={{ position: "absolute", top: "100%", left: 0, zIndex: 60, width: 296, paddingTop: 8, display: "block", cursor: "default" }}>
@@ -989,14 +1010,21 @@ const IdentityHoverCard = ({ row: r, priorNames }: { row: AuthorshipRow; priorNa
         borderRadius: 8, boxShadow: "0 14px 34px rgba(27,36,50,0.18)", padding: "13px 15px",
         fontWeight: 400, letterSpacing: 0, color: CTRL.ink }}>
         <span style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{r.top_name || r.top_cwid}</span>
-          <span style={{ fontSize: 13, color: CTRL.accent }}>{r.top_cwid}</span>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{r.name || r.cwid}</span>
+          <span style={{ fontSize: 13, color: CTRL.accent }}>{r.cwid}</span>
         </span>
+        {(showLegal || showPublishing) && (
+          <span style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12.5, color: "#4a5262" }}>
+            {showPublishing && <span><span style={{ color: "#8b93a2" }}>Publishes as </span>{id!.publishingName}</span>}
+            {showLegal && <span><span style={{ color: "#8b93a2" }}>HR name </span>{id!.legalName}</span>}
+          </span>
+        )}
         {hasDetail && (
           <span style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13, color: "#4a5262", lineHeight: 1.45 }}>
-            {r.top_dept && <span>{r.top_dept}</span>}
-            {r.top_division && <span style={{ color: "#6f7889" }}>{r.top_division}</span>}
-            {r.top_institution && <span style={{ color: "#6f7889" }}>{r.top_institution}</span>}
+            {id?.title && <span>{id.title}</span>}
+            {r.dept && <span>{r.dept}</span>}
+            {(r.division || id?.division) && <span style={{ color: "#6f7889" }}>{r.division || id?.division}</span>}
+            {r.institution && <span style={{ color: "#6f7889" }}>{r.institution}</span>}
           </span>
         )}
         <span style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
@@ -1024,6 +1052,24 @@ const IdentityHoverCard = ({ row: r, priorNames }: { row: AuthorshipRow; priorNa
             </>
           )}
         </span>
+        {!!priorNames?.papers?.length && (
+          <span style={{ display: "flex", flexDirection: "column", gap: 5, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
+            <span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>ACCEPTED PAPERS</span>
+            {priorNames.papers.map((p) => (
+              <span key={p.pmid} style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.35 }}>
+                {p.year && <span style={{ color: "#8b93a2", fontVariantNumeric: "tabular-nums", flex: "none" }}>{p.year}</span>}
+                {/* clamped to two lines: a title is identifying at a glance, and a card that
+                    grows with the longest title stops being scannable. */}
+                <span style={{ color: CTRL.ink, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.title}</span>
+              </span>
+            ))}
+            {priorNames.accepted > priorNames.papers.length && (
+              <span style={{ fontSize: 12, color: "#8b93a2" }}>
+                of {priorNames.accepted.toLocaleString()} accepted
+              </span>
+            )}
+          </span>
+        )}
       </span>
     </span>
   );
@@ -1544,7 +1590,10 @@ const AuthorshipsTabs = () => {
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => setPriorNames((p) => ({
         ...p,
-        [cwid]: { names: d?.names?.[cwid] || [], accepted: d?.accepted?.[cwid] ?? 0, more: d?.more?.[cwid] },
+        [cwid]: {
+          names: d?.names?.[cwid] || [], accepted: d?.accepted?.[cwid] ?? 0, more: d?.more?.[cwid],
+          papers: d?.papers?.[cwid] || [], identity: d?.identity?.[cwid],
+        },
       })))
       .catch(() => { priorNamesAsked.current.delete(cwid); });
   }, []);
@@ -3233,8 +3282,8 @@ const AuthorshipsTabs = () => {
             onFindOthers={() => findOthersLikeThis(r.wcm_author)}
             // §2.6 hover card: `undefined` means "not asked yet / still in flight", which the
             // card renders as a loading line. An answered cwid always has an entry.
-            priorNames={r.top_cwid ? priorNames[r.top_cwid] : undefined}
-            onHoverIdentity={() => requestPriorNames(r.top_cwid)}
+            priorNamesByCwid={priorNames}
+            onHoverIdentity={requestPriorNames}
             // Session conflict if this curator just hit it; otherwise rehydrate the one
             // persisted on the row, so a refresh (or a different curator) still sees why.
             conflict={conflicts[r.id] ?? (r.accept_conflict ? {
@@ -3740,8 +3789,11 @@ interface CardProps {
   onFindOthers: () => void;
   // §2.6 identity hover card. undefined = not fetched yet (or in flight); the parent owns the
   // per-cwid cache, so a card never re-requests what another card already asked for.
-  priorNames?: PriorNames;
-  onHoverIdentity: () => void;
+  // Keyed by cwid, not pre-narrowed to the row's top_cwid: a multi-candidate row needs a
+  // dossier for each of its five candidates, not just the one the matcher ranked first.
+  // undefined for a cwid = not fetched yet (or in flight).
+  priorNamesByCwid: Record<string, PriorNames>;
+  onHoverIdentity: (cwid?: string | null) => void;
   conflict?: ConflictEntry;
   onClearConflict: () => void;
 }
@@ -3749,7 +3801,7 @@ interface CardProps {
 const AuthorshipCard = ({
   row: r, statusView, selectable, isExpanded, isSelected, isFocused, acting, pickedCwid,
   registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onAssignOther, onNarrowPmid,
-  onFindOthers, priorNames, onHoverIdentity,
+  onFindOthers, priorNamesByCwid, onHoverIdentity,
   conflict, onClearConflict,
 }: CardProps) => {
   // Matches the server accept gate (`!row.single_candidate`) and the sibling gates below
@@ -3784,7 +3836,7 @@ const AuthorshipCard = ({
   useEffect(() => cancelHover, []);
   const openIdentityHover = () => {
     cancelHover();
-    hoverTimer.current = setTimeout(() => { setIdentityHover(true); onHoverIdentity(); }, 220);
+    hoverTimer.current = setTimeout(() => { setIdentityHover(true); onHoverIdentity(r.top_cwid); }, 220);
   };
   const closeIdentityHover = () => { cancelHover(); setIdentityHover(false); };
 
@@ -3853,7 +3905,10 @@ const AuthorshipCard = ({
                       style={{ color: "#2563eb", textDecoration: "none" }}>{r.top_cwid}</a>
                   )}
                   {identityHover && (
-                    <IdentityHoverCard row={r} priorNames={priorNames} />
+                    <IdentityHoverCard
+                      subject={{ name: r.top_name, cwid: r.top_cwid, dept: r.top_dept,
+                                 division: r.top_division, institution: r.top_institution }}
+                      priorNames={r.top_cwid ? priorNamesByCwid[r.top_cwid] : undefined} />
                   )}
                 </span>
                 <span style={{ color: "#94a3b8" }}>· {r.top_person_type}{r.top_dept ? `, ${r.top_dept}` : ""}</span>
@@ -4098,7 +4153,8 @@ const AuthorshipCard = ({
         <div style={{ padding: "0 15px 14px 43px", fontSize: 13, color: "#475569" }}>
           {isMulti ? (
             <MultiEvidence row={r} candidates={candidates} pickedCwid={pickedCwid} acting={acting}
-              onPick={onPick} onAction={onAction} />
+              onPick={onPick} onAction={onAction}
+              priorNamesByCwid={priorNamesByCwid} onHoverIdentity={onHoverIdentity} />
           ) : (
             <SingleEvidence row={r} wcm={wcm} isAbsent={isAbsent} />
           )}
@@ -4289,10 +4345,20 @@ const HomonymNote = ({ listed, typed }: { listed: number; typed: number }) => ty
 );
 
 // multi-candidate disambiguation panel (F11)
-const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onAction }: {
+const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onAction,
+  priorNamesByCwid, onHoverIdentity }: {
   row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean;
   onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
+  priorNamesByCwid: Record<string, PriorNames>; onHoverIdentity: (cwid?: string | null) => void;
 }) => {
+  // One hover at a time, so a single cwid rather than a per-candidate flag each.
+  const [hoverCwid, setHoverCwid] = useState<string | null>(null);
+  const candHoverTimer = useRef<any>(null);
+  const openHover = (cwid: string) => {
+    clearTimeout(candHoverTimer.current);
+    candHoverTimer.current = setTimeout(() => { setHoverCwid(cwid); onHoverIdentity(cwid); }, 220);
+  };
+  const closeHover = () => { clearTimeout(candHoverTimer.current); setHoverCwid(null); };
   // rank by full given-name match first, then IO desc, then matcher confidence desc --
   // the same key the AAR producer now writes server-side. io_score is on a 0-100 scale, so
   // a 0.62 is the model saying "not this person"; ranking on IO alone let any faintly-scored
@@ -4359,17 +4425,30 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
             <label key={c.cwid || i} onClick={(e) => e.stopPropagation()} style={{
               display: "flex", alignItems: "center", gap: 11, padding: "9px 11px",
               border: `1px solid ${isLead ? "#bbf7d0" : rejected ? "#fecaca" : "#e8edf2"}`, borderRadius: 7, marginBottom: 7,
-              cursor: rejected ? "not-allowed" : "pointer",
+              cursor: "pointer",
               background: isLead ? "#f0fdf4" : rejected ? "#fef2f2" : "#fff",
               opacity: rejected ? 0.8 : 1,
             }}>
-              <input type="radio" name={`m${r.id}`} checked={checked} disabled={rejected} onChange={() => onPick(c.cwid)}
+              {/* A rejected candidate is WARNED about, not blocked. GoldStandard rejection is
+                  per-(person, pmid) and cannot say "not this authorship", so on a paper with two
+                  same-cohort WCM authors, resolving one writes a rejection that also blocks the
+                  other -- PMID 42625032 rejected zhl4007 for the "Zhongchi Li" slot at position 0
+                  and thereby locked him out of his own "Zhucui Li" slot at position 9. Rare (1 of
+                  57 such rows), but unrecoverable from the UI: it took a prod GoldStandard edit.
+                  The reject-others write stays -- it is real feedback signal on every other paper
+                  -- so the fix belongs here, and the curator adjudicates the pill. */}
+              <input type="radio" name={`m${r.id}`} checked={checked} onChange={() => onPick(c.cwid)}
                 onClick={(e) => e.stopPropagation()}
                 style={{ accentColor: "#2563eb", flex: "none" }} />
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0f172a" }}>
+                <span onMouseEnter={() => c.cwid && openHover(c.cwid)} onMouseLeave={closeHover}
+                  style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 13.5, fontWeight: 600, color: "#0f172a" }}>
                   {c.name}{" "}
                   {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
+                  {hoverCwid === c.cwid && (
+                    <IdentityHoverCard subject={{ name: c.name, cwid: c.cwid, dept: c.dept }}
+                      priorNames={c.cwid ? priorNamesByCwid[c.cwid] : undefined} />
+                  )}
                 </span>
                 <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>
                   {c.person_type}{c.dept ? ` · ${c.dept}` : ""}{!hasWcm(r.author_affiliation) ? " · ⚠ no WCM string" : ""}
@@ -4412,10 +4491,8 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
         )}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
-        {/* defense in depth: the radio being disabled already prevents picking a rejected
-            candidate through the UI, but this closes any edge-case gap cheaply. */}
-        <button style={btn("accept", acting || !pickedCwid || candidates.find((c) => c.cwid === pickedCwid)?.already_rejected)}
-          disabled={acting || !pickedCwid || candidates.find((c) => c.cwid === pickedCwid)?.already_rejected}
+        <button style={btn("accept", acting || !pickedCwid)}
+          disabled={acting || !pickedCwid}
           onClick={(e) => { e.stopPropagation(); pickedCwid && onAction("assign", { cwid: pickedCwid }); }}>
           <IconCheck /> Assign selected
         </button>
