@@ -270,5 +270,34 @@ ok("...and `source` still says wcm, because that is which directory answered", n
 check("a record with no primary org is null, not a guess",
   projectWcmPerson({ uid: "g1", weillCornellEduCWID: "g1", sn: "None" }).primaryOrg, null);
 check("cornell publishes no equivalent", corDept.primaryOrg, null);
+// RFC 4512 attribute options. ED really returns `weillCornellEduPrimaryOrganization;affiliate`
+// next to the bare form, seen on the 2026-09-09 prod probe — so a key carrying a `;option`
+// suffix must still be found, or the column silently empties for whoever has one.
+check("an attribute carrying a ;option suffix is still read",
+  projectWcmPerson({
+    uid: "g2", weillCornellEduCWID: "g2", sn: "Opt",
+    "weillCornellEduPrimaryOrg;affiliate": "NYP",
+  }).primaryOrg, "NYP");
+check("...and so is a create date wearing one",
+  projectWcmPerson({
+    uid: "g3", weillCornellEduCWID: "g3", sn: "Opt2",
+    "createTimestamp;x-foo": "20150505214246Z",
+  }).created, "2015-05-05");
+// The real gallric values from that probe, end to end.
+const gallric = projectWcmPerson({
+  uid: "gallric", weillCornellEduCWID: "gallric", sn: "G",
+  weillCornellEduPrimaryOrg: "NYP", createTimestamp: "20150505214246Z",
+  weillCornellEduPrimaryDepartment: "Emergency Medicine",
+  weillCornellEduDepartment: "Emergency Medicine",
+});
+check("live probe values: NYP", gallric.primaryOrg, "NYP");
+check("live probe values: the 2015 create date", gallric.created, "2015-05-05");
+check("a primary department that repeats the department is ONE entry, not two",
+  gallric.depts, ["Emergency Medicine"]);
+check("a primary department that DIFFERS is kept, and leads",
+  projectWcmPerson({
+    uid: "g4", weillCornellEduCWID: "g4", sn: "Two",
+    weillCornellEduPrimaryDepartment: "Medicine", weillCornellEduDepartment: "Pediatrics",
+  }).depts, ["Medicine", "Pediatrics"]);
 
 console.log(`\n${n}/${n} passed\n`);

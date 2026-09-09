@@ -110,20 +110,37 @@ export function ldapDate(v: unknown): string | null {
 
 // The two operational spellings, requested on every search. A server that does not know one
 // simply omits it from the result; naming both costs nothing and avoids a per-directory branch.
+// Probed against prod 2026-09-09: BOTH directories answer `createTimestamp` (ED returned
+// "20150505214246Z", Cornell "20010804100020Z"); neither needed `whenCreated`, which is kept for
+// an Active Directory source.
 const CREATED_ATTRS = ["createTimestamp", "whenCreated"] as const;
 
-// Case-INSENSITIVE on the way back out. LDAP attribute names are case-insensitive by spec and
-// these two directories do not agree on how they echo them — the Cornell attrs above are matched
-// all-lowercase while `cornellEduCWID` next to them is camel, which is what the case actually
-// returned looked like when each was added. A camel/lower mismatch on an operational attribute
-// would not error, it would just render an empty column forever, so do not tighten this to a
-// direct property read.
-const createdOf = (e: Record<string, unknown>) => {
+/** Read an attribute by its BASE name, ignoring case and any LDAP attribute options.
+ *
+ *  Two things make a direct `e.someAttr` read unreliable here, and both fail SILENTLY — an empty
+ *  column forever, never an error:
+ *
+ *  1. Case. LDAP attribute names are case-insensitive by spec and these directories do not agree
+ *     on how they echo them; `cornelleduprefgivenname` and `cornellEduCWID` sit side by side in
+ *     CORNELL_ATTRS because that is the case each actually came back in.
+ *  2. Options. A returned key may carry `;option` suffixes (RFC 4512) — ED really does return
+ *     `weillCornellEduPrimaryOrganization;affiliate` alongside the bare form, observed on the
+ *     2026-09-09 prod probe.
+ */
+function attrValues(e: Record<string, unknown>, base: string): string[] {
+  const want = base.toLowerCase();
+  const out: string[] = [];
   for (const k of Object.keys(e)) {
-    if (CREATED_ATTRS.some((a) => a.toLowerCase() === k.toLowerCase())) {
-      const d = ldapDate(e[k]);
-      if (d) return d;
-    }
+    if (k.toLowerCase().split(";")[0] === want) out.push(...all(e[k]));
+  }
+  return out;
+}
+const attrFirst = (e: Record<string, unknown>, base: string) => attrValues(e, base)[0] ?? null;
+
+const createdOf = (e: Record<string, unknown>) => {
+  for (const a of CREATED_ATTRS) {
+    const d = ldapDate(attrValues(e, a));
+    if (d) return d;
   }
   return null;
 };
@@ -133,7 +150,7 @@ const createdOf = (e: Record<string, unknown>) => {
 const WCM_ATTRS = [
   "uid", "weillCornellEduCWID", "displayName", "givenName", "weillCornellEduMiddleName", "sn",
   "mail", "weillCornellEduDepartment", "weillCornellEduPersonTypeCode", "title",
-  "weillCornellEduPrimaryOrg", ...CREATED_ATTRS,
+  "weillCornellEduPrimaryOrg", "weillCornellEduPrimaryDepartment", ...CREATED_ATTRS,
 ] as const;
 
 export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | null {
@@ -148,7 +165,15 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
   // filter matches, and `affiliate-cornell` (live on 483 people) is one of the strings it
   // would break.
   const types = clean(all(e.weillCornellEduPersonTypeCode)).map((t) => t.toLowerCase());
-  const depts = clean(all(e.weillCornellEduDepartment));
+  // ED publishes a primary department SEPARATELY from the department attribute (both present on
+  // gallric, 2026-09-09 probe), so read both and let clean() collapse them when they agree. The
+  // primary leads, because it is the one the mint writes as primaryOrganizationalUnit.
+  // `weillCornellEduDepartment` came back single-valued on that probe; all() covers the
+  // multi-valued case without asserting it happens.
+  const depts = clean([
+    ...attrValues(e, "weillCornellEduPrimaryDepartment"),
+    ...attrValues(e, "weillCornellEduDepartment"),
+  ]);
   return {
     id, source: "wcm",
     name: first(e.displayName) || clean([given, sn]).join(" ") || id,
@@ -156,7 +181,7 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
     title: first(e.title),
     dept: depts[0] ?? null,
     depts,
-    primaryOrg: first(e.weillCornellEduPrimaryOrg),
+    primaryOrg: attrFirst(e, "weillCornellEduPrimaryOrg"),
     created: createdOf(e),
     emails: clean(all(e.mail)).map((m) => m.toLowerCase()),
     // ponytail: `wcm-directory` is deliberately NOT a real ReCiter person type, and is the one
@@ -238,8 +263,8 @@ export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerso
   // Ithaca numbers its department slots rather than multi-valuing one attribute, so a joint
   // appointment is deptname1 + deptname2; the org-unit name is the fallback when neither is set.
   const depts = clean([
-    first(e.cornelledudeptname1), first(e.cornelledudeptname2),
-    first(e.cornellEduOrganizationalUnitName),
+    ...attrValues(e, "cornelledudeptname1"), ...attrValues(e, "cornelledudeptname2"),
+    ...attrValues(e, "cornellEduOrganizationalUnitName"),
   ]);
   return {
     id, source: "cornell",
