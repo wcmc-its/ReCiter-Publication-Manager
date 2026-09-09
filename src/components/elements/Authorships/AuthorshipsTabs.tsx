@@ -3076,7 +3076,19 @@ const AuthorshipsTabs = () => {
           <label style={{ fontSize: 11.5, color: "#94a3b8" }}>Someone else:</label>
           <input value={assignOtherCwid} placeholder="cwid"
             onChange={(e) => setAssignOtherCwid(e.target.value.trim())}
-            onKeyDown={(e) => { if (e.key === "Enter" && assignOtherCwid && !assignLookupCwid) chooseAssignTarget(assignOtherCwid); }}
+            // Every key except Escape stops here. This input is a DESCENDANT of the MUI <Menu>
+            // above, and MenuList binds its own onKeyDown on the <ul role="menu">
+            // (@mui/material/MenuList/MenuList.js:233) which fires on bubbled events regardless
+            // of what has focus. For any single printable character it runs type-ahead over the
+            // sibling MenuItems and calls preventDefault() — so the curator's first keystroke was
+            // being swallowed and focus yanked onto a candidate row, and the box could never be
+            // typed into at all. Escape is deliberately let through: the Modal's escape-to-close
+            // handler sits ABOVE MenuList, so stopping it too would trap the dropdown open.
+            // The per-row AssignOther box never had this problem because it is not inside a Menu.
+            onKeyDown={(e) => {
+              if (e.key !== "Escape") e.stopPropagation();
+              if (e.key === "Enter" && assignOtherCwid && !assignLookupCwid) chooseAssignTarget(assignOtherCwid);
+            }}
             style={{ width: 90, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1", borderRadius: 4, color: "#334155" }} />
           <button style={btn("accept", !assignOtherCwid || !!assignLookupCwid)} disabled={!assignOtherCwid || !!assignLookupCwid}
             onClick={() => chooseAssignTarget(assignOtherCwid)}>
