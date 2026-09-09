@@ -936,11 +936,18 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
           })(),
           depts: p.depts,
           created: p.created,
-          // What this person IS at that institution — ED's person-type codes, Cornell's
-          // affiliations — already normalised into ReCiter's own vocabulary by the projectors,
-          // and the same array a mint would write to Identity.personTypes. The institution NAME
-          // is not sent: it is 1:1 with `source`, which the table already shows.
+          // ED's OWN answer for which organisation this person primarily belongs to, which is
+          // not derivable from `source`: ou=people carries NewYork-Presbyterian people too, so a
+          // WCM ED hit is not evidence of a WCM appointment. This is the column a curator needs
+          // to not attribute an NYP author's paper to WCM.
+          primaryOrg: p.primaryOrg,
+          // What this person IS at that organisation, already normalised into ReCiter's own
+          // vocabulary by the projectors — the same array a mint would write to
+          // Identity.personTypes. Secondary to primaryOrg, shown under it.
           personTypes: p.personTypes,
+          // The derived institution label, kept only for the hover: it is what
+          // directoryIdentityPayload would actually write as primaryInstitution, which is worth
+          // being able to see next to primaryOrg when the two disagree.
           primaryInstitution: p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University",
           email: p.emails[0] ?? null,
           hasIdentity: known.has(p.id) || known.has(p.id.toLowerCase()),

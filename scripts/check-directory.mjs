@@ -257,4 +257,18 @@ check("...as does Active Directory's whenCreated",
 check("a directory that withholds operational attributes yields null, which is a real answer",
   projectWcmPerson({ uid: "f4", weillCornellEduCWID: "f4", sn: "Quiet" }).created, null);
 
+console.log("\nprimary org — 'found in WCM ED' is not 'works at WCM':");
+// ou=people carries NewYork-Presbyterian staff alongside WCM's own. gallric is one of them.
+// Deriving the institution from `source` would label every one of them Weill Cornell.
+const nyp = projectWcmPerson({
+  uid: "gallric", weillCornellEduCWID: "gallric", givenName: "R", sn: "G",
+  weillCornellEduPrimaryOrg: "NYP",
+});
+check("an NYP person in ou=people reports NYP, not the directory they were found in",
+  nyp.primaryOrg, "NYP");
+ok("...and `source` still says wcm, because that is which directory answered", nyp.source === "wcm");
+check("a record with no primary org is null, not a guess",
+  projectWcmPerson({ uid: "g1", weillCornellEduCWID: "g1", sn: "None" }).primaryOrg, null);
+check("cornell publishes no equivalent", corDept.primaryOrg, null);
+
 console.log(`\n${n}/${n} passed\n`);

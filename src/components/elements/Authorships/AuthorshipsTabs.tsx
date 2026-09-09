@@ -4681,7 +4681,7 @@ const AssignOther = ({ rowId, acting, onAction }: {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, color: "#334155" }}>
                 <thead>
                   <tr style={{ color: "#6b7484", textAlign: "left" }}>
-                    {["Name", "ID", "Src", "Affiliation", "Title", "Department(s)", "Created", ""].map((h, i) => (
+                    {["Name", "ID", "Src", "Primary org", "Title", "Department(s)", "Created", ""].map((h, i) => (
                       <th key={h || `c${i}`} style={{
                         fontWeight: 600, fontSize: 10, letterSpacing: ".05em", textTransform: "uppercase",
                         padding: "0 8px 3px 0", borderBottom: "1px solid #e8edf2", whiteSpace: "nowrap",
@@ -4713,18 +4713,23 @@ const AssignOther = ({ rowId, acting, onAction }: {
                       <td style={{ ...dirCell, color: "#6f7889", whiteSpace: "nowrap" }}>
                         {m.source === "wcm" ? "WCM" : "Cornell"}
                       </td>
-                      {/* Primary affiliation at that institution — the faculty/staff/alumni
-                          distinction that decides whether this is the right person at all. The
-                          full list is on the title attribute rather than in the cell, because a
-                          WCM code ("academic-faculty-weillfulltime") is long enough to own the
-                          table on its own. */}
+                      {/* `weillCornellEduPrimaryOrg` — ED's own answer, NOT derived from which
+                          directory replied. ou=people carries NewYork-Presbyterian people
+                          (gallric is NYP), so "found in WCM ED" is not "works at WCM", and
+                          attributing an NYP author's paper to WCM is the mistake this column
+                          exists to prevent. The person type sits underneath as the secondary
+                          read; the full list and the institution a mint would write are on the
+                          title attribute, because a WCM code
+                          ("academic-faculty-weillfulltime") is long enough to own the table. */}
                       <td style={{ ...dirCell, color: "#4a5262" }}
-                        title={m.personTypes?.length
-                          ? `${m.primaryInstitution} · ${m.personTypes.join(", ")}`
-                          : m.primaryInstitution}>
-                        {m.personTypes?.length ? m.personTypes[0] : "—"}
-                        {m.personTypes?.length > 1 && (
-                          <span style={{ color: "#94a3b8" }}>{` +${m.personTypes.length - 1}`}</span>
+                        title={[m.primaryInstitution, m.personTypes?.length ? m.personTypes.join(", ") : null]
+                          .filter(Boolean).join(" · ")}>
+                        <span style={{ fontWeight: m.primaryOrg ? 600 : 400 }}>{m.primaryOrg || "—"}</span>
+                        {m.personTypes?.length > 0 && (
+                          <span style={{ display: "block", color: "#94a3b8" }}>
+                            {m.personTypes[0]}
+                            {m.personTypes.length > 1 ? ` +${m.personTypes.length - 1}` : ""}
+                          </span>
                         )}
                       </td>
                       <td style={{ ...dirCell, color: "#4a5262" }}>{m.title || "—"}</td>

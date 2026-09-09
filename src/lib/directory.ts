@@ -49,6 +49,11 @@ export type DirectoryPerson = {
   /** ED department attributes are multi-valued and a person can genuinely hold several
    *  (joint appointments). `dept` alone silently dropped all but the first. */
   depts: string[];
+  /** `weillCornellEduPrimaryOrg` — the organisation the person primarily belongs to, WCM ED's
+   *  own answer rather than one derived from which directory answered. This is NOT 1:1 with
+   *  `source`: ou=people carries NewYork-Presbyterian people too (gallric is NYP), so a WCM ED
+   *  hit is not evidence of a WCM appointment. Null on Cornell, which publishes no equivalent. */
+  primaryOrg: string | null;
   /** When the directory record itself was created, `YYYY-MM-DD`, or null. Operational
    *  attributes are only returned when named explicitly, and the two server families spell it
    *  differently (`createTimestamp` per RFC 4512, `whenCreated` on Active Directory), so both
@@ -128,7 +133,7 @@ const createdOf = (e: Record<string, unknown>) => {
 const WCM_ATTRS = [
   "uid", "weillCornellEduCWID", "displayName", "givenName", "weillCornellEduMiddleName", "sn",
   "mail", "weillCornellEduDepartment", "weillCornellEduPersonTypeCode", "title",
-  ...CREATED_ATTRS,
+  "weillCornellEduPrimaryOrg", ...CREATED_ATTRS,
 ] as const;
 
 export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | null {
@@ -151,6 +156,7 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
     title: first(e.title),
     dept: depts[0] ?? null,
     depts,
+    primaryOrg: first(e.weillCornellEduPrimaryOrg),
     created: createdOf(e),
     emails: clean(all(e.mail)).map((m) => m.toLowerCase()),
     // ponytail: `wcm-directory` is deliberately NOT a real ReCiter person type, and is the one
@@ -242,6 +248,9 @@ export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerso
     title: first(e.cornelleduwrkngtitle1) || first(e.cornelleduunivtitle1),
     dept: depts[0] ?? null,
     depts,
+    // Cornell publishes no primary-org equivalent; the campus marker in personTypes is the
+    // nearest thing and is already carried there.
+    primaryOrg: null,
     created: createdOf(e),
     emails: clean([first(e.cornelledupublishedemail), ...all(e.mail)]).map((m) => m.toLowerCase()),
     // `cornell-ithaca` is always present as the campus marker, and is what a future
@@ -369,6 +378,14 @@ export function directoryIdentityPayload(p: DirectoryPerson): Record<string, any
   const mid = String(p.middleName || "").trim();
   if (mid) { primaryName.middleName = mid; primaryName.middleInitial = mid[0]; }
 
+  // ponytail: institution is derived from which DIRECTORY answered, not from the person's own
+  // `primaryOrg`. Known ceiling, newly visible now that primaryOrg is carried: ou=people holds
+  // NewYork-Presbyterian people (gallric is NYP), so minting one of them writes
+  // primaryInstitution "Weill Cornell Medicine" — which authorships.controller's `wcm` bucket
+  // then counts as WCM in reporting. Left as-is deliberately: primaryInstitution is matched
+  // against a curated free-text vocabulary (INSTITUTION_BUCKETS), so writing a raw ED token like
+  // "NYP" into it is a data decision, not a typo fix. Upgrade path: map primaryOrg through that
+  // vocabulary and use it here when it resolves, falling back to this.
   const institution = p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University";
   const out: Record<string, any> = {
     uid: p.id,
