@@ -57,6 +57,10 @@ export interface SelectableRow {
   single_candidate?: boolean;
   identity_in_reciter?: boolean;
   top_already_rejected?: boolean;
+  // #1012: WCM ED has retired top_cwid. Sits alongside top_already_rejected because it has the
+  // same consequence for bulk work — the server refuses Accept on it — and would otherwise turn
+  // a bulk accept into a partial failure the curator has to reconcile row by row.
+  top_retired_cwid?: boolean;
   top_cwid?: string;
   source?: "pubmed" | "scopus";
 }
@@ -67,7 +71,7 @@ export interface SelectableRow {
 // what keeps "Accept selected" from ever bulk-accepting one of the newly-selectable rows.
 export function isAcceptEligible(row: SelectableRow): boolean {
   return !!row.single_candidate && row.identity_in_reciter !== false
-    && !row.top_already_rejected && !!row.top_cwid;
+    && !row.top_already_rejected && !row.top_retired_cwid && !!row.top_cwid;
 }
 
 // T4: multi-candidate rows become selectable too, but only for bulk ASSIGN, never accept.
@@ -93,7 +97,7 @@ export function isMultiAssignEligible(row: SelectableRow): boolean {
 // happens for a no-identity target either way).
 export function isNoIdentityAssignEligible(row: SelectableRow): boolean {
   return !!row.single_candidate && !!row.top_cwid
-    && row.identity_in_reciter === false && !row.top_already_rejected;
+    && row.identity_in_reciter === false && !row.top_already_rejected && !row.top_retired_cwid;
 }
 
 // Checkbox-selectable at all, on the currently-viewed queue. statusView is passed in rather
@@ -268,11 +272,21 @@ export type TypedCwidLookupState =
   | {
     status: "resolved"; cwid: string; name: string | null; hasIdentity: boolean;
     directory?: TypedCwidDirectoryHit | null;
+    // #1012: WCM ED has RETIRED this identifier. TOP-LEVEL, not inside `directory`, because the
+    // controller only looks a directory up when ReCiter has NO identity — and a retired cwid
+    // very often still has one (it was a real person's cwid until they were re-recorded). Nested
+    // there, the flag would be missing in exactly the case that most needs it.
+    retiredCwid?: boolean;
+    supersededBy?: string | null;
   };
 
 export interface TypedCwidPreview {
   text: string;
   tone: "neutral" | "warn";
+  /** True when the previewed cwid cannot be assigned at all, so the caller disables its Assign
+   *  button rather than letting the curator submit into a server refusal. Only the retired-cwid
+   *  branch sets it: every other `warn` here describes an unusual but legitimate outcome. */
+  blocked?: boolean;
 }
 
 // Mirrors the resolved shapes case "assign"'s own 422s already put in front of a curator
@@ -288,6 +302,18 @@ export function typedCwidPreview(state: TypedCwidLookupState): TypedCwidPreview 
     case "loading": return { text: "looking up…", tone: "neutral" };
     case "error": return { text: state.message, tone: "warn" };
     case "resolved":
+      // FIRST, ahead of the hasIdentity split: ED has retired this identifier, so nothing below
+      // applies — not the bridge, not the mint, not "no ReCiter identity". The server refuses it
+      // (case "assign" 409); this only says so before the round-trip, and names the replacement
+      // so the curator's next keystrokes go somewhere real.
+      if (state.retiredCwid) {
+        return {
+          text: state.supersededBy
+            ? `→ ${state.cwid} is a retired CWID — ${state.supersededBy} replaced it. Use ${state.supersededBy}.`
+            : `→ ${state.cwid} is a retired CWID with no replacement on record — it cannot be assigned`,
+          tone: "warn", blocked: true,
+        };
+      }
       if (!state.hasIdentity) {
         const d = state.directory;
         if (d?.wcmCwid && d.wcmCwidHasIdentity) {

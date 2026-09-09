@@ -387,4 +387,68 @@ check("...and an unmappable token still falls back to the derived institution on
     ...nyp, primaryOrg: "MYSTERY", givenName: "A", familyName: "B",
   }).primaryInstitution, "Weill Cornell Medicine");
 
+// ------------------------------------------------------------------- 5. retired cwids (#1012)
+// Fixtures are the REAL ED entries, read from ldaps://ed.weill.cornell.edu on 2026-09-09 while
+// sizing this. shy2013 and ssy9009 are the reported case: a card offered both as "2 WCM
+// homonyms" when ED says they are one human, ssy9009 having superseded shy2013.
+console.log("\nretired cwids — a dead identifier is not the same as an ended appointment:");
+const shy2013 = {
+  uid: "shy2013", weillCornellEduCWID: "shy2013", displayName: "Sharan Sunil Kumar Yadav",
+  sn: "Yadav", givenName: "Sharan", mail: "shy2013@qatar-med.cornell.edu",
+  weillCornellEduStatus: ["affiliate:expired", "retired-cwid"],
+};
+const ssy9009 = {
+  uid: "ssy9009", weillCornellEduCWID: "ssy9009", displayName: "Sharan Yadav",
+  sn: "Yadav", givenName: "Sharan", weillCornellEduPrimaryOrg: "NYP",
+  weillCornellEduStatus: ["faculty:expired", "employee:expired", "affiliate:expired"],
+  weillCornellEduCWIDRetired: "shy2013",
+};
+check("a retired-cwid record is flagged", projectWcmPerson(shy2013).retiredCwid, true);
+// THE distinction this whole feature turns on. ssy9009 is expired in all three of ED's lifecycle
+// senses — not faculty, not an employee, not an affiliate — and is STILL the live cwid for this
+// human and still the correct assign target. Blocking on ":expired" would block the replacement
+// along with the thing it replaces, and would block most of the emeritus roster besides. Only
+// "this identifier is dead" blocks; "this appointment ended" is ordinary, and is precisely the
+// history ReCiter exists to attribute.
+check("an ALL-expired record is NOT retired — expiry is an appointment ending, not a dead cwid",
+  projectWcmPerson(ssy9009).retiredCwid, false);
+check("no status attribute at all is not retired",
+  projectWcmPerson({ uid: "x1", weillCornellEduCWID: "x1", sn: "Q" }).retiredCwid, false);
+check("a lone unrelated status is not retired",
+  projectWcmPerson({ uid: "x2", weillCornellEduCWID: "x2", sn: "Q", weillCornellEduStatus: "faculty:expired" }).retiredCwid, false);
+check("ED's own casing is not load-bearing",
+  projectWcmPerson({ uid: "x3", weillCornellEduCWID: "x3", sn: "Q", weillCornellEduStatus: "Retired-CWID" }).retiredCwid, true);
+// The successor pointer lives on the OTHER record, so projection alone cannot fill it in —
+// resolveSupersededBy() does, with its own search. Asserting the null here is what stops someone
+// "simplifying" that second lookup away on the assumption the flag carries the answer with it.
+check("supersededBy is NOT knowable from the retired record itself",
+  projectWcmPerson(shy2013).supersededBy, null);
+// Cornell publishes `alumni` as a primary AFFILIATION — a former role, not a dead identifier —
+// and buildNameFilter deliberately does not exclude those. Blocking them here would silently
+// re-impose the exclusion that file argues against, through a different door.
+check("a Cornell alumnus is never blocked as retired",
+  projectCornellPerson({ uid: "aa1", sn: "R", givenName: "S", cornelleduprimaryaffiliation: "alumni" }).retiredCwid, false);
+
+// The typed-cwid box's own preview. Order matters: the retired branch has to come BEFORE the
+// hasIdentity split, because a retired cwid usually still HAS a ReCiter identity — that is what
+// makes it look ordinary — and every branch below would then describe a write that cannot happen.
+console.log("\nthe typed-cwid preview blocks a retired cwid, ahead of every other branch:");
+const retiredTyped = { status: "resolved", cwid: "shy2013", name: "Sharan Sunil Kumar Yadav",
+  hasIdentity: true, retiredCwid: true, supersededBy: "ssy9009" };
+check("a retired cwid that DOES have an identity is still blocked",
+  typedCwidPreview(retiredTyped).blocked, true);
+check("...and the replacement is named, not just refused",
+  typedCwidPreview(retiredTyped).text, "→ shy2013 is a retired CWID — ssy9009 replaced it. Use ssy9009.");
+check("a retired cwid with no successor is blocked too",
+  typedCwidPreview({ ...retiredTyped, supersededBy: null }).blocked, true);
+// `blocked` is what disables the Assign button, so every LEGITIMATE outcome must leave it unset
+// — a mint, a bridge and a local-only record are all unusual, all warned about, and all allowed.
+check("a mintable directory hit is warned about but NOT blocked",
+  !!typedCwidPreview({ status: "resolved", cwid: "kjc39", name: null, hasIdentity: false,
+    directory: { name: "K C", source: "cornell", mintable: true } }).blocked, false);
+check("the local-only fallback is not blocked",
+  !!typedCwidPreview({ status: "resolved", cwid: "zz9", name: null, hasIdentity: false }).blocked, false);
+check("an ordinary resolved identity is not blocked",
+  !!typedCwidPreview({ status: "resolved", cwid: "paa2013", name: "Paul Albert", hasIdentity: true }).blocked, false);
+
 console.log(`\n${n}/${n} passed\n`);

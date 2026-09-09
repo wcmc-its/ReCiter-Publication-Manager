@@ -54,6 +54,19 @@ const noIdentitySingle = { single_candidate: true, identity_in_reciter: false, t
 check("single-candidate, identity, not rejected, has top_cwid -> accept-eligible", isAcceptEligible(single), true);
 check("...no ReCiter identity -> not accept-eligible", isAcceptEligible({ ...single, identity_in_reciter: false }), false);
 check("...already rejected -> not accept-eligible", isAcceptEligible({ ...single, top_already_rejected: true }), false);
+// #1012: ED-retired top_cwid. Bulk Accept must exclude it for the same reason the card hides
+// Accept — the server refuses it (case "accept" 409) — or a bulk run turns into a partial
+// failure the curator reconciles by hand. Both bulk lanes, since assigning TO a dead cwid is
+// exactly the write case "assign" refuses.
+check("...ED-retired top_cwid -> not accept-eligible", isAcceptEligible({ ...single, top_retired_cwid: true }), false);
+check("...ED-retired top_cwid -> not no-identity-assign-eligible either",
+  isNoIdentityAssignEligible({ ...single, identity_in_reciter: false, top_retired_cwid: true }), false);
+check("...and so not bulk-selectable at all", isBulkSelectable({ ...single, top_retired_cwid: true }, "open"), false);
+// The converse, so the guard cannot quietly widen into "block anything with a status": an
+// ordinary row is untouched, and only the retired FLAG blocks, never a person_type or an
+// expired appointment (ssy9009 is triple-expired and is the correct assign target).
+check("an ordinary single-candidate row is unaffected by the new flag",
+  isAcceptEligible({ ...single, top_retired_cwid: false }), true);
 check("...no top_cwid (#938) -> not accept-eligible", isAcceptEligible({ ...single, top_cwid: undefined }), false);
 check("multi-candidate is never accept-eligible, identity/rejected notwithstanding",
   isAcceptEligible({ ...multiPubmed, identity_in_reciter: true, top_cwid: "aaa2014" }), false);
