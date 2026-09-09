@@ -4672,36 +4672,104 @@ const AssignOther = ({ rowId, acting, onAction }: {
         );
       })()}
       {matches !== null && (
-        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 4, textAlign: "right" }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 6, textAlign: "left" }}>
           {matches.length === 0 ? (
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>no directory match</div>
-          ) : matches.map((m) => (
-            <button key={`${m.source}:${m.id}`} onClick={(e) => { e.stopPropagation(); pick(m); }}
-              style={{
-                display: "block", width: "100%", textAlign: "right", background: "none",
-                border: "none", borderTop: "1px solid #f1f5f9", padding: "3px 0", cursor: "pointer",
-                fontSize: 11.5, color: "#334155",
-              }}>
-              <span style={{ fontWeight: 600 }}>{m.name}</span>
-              <span style={{ color: "#94a3b8" }}>
-                {" · "}{m.id}{" · "}{m.source === "wcm" ? "WCM" : "Cornell"}
-                {m.dept ? ` · ${m.dept}` : ""}
-              </span>
-              {/* Says what picking this row will actually do, before it is picked: land on an
-                  identity that already exists, redirect to the same person's WCM identifier, or
-                  create a new identity. */}
-              <span style={{ color: m.hasIdentity ? "#059669" : "#b45309" }}>
-                {m.hasIdentity ? " · in ReCiter"
-                  : m.wcmCwidHasIdentity ? ` · same person as ${m.wcmCwid} in ReCiter`
-                    : " · will create identity"}
-              </span>
-            </button>
-          ))}
+            <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "right" }}>no directory match</div>
+          ) : (
+            // Wide content scrolls inside its own box rather than widening the card.
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, color: "#334155" }}>
+                <thead>
+                  <tr style={{ color: "#6b7484", textAlign: "left" }}>
+                    {["Name", "ID", "Org", "Title", "Department(s)", "Created", ""].map((h, i) => (
+                      <th key={h || `c${i}`} style={{
+                        fontWeight: 600, fontSize: 10, letterSpacing: ".05em", textTransform: "uppercase",
+                        padding: "0 8px 3px 0", borderBottom: "1px solid #e8edf2", whiteSpace: "nowrap",
+                      }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {matches.map((m) => (
+                    // Was a <button> per result; a table cannot nest one per row and stay a table,
+                    // so the row carries the same affordances explicitly — focusable, and Enter or
+                    // Space activates it. Do not drop these to tidy the markup: the keyboard path
+                    // is the only one a curator not using a mouse has.
+                    <tr key={`${m.source}:${m.id}`} tabIndex={0} role="button"
+                      onClick={(e) => { e.stopPropagation(); pick(m); }}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter" && e.key !== " ") return;
+                        e.preventDefault(); e.stopPropagation(); pick(m);
+                      }}
+                      style={{ cursor: "pointer", borderBottom: "1px solid #f1f5f9" }}>
+                      <td style={dirCell}>
+                        <span style={{ fontWeight: 600 }}>{m.name}</span>
+                        {/* the assembled legal name, only when it says something displayName does not */}
+                        {m.fullName && (
+                          <span style={{ display: "block", color: "#94a3b8" }}>{m.fullName}</span>
+                        )}
+                      </td>
+                      <td style={{ ...dirCell, color: "#2563eb", whiteSpace: "nowrap" }}>{m.id}</td>
+                      {/* ONE org column, and `weillCornellEduPrimaryOrg` wins it.
+                          There used to be a separate "Src" column here showing which directory
+                          answered, and for gallric the row then read "WCM" and "NYP" side by
+                          side — the WCM being the louder, leftmost, and wrong signal.
+                          ou=people carries NewYork-Presbyterian people, so "found in WCM ED" is
+                          not "works at WCM", and attributing an NYP author's paper to WCM is the
+                          whole mistake this column exists to prevent. The directory that answered
+                          is an implementation detail of the search, not a fact about the person;
+                          it stays on the title attribute, along with the institution a mint would
+                          write and the full person-type list — a WCM code
+                          ("academic-faculty-weillfulltime") is long enough to own the table. */}
+                      <td style={{ ...dirCell, color: "#4a5262" }}
+                        title={[
+                          `found in ${m.source === "wcm" ? "WCM ED" : "Cornell directory"}`,
+                          m.primaryInstitution ? `mints as ${m.primaryInstitution}` : null,
+                          m.personTypes?.length ? m.personTypes.join(", ") : null,
+                        ].filter(Boolean).join(" · ")}>
+                        <span style={{ fontWeight: 600 }}>
+                          {m.primaryOrg || (m.source === "wcm" ? "WCM" : "Cornell")}
+                        </span>
+                        {m.personTypes?.length > 0 && (
+                          <span style={{ display: "block", color: "#94a3b8" }}>
+                            {m.personTypes[0]}
+                            {m.personTypes.length > 1 ? ` +${m.personTypes.length - 1}` : ""}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ ...dirCell, color: "#4a5262" }}>{m.title || "—"}</td>
+                      <td style={{ ...dirCell, color: "#4a5262" }}>
+                        {m.depts?.length ? m.depts.join(" · ") : (m.dept || "—")}
+                      </td>
+                      {/* Blank is a real answer here — the directory may not serve operational
+                          attributes to this bind — so it reads as unknown, not as "brand new". */}
+                      <td style={{ ...dirCell, color: "#6f7889", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                        {m.created || "—"}
+                      </td>
+                      {/* Says what picking this row will actually do, before it is picked: land on an
+                          identity that already exists, redirect to the same person's WCM identifier, or
+                          create a new identity. */}
+                      <td style={{ ...dirCell, whiteSpace: "nowrap", textAlign: "right", color: m.hasIdentity ? "#059669" : "#b45309" }}>
+                        {m.hasIdentity ? "in ReCiter"
+                          : m.wcmCwidHasIdentity ? `same person as ${m.wcmCwid} in ReCiter`
+                            : "will create identity"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </>
   );
 };
+
+// One cell of the directory name-search results table. `verticalAlign: top` matters: the Name
+// cell can run to two lines when a legal name differs from the display name, and without it every
+// other cell in that row floats to the middle.
+const dirCell: CSSProperties = { padding: "4px 8px 4px 0", verticalAlign: "top" };
 
 const factLabel: CSSProperties = { fontSize: 10.5, color: "#94a3b8", textTransform: "uppercase", letterSpacing: ".04em", marginTop: 1 };
 

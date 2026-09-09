@@ -43,7 +43,23 @@ export type DirectoryPerson = {
   middleName: string | null;
   familyName: string | null;
   title: string | null;
+  /** First of `depts`, kept as its own field because the mint payload writes exactly one
+   *  primaryOrganizationalUnit and every existing caller reads this. */
   dept: string | null;
+  /** ED department attributes are multi-valued and a person can genuinely hold several
+   *  (joint appointments). `dept` alone silently dropped all but the first. */
+  depts: string[];
+  /** `weillCornellEduPrimaryOrg` — the organisation the person primarily belongs to, WCM ED's
+   *  own answer rather than one derived from which directory answered. This is NOT 1:1 with
+   *  `source`: ou=people carries NewYork-Presbyterian people too (gallric is NYP), so a WCM ED
+   *  hit is not evidence of a WCM appointment. Null on Cornell, which publishes no equivalent. */
+  primaryOrg: string | null;
+  /** When the directory record itself was created, `YYYY-MM-DD`, or null. Operational
+   *  attributes are only returned when named explicitly, and the two server families spell it
+   *  differently (`createTimestamp` per RFC 4512, `whenCreated` on Active Directory), so both
+   *  are requested and whichever comes back wins. Null is an ordinary answer — a directory may
+   *  also withhold operational attributes from this bind. */
+  created: string | null;
   emails: string[];
   /** Directory-native person types, in each directory's OWN vocabulary: WCM's ED codes
    *  unprefixed (`affiliate-cornell`), Cornell's `cornell-`-prefixed (`cornell-faculty`).
@@ -77,11 +93,64 @@ function all(v: unknown): string[] {
 const clean = (xs: (string | null | undefined)[]) =>
   [...new Set(xs.map((x) => String(x || "").trim()).filter(Boolean))];
 
+// LDAP generalizedTime -> YYYY-MM-DD. Both spellings this file requests use it
+// ("20240115123456.0Z", "20240115123456Z"), so the leading 8 digits are the whole job; anything
+// that does not start with a plausible 8-digit date is discarded rather than half-parsed. AD's
+// 18-digit FILETIME integers appear on other attributes, never on whenCreated, and are rejected
+// here by the year bound rather than silently rendering as a year in the 1300s.
+export function ldapDate(v: unknown): string | null {
+  const s = first(v);
+  const m = s && /^(\d{4})(\d{2})(\d{2})/.exec(s.trim());
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  const year = Number(y);
+  if (year < 1970 || year > 2100 || +mo < 1 || +mo > 12 || +d < 1 || +d > 31) return null;
+  return `${y}-${mo}-${d}`;
+}
+
+// The two operational spellings, requested on every search. A server that does not know one
+// simply omits it from the result; naming both costs nothing and avoids a per-directory branch.
+// Probed against prod 2026-09-09: BOTH directories answer `createTimestamp` (ED returned
+// "20150505214246Z", Cornell "20010804100020Z"); neither needed `whenCreated`, which is kept for
+// an Active Directory source.
+const CREATED_ATTRS = ["createTimestamp", "whenCreated"] as const;
+
+/** Read an attribute by its BASE name, ignoring case and any LDAP attribute options.
+ *
+ *  Two things make a direct `e.someAttr` read unreliable here, and both fail SILENTLY — an empty
+ *  column forever, never an error:
+ *
+ *  1. Case. LDAP attribute names are case-insensitive by spec and these directories do not agree
+ *     on how they echo them; `cornelleduprefgivenname` and `cornellEduCWID` sit side by side in
+ *     CORNELL_ATTRS because that is the case each actually came back in.
+ *  2. Options. A returned key may carry `;option` suffixes (RFC 4512) — ED really does return
+ *     `weillCornellEduPrimaryOrganization;affiliate` alongside the bare form, observed on the
+ *     2026-09-09 prod probe.
+ */
+function attrValues(e: Record<string, unknown>, base: string): string[] {
+  const want = base.toLowerCase();
+  const out: string[] = [];
+  for (const k of Object.keys(e)) {
+    if (k.toLowerCase().split(";")[0] === want) out.push(...all(e[k]));
+  }
+  return out;
+}
+const attrFirst = (e: Record<string, unknown>, base: string) => attrValues(e, base)[0] ?? null;
+
+const createdOf = (e: Record<string, unknown>) => {
+  for (const a of CREATED_ATTRS) {
+    const d = ldapDate(attrValues(e, a));
+    if (d) return d;
+  }
+  return null;
+};
+
 // ---------------------------------------------------------------- WCM Enterprise Directory
 
 const WCM_ATTRS = [
   "uid", "weillCornellEduCWID", "displayName", "givenName", "weillCornellEduMiddleName", "sn",
   "mail", "weillCornellEduDepartment", "weillCornellEduPersonTypeCode", "title",
+  "weillCornellEduPrimaryOrg", "weillCornellEduPrimaryDepartment", ...CREATED_ATTRS,
 ] as const;
 
 export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | null {
@@ -96,12 +165,24 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
   // filter matches, and `affiliate-cornell` (live on 483 people) is one of the strings it
   // would break.
   const types = clean(all(e.weillCornellEduPersonTypeCode)).map((t) => t.toLowerCase());
+  // ED publishes a primary department SEPARATELY from the department attribute (both present on
+  // gallric, 2026-09-09 probe), so read both and let clean() collapse them when they agree. The
+  // primary leads, because it is the one the mint writes as primaryOrganizationalUnit.
+  // `weillCornellEduDepartment` came back single-valued on that probe; all() covers the
+  // multi-valued case without asserting it happens.
+  const depts = clean([
+    ...attrValues(e, "weillCornellEduPrimaryDepartment"),
+    ...attrValues(e, "weillCornellEduDepartment"),
+  ]);
   return {
     id, source: "wcm",
     name: first(e.displayName) || clean([given, sn]).join(" ") || id,
     givenName: given, middleName: first(e.weillCornellEduMiddleName), familyName: sn,
     title: first(e.title),
-    dept: first(e.weillCornellEduDepartment),
+    dept: depts[0] ?? null,
+    depts,
+    primaryOrg: attrFirst(e, "weillCornellEduPrimaryOrg"),
+    created: createdOf(e),
     emails: clean(all(e.mail)).map((m) => m.toLowerCase()),
     // ponytail: `wcm-directory` is deliberately NOT a real ReCiter person type, and is the one
     // invented string left in this file. 45 of the 61 WCM people minted on 2026-09-08 landed
@@ -123,6 +204,7 @@ const CORNELL_ATTRS = [
   "edupersonnickname", "cornelleduwrkngtitle1", "cornelleduunivtitle1", "cornelledudeptname1",
   "cornellEduOrganizationalUnitName", "mail", "cornelledupublishedemail",
   "cornelleduprimaryaffiliation", "cornelleduaffiliation", "cornelledutype", "cornellEduCWID",
+  "cornelledudeptname2", ...CREATED_ATTRS,
 ] as const;
 
 // The canonical Cornell person-type vocabulary, and the only place it is spelled in this repo.
@@ -178,12 +260,23 @@ export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerso
   const types = cornellPersonTypes(clean([
     ...all(e.cornelleduaffiliation), first(e.cornelleduprimaryaffiliation), first(e.cornelledutype),
   ]));
+  // Ithaca numbers its department slots rather than multi-valuing one attribute, so a joint
+  // appointment is deptname1 + deptname2; the org-unit name is the fallback when neither is set.
+  const depts = clean([
+    ...attrValues(e, "cornelledudeptname1"), ...attrValues(e, "cornelledudeptname2"),
+    ...attrValues(e, "cornellEduOrganizationalUnitName"),
+  ]);
   return {
     id, source: "cornell",
     name: first(e.displayName) || clean([given, sn]).join(" ") || id,
     givenName: given, middleName: null, familyName: sn,
     title: first(e.cornelleduwrkngtitle1) || first(e.cornelleduunivtitle1),
-    dept: first(e.cornelledudeptname1) || first(e.cornellEduOrganizationalUnitName),
+    dept: depts[0] ?? null,
+    depts,
+    // Cornell publishes no primary-org equivalent; the campus marker in personTypes is the
+    // nearest thing and is already carried there.
+    primaryOrg: null,
+    created: createdOf(e),
     emails: clean([first(e.cornelledupublishedemail), ...all(e.mail)]).map((m) => m.toLowerCase()),
     // `cornell-ithaca` is always present as the campus marker, and is what a future
     // /authorships campus filter derives from without needing a new authorship_review column.
@@ -301,6 +394,19 @@ export const directoryConfigured = () => wcmEnv() !== null || cornellEnv() !== n
  *  than sending a body the API will 500 on. Field shape follows
  *  scripts/sync_cornell_ithaca_identities.py's build_identity() so a person minted here and the
  *  same person loaded by the bulk Ithaca sync are byte-comparable records. */
+/** ED's `weillCornellEduPrimaryOrg` is a short token ("NYP"); `person.primaryInstitution` is
+ *  curated free text. This maps the tokens seen so far onto the literal ALREADY IN USE, and must
+ *  stay identical to INSTITUTION_BUCKETS in controllers/db/authorships.controller.ts — the same
+ *  rule cornellPersonTypes() lives under, and for the same reason: two spellings of one
+ *  institution silently split it across two buckets in every report that groups by institution.
+ *
+ *  Deliberately a allow-list, not a passthrough. An unrecognised token falls back to the
+ *  directory-derived label rather than writing a raw ED string into a curated vocabulary, so a
+ *  new org code cannot invent a 71st distinct primaryInstitution value on its own. */
+const PRIMARY_ORG_INSTITUTION: Record<string, string> = {
+  NYP: "New York-Presbyterian Hospital",
+};
+
 export function directoryIdentityPayload(p: DirectoryPerson): Record<string, any> | null {
   const given = String(p.givenName || "").trim(), family = String(p.familyName || "").trim();
   if (!given || !family) return null;
@@ -310,7 +416,12 @@ export function directoryIdentityPayload(p: DirectoryPerson): Record<string, any
   const mid = String(p.middleName || "").trim();
   if (mid) { primaryName.middleName = mid; primaryName.middleInitial = mid[0]; }
 
-  const institution = p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University";
+  // The person's OWN org decides the institution where ED gives one we can spell; only then does
+  // it fall back to which directory answered. ou=people holds NewYork-Presbyterian people, so
+  // deriving this from `source` alone minted gallric as "Weill Cornell Medicine" and
+  // authorships.controller's `wcm` bucket counted him as WCM in reporting.
+  const institution = (p.primaryOrg && PRIMARY_ORG_INSTITUTION[p.primaryOrg.trim().toUpperCase()])
+    || (p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University");
   const out: Record<string, any> = {
     uid: p.id,
     primaryName,

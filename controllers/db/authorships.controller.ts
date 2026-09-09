@@ -924,6 +924,31 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
         configured: directoryConfigured(),
         matches: people.map((p) => ({
           id: p.id, source: p.source, name: p.name, title: p.title, dept: p.dept,
+          // The assembled legal name, which is not always what displayName carries: ED holds a
+          // middle name the display form usually drops, and that is often the only thing telling
+          // two same-named people apart — the exact case this box exists to serve. Sent only when
+          // it actually differs from `name`, so the column stays empty rather than echoing.
+          fullName: (() => {
+            const full = [p.givenName, p.middleName, p.familyName]
+              .map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+            const norm = (x: string) => x.replace(/\s+/g, " ").trim().toLowerCase();
+            return full && norm(full) !== norm(p.name) ? full : null;
+          })(),
+          depts: p.depts,
+          created: p.created,
+          // ED's OWN answer for which organisation this person primarily belongs to, which is
+          // not derivable from `source`: ou=people carries NewYork-Presbyterian people too, so a
+          // WCM ED hit is not evidence of a WCM appointment. This is the column a curator needs
+          // to not attribute an NYP author's paper to WCM.
+          primaryOrg: p.primaryOrg,
+          // What this person IS at that organisation, already normalised into ReCiter's own
+          // vocabulary by the projectors — the same array a mint would write to
+          // Identity.personTypes. Secondary to primaryOrg, shown under it.
+          personTypes: p.personTypes,
+          // The derived institution label, kept only for the hover: it is what
+          // directoryIdentityPayload would actually write as primaryInstitution, which is worth
+          // being able to see next to primaryOrg when the two disagree.
+          primaryInstitution: p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University",
           email: p.emails[0] ?? null,
           hasIdentity: known.has(p.id) || known.has(p.id.toLowerCase()),
           wcmCwid: p.wcmCwid, wcmCwidHasIdentity: !!(p.wcmCwid && known.has(p.wcmCwid)),

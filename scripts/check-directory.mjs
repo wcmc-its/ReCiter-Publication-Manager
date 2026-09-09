@@ -23,7 +23,7 @@
 import assert from "node:assert/strict";
 import {
   escapeLdapFilter, buildNameFilter, projectWcmPerson, projectCornellPerson,
-  directoryIdentityPayload, cornellPersonTypes,
+  directoryIdentityPayload, cornellPersonTypes, ldapDate,
 } from "../src/lib/directory.ts";
 import { typedCwidPreview } from "../src/lib/bulkAssign.ts";
 
@@ -209,5 +209,127 @@ check("the campus marker leads every Cornell record — campus scoping keys on i
   cor.personTypes[0], "cornell-ithaca");
 ok("and the projected type is the hyphenated form",
   cor.personTypes.includes("cornell-former-postdoc"));
+
+// ------------------------------------------------- 6. create date + multi-valued departments
+// The two fields the results table added. Both fail SILENTLY when wrong — a bad parse renders a
+// plausible-looking wrong date, and a missed second department just looks like the person only
+// has one — so they are asserted rather than eyeballed.
+console.log("\ncreate date — an operational attribute becomes a plain YYYY-MM-DD:");
+check("generalizedTime with a trailing Z", ldapDate("20240115123456Z"), "2024-01-15");
+check("...and with fractional seconds, as AD writes it", ldapDate("20240115123456.0Z"), "2024-01-15");
+check("a bare date with no time still parses", ldapDate("20240115"), "2024-01-15");
+check("multi-valued: the first value wins", ldapDate(["20240115123456Z"]), "2024-01-15");
+check("absent is null, not a crash", ldapDate(undefined), null);
+check("a non-date string is discarded, never half-parsed", ldapDate("not-a-date"), null);
+// An 18-digit FILETIME opens with year-like digits ("1330…") that would otherwise render as
+// year 1330. The year bound is what rejects it.
+check("an AD FILETIME integer is rejected, not read as year 1330",
+  ldapDate("133000000000000000"), null);
+check("a year before 1970 is not a directory record's creation date", ldapDate("18990101"), null);
+check("month 00 is rejected", ldapDate("20240015"), null);
+
+console.log("\ndepartments — a joint appointment is not one department:");
+const twoDept = projectWcmPerson({
+  uid: "ddd1001", weillCornellEduCWID: "ddd1001", givenName: "Dana", sn: "Two",
+  weillCornellEduDepartment: ["Medicine", "Pediatrics"],
+});
+check("wcm: every value is kept", twoDept.depts, ["Medicine", "Pediatrics"]);
+check("...and `dept` stays the first, because the mint writes exactly one", twoDept.dept, "Medicine");
+check("no department at all is an empty list, not [null]",
+  projectWcmPerson({ uid: "e1", weillCornellEduCWID: "e1", sn: "None" }).depts, []);
+const corDept = projectCornellPerson({
+  uid: "cd1", sn: "Joint", cornelledudeptname1: "Physics", cornelledudeptname2: "Astronomy",
+});
+check("cornell: numbered department slots both land", corDept.depts, ["Physics", "Astronomy"]);
+// The case-insensitive read is the whole reason this column is not permanently blank.
+check("created is read case-INSENSITIVELY — servers differ on how they echo attribute names",
+  projectWcmPerson({
+    uid: "f1", weillCornellEduCWID: "f1", sn: "Lower", createtimestamp: "20200607080910Z",
+  }).created, "2020-06-07");
+check("...and the camelCase spelling works too",
+  projectWcmPerson({
+    uid: "f2", weillCornellEduCWID: "f2", sn: "Camel", createTimestamp: "20200607080910Z",
+  }).created, "2020-06-07");
+check("...as does Active Directory's whenCreated",
+  projectWcmPerson({
+    uid: "f3", weillCornellEduCWID: "f3", sn: "AD", whenCreated: "20211130000000.0Z",
+  }).created, "2021-11-30");
+check("a directory that withholds operational attributes yields null, which is a real answer",
+  projectWcmPerson({ uid: "f4", weillCornellEduCWID: "f4", sn: "Quiet" }).created, null);
+
+console.log("\nprimary org — 'found in WCM ED' is not 'works at WCM':");
+// ou=people carries NewYork-Presbyterian staff alongside WCM's own. gallric is one of them.
+// Deriving the institution from `source` would label every one of them Weill Cornell.
+const nyp = projectWcmPerson({
+  uid: "gallric", weillCornellEduCWID: "gallric", givenName: "R", sn: "G",
+  weillCornellEduPrimaryOrg: "NYP",
+});
+check("an NYP person in ou=people reports NYP, not the directory they were found in",
+  nyp.primaryOrg, "NYP");
+ok("...and `source` still says wcm, because that is which directory answered", nyp.source === "wcm");
+check("a record with no primary org is null, not a guess",
+  projectWcmPerson({ uid: "g1", weillCornellEduCWID: "g1", sn: "None" }).primaryOrg, null);
+check("cornell publishes no equivalent", corDept.primaryOrg, null);
+// RFC 4512 attribute options. ED really returns `weillCornellEduPrimaryOrganization;affiliate`
+// next to the bare form, seen on the 2026-09-09 prod probe — so a key carrying a `;option`
+// suffix must still be found, or the column silently empties for whoever has one.
+check("an attribute carrying a ;option suffix is still read",
+  projectWcmPerson({
+    uid: "g2", weillCornellEduCWID: "g2", sn: "Opt",
+    "weillCornellEduPrimaryOrg;affiliate": "NYP",
+  }).primaryOrg, "NYP");
+check("...and so is a create date wearing one",
+  projectWcmPerson({
+    uid: "g3", weillCornellEduCWID: "g3", sn: "Opt2",
+    "createTimestamp;x-foo": "20150505214246Z",
+  }).created, "2015-05-05");
+// The real gallric values from that probe, end to end.
+const gallric = projectWcmPerson({
+  uid: "gallric", weillCornellEduCWID: "gallric", sn: "G",
+  weillCornellEduPrimaryOrg: "NYP", createTimestamp: "20150505214246Z",
+  weillCornellEduPrimaryDepartment: "Emergency Medicine",
+  weillCornellEduDepartment: "Emergency Medicine",
+});
+check("live probe values: NYP", gallric.primaryOrg, "NYP");
+check("live probe values: the 2015 create date", gallric.created, "2015-05-05");
+check("a primary department that repeats the department is ONE entry, not two",
+  gallric.depts, ["Emergency Medicine"]);
+check("a primary department that DIFFERS is kept, and leads",
+  projectWcmPerson({
+    uid: "g4", weillCornellEduCWID: "g4", sn: "Two",
+    weillCornellEduPrimaryDepartment: "Medicine", weillCornellEduDepartment: "Pediatrics",
+  }).depts, ["Medicine", "Pediatrics"]);
+
+console.log("\nminting an NYP person writes NYP, not Weill Cornell:");
+// The bug this closes: institution was derived from which DIRECTORY answered, so every NYP
+// person in ou=people minted as "Weill Cornell Medicine" and was then counted as WCM by
+// INSTITUTION_BUCKETS.wcm in every institution-grouped report.
+const nypMint = directoryIdentityPayload({
+  ...nyp, givenName: "Richard", familyName: "Gallagher",
+});
+check("primaryInstitution is the curated NYP literal, not the WCM one",
+  nypMint.primaryInstitution, "New York-Presbyterian Hospital");
+check("...and institutions[] agrees with it",
+  nypMint.institutions, ["New York-Presbyterian Hospital"]);
+// MUST match INSTITUTION_BUCKETS.nyp in authorships.controller.ts exactly — a second spelling
+// splits the institution across two buckets in reporting.
+ok("the literal is the one the nyp bucket already covers",
+  nypMint.primaryInstitution === "New York-Presbyterian Hospital");
+check("a WCM person is untouched by the mapping",
+  directoryIdentityPayload({
+    ...nyp, primaryOrg: "WCM", givenName: "A", familyName: "B",
+  }).primaryInstitution, "Weill Cornell Medicine");
+check("an UNRECOGNISED org token falls back rather than inventing a vocabulary value",
+  directoryIdentityPayload({
+    ...nyp, primaryOrg: "SOMETHING-NEW", givenName: "A", familyName: "B",
+  }).primaryInstitution, "Weill Cornell Medicine");
+check("no org token at all is the pre-existing behaviour",
+  directoryIdentityPayload({
+    ...nyp, primaryOrg: null, givenName: "A", familyName: "B",
+  }).primaryInstitution, "Weill Cornell Medicine");
+check("case and padding do not defeat the mapping",
+  directoryIdentityPayload({
+    ...nyp, primaryOrg: " nyp ", givenName: "A", familyName: "B",
+  }).primaryInstitution, "New York-Presbyterian Hospital");
 
 console.log(`\n${n}/${n} passed\n`);
