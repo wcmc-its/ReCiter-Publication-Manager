@@ -4681,7 +4681,7 @@ const AssignOther = ({ rowId, acting, onAction }: {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, color: "#334155" }}>
                 <thead>
                   <tr style={{ color: "#6b7484", textAlign: "left" }}>
-                    {["Name", "ID", "Src", "Primary org", "Title", "Department(s)", "Created", ""].map((h, i) => (
+                    {["Name", "ID", "Org", "Title", "Department(s)", "Created", ""].map((h, i) => (
                       <th key={h || `c${i}`} style={{
                         fontWeight: 600, fontSize: 10, letterSpacing: ".05em", textTransform: "uppercase",
                         padding: "0 8px 3px 0", borderBottom: "1px solid #e8edf2", whiteSpace: "nowrap",
@@ -4710,21 +4710,26 @@ const AssignOther = ({ rowId, acting, onAction }: {
                         )}
                       </td>
                       <td style={{ ...dirCell, color: "#2563eb", whiteSpace: "nowrap" }}>{m.id}</td>
-                      <td style={{ ...dirCell, color: "#6f7889", whiteSpace: "nowrap" }}>
-                        {m.source === "wcm" ? "WCM" : "Cornell"}
-                      </td>
-                      {/* `weillCornellEduPrimaryOrg` — ED's own answer, NOT derived from which
-                          directory replied. ou=people carries NewYork-Presbyterian people
-                          (gallric is NYP), so "found in WCM ED" is not "works at WCM", and
-                          attributing an NYP author's paper to WCM is the mistake this column
-                          exists to prevent. The person type sits underneath as the secondary
-                          read; the full list and the institution a mint would write are on the
-                          title attribute, because a WCM code
+                      {/* ONE org column, and `weillCornellEduPrimaryOrg` wins it.
+                          There used to be a separate "Src" column here showing which directory
+                          answered, and for gallric the row then read "WCM" and "NYP" side by
+                          side — the WCM being the louder, leftmost, and wrong signal.
+                          ou=people carries NewYork-Presbyterian people, so "found in WCM ED" is
+                          not "works at WCM", and attributing an NYP author's paper to WCM is the
+                          whole mistake this column exists to prevent. The directory that answered
+                          is an implementation detail of the search, not a fact about the person;
+                          it stays on the title attribute, along with the institution a mint would
+                          write and the full person-type list — a WCM code
                           ("academic-faculty-weillfulltime") is long enough to own the table. */}
                       <td style={{ ...dirCell, color: "#4a5262" }}
-                        title={[m.primaryInstitution, m.personTypes?.length ? m.personTypes.join(", ") : null]
-                          .filter(Boolean).join(" · ")}>
-                        <span style={{ fontWeight: m.primaryOrg ? 600 : 400 }}>{m.primaryOrg || "—"}</span>
+                        title={[
+                          `found in ${m.source === "wcm" ? "WCM ED" : "Cornell directory"}`,
+                          m.primaryInstitution ? `mints as ${m.primaryInstitution}` : null,
+                          m.personTypes?.length ? m.personTypes.join(", ") : null,
+                        ].filter(Boolean).join(" · ")}>
+                        <span style={{ fontWeight: 600 }}>
+                          {m.primaryOrg || (m.source === "wcm" ? "WCM" : "Cornell")}
+                        </span>
                         {m.personTypes?.length > 0 && (
                           <span style={{ display: "block", color: "#94a3b8" }}>
                             {m.personTypes[0]}

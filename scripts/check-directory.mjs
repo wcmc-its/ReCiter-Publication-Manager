@@ -300,4 +300,36 @@ check("a primary department that DIFFERS is kept, and leads",
     weillCornellEduPrimaryDepartment: "Medicine", weillCornellEduDepartment: "Pediatrics",
   }).depts, ["Medicine", "Pediatrics"]);
 
+console.log("\nminting an NYP person writes NYP, not Weill Cornell:");
+// The bug this closes: institution was derived from which DIRECTORY answered, so every NYP
+// person in ou=people minted as "Weill Cornell Medicine" and was then counted as WCM by
+// INSTITUTION_BUCKETS.wcm in every institution-grouped report.
+const nypMint = directoryIdentityPayload({
+  ...nyp, givenName: "Richard", familyName: "Gallagher",
+});
+check("primaryInstitution is the curated NYP literal, not the WCM one",
+  nypMint.primaryInstitution, "New York-Presbyterian Hospital");
+check("...and institutions[] agrees with it",
+  nypMint.institutions, ["New York-Presbyterian Hospital"]);
+// MUST match INSTITUTION_BUCKETS.nyp in authorships.controller.ts exactly — a second spelling
+// splits the institution across two buckets in reporting.
+ok("the literal is the one the nyp bucket already covers",
+  nypMint.primaryInstitution === "New York-Presbyterian Hospital");
+check("a WCM person is untouched by the mapping",
+  directoryIdentityPayload({
+    ...nyp, primaryOrg: "WCM", givenName: "A", familyName: "B",
+  }).primaryInstitution, "Weill Cornell Medicine");
+check("an UNRECOGNISED org token falls back rather than inventing a vocabulary value",
+  directoryIdentityPayload({
+    ...nyp, primaryOrg: "SOMETHING-NEW", givenName: "A", familyName: "B",
+  }).primaryInstitution, "Weill Cornell Medicine");
+check("no org token at all is the pre-existing behaviour",
+  directoryIdentityPayload({
+    ...nyp, primaryOrg: null, givenName: "A", familyName: "B",
+  }).primaryInstitution, "Weill Cornell Medicine");
+check("case and padding do not defeat the mapping",
+  directoryIdentityPayload({
+    ...nyp, primaryOrg: " nyp ", givenName: "A", familyName: "B",
+  }).primaryInstitution, "New York-Presbyterian Hospital");
+
 console.log(`\n${n}/${n} passed\n`);

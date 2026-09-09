@@ -394,6 +394,19 @@ export const directoryConfigured = () => wcmEnv() !== null || cornellEnv() !== n
  *  than sending a body the API will 500 on. Field shape follows
  *  scripts/sync_cornell_ithaca_identities.py's build_identity() so a person minted here and the
  *  same person loaded by the bulk Ithaca sync are byte-comparable records. */
+/** ED's `weillCornellEduPrimaryOrg` is a short token ("NYP"); `person.primaryInstitution` is
+ *  curated free text. This maps the tokens seen so far onto the literal ALREADY IN USE, and must
+ *  stay identical to INSTITUTION_BUCKETS in controllers/db/authorships.controller.ts — the same
+ *  rule cornellPersonTypes() lives under, and for the same reason: two spellings of one
+ *  institution silently split it across two buckets in every report that groups by institution.
+ *
+ *  Deliberately a allow-list, not a passthrough. An unrecognised token falls back to the
+ *  directory-derived label rather than writing a raw ED string into a curated vocabulary, so a
+ *  new org code cannot invent a 71st distinct primaryInstitution value on its own. */
+const PRIMARY_ORG_INSTITUTION: Record<string, string> = {
+  NYP: "New York-Presbyterian Hospital",
+};
+
 export function directoryIdentityPayload(p: DirectoryPerson): Record<string, any> | null {
   const given = String(p.givenName || "").trim(), family = String(p.familyName || "").trim();
   if (!given || !family) return null;
@@ -403,15 +416,12 @@ export function directoryIdentityPayload(p: DirectoryPerson): Record<string, any
   const mid = String(p.middleName || "").trim();
   if (mid) { primaryName.middleName = mid; primaryName.middleInitial = mid[0]; }
 
-  // ponytail: institution is derived from which DIRECTORY answered, not from the person's own
-  // `primaryOrg`. Known ceiling, newly visible now that primaryOrg is carried: ou=people holds
-  // NewYork-Presbyterian people (gallric is NYP), so minting one of them writes
-  // primaryInstitution "Weill Cornell Medicine" — which authorships.controller's `wcm` bucket
-  // then counts as WCM in reporting. Left as-is deliberately: primaryInstitution is matched
-  // against a curated free-text vocabulary (INSTITUTION_BUCKETS), so writing a raw ED token like
-  // "NYP" into it is a data decision, not a typo fix. Upgrade path: map primaryOrg through that
-  // vocabulary and use it here when it resolves, falling back to this.
-  const institution = p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University";
+  // The person's OWN org decides the institution where ED gives one we can spell; only then does
+  // it fall back to which directory answered. ou=people holds NewYork-Presbyterian people, so
+  // deriving this from `source` alone minted gallric as "Weill Cornell Medicine" and
+  // authorships.controller's `wcm` bucket counted him as WCM in reporting.
+  const institution = (p.primaryOrg && PRIMARY_ORG_INSTITUTION[p.primaryOrg.trim().toUpperCase()])
+    || (p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University");
   const out: Record<string, any> = {
     uid: p.id,
     primaryName,
