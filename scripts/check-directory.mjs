@@ -23,7 +23,7 @@
 import assert from "node:assert/strict";
 import {
   escapeLdapFilter, buildNameFilter, projectWcmPerson, projectCornellPerson,
-  directoryIdentityPayload, cornellPersonTypes,
+  directoryIdentityPayload, cornellPersonTypes, ldapDate,
 } from "../src/lib/directory.ts";
 import { typedCwidPreview } from "../src/lib/bulkAssign.ts";
 
@@ -209,5 +209,52 @@ check("the campus marker leads every Cornell record — campus scoping keys on i
   cor.personTypes[0], "cornell-ithaca");
 ok("and the projected type is the hyphenated form",
   cor.personTypes.includes("cornell-former-postdoc"));
+
+// ------------------------------------------------- 6. create date + multi-valued departments
+// The two fields the results table added. Both fail SILENTLY when wrong — a bad parse renders a
+// plausible-looking wrong date, and a missed second department just looks like the person only
+// has one — so they are asserted rather than eyeballed.
+console.log("\ncreate date — an operational attribute becomes a plain YYYY-MM-DD:");
+check("generalizedTime with a trailing Z", ldapDate("20240115123456Z"), "2024-01-15");
+check("...and with fractional seconds, as AD writes it", ldapDate("20240115123456.0Z"), "2024-01-15");
+check("a bare date with no time still parses", ldapDate("20240115"), "2024-01-15");
+check("multi-valued: the first value wins", ldapDate(["20240115123456Z"]), "2024-01-15");
+check("absent is null, not a crash", ldapDate(undefined), null);
+check("a non-date string is discarded, never half-parsed", ldapDate("not-a-date"), null);
+// An 18-digit FILETIME opens with year-like digits ("1330…") that would otherwise render as
+// year 1330. The year bound is what rejects it.
+check("an AD FILETIME integer is rejected, not read as year 1330",
+  ldapDate("133000000000000000"), null);
+check("a year before 1970 is not a directory record's creation date", ldapDate("18990101"), null);
+check("month 00 is rejected", ldapDate("20240015"), null);
+
+console.log("\ndepartments — a joint appointment is not one department:");
+const twoDept = projectWcmPerson({
+  uid: "ddd1001", weillCornellEduCWID: "ddd1001", givenName: "Dana", sn: "Two",
+  weillCornellEduDepartment: ["Medicine", "Pediatrics"],
+});
+check("wcm: every value is kept", twoDept.depts, ["Medicine", "Pediatrics"]);
+check("...and `dept` stays the first, because the mint writes exactly one", twoDept.dept, "Medicine");
+check("no department at all is an empty list, not [null]",
+  projectWcmPerson({ uid: "e1", weillCornellEduCWID: "e1", sn: "None" }).depts, []);
+const corDept = projectCornellPerson({
+  uid: "cd1", sn: "Joint", cornelledudeptname1: "Physics", cornelledudeptname2: "Astronomy",
+});
+check("cornell: numbered department slots both land", corDept.depts, ["Physics", "Astronomy"]);
+// The case-insensitive read is the whole reason this column is not permanently blank.
+check("created is read case-INSENSITIVELY — servers differ on how they echo attribute names",
+  projectWcmPerson({
+    uid: "f1", weillCornellEduCWID: "f1", sn: "Lower", createtimestamp: "20200607080910Z",
+  }).created, "2020-06-07");
+check("...and the camelCase spelling works too",
+  projectWcmPerson({
+    uid: "f2", weillCornellEduCWID: "f2", sn: "Camel", createTimestamp: "20200607080910Z",
+  }).created, "2020-06-07");
+check("...as does Active Directory's whenCreated",
+  projectWcmPerson({
+    uid: "f3", weillCornellEduCWID: "f3", sn: "AD", whenCreated: "20211130000000.0Z",
+  }).created, "2021-11-30");
+check("a directory that withholds operational attributes yields null, which is a real answer",
+  projectWcmPerson({ uid: "f4", weillCornellEduCWID: "f4", sn: "Quiet" }).created, null);
 
 console.log(`\n${n}/${n} passed\n`);

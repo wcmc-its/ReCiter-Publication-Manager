@@ -924,6 +924,24 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
         configured: directoryConfigured(),
         matches: people.map((p) => ({
           id: p.id, source: p.source, name: p.name, title: p.title, dept: p.dept,
+          // The assembled legal name, which is not always what displayName carries: ED holds a
+          // middle name the display form usually drops, and that is often the only thing telling
+          // two same-named people apart — the exact case this box exists to serve. Sent only when
+          // it actually differs from `name`, so the column stays empty rather than echoing.
+          fullName: (() => {
+            const full = [p.givenName, p.middleName, p.familyName]
+              .map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+            const norm = (x: string) => x.replace(/\s+/g, " ").trim().toLowerCase();
+            return full && norm(full) !== norm(p.name) ? full : null;
+          })(),
+          depts: p.depts,
+          created: p.created,
+          // What this person IS at that institution — ED's person-type codes, Cornell's
+          // affiliations — already normalised into ReCiter's own vocabulary by the projectors,
+          // and the same array a mint would write to Identity.personTypes. The institution NAME
+          // is not sent: it is 1:1 with `source`, which the table already shows.
+          personTypes: p.personTypes,
+          primaryInstitution: p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University",
           email: p.emails[0] ?? null,
           hasIdentity: known.has(p.id) || known.has(p.id.toLowerCase()),
           wcmCwid: p.wcmCwid, wcmCwidHasIdentity: !!(p.wcmCwid && known.has(p.wcmCwid)),

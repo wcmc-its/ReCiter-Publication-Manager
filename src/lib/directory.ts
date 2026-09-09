@@ -43,7 +43,18 @@ export type DirectoryPerson = {
   middleName: string | null;
   familyName: string | null;
   title: string | null;
+  /** First of `depts`, kept as its own field because the mint payload writes exactly one
+   *  primaryOrganizationalUnit and every existing caller reads this. */
   dept: string | null;
+  /** ED department attributes are multi-valued and a person can genuinely hold several
+   *  (joint appointments). `dept` alone silently dropped all but the first. */
+  depts: string[];
+  /** When the directory record itself was created, `YYYY-MM-DD`, or null. Operational
+   *  attributes are only returned when named explicitly, and the two server families spell it
+   *  differently (`createTimestamp` per RFC 4512, `whenCreated` on Active Directory), so both
+   *  are requested and whichever comes back wins. Null is an ordinary answer — a directory may
+   *  also withhold operational attributes from this bind. */
+  created: string | null;
   emails: string[];
   /** Directory-native person types, in each directory's OWN vocabulary: WCM's ED codes
    *  unprefixed (`affiliate-cornell`), Cornell's `cornell-`-prefixed (`cornell-faculty`).
@@ -77,11 +88,47 @@ function all(v: unknown): string[] {
 const clean = (xs: (string | null | undefined)[]) =>
   [...new Set(xs.map((x) => String(x || "").trim()).filter(Boolean))];
 
+// LDAP generalizedTime -> YYYY-MM-DD. Both spellings this file requests use it
+// ("20240115123456.0Z", "20240115123456Z"), so the leading 8 digits are the whole job; anything
+// that does not start with a plausible 8-digit date is discarded rather than half-parsed. AD's
+// 18-digit FILETIME integers appear on other attributes, never on whenCreated, and are rejected
+// here by the year bound rather than silently rendering as a year in the 1300s.
+export function ldapDate(v: unknown): string | null {
+  const s = first(v);
+  const m = s && /^(\d{4})(\d{2})(\d{2})/.exec(s.trim());
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  const year = Number(y);
+  if (year < 1970 || year > 2100 || +mo < 1 || +mo > 12 || +d < 1 || +d > 31) return null;
+  return `${y}-${mo}-${d}`;
+}
+
+// The two operational spellings, requested on every search. A server that does not know one
+// simply omits it from the result; naming both costs nothing and avoids a per-directory branch.
+const CREATED_ATTRS = ["createTimestamp", "whenCreated"] as const;
+
+// Case-INSENSITIVE on the way back out. LDAP attribute names are case-insensitive by spec and
+// these two directories do not agree on how they echo them — the Cornell attrs above are matched
+// all-lowercase while `cornellEduCWID` next to them is camel, which is what the case actually
+// returned looked like when each was added. A camel/lower mismatch on an operational attribute
+// would not error, it would just render an empty column forever, so do not tighten this to a
+// direct property read.
+const createdOf = (e: Record<string, unknown>) => {
+  for (const k of Object.keys(e)) {
+    if (CREATED_ATTRS.some((a) => a.toLowerCase() === k.toLowerCase())) {
+      const d = ldapDate(e[k]);
+      if (d) return d;
+    }
+  }
+  return null;
+};
+
 // ---------------------------------------------------------------- WCM Enterprise Directory
 
 const WCM_ATTRS = [
   "uid", "weillCornellEduCWID", "displayName", "givenName", "weillCornellEduMiddleName", "sn",
   "mail", "weillCornellEduDepartment", "weillCornellEduPersonTypeCode", "title",
+  ...CREATED_ATTRS,
 ] as const;
 
 export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | null {
@@ -96,12 +143,15 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
   // filter matches, and `affiliate-cornell` (live on 483 people) is one of the strings it
   // would break.
   const types = clean(all(e.weillCornellEduPersonTypeCode)).map((t) => t.toLowerCase());
+  const depts = clean(all(e.weillCornellEduDepartment));
   return {
     id, source: "wcm",
     name: first(e.displayName) || clean([given, sn]).join(" ") || id,
     givenName: given, middleName: first(e.weillCornellEduMiddleName), familyName: sn,
     title: first(e.title),
-    dept: first(e.weillCornellEduDepartment),
+    dept: depts[0] ?? null,
+    depts,
+    created: createdOf(e),
     emails: clean(all(e.mail)).map((m) => m.toLowerCase()),
     // ponytail: `wcm-directory` is deliberately NOT a real ReCiter person type, and is the one
     // invented string left in this file. 45 of the 61 WCM people minted on 2026-09-08 landed
@@ -123,6 +173,7 @@ const CORNELL_ATTRS = [
   "edupersonnickname", "cornelleduwrkngtitle1", "cornelleduunivtitle1", "cornelledudeptname1",
   "cornellEduOrganizationalUnitName", "mail", "cornelledupublishedemail",
   "cornelleduprimaryaffiliation", "cornelleduaffiliation", "cornelledutype", "cornellEduCWID",
+  "cornelledudeptname2", ...CREATED_ATTRS,
 ] as const;
 
 // The canonical Cornell person-type vocabulary, and the only place it is spelled in this repo.
@@ -178,12 +229,20 @@ export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerso
   const types = cornellPersonTypes(clean([
     ...all(e.cornelleduaffiliation), first(e.cornelleduprimaryaffiliation), first(e.cornelledutype),
   ]));
+  // Ithaca numbers its department slots rather than multi-valuing one attribute, so a joint
+  // appointment is deptname1 + deptname2; the org-unit name is the fallback when neither is set.
+  const depts = clean([
+    first(e.cornelledudeptname1), first(e.cornelledudeptname2),
+    first(e.cornellEduOrganizationalUnitName),
+  ]);
   return {
     id, source: "cornell",
     name: first(e.displayName) || clean([given, sn]).join(" ") || id,
     givenName: given, middleName: null, familyName: sn,
     title: first(e.cornelleduwrkngtitle1) || first(e.cornelleduunivtitle1),
-    dept: first(e.cornelledudeptname1) || first(e.cornellEduOrganizationalUnitName),
+    dept: depts[0] ?? null,
+    depts,
+    created: createdOf(e),
     emails: clean([first(e.cornelledupublishedemail), ...all(e.mail)]).map((m) => m.toLowerCase()),
     // `cornell-ithaca` is always present as the campus marker, and is what a future
     // /authorships campus filter derives from without needing a new authorship_review column.
