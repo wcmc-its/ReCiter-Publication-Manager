@@ -73,6 +73,22 @@ export type DirectoryPerson = {
    *  already have a ReCiter identity, and Martin Wells (mtw1 / maw2065) is already split across
    *  two identities in production because of it. Resolved at assign time in the controller. */
   wcmCwid: string | null;
+  /** WCM only: this cwid has been RETIRED by ED (`weillCornellEduStatus: retired-cwid`) — the
+   *  person was re-recorded under a different cwid and this identifier is a dead end. 2,880 of
+   *  them exist in ED (2026-09-09 census), so this is a routine state, not an oddity.
+   *
+   *  It is emphatically NOT the same as "no longer employed": ED also publishes lifecycle
+   *  statuses like `faculty:expired` / `employee:expired` / `affiliate:expired`, and a person can
+   *  be fully expired on a cwid that is still their live one (ssy9009 is). Only `retired-cwid`
+   *  means "use a different identifier for this human", which is the one that must never be
+   *  assigned to. Everything else is history, and history is exactly what ReCiter attributes. */
+  retiredCwid: boolean;
+  /** The cwid that SUPERSEDED this one, when ED names it. Found by the reverse lookup
+   *  `(weillCornellEduCWIDRetired=<this id>)` — the pointer lives on the successor's record, not
+   *  on the retired one, so it costs one extra search and is resolved only for ids actually
+   *  marked `retiredCwid`. Null when nothing claims the succession (49 of the 2,880 retired
+   *  records had no claimant in that same census). */
+  supersededBy: string | null;
 };
 
 // RFC 4515. Applied to every value that reaches a filter, so a literal `*` a curator types is a
@@ -155,8 +171,23 @@ const WCM_ATTRS = [
   // Institutional Client reads the LONGER one — so asking for only one of them would disagree
   // with the nightly job about who an author works for.
   "weillCornellEduPrimaryOrg", "weillCornellEduPrimaryOrganization",
-  "weillCornellEduPrimaryDepartment", ...CREATED_ATTRS,
+  "weillCornellEduPrimaryDepartment",
+  // Lifecycle. Multi-valued and mixed in kind: `retired-cwid` says THIS IDENTIFIER is dead and
+  // the human lives under another cwid, while `faculty:expired` / `employee:expired` /
+  // `affiliate:expired` say only that an appointment ended. shy2013 carries both kinds at once
+  // (2026-09-09 probe: `affiliate:expired` AND `retired-cwid`, superseded by ssy9009 — which is
+  // itself faculty:expired, employee:expired and affiliate:expired, and is still the live cwid).
+  // Only the first kind may block an assignment; see DirectoryPerson.retiredCwid.
+  "weillCornellEduStatus",
+  ...CREATED_ATTRS,
 ] as const;
+
+// ED marks the retired record and points at it FROM the successor, so the two halves live on
+// different entries: `weillCornellEduStatus: retired-cwid` on the dead one,
+// `weillCornellEduCWIDRetired: <dead cwid>` on the live one.
+const RETIRED_CWID_STATUS = "retired-cwid";
+const isRetiredCwid = (e: Record<string, unknown>): boolean =>
+  clean(all(e.weillCornellEduStatus)).some((s) => s.toLowerCase() === RETIRED_CWID_STATUS);
 
 export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | null {
   const id = first(e.weillCornellEduCWID) ?? first(e.uid);
@@ -207,7 +238,40 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
     // ED-typeless person should actually be.
     personTypes: types.length ? types : ["wcm-directory"],
     wcmCwid: null,
+    retiredCwid: isRetiredCwid(e),
+    // Filled in by resolveSupersededBy() over the whole result set — the pointer is on another
+    // entry, so it cannot be projected from this one.
+    supersededBy: null,
   };
+}
+
+/** Fill in `supersededBy` for every retired cwid in `people`, with ONE extra search for the
+ *  whole set (`(|(weillCornellEduCWIDRetired=a)(weillCornellEduCWIDRetired=b)…)`) rather than
+ *  one per person. Retired hits are rare, so the common case does no search at all.
+ *
+ *  Best-effort by design: a curator being told "retired" is the part that must not fail, and
+ *  naming the replacement is the bonus. A directory error here leaves supersededBy null and the
+ *  row still correctly blocked, which is why this swallows rather than rejects. */
+export async function resolveSupersededBy(people: DirectoryPerson[]): Promise<void> {
+  const retired = people.filter((p) => p.source === "wcm" && p.retiredCwid);
+  if (!retired.length) return;
+  const wcm = wcmEnv();
+  if (!wcm) return;
+  const filter = `(|${retired.map((p) => `(weillCornellEduCWIDRetired=${escapeLdapFilter(p.id)})`).join("")})`;
+  const entries = await safe("wcm succession lookup", () => search(
+    wcm, WCM_BASE, filter,
+    ["uid", "weillCornellEduCWID", "weillCornellEduCWIDRetired"] as const,
+    retired.length,
+  ), [] as Record<string, unknown>[]);   // see doc comment: the block stands without the replacement
+  const successorOf = new Map<string, string>();
+  for (const e of entries) {
+    const successor = first(e.weillCornellEduCWID) ?? first(e.uid);
+    if (!successor) continue;
+    for (const old of clean(all(e.weillCornellEduCWIDRetired))) {
+      successorOf.set(old.toLowerCase(), successor);
+    }
+  }
+  for (const p of retired) p.supersededBy = successorOf.get(p.id.toLowerCase()) ?? null;
 }
 
 // ------------------------------------------------------------------- Cornell Ithaca directory
@@ -295,6 +359,11 @@ export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerso
     // /authorships campus filter derives from without needing a new authorship_review column.
     personTypes: ["cornell-ithaca", ...types],
     wcmCwid: first(e.cornellEduCWID),
+    // Ithaca publishes no cwid-succession concept — `cornelleduprimaryaffiliation: alumni` is a
+    // former ROLE, not a dead identifier, and those are deliberately still assignable (see
+    // buildNameFilter's "no alumni exclusion" note). So never blocked from here.
+    retiredCwid: false,
+    supersededBy: null,
   };
 }
 
@@ -327,6 +396,26 @@ async function search(
   }
 }
 
+// Same bind, but pages through the WHOLE result set instead of stopping at the server's cap.
+// ED returns 500 entries per page and simply truncates a plain search at that boundary with no
+// error, so the retired-cwid census (2,880 entries) read through search() above would come back
+// silently 83% short — and a short block-list under-blocks, which is the failure that looks like
+// it works. Only the census needs this; every other call here is a lookup capped well under 500.
+async function searchPaged(
+  src: Src, base: string, filter: string, attributes: readonly string[],
+): Promise<Record<string, unknown>[]> {
+  const client = new Client({ url: src.url, timeout: 30_000, connectTimeout: 5_000 });
+  try {
+    await client.bind(src.bindDn, src.password);
+    const { searchEntries } = await client.search(base, {
+      scope: "sub", filter, attributes: [...attributes], paged: { pageSize: 500 },
+    });
+    return searchEntries as unknown as Record<string, unknown>[];
+  } finally {
+    try { await client.unbind(); } catch { /* non-fatal */ }
+  }
+}
+
 // Every directory call goes through this. A directory being slow, unreachable, or refusing the
 // bind must degrade the feature to "we couldn't find them", never fail the request that asked —
 // the opposite stance from reciterIdentitySet(), which fails loudly on purpose because a wrong
@@ -350,7 +439,7 @@ export async function lookupDirectoryPerson(id: string): Promise<DirectoryPerson
       wcm, WCM_BASE, `(&(objectClass=eduPerson)(|(uid=${esc})(weillCornellEduCWID=${esc})))`,
       WCM_ATTRS, 1), [] as Record<string, unknown>[]);
     const p = hits.length ? projectWcmPerson(hits[0]) : null;
-    if (p) return p;
+    if (p) { await resolveSupersededBy([p]); return p; }
   }
   if (cornell) {
     const hits = await safe("cornell lookup", () => search(
@@ -386,14 +475,82 @@ export async function searchDirectoryPeople(q: string, limit = 8): Promise<Direc
       cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]),
       CORNELL_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
   ]);
-  return [
+  const people = [
     ...w.map(projectWcmPerson), ...c.map(projectCornellPerson),
   ].filter((p): p is DirectoryPerson => p !== null).slice(0, limit * 2);
+  // One extra search, and only when this page actually holds a retired cwid — so the ordinary
+  // search pays nothing. Awaited rather than fired-and-forgotten: the successor's name is what
+  // makes the blocked row actionable ("retired — use ssy9009") instead of a dead end.
+  await resolveSupersededBy(people);
+  return people;
 }
 
 /** True when at least one directory is configured. Lets a caller tell "nobody by that name"
  *  apart from "this deployment has no directory wired up". */
 export const directoryConfigured = () => wcmEnv() !== null || cornellEnv() !== null;
+
+// --------------------------------------------------------------- retired-cwid set (cached)
+
+// Every cwid ED has retired, as one set. The authorship queue needs this per PAGE and per
+// CANDIDATE — candidate_cwids_json is baked by the AAR producer and carries no directory state
+// at all — so a per-row lookup is out of the question and a whole-directory snapshot on a timer
+// is the same shape absentCwidSet() already uses in authorships.controller.ts, for the same
+// reason. 2,880 entries on the 2026-09-09 census; one search per refresh, then O(1) membership.
+//
+// ponytail: plain module-level Set + timestamp, no cache lib — one key, one process. Tradeoff:
+// a cwid retired mid-window keeps being offered for up to the TTL, and an un-retired one keeps
+// being blocked just as long. Both self-heal on the next refresh with no action required.
+// Keyed by the retired cwid (lowercased), valued by the cwid that superseded it, or null when
+// ED names no successor (49 of 2,880 on that census). A Map rather than a Set because every
+// caller that blocks a retired cwid immediately wants to say what to use instead, and the answer
+// costs nothing extra once both halves are being read anyway.
+const RETIRED_TTL_MS = 30 * 60 * 1000;   // ED lifecycle changes are HR-paced, not minute-paced
+let retiredCache: { index: Map<string, string | null>; expires: number } | null = null;
+// SINGLE-FLIGHT. The refresh is two paged searches and measured 2.8s cold against live ED
+// (2026-09-09), while every /authorships page load calls this — so without holding the in-flight
+// promise, the moment the TTL lapses every concurrent request starts its own full census. Await
+// the same one instead. Cleared in a finally so one failure cannot wedge the refresh forever.
+let retiredInFlight: Promise<Map<string, string | null>> | null = null;
+
+export function retiredCwidIndex(): Promise<Map<string, string | null>> {
+  if (retiredCache && retiredCache.expires > Date.now()) return Promise.resolve(retiredCache.index);
+  if (retiredInFlight) return retiredInFlight;
+  retiredInFlight = refreshRetiredCwidIndex().finally(() => { retiredInFlight = null; });
+  return retiredInFlight;
+}
+
+async function refreshRetiredCwidIndex(): Promise<Map<string, string | null>> {
+  const wcm = wcmEnv();
+  if (!wcm) return new Map();
+  // The two halves live on different entries, so this is two searches: which cwids are dead,
+  // and who replaced them. Run together so one TTL covers both and they can never be half-stale.
+  const [dead, successors] = await Promise.all([
+    safe("wcm retired-cwid census", () => searchPaged(
+      wcm, WCM_BASE, `(weillCornellEduStatus=${RETIRED_CWID_STATUS})`, ["uid", "weillCornellEduCWID"],
+    ), [] as Record<string, unknown>[]),
+    safe("wcm cwid-succession census", () => searchPaged(
+      wcm, WCM_BASE, "(weillCornellEduCWIDRetired=*)",
+      ["uid", "weillCornellEduCWID", "weillCornellEduCWIDRetired"],
+    ), [] as Record<string, unknown>[]),
+  ]);
+  // An EMPTY answer is not evidence that nothing is retired — it is also what a failed, refused,
+  // or timed-out search looks like, and caching it would silently un-block every retired cwid
+  // for the whole window. Keep the previous snapshot (even a stale one) and retry next call.
+  if (!dead.length) return retiredCache?.index ?? new Map();
+  const successorOf = new Map<string, string>();
+  for (const e of successors) {
+    const successor = first(e.weillCornellEduCWID) ?? first(e.uid);
+    if (!successor) continue;
+    for (const old of clean(all(e.weillCornellEduCWIDRetired))) successorOf.set(old.toLowerCase(), successor);
+  }
+  const index = new Map<string, string | null>();
+  for (const e of dead) {
+    const id = first(e.weillCornellEduCWID) ?? first(e.uid);
+    if (id) index.set(id.toLowerCase(), successorOf.get(id.toLowerCase()) ?? null);
+  }
+  retiredCache = { index, expires: Date.now() + RETIRED_TTL_MS };
+  return index;
+}
 
 // ------------------------------------------------------------------------------ mint payload
 

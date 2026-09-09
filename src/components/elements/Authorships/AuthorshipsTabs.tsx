@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import Tooltip from "@mui/material/Tooltip";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
@@ -66,6 +66,12 @@ interface AuthorshipRow {
   // true → top_cwid already rejected this exact pmid via their own /curate page
   // (GoldStandard.rejectedpmids); Accept is impossible for the same reason as noIdentity.
   top_already_rejected?: boolean;
+  // true → WCM ED has RETIRED top_cwid (`weillCornellEduStatus: retired-cwid`) and the person is
+  // recorded under `top_superseded_by` now. Server-set per page from the cached ED census, NOT
+  // by the AAR producer, which baked top_cwid long before ED retired it — which is the whole
+  // reason this cannot be answered from the row alone. Accept is refused server-side.
+  top_retired_cwid?: boolean;
+  top_superseded_by?: string | null;
   // #990: other WCM identities who already hold ACCEPTED at this row's exact (pmid,
   // author_position) byline slot (identityConflictWhere()'s own rival(s), named rather than
   // just counted) — always [] rather than undefined when there is none, computed for every
@@ -194,6 +200,13 @@ interface Candidate {
   // true → this candidate already rejected this exact pmid via their own /curate page
   // (GoldStandard.rejectedpmids) — must never be the highlighted lead, radio stays disabled.
   already_rejected?: boolean;
+  // true → WCM ED has RETIRED this cwid (`weillCornellEduStatus: retired-cwid`): the person is
+  // real but is recorded under `superseded_by` now, and this identifier is a dead end. Server-set
+  // from the cached ED census (retiredCwidIndex), never from the AAR producer, which bakes
+  // candidate_cwids_json long before and carries no directory state. Removed from the picker
+  // entirely — see MultiEvidence — and refused by the assign route.
+  retired_cwid?: boolean;
+  superseded_by?: string | null;
 }
 
 interface Summary {
@@ -3918,6 +3931,10 @@ const AuthorshipCard = ({
   const isMulti = !r.single_candidate;
   const noIdentity = r.identity_in_reciter === false;
   const alreadyRejected = r.top_already_rejected === true;
+  // #1012: ED retired the proposed cwid after the producer baked it. Kept beside the two flags
+  // above because it is the same KIND of fact — "there is a person here, but this authorship
+  // cannot be accepted onto them" — and it takes precedence over both in the branch below.
+  const topRetired = r.top_retired_cwid === true;
   // #938 — ReCiterDB#177 nulls the producer's candidate columns (top_cwid included) on rows
   // the merged matcher no longer matches to anyone; gated on top_cwid itself, not on the
   // identity lookup above, which is vacuously true (`!r.top_cwid || …`) and so never fires here.
@@ -4153,6 +4170,31 @@ const AuthorshipCard = ({
               <Tip title="ReCiterDB's matcher no longer matches this byline to any WCM identity — there is no candidate here to accept or reject. Assign it to someone below, or leave it open." placement="top" arrow>
                 <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No suggested identity</span>
               </Tip>
+            ) : topRetired ? (
+              // #1012 — ED has RETIRED the cwid the producer proposed. Ahead of noIdentity on
+              // purpose: a retired cwid usually still HAS a ReCiter Identity, so that branch
+              // would not catch it and Accept would be offered right up until the server's 409.
+              // Reject stays live (the byline genuinely may not be this person's), and the
+              // successor is named with the same Assign… shortcut the no-identity branch uses,
+              // so the one-click path is to the live cwid rather than to a dead end.
+              <>
+                <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
+                  <IconX size={14} /> Reject
+                </button>
+                <Tip title={`${r.top_cwid} is a retired CWID in the WCM directory${r.top_superseded_by ? ` — ${r.top_superseded_by} replaced it. Click to assign this authorship to ${r.top_superseded_by}.` : ", and no replacement is on record."}`} placement="top" arrow>
+                  <span
+                    style={{ ...alreadyRejectedPillStyle, ...(r.top_superseded_by ? { cursor: "pointer" } : null) }}
+                    onClick={(e) => { e.stopPropagation(); if (r.top_superseded_by) onAssignOther(); }}
+                  >
+                    Retired CWID{r.top_superseded_by ? ` — use ${r.top_superseded_by}` : ""}
+                  </span>
+                </Tip>
+                {r.top_superseded_by && (
+                  <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAssignOther(); }}>
+                    Assign…
+                  </button>
+                )}
+              </>
             ) : noIdentity ? (
               <>
                 <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
@@ -4452,12 +4494,26 @@ const HomonymNote = ({ listed, typed }: { listed: number; typed: number }) => ty
 );
 
 // multi-candidate disambiguation panel (F11)
-const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onAction,
+const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, onPick, onAction,
   priorNamesByCwid, onHoverIdentity }: {
   row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean;
   onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
   priorNamesByCwid: Record<string, PriorNames>; onHoverIdentity: (cwid?: string | null) => void;
 }) => {
+  // #1012: a cwid ED has RETIRED is removed from the picker outright — unlike already_rejected
+  // below, which stays VISIBLE because it records a judgement a curator may still overrule. This
+  // is not a judgement: the identifier is dead, the human lives under another cwid, and every
+  // write to it lands on a record nothing reads again. There is no "yes, I'm sure" that makes it
+  // right, so the server refuses it too (case "assign") and hiding it removes a dead end rather
+  // than removing a choice.
+  //
+  // Never silent — what was removed is named under the list, with its replacement, which is very
+  // often ALREADY one of the remaining candidates (112 of the 233 affected open rows on the
+  // 2026-09-09 census). On those rows the card's "choose among N WCM homonyms" was counting one
+  // human twice.
+  const retiredCandidates = allCandidates.filter((c) => c.retired_cwid);
+  const candidates = retiredCandidates.length
+    ? allCandidates.filter((c) => !c.retired_cwid) : allCandidates;
   // One hover at a time, so a single cwid rather than a per-candidate flag each.
   const [hoverCwid, setHoverCwid] = useState<string | null>(null);
   const candHoverTimer = useRef<any>(null);
@@ -4596,6 +4652,28 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
             Show all {ranked.length} ({folded.length} never retrieved, IO unavailable)
           </button>
         )}
+        {/* #1012: what the retired-cwid filter above removed, and what replaced it. The card's
+            own "N candidates" badge counts the produced list, so a removal that said nothing
+            would read as a miscount. When the replacement is already on this card — the common
+            case — this line is also the explanation that the two "homonyms" are one person. */}
+        {retiredCandidates.length > 0 && (
+          <div style={{ fontSize: 11.5, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a",
+                        borderRadius: 6, padding: "5px 8px", marginBottom: 8, lineHeight: 1.45 }}>
+            {retiredCandidates.map((c) => {
+              const alsoHere = c.superseded_by && candidates.some(
+                (k) => k.cwid.toLowerCase() === String(c.superseded_by).toLowerCase());
+              return (
+                <div key={c.cwid}>
+                  <strong>{c.cwid}</strong>{c.name ? ` (${c.name})` : ""} is a retired CWID
+                  {c.superseded_by
+                    ? <> — {alsoHere ? "the same person as " : "replaced by "}<strong>{c.superseded_by}</strong>
+                        {alsoHere ? ", listed above" : ""}.</>
+                    : <> with no replacement on record.</>}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
         <button style={btn("accept", acting || !pickedCwid)}
@@ -4695,7 +4773,14 @@ const AssignOther = ({ rowId, acting, onAction }: {
   // A name is not submittable — it is a search term, and the server's assign route would 400 on
   // it. Picking a result turns it into an identifier, which is submittable. Keeping this in one
   // predicate means the button and Enter agree.
-  const submittable = /^[A-Za-z0-9]{1,32}$/.test(otherCwid.trim());
+  // #1012: a retired cwid is the ONE preview outcome that is not submittable. Every other warn
+  // here describes an unusual but legitimate write (a bridge, a mint, a local-only record); this
+  // one the server refuses outright, so the button goes dead rather than sending into a 409.
+  // Derived from the preview so the disabled button and the line explaining it can never
+  // disagree — and the lookup is reset on every keystroke, so `blocked` can only ever describe
+  // the string currently in the box.
+  const typedPreview = typedCwidPreview(lookupState);
+  const submittable = /^[A-Za-z0-9]{1,32}$/.test(otherCwid.trim()) && !typedPreview?.blocked;
 
   const submitOther = useCallback(() => {
     if (!submittable || acting) return;
@@ -4766,18 +4851,14 @@ const AssignOther = ({ rowId, acting, onAction }: {
           Assign
         </button>
       </div>
-      {(() => {
-        const preview = typedCwidPreview(lookupState);
-        if (!preview) return null;
-        return (
-          <div onClick={(e) => e.stopPropagation()} style={{
-            textAlign: "right", fontSize: 11, marginTop: 2,
-            color: preview.tone === "warn" ? "#b45309" : "#64748b",
-          }}>
-            {preview.text}
-          </div>
-        );
-      })()}
+      {typedPreview && (
+        <div onClick={(e) => e.stopPropagation()} style={{
+          textAlign: "right", fontSize: 11, marginTop: 2,
+          color: typedPreview.tone === "warn" ? "#b45309" : "#64748b",
+        }}>
+          {typedPreview.text}
+        </div>
+      )}
       {matches !== null && (
         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 6, textAlign: "left" }}>
           {matches.length === 0 ? (
@@ -4802,21 +4883,41 @@ const AssignOther = ({ rowId, acting, onAction }: {
                     // so the row carries the same affordances explicitly — focusable, and Enter or
                     // Space activates it. Do not drop these to tidy the markup: the keyboard path
                     // is the only one a curator not using a mouse has.
-                    <tr key={`${m.source}:${m.id}`} tabIndex={0} role="button"
-                      onClick={(e) => { e.stopPropagation(); pick(m); }}
-                      onKeyDown={(e) => {
-                        if (e.key !== "Enter" && e.key !== " ") return;
-                        e.preventDefault(); e.stopPropagation(); pick(m);
-                      }}
-                      style={{ cursor: "pointer", borderBottom: "1px solid #f1f5f9" }}>
+                    // #1012: a cwid ED has RETIRED is SHOWN but not pickable — the opposite of
+                    // the candidate picker above, which hides it. A curator typed this name and
+                    // has to be told what became of the person; dropping the row would read as
+                    // "no such person" and send them looking again. So it stays, greyed, labelled,
+                    // with its replacement named — and with the row's click/Enter/role/tabIndex
+                    // handlers removed rather than merely styled away, so keyboard and mouse are
+                    // blocked by the same fact. aria-disabled says it out loud for a screen reader.
+                    // The assign route refuses it independently; this only saves the round-trip.
+                    <tr key={`${m.source}:${m.id}`}
+                      {...((m.retiredCwid ? { "aria-disabled": true } : {
+                        tabIndex: 0,
+                        role: "button",
+                        onClick: (e) => { e.stopPropagation(); pick(m); },
+                        onKeyDown: (e) => {
+                          if (e.key !== "Enter" && e.key !== " ") return;
+                          e.preventDefault(); e.stopPropagation(); pick(m);
+                        },
+                      }) as HTMLAttributes<HTMLTableRowElement>)}
+                      style={{ cursor: m.retiredCwid ? "not-allowed" : "pointer",
+                               borderBottom: "1px solid #f1f5f9",
+                               background: m.retiredCwid ? "#fafafa" : undefined,
+                               color: m.retiredCwid ? "#94a3b8" : undefined }}>
                       <td style={dirCell}>
-                        <span style={{ fontWeight: 600 }}>{m.name}</span>
+                        <span style={{ fontWeight: 600, textDecoration: m.retiredCwid ? "line-through" : undefined }}>{m.name}</span>
                         {/* the assembled legal name, only when it says something displayName does not */}
                         {m.fullName && (
                           <span style={{ display: "block", color: "#94a3b8" }}>{m.fullName}</span>
                         )}
+                        {m.retiredCwid && (
+                          <span style={{ display: "block", color: "#b45309", fontWeight: 600 }}>
+                            Retired CWID{m.supersededBy ? <> — use <strong>{m.supersededBy}</strong></> : " — no replacement on record"}
+                          </span>
+                        )}
                       </td>
-                      <td style={{ ...dirCell, color: "#2563eb", whiteSpace: "nowrap" }}>{m.id}</td>
+                      <td style={{ ...dirCell, color: m.retiredCwid ? "#94a3b8" : "#2563eb", whiteSpace: "nowrap" }}>{m.id}</td>
                       {/* ONE org column, and `weillCornellEduPrimaryOrg` wins it.
                           There used to be a separate "Src" column here showing which directory
                           answered, and for gallric the row then read "WCM" and "NYP" side by
@@ -4856,10 +4957,14 @@ const AssignOther = ({ rowId, acting, onAction }: {
                       {/* Says what picking this row will actually do, before it is picked: land on an
                           identity that already exists, redirect to the same person's WCM identifier, or
                           create a new identity. */}
-                      <td style={{ ...dirCell, whiteSpace: "nowrap", textAlign: "right", color: m.hasIdentity ? "#059669" : "#b45309" }}>
-                        {m.hasIdentity ? "in ReCiter"
-                          : m.wcmCwidHasIdentity ? `same person as ${m.wcmCwid} in ReCiter`
-                            : "will create identity"}
+                      <td style={{ ...dirCell, whiteSpace: "nowrap", textAlign: "right", color: m.retiredCwid ? "#94a3b8" : m.hasIdentity ? "#059669" : "#b45309" }}>
+                        {/* A retired cwid's ReCiter state is not the useful fact — it may well
+                            still have an identity, and saying "in ReCiter" beside a row that
+                            cannot be picked reads as an invitation. Say why it cannot instead. */}
+                        {m.retiredCwid ? "cannot assign"
+                          : m.hasIdentity ? "in ReCiter"
+                            : m.wcmCwidHasIdentity ? `same person as ${m.wcmCwid} in ReCiter`
+                              : "will create identity"}
                       </td>
                     </tr>
                   ))}

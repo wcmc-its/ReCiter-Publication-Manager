@@ -14,6 +14,7 @@ import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../.
 import { authorKey } from "../../src/lib/bulkAssign";
 import {
   lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured,
+  retiredCwidIndex,
   type DirectoryPerson,
 } from "../../src/lib/directory";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
@@ -960,6 +961,11 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
           email: p.emails[0] ?? null,
           hasIdentity: known.has(p.id) || known.has(p.id.toLowerCase()),
           wcmCwid: p.wcmCwid, wcmCwidHasIdentity: !!(p.wcmCwid && known.has(p.wcmCwid)),
+          // ED has RETIRED this cwid: the human exists, under a different identifier. Assigning
+          // to it writes a gold-standard record against an identifier nothing will ever read
+          // again, so the client renders the row un-pickable and names the replacement instead.
+          // Distinct from every other status ED publishes — see DirectoryPerson.retiredCwid.
+          retiredCwid: p.retiredCwid, supersededBy: p.supersededBy,
         })),
       });
     }
@@ -982,8 +988,14 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
     // common path costs no LDAP round-trip at all.
     const dir = hasIdentity ? null : await lookupDirectoryPerson(cwid);
     const bridgeFound = dir?.wcmCwid ? await reciterIdentitySet([dir.wcmCwid]) : null;
+    // Answered from the cached ED census, NOT from `dir` — `dir` is only fetched when ReCiter
+    // has no identity, and a retired cwid usually still has one, so reading the flag off `dir`
+    // would miss precisely the case that matters. No LDAP round-trip on the cached path.
+    const retiredIdx = await retiredCwidIndex();
+    const retiredCwid = retiredIdx.has(cwid.toLowerCase());
     res.send({
       cwid, name, hasIdentity,
+      retiredCwid, supersededBy: retiredCwid ? (retiredIdx.get(cwid.toLowerCase()) ?? null) : null,
       directory: dir && {
         id: dir.id, source: dir.source, name: dir.name, title: dir.title, dept: dir.dept,
         email: dir.emails[0] ?? null,
@@ -994,6 +1006,10 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
         // A directory record with no given or family name cannot satisfy ReCiter's mandatory
         // fields, so say so here rather than letting the confirm promise a mint that 500s.
         mintable: directoryIdentityPayload(dir) !== null,
+        // Same block as the name-search path above: a typed cwid ED has retired must not be
+        // minted OR assigned to. Reaching this branch means ReCiter has no identity for it, so
+        // confirming would mint a brand-new identity on a dead identifier — the worst case.
+        retiredCwid: dir.retiredCwid, supersededBy: dir.supersededBy,
       },
     });
   } catch (e) {
@@ -1066,6 +1082,13 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       scopusSib = Object.fromEntries(sib.map((s) => [String(s.external_id), Number(s.n)]));
     }
     const knownIdentities = await reciterIdentitySet(rows.map((r: any) => r.top_cwid));
+    // Which cwids ED has RETIRED, and what replaced each. A whole-directory snapshot on a 30-min
+    // TTL rather than a per-row lookup: candidate_cwids_json is baked at AAR-producer time and
+    // carries no directory state, so there is nothing on the row itself to read. Same posture as
+    // absentCwidSet() above — one refresh, then O(1) per candidate. Degrades to an empty map when
+    // ED is unreachable, which under-blocks rather than over-blocks: a curator who cannot assign
+    // to a live person is a worse failure than one offered a dead cwid they usually will not pick.
+    const retiredCwids = await retiredCwidIndex();
 
     // T5: "Show N others like this" sibling count — one grouped COUNT over the OPEN queue
     // (always "open", not the caller's active statusView — the point of the button is to
@@ -1153,19 +1176,39 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       // a flat row and the join's presence remains an implementation detail.
       const top_institution: string | null = json.Person?.primaryInstitution || null;
       delete json.Person;
-      if (rejectionCheckIds.has(r.id)) {
-        const pmidNum = Number(r.pmid);
-        let candidates: any[] = [];
-        try { candidates = JSON.parse(json.candidate_cwids_json || "[]"); } catch { candidates = []; }
-        if (Array.isArray(candidates)) {
-          json.candidate_cwids_json = JSON.stringify(candidates.map((c: any) => {
-            if (!c || typeof c !== "object" || !c.cwid) return c;
-            return rejectedByCwid[String(c.cwid)]?.has(pmidNum) ? { ...c, already_rejected: true } : c;
-          }));
-        }
-        if (r.top_cwid && rejectedByCwid[String(r.top_cwid)]?.has(pmidNum)) {
-          json.top_already_rejected = true;
-        }
+      // Two independent annotations over the same parsed candidate list — the gold-standard
+      // rejection check (per-row, only for rejectionCheckIds) and the retired-cwid check (every
+      // row, off the cached ED census). Parsed ONCE and re-stringified once: the previous shape
+      // parsed inside the rejection branch, and adding a second parse/stringify pass around it
+      // would double the JSON work on every row of every page for no gain.
+      const pmidNum = Number(r.pmid);
+      const checkRejected = rejectionCheckIds.has(r.id);
+      let candidates: any[] = [];
+      try { candidates = JSON.parse(json.candidate_cwids_json || "[]"); } catch { candidates = []; }
+      if (Array.isArray(candidates) && candidates.length) {
+        json.candidate_cwids_json = JSON.stringify(candidates.map((c: any) => {
+          if (!c || typeof c !== "object" || !c.cwid) return c;
+          const cwid = String(c.cwid);
+          let next = c;
+          if (checkRejected && rejectedByCwid[cwid]?.has(pmidNum)) next = { ...next, already_rejected: true };
+          // ED has retired this identifier: the human is real but lives under another cwid, so
+          // assigning here writes a gold-standard record nothing will read again. Frequently the
+          // successor is ALSO a candidate on this very row (112 of the 233 affected open rows,
+          // 2026-09-09 census) — the card calls them "2 WCM homonyms" when they are one person.
+          if (retiredCwids.has(cwid.toLowerCase())) {
+            next = { ...next, retired_cwid: true, superseded_by: retiredCwids.get(cwid.toLowerCase()) ?? null };
+          }
+          return next;
+        }));
+      }
+      if (checkRejected && r.top_cwid && rejectedByCwid[String(r.top_cwid)]?.has(pmidNum)) {
+        json.top_already_rejected = true;
+      }
+      // …and the same for the LEAD candidate, which lives in its own columns rather than in the
+      // JSON (63 open rows on that census). A single-candidate card renders from these alone.
+      if (r.top_cwid && retiredCwids.has(String(r.top_cwid).toLowerCase())) {
+        json.top_retired_cwid = true;
+        json.top_superseded_by = retiredCwids.get(String(r.top_cwid).toLowerCase()) ?? null;
       }
       // T5: how many OTHER open rows share this row's normalized author key — subtract 1 only
       // when THIS row is itself part of the open-queue group the count above drew from (a
@@ -2406,6 +2449,21 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // and silently refetch the row instead of the generic "nothing was saved" toast — see
         // the card predicate at AuthorshipsTabs.tsx (isMulti) and the kind dispatch below it.
         if (!row.single_candidate) return res.status(409).json({ code: "MULTI_CANDIDATE", message: "Multiple candidates — use \"Pick one\" to assign" });
+        // RETIRED CWID, the single-candidate half of the same block case "assign" applies. This
+        // path never sees a client-supplied cwid — it accepts the row's own top_cwid — but the
+        // producer baked that months ago and ED has retired it since (63 open rows on the
+        // 2026-09-09 census). Checked BEFORE the Identity lookup below: a retired cwid often
+        // still HAS an identity, so that guard would wave it straight through.
+        {
+          const retired = await retiredCwidIndex();
+          const successor = retired.get(String(cwid).toLowerCase());
+          if (retired.has(String(cwid).toLowerCase())) {
+            return res.status(409).send(
+              `${row.top_name || cwid} is proposed under ${cwid}, which the WCM directory has retired` +
+              (successor ? ` — ${successor} replaced it. Use "Pick one" to assign ${successor} instead.`
+                         : ", and no replacement is on record. Dismiss this row instead."));
+          }
+        }
         // 422 (not 409) so the client's scopus force-add prompt doesn't fire for this
         if (!(await reciterIdentitySet([cwid])).size) {
           return res.status(422).send(`${row.top_name || cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
@@ -2480,6 +2538,28 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         const chosen = String(body.cwid || "");
         if (!chosen) return res.status(400).send("cwid is required for assign");
         if (!/^[A-Za-z0-9]{1,32}$/.test(chosen)) return res.status(400).send("cwid must be alphanumeric");
+        // RETIRED CWID — a hard block, and the only one in this switch that is not a confirmable
+        // gate. Every other "are you sure" here guards a judgement call a curator is entitled to
+        // make; this one guards an identifier ED has declared dead, where the write would land on
+        // a record nothing reads again. There is no version of "yes, I'm sure" that makes that
+        // correct, so it is refused rather than confirmed.
+        //
+        // Server-side because the UI block is a courtesy and this is the trust boundary: `chosen`
+        // is client-supplied and drives an authoritative GoldStandard write. It is deliberately
+        // NOT re-targeted to the successor automatically — this file's standing rule is that a
+        // write must never silently land on an identifier the curator did not choose (see the
+        // duplicate-person bridge below, which asks first for exactly that reason). Naming the
+        // replacement in the message lets them pick it in one click instead.
+        {
+          const retired = await retiredCwidIndex();
+          const successor = retired.get(chosen.toLowerCase());
+          if (retired.has(chosen.toLowerCase())) {
+            return res.status(409).send(
+              `${chosen} is a retired CWID in the WCM directory` +
+              (successor ? ` — ${successor} replaced it. Assign to ${successor} instead.`
+                         : " and has no replacement on record, so it cannot be assigned."));
+          }
+        }
         // Trust boundary: `chosen` is client-supplied and can drive an authoritative
         // GoldStandard write, so the server establishes two facts about it — is it one of
         // this authorship's produced candidates, and does ReCiter know it at all — and
