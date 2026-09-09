@@ -787,10 +787,15 @@ const parseCandidates = (json?: string): Candidate[] => {
 // row (the same JSON the card's Pick-one radios already render from), or the row's own single
 // proposed identity for a single-candidate one. Kept here rather than in bulkAssign.ts because
 // it depends on parseCandidates/AuthorshipRow, which that pure module deliberately does not.
+// `score` is the identity-only score, the same number the card's rail and the row header's
+// "top IO" show, so the picker's order matches the cards it summarises. A single-candidate row
+// carries it as the row's own top_io_score; a multi row carries one per candidate.
 const rowCandidateLites = (row: AuthorshipRow): CandidateLite[] =>
   row.single_candidate
-    ? (row.top_cwid ? [{ cwid: row.top_cwid, name: row.top_name }] : [])
-    : parseCandidates(row.candidate_cwids_json).map((c) => ({ cwid: c.cwid, name: c.name }));
+    ? (row.top_cwid ? [{ cwid: row.top_cwid, name: row.top_name, score: row.top_io_score ?? null }] : [])
+    : parseCandidates(row.candidate_cwids_json).map((c) => ({
+      cwid: c.cwid, name: c.name, score: c.io_score ?? null,
+    }));
 
 // Full Scopus byline from authors_json ([{given,surname}, ...]) as a comma-joined
 // "Given Surname" string. "" for absent/malformed/empty input — never throws.
@@ -1231,6 +1236,21 @@ const AuthorshipsTabs = () => {
   // "Bernard Park" and vice versa — the case the free-text box's LIKE cannot cover. Cleared by
   // the dismissible "Like: …" chip near the filter row.
   const setLikeAuthor: SetFilter<"likeAuthor"> = useCallback((v) => setFilter("likeAuthor", v), [setFilter]);
+  // Resolve the LAST row in a "Show N others like this" view and the filter drops itself, so the
+  // curator lands back in the queue instead of staring at an empty list with a "Like: …" chip
+  // they now have to notice and dismiss by hand. The whole point of that view is to work a
+  // cluster of one person's bylines to exhaustion, so exhausting it IS the exit.
+  //
+  // Declarative on purpose, rather than a clause inside the action handler. doActionAsync runs
+  // once PER ROW and reads a rows mirror that has not re-rendered yet, so a bulk accept of the
+  // final three rows would see three remaining on every call and never fire. Keying off "the
+  // list is now empty" catches single, bulk, keyboard and undo-redo paths alike.
+  //
+  // Guarded on !loading so it cannot fire against the empty rows a fetch shows mid-flight, and
+  // scoped to likeAuthor: every other filter is one the curator chose and should keep.
+  useEffect(() => {
+    if (!loading && rows.length === 0 && filters.likeAuthor.trim()) setLikeAuthor("");
+  }, [loading, rows.length, filters.likeAuthor, setLikeAuthor]);
   const [actingId, setActingId] = useState<number | null>(null);
   // scopus Accept/Assign can 409 on a likely-duplicate ExternalArticle; the backend retries past
   // it with force:"true". This holds the pending action so the curator can confirm "Force add".
@@ -3061,11 +3081,15 @@ const AuthorshipsTabs = () => {
           top_cwid for a single one), ranked by how many selected rows propose it, plus a
           typed-cwid escape hatch for someone the union doesn't include. Choosing an option (B-8)
           fires the server lookup rather than submitting or computing anything client-side. */}
+      {/* maxWidth was 380 with MenuItem's default white-space: nowrap, so a long name ran off
+          the paper and "matches 2 of 3 selected" was cut mid-word with no way to read it.
+          Wider, and the line wraps instead of clipping. */}
       <Menu anchorEl={assignMenuAnchor} open={!!assignMenuAnchor} onClose={() => setAssignMenuAnchor(null)}
-        PaperProps={{ style: { maxWidth: 380 } }}>
+        PaperProps={{ style: { maxWidth: 460 } }}>
         {assignCandidateUnion.length === 0 && <MenuItem disabled>No candidates on the selected rows</MenuItem>}
         {assignCandidateUnion.map((c) => (
-          <MenuItem key={c.cwid} dense onClick={() => chooseAssignTarget(c.cwid)}>
+          <MenuItem key={c.cwid} dense onClick={() => chooseAssignTarget(c.cwid)}
+            style={{ whiteSpace: "normal", lineHeight: 1.35, paddingTop: 5, paddingBottom: 5 }}>
             {c.name ? `${c.name} ` : ""}({c.cwid}) — matches {c.matches} of {selectedRows.length} selected
           </MenuItem>
         ))}
@@ -3076,7 +3100,19 @@ const AuthorshipsTabs = () => {
           <label style={{ fontSize: 11.5, color: "#94a3b8" }}>Someone else:</label>
           <input value={assignOtherCwid} placeholder="cwid"
             onChange={(e) => setAssignOtherCwid(e.target.value.trim())}
-            onKeyDown={(e) => { if (e.key === "Enter" && assignOtherCwid && !assignLookupCwid) chooseAssignTarget(assignOtherCwid); }}
+            // Every key except Escape stops here. This input is a DESCENDANT of the MUI <Menu>
+            // above, and MenuList binds its own onKeyDown on the <ul role="menu">
+            // (@mui/material/MenuList/MenuList.js:233) which fires on bubbled events regardless
+            // of what has focus. For any single printable character it runs type-ahead over the
+            // sibling MenuItems and calls preventDefault() — so the curator's first keystroke was
+            // being swallowed and focus yanked onto a candidate row, and the box could never be
+            // typed into at all. Escape is deliberately let through: the Modal's escape-to-close
+            // handler sits ABOVE MenuList, so stopping it too would trap the dropdown open.
+            // The per-row AssignOther box never had this problem because it is not inside a Menu.
+            onKeyDown={(e) => {
+              if (e.key !== "Escape") e.stopPropagation();
+              if (e.key === "Enter" && assignOtherCwid && !assignLookupCwid) chooseAssignTarget(assignOtherCwid);
+            }}
             style={{ width: 90, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1", borderRadius: 4, color: "#334155" }} />
           <button style={btn("accept", !assignOtherCwid || !!assignLookupCwid)} disabled={!assignOtherCwid || !!assignLookupCwid}
             onClick={() => chooseAssignTarget(assignOtherCwid)}>
