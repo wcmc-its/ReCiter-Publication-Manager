@@ -573,7 +573,15 @@ for (const [name, state] of Object.entries({
 // (c) both exits from the like view restore what it widened away — a curator must never be left
 // in a silently-widened queue. Source-level, since the stash is a ref inside the component.
 dep("the click stashes the filters it is about to widen away",
-  /likeFilterStash\.current = \{ filters: \{ \.\.\.filters \}, preset: datePreset, searchInput \};/);
+  /likeFilterStash\.current = \{ filters: \{ \.\.\.filters \}, preset: datePreset, searchInput, page \};/);
+// ...INCLUDING the page being read. Entering a like view is a detour, not navigation, so both
+// exits put the curator back on the page they left rather than on page 0. Three parts, all
+// required: the stash carries it (above), the restore hands it to the page-reset effect, and
+// that effect targets it instead of a hardcoded 0.
+dep("the restore aims the page-reset effect at the stashed page",
+  /likeExitPage\.current = stashed\.page;\n\s*patchFilters\(\{ \.\.\.restored, likeAuthor: "" \}\);/);
+dep("the page-reset effect honours that target, and consumes it unconditionally",
+  /const target = likeExitPage\.current \?\? 0;\n\s*likeExitPage\.current = null;\n\s*if \(page !== target\)/);
 // Re-clicking the button from INSIDE a like view (a card for another name) must not overwrite
 // the snapshot with the already-widened state, or the restore puts back the widening.
 dep("the stash is taken on entry only, never overwritten mid-view",

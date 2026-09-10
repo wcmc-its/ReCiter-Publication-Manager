@@ -74,8 +74,8 @@ check("no-identity single-candidate row is never accept-eligible (nothing to Acc
   isAcceptEligible(noIdentitySingle), false);
 
 check("multi-candidate pubmed -> assign-eligible", isMultiAssignEligible(multiPubmed), true);
-check("multi-candidate scopus -> NOT assign-eligible (homonym recording is pubmed-lane only)",
-  isMultiAssignEligible(multiScopus), false);
+check("multi-candidate scopus -> assign-eligible too (homonym recording is pubmed-lane only, but that\n     only skips the side-effect; the per-row panel assigns this row today)",
+  isMultiAssignEligible(multiScopus), true);
 check("single-candidate row is never multi-assign-eligible", isMultiAssignEligible(single), false);
 
 console.log("\nB-8: no-identity single-candidate rows (the nns9003 case) — assign-only:");
@@ -95,7 +95,7 @@ check("...scopus source is fine (the local-only write is row-scoped, source-inde
 console.log("\nbulk-selectable (open queue only):");
 check("single-candidate, open -> selectable", isBulkSelectable(single, "open"), true);
 check("multi-candidate pubmed, open -> selectable (T4)", isBulkSelectable(multiPubmed, "open"), true);
-check("multi-candidate scopus, open -> NOT selectable", isBulkSelectable(multiScopus, "open"), false);
+check("multi-candidate scopus, open -> selectable", isBulkSelectable(multiScopus, "open"), true);
 check("single-candidate, snoozed view -> NOT selectable (matches pre-T4 toggleSelect)",
   isBulkSelectable(single, "snoozed"), false);
 check("multi-candidate pubmed, dismissed view -> NOT selectable",
