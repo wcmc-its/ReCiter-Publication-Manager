@@ -1412,23 +1412,45 @@ const AuthorshipsTabs = () => {
   // undo) — none of those are navigation, so none of them should move the reader. Leave it
   // non-silent for the one effect below that fires on an actual filter/status/page change,
   // where landing back at the top is the reasonable, expected behaviour.
+  // A response must be discarded when the filters it was built from are no longer the filters on
+  // screen. The seq refs order requests, but the stale one here is typically the NEWEST, so they
+  // cannot catch it: doAction's .then() calls topUp/fetchSummary through closures bound to
+  // whatever filterBody was current when the row was clicked, so an action resolving AFTER a
+  // filter change re-queries the OLD view and repaints it over the new one.
+  //
+  // Seen in prod: resolving the last row of a "like" view races the auto-exit that emptying the
+  // view triggers. The restore fires its own correct fetch, then the action settles and its
+  // stale trio lands on top — the spent view's count:0 over the restored queue's 2,281 rows, so
+  // the curator reads "No authorships match these filters" about filters matching plenty.
+  //
+  // Compared BY VALUE, not with a generation counter: the staleness lives inside the closure's
+  // captured filterBody, so a counter read at call time would look current and wave it through.
+  // Every filter change fires its own fetch, so dropping a response can never strand the list.
+  const listBody = useCallback(
+    () => JSON.stringify({ ...filterBody(), limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+    [filterBody, page],
+  );
+  const liveListBody = useRef("");
+  useEffect(() => { liveListBody.current = listBody(); }, [listBody]);
+
   const fetchData = useCallback((silent = false) => {
     const myId = ++seqRef.current;
+    const body = listBody();
     if (!silent) setLoading(true);
     fetch("/api/db/authorships", {
-      credentials: "same-origin", method: "POST", headers: apiHeaders,
-      body: JSON.stringify({ ...filterBody(), limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+      credentials: "same-origin", method: "POST", headers: apiHeaders, body,
     })
       .then((r) => r.json())
       .then((d) => {
         if (myId !== seqRef.current) return; // superseded by a newer request — drop this response
+        if (body !== liveListBody.current) return; // filters moved on while this was in flight
         // never show a row whose removal is still in flight (race protection, same as topUp)
         setRows((d.rows || []).filter((row: AuthorshipRow) => !pendingRemoved.current.has(row.id)));
         setCount(d.count || 0);
       })
       .catch((e) => console.error("[authorships]", e))
       .finally(() => { if (!silent) setLoading(false); });
-  }, [filterBody, page]);
+  }, [listBody]);
 
   // Rolling queue: silently refill the visible set back up to PAGE_SIZE after a curator action —
   // NO loading flash (unlike fetchData) and, critically, ADDITIVE rather than a wholesale swap.
@@ -1440,13 +1462,14 @@ const AuthorshipsTabs = () => {
   // back a page only when this offset is genuinely empty, so you're never stranded on a dead tail.
   const topUp = useCallback(() => {
     const myId = ++seqRef.current;
+    const body = listBody();
     fetch("/api/db/authorships", {
-      credentials: "same-origin", method: "POST", headers: apiHeaders,
-      body: JSON.stringify({ ...filterBody(), limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+      credentials: "same-origin", method: "POST", headers: apiHeaders, body,
     })
       .then((r) => r.json())
       .then((d) => {
         if (myId !== seqRef.current) return; // a newer fetch/topUp started — don't merge stale rows
+        if (body !== liveListBody.current) return; // filters moved on — this refill is for a dead view
         const fetched: AuthorshipRow[] = (d.rows || []).filter(
           (row: AuthorshipRow) => !pendingRemoved.current.has(row.id),
         );
@@ -1459,7 +1482,7 @@ const AuthorshipsTabs = () => {
         });
       })
       .catch((e) => console.error("[authorships]", e));
-  }, [filterBody, page]);
+  }, [listBody, page]);
 
   // DERIVED from the filter object, never hand-listed — the same rule filterBody follows, and
   // for the same reason: a summary dependency array typed out by hand is exactly how a filter
@@ -1507,6 +1530,13 @@ const AuthorshipsTabs = () => {
   // requests have very different latencies (a byline-facet call is ~900 ms, a plain one
   // ~400 ms): without it, opening the popover and immediately changing a filter lets the older,
   // slower response land last and repaint stale counts as fresh ones.
+  // liveSummaryBody is fetchSummary's half of the staleness guard documented on listBody above:
+  // doAction's .then() calls this through a closure holding the summaryBody that was current when
+  // the row was clicked, and this is the call that paints the header's "N unassigned authorships"
+  // — the 0 the curator actually reads.
+  const liveSummaryBody = useRef("");
+  useEffect(() => { liveSummaryBody.current = summaryBody; }, [summaryBody]);
+
   const fetchSummary = useCallback(() => {
     const myId = ++summarySeqRef.current;
     const body = summaryBody;
@@ -1516,11 +1546,13 @@ const AuthorshipsTabs = () => {
       .then((r) => r.json())
       .then((d) => {
         if (myId !== summarySeqRef.current) return;   // a newer summary fetch started
+        if (body !== liveSummaryBody.current) return; // filters moved on while this was in flight
         setSummary(d);
         setSummaryFor(body);
       })
       .catch(() => {
         if (myId !== summarySeqRef.current) return;
+        if (body !== liveSummaryBody.current) return; // ...and never blank a live summary either
         setSummary(null);
         setSummaryFor("");
       });
