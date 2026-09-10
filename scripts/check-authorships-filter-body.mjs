@@ -595,5 +595,27 @@ dep("dismissing the \u201cLike: \u2026\u201d chip restores them instead of just 
 dep("the auto-exit on an emptied like view restores them too",
   /if \(!loading && rows\.length === 0 && filters\.likeAuthor\.trim\(\)\) clearLikeRef\.current\?\.\(\);/);
 
+// (d) ...and the exit above is exactly what makes the staleness guard load-bearing. doAction's
+// .then() calls topUp/fetchSummary through closures bound to the filterBody current when the row
+// was clicked. When the action settles AFTER the auto-exit has already restored the filters, those
+// stale calls re-query the spent like view and repaint count:0 over the restored queue. The seq
+// refs cannot catch it — the stale request is the NEWEST — so both list fetchers and the summary
+// compare the body they SENT against the body that is live when the response lands.
+//
+// All three requests must build from one shared source, or the comparison is against a body that
+// was never sent. Source-level, since these are refs inside the component.
+dep("both list fetchers build their body from the one shared listBody()",
+  /const listBody = useCallback\(\n\s*\(\) => JSON\.stringify\(\{ \.\.\.filterBody\(\), limit: PAGE_SIZE, offset: page \* PAGE_SIZE \}\),/);
+dep("liveListBody tracks it, so a response can be compared against what is on screen",
+  /useEffect\(\(\) => \{ liveListBody\.current = listBody\(\); \}, \[listBody\]\);/);
+dep("fetchData drops a response whose filters moved on",
+  /if \(body !== liveListBody\.current\) return; \/\/ filters moved on while this was in flight/);
+dep("topUp drops a refill aimed at a dead view",
+  /if \(body !== liveListBody\.current\) return; \/\/ filters moved on — this refill is for a dead view/);
+dep("the summary — the call that paints the header count — is guarded the same way",
+  /if \(myId !== summarySeqRef\.current\) return;[^\n]*\n\s*if \(body !== liveSummaryBody\.current\) return;/);
+dep("...and a stale rejection never blanks a live summary either",
+  /if \(body !== liveSummaryBody\.current\) return; \/\/ \.\.\.and never blank a live summary either/);
+
 console.log(failures === 0 ? `\nOK — no request body changed\n` : `\n${failures} FAILURE(S)\n`);
 process.exit(failures === 0 ? 0 : 1);
