@@ -609,13 +609,22 @@ dep("both list fetchers build their body from the one shared listBody()",
 dep("liveListBody tracks it, so a response can be compared against what is on screen",
   /useEffect\(\(\) => \{ liveListBody\.current = listBody\(\); \}, \[listBody\]\);/);
 dep("fetchData drops a response whose filters moved on",
-  /if \(body !== liveListBody\.current\) return; \/\/ filters moved on while this was in flight/);
+  /if \(body !== liveListBody\.current\) \{         \/\/ filters moved on while this was in flight/);
 dep("topUp drops a refill aimed at a dead view",
-  /if \(body !== liveListBody\.current\) return; \/\/ filters moved on — this refill is for a dead view/);
+  /if \(body !== liveListBody\.current\) \{         \/\/ filters moved on — this refill is for a dead view/);
+// A drop with no re-run is how "wrong value" becomes "no value": the fetch that should have
+// replaced it was issued first, so seqRef had already dropped it. Both list guards must re-run,
+// and through the ref — the closure that produced the stale body is the wrong one to retry with.
+dep("...and every list drop re-runs, so something always lands",
+  /refetchLatest\.current\?\.\(true\);/);
+dep("the retry uses the CURRENT fetcher, not the closure that went stale",
+  /useEffect\(\(\) => \{ refetchLatest\.current = fetchData; \}, \[fetchData\]\);/);
+dep("the summary re-runs too — it paints the header count",
+  /useEffect\(\(\) => \{ refetchSummaryLatest\.current = fetchSummary; \}, \[fetchSummary\]\);/);
 dep("the summary — the call that paints the header count — is guarded the same way",
-  /if \(myId !== summarySeqRef\.current\) return;[^\n]*\n\s*if \(body !== liveSummaryBody\.current\) return;/);
+  /if \(myId !== summarySeqRef\.current\) return;[^\n]*\n\s*if \(body !== liveSummaryBody\.current\) \{/);
 dep("...and a stale rejection never blanks a live summary either",
-  /if \(body !== liveSummaryBody\.current\) return; \/\/ \.\.\.and never blank a live summary either/);
+  /if \(body !== liveSummaryBody\.current\) \{       \/\/ \.\.\.and never blank a live summary either/);
 
 console.log(failures === 0 ? `\nOK — no request body changed\n` : `\n${failures} FAILURE(S)\n`);
 process.exit(failures === 0 ? 0 : 1);
