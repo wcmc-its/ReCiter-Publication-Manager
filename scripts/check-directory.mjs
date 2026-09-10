@@ -29,6 +29,7 @@ import {
 import { typedCwidPreview } from "../src/lib/bulkAssign.ts";
 
 let n = 0;
+import { readFileSync } from "node:fs";
 const check = (label, actual, expected) => {
   assert.deepEqual(actual, expected, `${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
   console.log(`  PASS ${label} -> ${typeof actual === "object" ? JSON.stringify(actual) : actual}`);
@@ -450,5 +451,35 @@ check("the local-only fallback is not blocked",
   !!typedCwidPreview({ status: "resolved", cwid: "zz9", name: null, hasIdentity: false }).blocked, false);
 check("an ordinary resolved identity is not blocked",
   !!typedCwidPreview({ status: "resolved", cwid: "paa2013", name: "Paul Albert", hasIdentity: true }).blocked, false);
+
+// ---------------------------------------------------------------- SOR title / department
+// fillFromSor does live LDAP, so it cannot be unit-tested here. What IS testable without a bind
+// is the part that would silently do the wrong thing: the source precedence, and the two guards
+// that stop a SOR value overwriting a real ou=people one. Pinned at source level.
+//
+// Behaviour confirmed end-to-end against prod ED 2026-09-10 (cn=reciter bind):
+//   jab4001 (bare)      -> "Volunteer" / Suzanne Cloonan Lab              recovered
+//   tyc3001 (bare)      -> "Staff Associate in Reproductive Medicine"     recovered
+//   jab9038 (bare, no SOR data) -> null / []                              stays blank
+//   xiz4005             -> keeps "Programmer Analyst II", NOT downgraded to a SOR "Volunteer"
+//   had4008             -> keeps "Volunteer", NOT downgraded to "Masters Student"
+//   alc2033 (complete)  -> untouched
+const dirSrc = readFileSync(new URL("../src/lib/directory.ts", import.meta.url), "utf8");
+const srcHas = (label, re) => check(label, re.test(dirSrc), true);
+
+srcHas("SOR is queried at its own base — it is a SIBLING of ou=people, unreachable by scope",
+  /export const SOR_BASE = "ou=sors,dc=weill,dc=cornell,dc=edu";/);
+srcHas("the owner's source precedence, in order: faculty > employees > students > nyp > affiliates > selves",
+  /"faculty": 0, "employees": 1, "students": 2, "nyp affiliates": 3, "affiliates": 4, "selves": 5,/);
+srcHas("an unrecognised SOR ou sorts last instead of being dropped",
+  /SOR_OU_RANK\[\(attrFirst\(e, "ou"\) \?\? ""\)\.toLowerCase\(\)\] \?\? 99/);
+srcHas("BOTH objectClasses are asked for — title lives on the ROLE record, not the person record",
+  /objectClass=weillCornellEduSORRecord\)\(objectClass=weillCornellEduSORRoleRecord/);
+srcHas("ranked by source first, then by recency",
+  /rank\(a\) - rank\(b\) \|\| when\(b\)\.localeCompare\(when\(a\)\)/);
+srcHas("a real ou=people title is never overwritten by a SOR one",
+  /if \(!p\.title\) \{/);
+srcHas("...nor a real department",
+  /if \(!p\.depts\.length\) \{/);
 
 console.log(`\n${n}/${n} passed\n`);

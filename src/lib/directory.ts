@@ -29,6 +29,20 @@ import { Client } from "ldapts";
 
 export const WCM_BASE = "ou=people,dc=weill,dc=cornell,dc=edu";
 export const CORNELL_BASE = "ou=People,o=Cornell University,c=us";
+// The system-of-record subtree. A SIBLING of ou=people, so the scope:"sub" search over WCM_BASE
+// can never reach it and its objectClasses are outside that search's (objectClass=eduPerson)
+// filter — it needs its own query. Verified against prod 2026-09-10: cn=reciter can read all six
+// children (faculty, employees, students, nyp affiliates, affiliates, selves), ou=employees
+// included. There is NO ou=cornell-ithaca here; Ithaca is a separate directory entirely.
+export const SOR_BASE = "ou=sors,dc=weill,dc=cornell,dc=edu";
+
+// Owner's precedence, 2026-09-10: the latest non-null value, preferring sources in this order.
+// `selves` is self-asserted and ranks last (it carried neither title nor department in any
+// record sampled). An unrecognised ou sorts after everything named here rather than being
+// dropped, so a new SOR child cannot silently vanish.
+const SOR_OU_RANK: Record<string, number> = {
+  "faculty": 0, "employees": 1, "students": 2, "nyp affiliates": 3, "affiliates": 4, "selves": 5,
+};
 
 // One person, from either directory, in the shape the assign path needs: enough to show a
 // curator who they are picking, and enough to MINT a full ReCiter identity for them.
@@ -274,6 +288,72 @@ export async function resolveSupersededBy(people: DirectoryPerson[]): Promise<vo
   for (const p of retired) p.supersededBy = successorOf.get(p.id.toLowerCase()) ?? null;
 }
 
+/** Title and department for WCM people whose ou=people entry carries neither.
+ *
+ *  Those three fields — title, weillCornellEduDepartment, weillCornellEduPersonTypeCode — are
+ *  all-or-nothing per entry (prod sample 2026-09-10: alc2033/dcw2001/evw4005 have all three,
+ *  tyc3001/jab4001/jab9038 have none). A missing person type is what makes projectWcmPerson
+ *  fall back to the `wcm-directory` pseudo type, so that tag is an exact marker for the same
+ *  population — but this gates on the fields themselves, which is what actually renders.
+ *
+ *  Where the data really lives, confirmed by live probe:
+ *    weillCornellEduSORRecord      weillCornellEduPrimaryTitle / weillCornellEduPrimaryDepartment
+ *    weillCornellEduSORRoleRecord  title / weillCornellEduDepartment, plus start & end dates
+ *  Nothing in this repo could have told us `title` sits on the ROLE record: the Institutional
+ *  Client reads weillCornellEduTitleCode there and a title string only from ou=people, so the
+ *  codebase points the wrong way. Owner-confirmed.
+ *
+ *  Role records are per-appointment-span, so several can match one CWID and "the" title is not
+ *  the first hit — picking arbitrarily downgrades real titles (xiz4005 is "Programmer Analyst II"
+ *  in ou=people and "Volunteer" on one SOR record). Ranked by source then recency instead.
+ *
+ *  Best-effort like resolveSupersededBy: one batched search for the whole page, only when the
+ *  page actually holds a bare entry, and a blank column on failure is exactly the status quo. */
+export async function fillFromSor(people: DirectoryPerson[]): Promise<void> {
+  const bare = people.filter((p) => p.source === "wcm" && (!p.title || !p.depts.length));
+  if (!bare.length) return;
+  const wcm = wcmEnv();
+  if (!wcm) return;
+  const filter = `(&(|(objectClass=weillCornellEduSORRecord)(objectClass=weillCornellEduSORRoleRecord))`
+    + `(|${bare.map((p) => `(weillCornellEduCWID=${escapeLdapFilter(p.id)})`).join("")}))`;
+  const entries = await safe("wcm sor lookup", () => search(
+    wcm, SOR_BASE, filter,
+    ["weillCornellEduCWID", "ou", "title", "weillCornellEduPrimaryTitle",
+     "weillCornellEduDepartment", "weillCornellEduPrimaryDepartment",
+     "weillCornellEduStartDate", "weillCornellEduEndDate"] as const,
+    bare.length * 12,   // person record + one role record per appointment span, across six OUs
+  ), [] as Record<string, unknown>[]);
+
+  const byCwid = new Map<string, Record<string, unknown>[]>();
+  for (const e of entries) {
+    const id = first(e.weillCornellEduCWID)?.toLowerCase();
+    if (!id) continue;
+    byCwid.set(id, [...(byCwid.get(id) ?? []), e]);
+  }
+  // Dates are ED's generalized-time (20180529040000Z), which sorts chronologically as a string.
+  const rank = (e: Record<string, unknown>) => SOR_OU_RANK[(attrFirst(e, "ou") ?? "").toLowerCase()] ?? 99;
+  const when = (e: Record<string, unknown>) =>
+    attrFirst(e, "weillCornellEduStartDate") ?? attrFirst(e, "weillCornellEduEndDate") ?? "";
+
+  for (const p of bare) {
+    const ranked = (byCwid.get(p.id.toLowerCase()) ?? []).sort(
+      (a, b) => rank(a) - rank(b) || when(b).localeCompare(when(a)),
+    );
+    if (!p.title) {
+      p.title = ranked
+        .map((e) => attrFirst(e, "title") ?? attrFirst(e, "weillCornellEduPrimaryTitle"))
+        .find(Boolean) ?? null;
+    }
+    if (!p.depts.length) {
+      p.depts = clean(ranked.flatMap((e) => [
+        ...attrValues(e, "weillCornellEduPrimaryDepartment"),
+        ...attrValues(e, "weillCornellEduDepartment"),
+      ])).slice(0, 1);
+      p.dept = p.depts[0] ?? null;
+    }
+  }
+}
+
 // ------------------------------------------------------------------- Cornell Ithaca directory
 
 const CORNELL_ATTRS = [
@@ -439,7 +519,7 @@ export async function lookupDirectoryPerson(id: string): Promise<DirectoryPerson
       wcm, WCM_BASE, `(&(objectClass=eduPerson)(|(uid=${esc})(weillCornellEduCWID=${esc})))`,
       WCM_ATTRS, 1), [] as Record<string, unknown>[]);
     const p = hits.length ? projectWcmPerson(hits[0]) : null;
-    if (p) { await resolveSupersededBy([p]); return p; }
+    if (p) { await resolveSupersededBy([p]); await fillFromSor([p]); return p; }
   }
   if (cornell) {
     const hits = await safe("cornell lookup", () => search(
@@ -482,6 +562,7 @@ export async function searchDirectoryPeople(q: string, limit = 8): Promise<Direc
   // search pays nothing. Awaited rather than fired-and-forgotten: the successor's name is what
   // makes the blocked row actionable ("retired — use ssy9009") instead of a dead end.
   await resolveSupersededBy(people);
+  await fillFromSor(people);
   return people;
 }
 
