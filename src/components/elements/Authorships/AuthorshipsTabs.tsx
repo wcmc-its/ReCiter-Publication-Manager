@@ -1607,7 +1607,7 @@ const AuthorshipsTabs = () => {
   // the "Like: …" chip and the auto-exit on an emptied view — restore it. Whole-object snapshot
   // rather than a key list: LIKE_WIDEN_PATCH can grow a key and this needs no edit to match.
   const likeFilterStash = useRef<
-    { filters: AuthorshipFilters; preset: string; searchInput: string } | null>(null);
+    { filters: AuthorshipFilters; preset: string; searchInput: string; page: number } | null>(null);
   const selectReport = useCallback((next: ReportView) => {
     if (!reportView && next) {
       reportFilterStash.current = {
@@ -1703,8 +1703,14 @@ const AuthorshipsTabs = () => {
   // (memoized on the same filter/sort/status values fetchData uses) so this reset can never drift
   // out of lockstep with the fetch it guards.
   const pendingPageReset = useRef(false);
+  // Normally 0 — a filter change shows the first page. clearLikeAuthor sets it to the page the
+  // curator left, for exactly one filterBody change; it is consumed unconditionally so a stale
+  // target can never leak into an unrelated filter change later.
+  const likeExitPage = useRef<number | null>(null);
   useEffect(() => {
-    if (page !== 0) { pendingPageReset.current = true; setPage(0); }
+    const target = likeExitPage.current ?? 0;
+    likeExitPage.current = null;
+    if (page !== target) { pendingPageReset.current = true; setPage(target); }
   }, [filterBody]);
 
   useEffect(() => {
@@ -2178,12 +2184,12 @@ const AuthorshipsTabs = () => {
     // different name) must not overwrite the snapshot with the already-widened state — that
     // would restore the widening instead of the curator's chips.
     if (!likeFilterStash.current) {
-      likeFilterStash.current = { filters: { ...filters }, preset: datePreset, searchInput };
+      likeFilterStash.current = { filters: { ...filters }, preset: datePreset, searchInput, page };
     }
     setDatePreset("any");
     setSearchInput("");
     patchFilters({ ...LIKE_WIDEN_PATCH, likeAuthor: wcmAuthor });
-  }, [patchFilters, filters, datePreset, searchInput]);
+  }, [patchFilters, filters, datePreset, searchInput, page]);
 
   // Leaving the like view restores whatever it widened away. Used by BOTH exits — dismissing
   // the "Like: …" chip and the auto-exit when the last row in the view is resolved — so neither
@@ -2199,6 +2205,11 @@ const AuthorshipsTabs = () => {
     // inside the like view chose that sort — restoring the snapshot's would be exactly the
     // "changing one control loses another" failure this file's stash pattern exists to avoid.
     const { sort: _keepCurrentSort, ...restored } = stashed.filters;
+    // Land back on the page the curator was reading when they stepped into the like view. A
+    // detour is not navigation, so the blanket "any filter change shows page 0" rule below does
+    // not apply to this one exit — likeExitPage tells it where to go instead. Set BEFORE
+    // patchFilters, because that call is what triggers the effect that consumes it.
+    likeExitPage.current = stashed.page;
     patchFilters({ ...restored, likeAuthor: "" });
   }, [patchFilters, setLikeAuthor]);
   useEffect(() => { clearLikeRef.current = clearLikeAuthor; }, [clearLikeAuthor]);
@@ -2752,7 +2763,7 @@ const AuthorshipsTabs = () => {
         <>
         <div style={{ display: "flex", alignItems: "center", gap: 12, rowGap: 8, flexWrap: "wrap", padding: "9px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: hasSelection ? "#f3f7fd" : "#fff" }}>
           {statusView === "open" && (
-            <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign/reject, multi-candidate (non-Scopus) rows and single-candidate no-ReCiter-identity rows for bulk assign/reject" placement="top" arrow>
+            <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign/reject, multi-candidate rows and single-candidate no-ReCiter-identity rows for bulk assign/reject" placement="top" arrow>
               <label style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: 13.5, color: eligibleRows.length === 0 ? "#9aa2b1" : "#4a5262", cursor: eligibleRows.length === 0 ? "default" : "pointer" }}>
                 <Checkbox size="small" disabled={eligibleRows.length === 0}
                   checked={allEligibleSelected}
@@ -2847,7 +2858,7 @@ const AuthorshipsTabs = () => {
           <div style={{ padding: "11px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: CTRL.band, fontSize: 13, lineHeight: 1.55, color: CTRL.muted, maxWidth: 760 }}>
             {allMatching
               ? "Bulk accept acts on every matching single-candidate row."
-              : "Bulk accept acts on single-candidate rows on this page. Bulk assign and bulk reject also cover open, non-Scopus multi-candidate rows and single-candidate rows with no ReCiter identity."}
+              : "Bulk accept acts on single-candidate rows on this page. Bulk assign and bulk reject also cover open multi-candidate rows and single-candidate rows with no ReCiter identity."}
           </div>
         )}
         </>
@@ -3273,6 +3284,10 @@ const AuthorshipsTabs = () => {
             <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 14, lineHeight: 1.45 }}>
               Each row also records “not mine” for its other proposed candidates that have a ReCiter
               identity (the F-2 policy) — same as a per-row assign. Reopening a row undoes both.
+              {[...assignConfirm.onCandidate, ...assignConfirm.offCandidate].filter((r) => r.source === "scopus").length > 0 && (
+                <> Scopus rows are the exception: they carry no PMID, so gold standard has nothing to
+                record and their other candidates are left untouched — the same as a per-row Scopus assign.</>
+              )}
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button style={btn("ghost")} onClick={() => setAssignConfirm(null)}>Cancel</button>
@@ -3299,7 +3314,10 @@ const AuthorshipsTabs = () => {
           }}>
             {(() => {
               const n = selectedRows.length;
-              const multiCount = selectedRows.filter((r) => !r.single_candidate).length;
+              // scopus excluded for the same reason as noIdentityCount below: its reject is row-only
+              // (no GoldStandard write), so the "records not mine for every candidate" sentence is
+              // false for it. Scopus rows are counted by scopusCount, which has its own sentence.
+              const multiCount = selectedRows.filter((r) => !r.single_candidate && r.source !== "scopus").length;
               // scopus excluded: its reject is row-only (no GoldStandard write), so the amber sentence below would be false for it
               const noIdentityCount = selectedRows.filter((r) => r.single_candidate && r.identity_in_reciter === false && r.source !== "scopus").length;
               const scopusCount = selectedRows.filter((r) => r.source === "scopus").length;

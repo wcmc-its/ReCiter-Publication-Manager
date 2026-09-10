@@ -75,12 +75,17 @@ export function isAcceptEligible(row: SelectableRow): boolean {
 }
 
 // T4: multi-candidate rows become selectable too, but only for bulk ASSIGN, never accept.
-// Scopus is excluded — homonym-rejection recording (homonymRejectionTargets in
-// authorships.controller.ts) is pubmed-lane only: a scopus row carries no pmid and gold
-// standard is PMID-keyed, so there is no homonym judgment for a multi-candidate scopus row
-// to record and nothing for "Find others like this" grouping to gain by including it.
+// Scopus used to be excluded here, on the grounds that homonym-rejection recording
+// (homonymRejectionTargets in authorships.controller.ts) is pubmed-lane only: a scopus row
+// carries no pmid and gold standard is PMID-keyed, so there is no homonym judgment for it to
+// record. True, but that only justifies skipping the SIDE-EFFECT, never blocking the assign —
+// and the per-row "Pick one" panel performs this exact assign on this exact row today
+// (`case "assign"`'s isScopus branch writes an ExternalArticle). Blocking the checkbox left
+// multi-candidate scopus rows as the ONE combination with no bulk path at all. The two confirm
+// dialogs now say when the "not mine" side-effect does not happen, which is what the exclusion
+// was really protecting.
 export function isMultiAssignEligible(row: SelectableRow): boolean {
-  return !row.single_candidate && row.source !== "scopus";
+  return !row.single_candidate;
 }
 
 // B-8 addendum: an OPEN single-candidate row whose one proposed person (top_cwid) has no
