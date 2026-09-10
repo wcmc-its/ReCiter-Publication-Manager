@@ -1432,6 +1432,15 @@ const AuthorshipsTabs = () => {
   );
   const liveListBody = useRef("");
   useEffect(() => { liveListBody.current = listBody(); }, [listBody]);
+  // Dropping a stale response is only HALF the job. The fetch that should have replaced it was
+  // issued FIRST, so the stale one bumped seqRef past it and its response was already dropped by
+  // the sequence guard — leaving nothing to land and a view still showing counts from a filter
+  // set the curator has left. (Observed on prod: header "5 unassigned" over an empty list, the
+  // 5 left from a spent like group.) So a drop must also re-run. Through a ref, because the
+  // closure that produced the stale body is by definition the wrong one to retry with.
+  // ponytail: converges because the retry builds from the CURRENT body; a filter change during
+  // the retry fires its own fetch, which supersedes it.
+  const refetchLatest = useRef<(silent?: boolean) => void>();
 
   const fetchData = useCallback((silent = false) => {
     const myId = ++seqRef.current;
@@ -1443,7 +1452,10 @@ const AuthorshipsTabs = () => {
       .then((r) => r.json())
       .then((d) => {
         if (myId !== seqRef.current) return; // superseded by a newer request — drop this response
-        if (body !== liveListBody.current) return; // filters moved on while this was in flight
+        if (body !== liveListBody.current) {         // filters moved on while this was in flight
+          refetchLatest.current?.(true);              // ...and re-run, or nothing ever lands
+          return;
+        }
         // never show a row whose removal is still in flight (race protection, same as topUp)
         setRows((d.rows || []).filter((row: AuthorshipRow) => !pendingRemoved.current.has(row.id)));
         setCount(d.count || 0);
@@ -1451,6 +1463,7 @@ const AuthorshipsTabs = () => {
       .catch((e) => console.error("[authorships]", e))
       .finally(() => { if (!silent) setLoading(false); });
   }, [listBody]);
+  useEffect(() => { refetchLatest.current = fetchData; }, [fetchData]);
 
   // Rolling queue: silently refill the visible set back up to PAGE_SIZE after a curator action —
   // NO loading flash (unlike fetchData) and, critically, ADDITIVE rather than a wholesale swap.
@@ -1469,7 +1482,10 @@ const AuthorshipsTabs = () => {
       .then((r) => r.json())
       .then((d) => {
         if (myId !== seqRef.current) return; // a newer fetch/topUp started — don't merge stale rows
-        if (body !== liveListBody.current) return; // filters moved on — this refill is for a dead view
+        if (body !== liveListBody.current) {         // filters moved on — this refill is for a dead view
+          refetchLatest.current?.(true);              // ...and re-run, or nothing ever lands
+          return;
+        }
         const fetched: AuthorshipRow[] = (d.rows || []).filter(
           (row: AuthorshipRow) => !pendingRemoved.current.has(row.id),
         );
@@ -1536,6 +1552,7 @@ const AuthorshipsTabs = () => {
   // — the 0 the curator actually reads.
   const liveSummaryBody = useRef("");
   useEffect(() => { liveSummaryBody.current = summaryBody; }, [summaryBody]);
+  const refetchSummaryLatest = useRef<() => void>();
 
   const fetchSummary = useCallback(() => {
     const myId = ++summarySeqRef.current;
@@ -1546,17 +1563,24 @@ const AuthorshipsTabs = () => {
       .then((r) => r.json())
       .then((d) => {
         if (myId !== summarySeqRef.current) return;   // a newer summary fetch started
-        if (body !== liveSummaryBody.current) return; // filters moved on while this was in flight
+        if (body !== liveSummaryBody.current) {       // filters moved on while this was in flight
+          refetchSummaryLatest.current?.();            // ...and re-run, or the header stays stale
+          return;
+        }
         setSummary(d);
         setSummaryFor(body);
       })
       .catch(() => {
         if (myId !== summarySeqRef.current) return;
-        if (body !== liveSummaryBody.current) return; // ...and never blank a live summary either
+        if (body !== liveSummaryBody.current) {       // ...and never blank a live summary either
+          refetchSummaryLatest.current?.();
+          return;
+        }
         setSummary(null);
         setSummaryFor("");
       });
   }, [summaryBody]);
+  useEffect(() => { refetchSummaryLatest.current = fetchSummary; }, [fetchSummary]);
 
   // "Recent activity" — fixed-size global feed, no filters, so unlike fetchSummary this never
   // needs to re-key off the queue's own filter state.
