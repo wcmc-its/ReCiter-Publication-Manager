@@ -738,33 +738,61 @@ async function personNames(cwids: Array<string | undefined | null>): Promise<Rec
   return out;
 }
 
-// primaryAcademicDivision per cwid, for §2.6's identity hover card (which shows department /
-// division / institution). Department is already on the row as top_dept and institution now
-// comes off the widened person join, but division lives ONLY on the IDM roster table
-// `identity` — so it needs its own lookup.
+// primaryAcademicDivision AND primaryAcademicDepartment per cwid, for §2.6's identity hover
+// card (which shows department / division / institution). Division lives ONLY on the IDM roster
+// table `identity`, so it always needed its own lookup. The department is read here for a
+// different reason: the row's top_dept and each candidate's `dept` are AAR-producer snapshots
+// that go stale, and the caller blank-fills them from this fresh read (see there for why a
+// blank is staleness and not a different source).
+//
+// Asked about every cwid on the page — each row's top_cwid AND every candidate cwid — not just
+// the leads, because the candidate list is where the homonym curator is actually deciding and
+// it was never enriched at all. Still exactly ONE query for the whole page: the set is deduped
+// here and a wider IN() rides the same index (a 25-row page carries ~40 distinct cwids, not 25).
+//
+// Keyed by the exact cwid string, no case folding, because there is no case to fold: 0 of the
+// 34,830 `identity` rows, 0 of the 16,204 authorship_review.top_cwid values and 0 candidate
+// cwids in candidate_cwids_json carry an uppercase character (dev, 2026-09-10).
 //
 // App-side IN() rather than a third include, for the same collation reason personNames() and
 // identityLabel() give: identity.cwid is utf8mb4_unicode_ci against authorship_review.top_cwid's
 // utf8mb4_general_ci, so a direct join throws 1267 and a COLLATE on the identity side would
 // de-index it (the exact mistake the person join's comment documents). One indexed range scan
-// per page, over the page's distinct cwids (25 at the default page size): EXPLAIN gives
-// type=range, key=`dfsdfsdf` (the cwid index), rows=10 for a 10-cwid probe; 35 ms on the dev DB,
-// and ~20 ms of the list endpoint's measured 247→270 ms warm total.
+// per page, over the page's distinct cwids (~40 at the default page size, now that candidates
+// are included): EXPLAIN gives type=range, key=`dfsdfsdf` (the cwid index), rows=10 for a
+// 10-cwid probe; 35 ms on the dev DB, and ~20 ms of the list endpoint's measured 247→270 ms
+// warm total.
 //
-// A cwid with no identity row, or with the column null, is simply absent from the result — the
-// hover card omits the division line rather than showing an empty one. That is common, not
-// exceptional: of 10 sampled queue cwids, 5 had a null primaryAcademicDivision.
-async function identityDivisions(cwids: Array<string | undefined | null>): Promise<Record<string, string>> {
+// A cwid with no identity row, or with both columns null, is simply absent from the result, and
+// either field is individually undefined when only it is null — the hover card omits that line
+// rather than showing an empty one, and the caller's blank-fill leaves the producer's value
+// alone. That is common, not exceptional: of 10 sampled queue cwids, 5 had a null
+// primaryAcademicDivision.
+async function identityDeptDivision(
+  cwids: Array<string | undefined | null>,
+): Promise<Record<string, { division?: string; department?: string }>> {
   const wanted = [...new Set(cwids.filter(Boolean).map(String))];
   if (wanted.length === 0) return {};
   const found: any[] = await models.Identity.findAll({
     where: { cwid: { [Op.in]: wanted } },
-    attributes: ["cwid", "primaryAcademicDivision"], raw: true,
+    attributes: ["cwid", "primaryAcademicDivision", "primaryAcademicDepartment"], raw: true,
   });
-  const out: Record<string, string> = {};
+  const out: Record<string, { division?: string; department?: string }> = {};
   found.forEach((r) => {
-    const div = String(r.primaryAcademicDivision || "").trim();
-    if (r.cwid && div) out[String(r.cwid)] = div;
+    if (!r.cwid) return;
+    const division = String(r.primaryAcademicDivision || "").trim() || undefined;
+    const department = String(r.primaryAcademicDepartment || "").trim() || undefined;
+    if (!division && !department) return;
+    // Merge field-wise, never replace the whole entry. `identity`'s cwid index is NOT unique
+    // (Identity.ts: index `dfsdfsdf`, no unique flag; the PK is `id`), so two rows for one cwid
+    // are schema-permitted — 0 today, but the old single-field shape could not be hurt by one
+    // and this shape can: a second row with a null division would otherwise erase a first row's
+    // real one and silently drop the division line from the card.
+    const prev = out[String(r.cwid)];
+    out[String(r.cwid)] = {
+      division: division ?? prev?.division,
+      department: department ?? prev?.department,
+    };
   });
   return out;
 }
@@ -1022,7 +1050,12 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
 export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const body = req.body || {};
-    const limit = Number(body.limit) || 25;
+    // Clamped because this change made the blast radius bigger: the identity IN() below used to
+    // carry one cwid per row (the lead) and now carries the lead plus every candidate, so an
+    // unbounded `limit` went from an N-value IN() to roughly 6N (n_candidates maxes at 5 on
+    // prod). Nothing legitimate is cut off — both app callers send PAGE_SIZE=20, and the bulk
+    // "select all N matching" path uses /authorships/selectable, a different endpoint.
+    const limit = Math.min(Number(body.limit) || 25, 200);
     const offset = Number(body.offset) || 0;
     const order = SORTS[body.sort] || SORTS.precision;
     // buildWhere is sync, so the absent-cwid set (needed only when the filter is on) is
@@ -1139,18 +1172,31 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     // here, like identity_in_reciter above — no re-ranking, no dropped rows, no count change;
     // the frontend decides what to do visually.
     const pubmedRows = rows.filter((r: any) => r.source !== "scopus" && r.pmid != null);
-    const rejectionCwids = new Set<string>();
-    for (const r of pubmedRows) candidateCwidsFromRow(r).forEach((c) => rejectionCwids.add(c));
     const rejectionCheckIds = new Set(pubmedRows.map((r: any) => r.id));
+    const rejectionCwids = new Set<string>();
+    // …and, in the SAME pass, every cwid on the page for the department self-heal below.
+    // Two sets rather than one because they are not the same set on purpose: the gold-standard
+    // check is pubmed-only (a scopus row has no pmid to have been rejected), while the identity
+    // read wants scopus rows' candidates too — their cards show a department like any other.
+    // One parse of candidate_cwids_json per row either way; a second loop would have doubled it.
+    const pageCwids = new Set<string>();
+    for (const r of rows) {
+      const cs = candidateCwidsFromRow(r);
+      cs.forEach((c) => pageCwids.add(c));
+      if (rejectionCheckIds.has(r.id)) cs.forEach((c) => rejectionCwids.add(c));
+    }
 
-    // §2.6 identity hover card: division comes from the IDM roster (its own indexed lookup over
-    // this page's cwids), institution off the widened person join already on each row.
+    // §2.6 identity hover card: division AND a self-healed department come from the IDM roster
+    // (one indexed lookup over this page's cwids), institution off the widened person join
+    // already on each row.
     //
     // Run WITH the gold-standard rejection lookup, not after it. The two share no input and no
     // output — one is a DynamoDB BatchGetItem against GoldStandard, the other an indexed IN()
     // over `identity` in MySQL — so awaiting them in sequence cost the page one whole extra
-    // round-trip on every load for nothing (measured on dev: the divisions query is a 23 ms
-    // range scan on a 25-row page, and it used to start only once DynamoDB had answered).
+    // round-trip on every load for nothing (measured on dev: the identity query was a 23 ms
+    // range scan on a 25-row page when it asked about the 25 leads alone, and it used to start
+    // only once DynamoDB had answered). Widening it to the candidate cwids widens the IN() list,
+    // not the access path — same `dfsdfsdf` index, same one round-trip.
     // §4's rule: a correctness check is not a latency check.
     //
     // #990's accepted_by lookup joins the same two independent-input, independent-output group:
@@ -1158,9 +1204,9 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     // join scoped to this page's (pmid, author_position) pairs (scopus rows and rows with no
     // author_position are dropped before building the pair list — see acceptedBySlot's own
     // comment for why the exclusion of each row's own top_cwid happens after, not here).
-    const [rejectedByCwid, divisions, acceptedByMap] = await Promise.all([
+    const [rejectedByCwid, idm, acceptedByMap] = await Promise.all([
       getRejectedPmidsByCwid([...rejectionCwids]),
-      identityDivisions(rows.map((r: any) => r.top_cwid)),
+      identityDeptDivision([...pageCwids]),
       acceptedBySlot(
         pubmedRows
           .filter((r: any) => r.author_position != null)
@@ -1176,13 +1222,39 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       // a flat row and the join's presence remains an implementation detail.
       const top_institution: string | null = json.Person?.primaryInstitution || null;
       delete json.Person;
-      // Two independent annotations over the same parsed candidate list — the gold-standard
-      // rejection check (per-row, only for rejectionCheckIds) and the retired-cwid check (every
-      // row, off the cached ED census). Parsed ONCE and re-stringified once: the previous shape
-      // parsed inside the rejection branch, and adding a second parse/stringify pass around it
-      // would double the JSON work on every row of every page for no gain.
+      // Three independent annotations over the same parsed candidate list — the gold-standard
+      // rejection check (per-row, only for rejectionCheckIds), the retired-cwid check (every
+      // row, off the cached ED census) and the department blank-fill (every row, off the IDM
+      // read). All three ride the ONE parse/re-stringify this block already did, rather than
+      // each opening the JSON again. (The row's candidate cwids are read a second time, up in
+      // the pageCwids pass — candidateCwidsFromRow parses too. That is a deliberate second read
+      // for a different purpose, not an invariant this block maintains; what matters here is
+      // that annotating does not add a third.)
       const pmidNum = Number(r.pmid);
       const checkRejected = rejectionCheckIds.has(r.id);
+      // Department self-heal, CANDIDATES ONLY. A blank dept in AAR output is a FROZEN PRODUCER
+      // SNAPSHOT, not a missing fact and not a different source: where top_dept is non-blank it
+      // equals identity.primaryAcademicDepartment on 14,881 of 14,896 rows (99.9%), against only
+      // 10,628 of 14,135 (75%) for person.primaryOrganizationalUnit — so re-reading `identity` at
+      // request time is reading the SAME field the producer read, just not months late. Blank-fill
+      // only: a non-blank producer dept is never overwritten, because the producer knew the cwid's
+      // department at proposal time and this lookup does not know better, only newer.
+      // 4,059 of the 16,204 rows carrying candidates (25%) hold at least one candidate with
+      // dept "" (dev, 2026-09-10), and until now nothing enriched the candidate list at all, so
+      // the homonym curator picking between two Chos saw a department for neither.
+      //
+      // The LEAD's top_dept is deliberately NOT healed, though the same stale-snapshot argument
+      // would apply to it. top_dept is not display-only: its PRESENCE selects between two
+      // different evidence claims the curator reads as justification — the never-retrieved line
+      // picks "…names Weill Cornell and the department (X)" over "…and the surname is unique",
+      // and the Dept chip renders `Dept: {top_dept} ✓` gated on the producer's own
+      // top_affil_match. Filling it would make both assert that a department the producer never
+      // compared is what matched (75 rows have top_affil_match=1 with a blank top_dept on dev
+      // alone). A fresher value is not worth a sentence that misstates the reasoning, and the
+      // request this serves — the homonym picker — is the candidate list.
+      // ponytail: this heals the DISPLAY at request time only. The stored candidate_cwids_json
+      // stays stale on disk until the AAR producer rewrites the row — nothing here writes back,
+      // by design, because the producer owns that column.
       let candidates: any[] = [];
       try { candidates = JSON.parse(json.candidate_cwids_json || "[]"); } catch { candidates = []; }
       if (Array.isArray(candidates) && candidates.length) {
@@ -1191,6 +1263,7 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
           const cwid = String(c.cwid);
           let next = c;
           if (checkRejected && rejectedByCwid[cwid]?.has(pmidNum)) next = { ...next, already_rejected: true };
+          if (!String(next.dept || "").trim() && idm[cwid]?.department) next = { ...next, dept: idm[cwid].department };
           // ED has retired this identifier: the human is real but lives under another cwid, so
           // assigning here writes a gold-standard record nothing will read again. Frequently the
           // successor is ALSO a candidate on this very row (112 of the 233 affected open rows,
@@ -1237,7 +1310,7 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
         identity_in_reciter: !r.top_cwid || knownIdentities.has(String(r.top_cwid)),
         // hover-card fields; null when unknown, never "" — the card omits the line entirely
         top_institution,
-        top_division: (r.top_cwid && divisions[String(r.top_cwid)]) || null,
+        top_division: (r.top_cwid && idm[String(r.top_cwid)]?.division) || null,
         like_count,
         accepted_by,
       };
@@ -1991,6 +2064,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
 const PRIOR_NAMES_CWID_CAP = 50;
 const PRIOR_NAMES_NAME_CAP = 8;
 const PRIOR_NAMES_PAPER_CAP = 5;
+const PRIOR_NAMES_TOPIC_CAP = 6;
 
 export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
@@ -2077,6 +2151,68 @@ export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResp
         .sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
     }
 
+    // ---- top topics ------------------------------------------------------------
+    // What this person publishes ABOUT, as the third leg of the card's "is this the same
+    // person?" argument: PRIOR_NAMES_TOPIC_CAP most-frequent keywords over their accepted
+    // papers. Names and titles both fail on the hard case — two WCM Lis, same field, similar
+    // bylines — where "Myocardial Infarction / Platelet Aggregation Inhibitors / Acute Coronary
+    // Syndrome" settles it before the curator has finished reading the row.
+    //
+    // ACCEPTED-only, joined through person_article rather than read from person_article_keyword
+    // alone. That table spans every assertion state — 1,332,371 ACCEPTED, 284,270 REJECTED,
+    // 694,707 blank/pending of 2,310,368 rows — and a homonym's REJECTED keywords are precisely
+    // BACKWARDS for a card whose job is telling two people apart: they describe the OTHER
+    // person. The join costs nothing extra; it is the same ACCEPTED filter the names and papers
+    // blocks above already apply, just reached one table over.
+    //
+    // Raw SQL, not a Sequelize include: no association is registered between these two models,
+    // and the GROUP BY has to happen IN the database. A findAll + count-in-JS would pull every
+    // keyword row for the requested cwids (6,208 for sfs2002 alone) to emit six strings.
+    // Both sides are index-driven — EXPLAIN on a 10-cwid probe gives pa type=range key=
+    // personIdentifier rows=587, then k type=ref key=`sdfsdfsdf` (personIdentifier, pmid) —
+    // 13 ms / 679 grouped rows for a typical 10-cwid page warm, 236 ms for the eight
+    // heaviest-keyword cwids in the whole database, which no real page holds at once.
+    //
+    // No case folding, and no LOWER() in SQL. These are MeSH descriptors, not free author
+    // keywords: of 24,532 distinct values, exactly 0 have a second spelling differing only by
+    // case, and repeating the check per-cwid gives 896/896 (sfs2002), 977/977, 579/579, 797/797.
+    // Folding would buy nothing and cost something real — MeSH deliberately lowercases gene and
+    // protein prefixes ("tau Proteins", "ras Proteins", "beta-Thalassemia" — 7,338 of 2,310,368
+    // rows start lowercase on purpose), so a LOWER() or Title-Case pass would render those wrong
+    // AND defeat the index. GROUP BY on the raw column is already case-insensitive anyway, since
+    // person_article_keyword.keyword is utf8mb4_unicode_ci — so if a case variant ever does
+    // arrive it collapses on its own and MySQL picks a representative, which is the right
+    // failure. No stoplist either: the producer already drops MeSH check tags, so the generic
+    // ones cannot crowd the top six ("Humans"/"Male"/"Female"/"Animals" have 0 rows between
+    // them; the worst survivor, "Treatment Outcome", has 338 of 2.3M).
+    //
+    // ponytail: the cap is applied in JS after a full GROUP BY per cwid rather than by a
+    // per-cwid ROW_NUMBER() window — same shape the names block above uses, and the GROUP BY has
+    // already done the collapsing that matters (679 rows for a 10-cwid page, i.e. ~68 per cwid;
+    // 896 for sfs2002, the worst in the database, down from 6,208 raw). Reach for the window
+    // function only if a caller ever asks for all 50 cwids at once AND that shows up in a trace.
+    const keywordRows: any[] = await sequelize.query(
+      "SELECT `k`.`personIdentifier` AS `cwid`, `k`.`keyword` AS `keyword`, COUNT(*) AS `n` " +
+      "FROM `person_article_keyword` `k` " +
+      "JOIN `person_article` `pa` ON `pa`.`personIdentifier` = `k`.`personIdentifier` " +
+      "AND `pa`.`pmid` = `k`.`pmid` AND `pa`.`userAssertion` = 'ACCEPTED' " +
+      "WHERE `k`.`personIdentifier` IN (:cwids) AND `k`.`keyword` <> '' " +
+      "GROUP BY `k`.`personIdentifier`, `k`.`keyword`",
+      { replacements: { cwids }, type: QueryTypes.SELECT },
+    );
+    const topics: Record<string, Array<{ keyword: string; n: number }>> = {};
+    for (const r of keywordRows) {
+      const kw = String(r.keyword || "").trim();
+      if (!kw) continue;
+      (topics[String(r.cwid)] ||= []).push({ keyword: kw, n: Number(r.n) || 0 });
+    }
+    for (const cw of Object.keys(topics)) {
+      // Same tie-break as the names block: count first, then localeCompare, so two keywords on
+      // equal counts land in a stable order instead of whatever order the group by returned.
+      topics[cw].sort((a, b) => b.n - a.n || a.keyword.localeCompare(b.keyword));
+      topics[cw] = topics[cw].slice(0, PRIOR_NAMES_TOPIC_CAP);
+    }
+
     // ---- roster identity -------------------------------------------------------
     // Two different names, deliberately both: `identity` carries the HR/LDAP LEGAL name and
     // `person` the DynamoDB Identity PUBLISHING name, and they disagree often enough to
@@ -2107,8 +2243,8 @@ export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResp
 
     // Every requested cwid gets an entry, so the client can tell "asked and has none" from
     // "never asked" without tracking its own request bookkeeping.
-    for (const c of cwids) { names[c] ||= []; accepted[c] ||= 0; papers[c] ||= []; }
-    res.send({ names, accepted, more: dropped, papers, identity });
+    for (const c of cwids) { names[c] ||= []; accepted[c] ||= 0; papers[c] ||= []; topics[c] ||= []; }
+    res.send({ names, accepted, more: dropped, papers, identity, topics });
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));

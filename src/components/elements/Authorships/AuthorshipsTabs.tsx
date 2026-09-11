@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import Tooltip from "@mui/material/Tooltip";
 import Menu from "@mui/material/Menu";
@@ -185,6 +185,12 @@ interface PriorNames {
   // DynamoDB PUBLISHING name. They disagree often enough that showing only the legal one
   // reads as "the matcher ignored the primary name" when it did nothing of the kind.
   identity?: { legalName?: string; publishingName?: string; title?: string; division?: string };
+  // The MeSH descriptors this person's ACCEPTED papers carry most often, 6 at most, descending
+  // by `n` (server contract). `n` is a raw paper count and is NOT comparable across cwids — a
+  // prolific person's floor beats a junior person's ceiling — so it labels a chip, it does not
+  // rank one person against another. Optional for the same reason `papers` is: the handler's
+  // early return for an empty cwid list sends `{ names, accepted }` alone.
+  topics?: Array<{ keyword: string; n: number }>;
 }
 
 interface Candidate {
@@ -1015,9 +1021,19 @@ const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
   );
 };
 
-// §2.6's 296px identity hover card (mockup:337-369). Name + CWID, then whatever of
-// department / division / affiliation the row actually carries, then the byline names this
-// person has already published under.
+// §2.6's identity hover card (mockup:337-369). Name + CWID, then whatever of department /
+// division / affiliation the row actually carries, then the byline names this person has
+// already published under, then what they publish about, then their recent titles.
+//
+// 460px wide, not the mockup's 296. The card's densest line is an accepted-paper title clamped
+// to two lines, so the width is set by how much of a title survives that clamp: at 12.5px with a
+// ~0.5em average advance, the two lines hold roughly (width - 65) * 0.32 characters once the
+// padding and the flex-none year column are taken out. Measured against all 267,322 non-empty
+// analysis_summary_article titles (mean length 102 characters), the share landing whole rather
+// than trailing into an ellipsis runs 296px → 21.6%, 380px → 52.4%, 460px → 76.0%, 500px → 84.2%.
+// 460 is where that curve flattens: it buys 23.6 points over 380, while another 40px past it buys
+// only 8.2 more and starts reading as a side panel rather than a card. Wider is not free — this is
+// also the number that decides how often the horizontal-overflow shift below has to fire.
 //
 // The three states of the names block are deliberately distinct, because two of them look the
 // same from the client and mean opposite things:
@@ -1044,13 +1060,97 @@ const IdentityHoverCard = ({ subject, priorNames }: {
   const showLegal = !!id?.legalName && norm(id.legalName) !== norm(id.publishingName) && norm(id.legalName) !== norm(r.name);
   const showPublishing = !!id?.publishingName && norm(id.publishingName) !== norm(r.name);
   const hasDetail = !!(r.dept || r.division || r.institution || id?.title);
+  // Which way the card opens, measured rather than assumed. It was hard-coded to open DOWN and
+  // LEFT-ALIGNED, which is right for a row near the top of a long scrolling queue and wrong for
+  // every row near the bottom of the window: the card ran off the bottom edge and the ACCEPTED
+  // PAPERS block — the block a curator hovers FOR — was unreadable. Nothing on the row can know
+  // this; it is a property of where the row happens to sit in the viewport at hover time, so it
+  // has to come off getBoundingClientRect.
+  //
+  // Re-measured when priorNames lands, and that dependency is the actual fix. The card mounts as
+  // a one-line "Loading…" box and roughly triples in height when the fetch resolves, so a flip
+  // decided on the short box is a flip decided on the wrong height — it fits below, then the
+  // content arrives and it does not. Adding TOPICS made that worse, not better.
+  //
+  // useLayoutEffect, not useEffect: React flushes a layout effect's re-render before the browser
+  // paints, so the corrected placement is the FIRST thing painted and the card never appears in
+  // one spot and jumps to another. (Safe on the server too — the card only ever renders behind a
+  // hover state that starts false, so it is never part of an SSR pass.)
+  //
+  // ponytail: mount and data-arrival only, no scroll or resize listener, and no library. The
+  // card lives exactly as long as one hover and closes on mouseleave, so a mid-hover scroll is
+  // not a state worth subscribing to. CSS anchor positioning (`position-try-fallbacks`) would
+  // delete this whole effect, but it is still Chromium-only — not something an internal tool can
+  // assume — so the measurement stays until it is safe everywhere.
+  const cardRef = useRef<HTMLSpanElement>(null);
+  const bodyRef = useRef<HTMLSpanElement>(null);
+  const [place, setPlace] = useState({ up: false, dx: 0, max: 0 });
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    const body = bodyRef.current;
+    // offsetParent, not parentElement: it IS the box `top`/`left` below resolve against (the
+    // position:relative hover target both call sites wrap the card in), so the two can never
+    // disagree if someone adds a wrapper element later.
+    const anchor = el?.offsetParent;
+    if (!el || !body || !anchor) return;
+    const a = anchor.getBoundingClientRect();
+    // Breathing room from the viewport edge, both axes, counted twice: once for this span's own
+    // 8px stand-off from the anchor and once to keep the card off the window edge itself.
+    const GAP = 8;
+    // clientWidth/clientHeight, NOT window.innerWidth/innerHeight: the window figures include the
+    // scrollbar, the layout viewport does not. On a platform with classic ~15px scrollbars
+    // (Windows/Linux Chrome — this is an internal tool, not a mac-only one) the window number
+    // would say there is room that does not exist, and the card would clip or force a horizontal
+    // scroll. Invisible on macOS overlay scrollbars, which is the easy way to never notice it.
+    const vw = document.documentElement.clientWidth;
+    const vh = document.documentElement.clientHeight;
+    const below = vh - a.bottom - GAP * 2;
+    const above = a.top - GAP * 2;
+    // The card's NATURAL height, off the body's scrollHeight rather than the positioner's
+    // offsetHeight. This is what keeps the effect idempotent now that `max` clamps the body:
+    // offsetHeight would come back already-clamped on the second run, the card would look like
+    // it fits, and the placement would oscillate. scrollHeight ignores the clamp.
+    const natural = body.scrollHeight;
+    // Flip only when it does NOT fit below and there is genuinely more room above. Fitting below
+    // always wins, because opening downward keeps the header — name, cwid, department — adjacent
+    // to the row the pointer is on.
+    const up = natural > below && above > below;
+    // …and then never let either direction clip. Choosing by "which side is bigger" is only safe
+    // because of this clamp: a 610px card on an ~800px viewport fits NEITHER side for a row in
+    // the middle of the window, and an unclamped flip would cut the card off at the TOP, which is
+    // exactly where the identifying header lives. Clipping the bottom of the paper list is a
+    // survivable loss; clipping the name off the top of a homonym disambiguation card is not.
+    // Scrolling is also recoverable in a way clipping is not — the curator can reach the rest
+    // without moving the pointer off the anchor and dismissing the card.
+    const max = Math.max(120, up ? above : below);
+    // Right-edge overflow shifts the card left, but only as far as the left edge allows: a card
+    // pushed past 0 is worse than one clipped on the right, because the name and cwid — the two
+    // things that identify which person this card is even about — live at its left.
+    const over = a.left + el.offsetWidth + GAP - vw;
+    const dx = over > 0 ? -Math.min(over, Math.max(0, a.left - GAP)) : 0;
+    // Idempotent: every input is read off the ANCHOR or off the unclamped content height, never
+    // off the card's own current placement, so re-running on the corrected layout computes the
+    // same answer. Returning the previous object makes React bail out instead of looping.
+    setPlace((p) => (p.up === up && p.dx === dx && p.max === max ? p : { up, dx, max }));
+  }, [priorNames]);
   return (
-    <span onClick={(e) => e.stopPropagation()}
-      style={{ position: "absolute", top: "100%", left: 0, zIndex: 60, width: 296, paddingTop: 8, display: "block", cursor: "default" }}>
-      <span style={{
+    <span ref={cardRef} onClick={(e) => e.stopPropagation()}
+      style={{
+        position: "absolute", zIndex: 60, width: 460, display: "block", cursor: "default",
+        left: place.dx,
+        // The 8px stand-off travels with the card: it has to sit between the card and the
+        // anchor, which is the other side of the box once flipped.
+        top: place.up ? "auto" : "100%", bottom: place.up ? "100%" : "auto",
+        paddingTop: place.up ? 0 : 8, paddingBottom: place.up ? 8 : 0,
+      }}>
+      <span ref={bodyRef} style={{
         display: "flex", flexDirection: "column", gap: 10, background: "#fff", border: `1px solid ${CTRL.border}`,
         borderRadius: 8, boxShadow: "0 14px 34px rgba(27,36,50,0.18)", padding: "13px 15px",
-        fontWeight: 400, letterSpacing: 0, color: CTRL.ink }}>
+        fontWeight: 400, letterSpacing: 0, color: CTRL.ink,
+        // 0 until the effect has measured, which is the pre-paint pass — never a visible state.
+        // When the content is shorter than the room available this is inert: no scrollbar, no
+        // visual change, and the card looks exactly as it did.
+        ...(place.max ? { maxHeight: place.max, overflowY: "auto" as const } : {}) }}>
         <span style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 15, fontWeight: 600 }}>{r.name || r.cwid}</span>
           <span style={{ fontSize: 13, color: CTRL.accent }}>{r.cwid}</span>
@@ -1094,6 +1194,33 @@ const IdentityHoverCard = ({ subject, priorNames }: {
             </>
           )}
         </span>
+        {/* What this person publishes ABOUT — between the byline names and the paper titles on
+            purpose. The three blocks answer three different questions and this one is the cheapest
+            to read: names settle "is this byline form theirs", the titles are the drill-down, and
+            this is the compact summary of the same accepted corpus, so the card reads
+            summary-then-detail downward and the fastest discriminator sits ABOVE the block the
+            window edge clips first. On the case this card exists for — two WCM homonyms, same
+            surname, same era, sometimes the same department — six MeSH terms separate them faster
+            than six titles do.
+            Rendered VERBATIM. MeSH lowercases gene and protein prefixes deliberately ("tau
+            Proteins", "ras Proteins", "beta-Thalassemia" — 7,338 of 2,310,368 keyword rows start
+            lowercase), so any title-casing pass here would print them wrong.
+            Chips, not a second right-aligned count column beside NAMES ON ACCEPTED PAPERS: the two
+            counts are not the same scale (a keyword count cannot be compared across cwids at all),
+            and stacking them in matching columns would invite exactly that reading. */}
+        {!!priorNames?.topics?.length && (
+          <span style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
+            <span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>TOPICS</span>
+            <span style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {priorNames.topics.map((t) => (
+                <Chip key={t.keyword} kind="neutral">
+                  {t.keyword}
+                  <span style={{ color: "#8b93a2", fontVariantNumeric: "tabular-nums" }}>{t.n.toLocaleString()}</span>
+                </Chip>
+              ))}
+            </span>
+          </span>
+        )}
         {!!priorNames?.papers?.length && (
           <span style={{ display: "flex", flexDirection: "column", gap: 5, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
             <span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>ACCEPTED PAPERS</span>
@@ -1717,6 +1844,7 @@ const AuthorshipsTabs = () => {
         [cwid]: {
           names: d?.names?.[cwid] || [], accepted: d?.accepted?.[cwid] ?? 0, more: d?.more?.[cwid],
           papers: d?.papers?.[cwid] || [], identity: d?.identity?.[cwid],
+          topics: d?.topics?.[cwid] || [],
         },
       })))
       .catch(() => { priorNamesAsked.current.delete(cwid); });
