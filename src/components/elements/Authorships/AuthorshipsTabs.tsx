@@ -5119,7 +5119,12 @@ const AssignOther = ({ rowId, acting, onAction }: {
                           </span>
                         )}
                       </td>
-                      <td style={{ ...dirCell, color: m.retiredCwid ? "#94a3b8" : "#2563eb", whiteSpace: "nowrap" }}>{m.id}</td>
+                      <td style={{ ...dirCell, color: m.retiredCwid ? "#94a3b8" : "#2563eb", whiteSpace: "nowrap" }}>
+                        {m.id}
+                        {/* #1020: the same human's identifier in the other directory. Picking
+                            the row still assigns to m.id above. */}
+                        {m.alsoId && <span style={{ display: "block", color: "#94a3b8" }}>also {m.alsoId}</span>}
+                      </td>
                       {/* ONE org column, and `weillCornellEduPrimaryOrg` wins it.
                           There used to be a separate "Src" column here showing which directory
                           answered, and for gallric the row then read "WCM" and "NYP" side by

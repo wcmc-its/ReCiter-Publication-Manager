@@ -989,6 +989,9 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
           email: p.emails[0] ?? null,
           hasIdentity: known.has(p.id) || known.has(p.id.toLowerCase()),
           wcmCwid: p.wcmCwid, wcmCwidHasIdentity: !!(p.wcmCwid && known.has(p.wcmCwid)),
+          // #1020: the same human's identifier in the OTHER directory, when both answered and
+          // mergeDirectoryPeople folded them into this one row. Display only.
+          alsoId: p.alsoId,
           // ED has RETIRED this cwid: the human exists, under a different identifier. Assigning
           // to it writes a gold-standard record against an identifier nothing will ever read
           // again, so the client renders the row un-pickable and names the replacement instead.
