@@ -24,7 +24,7 @@ import assert from "node:assert/strict";
 import {
   escapeLdapFilter, buildNameFilter, projectWcmPerson, projectCornellPerson,
   directoryIdentityPayload, cornellPersonTypes, ldapDate,
-  institutionForPrimaryOrg, PRIMARY_ORG_INSTITUTION,
+  institutionForPrimaryOrg, PRIMARY_ORG_INSTITUTION, mergeDirectoryPeople,
 } from "../src/lib/directory.ts";
 import { typedCwidPreview } from "../src/lib/bulkAssign.ts";
 
@@ -52,6 +52,22 @@ check("multiple tokens are AND-ed, each as its own OR over the name attributes",
   "(&(objectClass=person)"
   + "(|(givenName=kevin*)(sn=kevin*)(displayName=kevin*)(uid=kevin*))"
   + "(|(givenName=cummings*)(sn=cummings*)(displayName=cummings*)(uid=cummings*)))");
+// #1019. mal4002 is givenName "Marcos", sn "Lu Wang": "marcos wang" found nothing prefix-only.
+// The WCM call site asks for wordStart, which ORs in `* tok*` — the token at the start of a
+// LATER word. Verified live against ED 2026-09-12: this exact filter returns mal4002.
+const wcmFilter = buildNameFilter("marcos wang", "(objectClass=eduPerson)",
+  ["weillCornellEduCWID", "weillCornellEduMiddleName"], true);
+ok("wordStart: a token also matches at the start of a later word — (sn=* wang*)",
+  wcmFilter.includes("(sn=* wang*)"));
+ok("wordStart: ...and the plain prefix form is still there beside it",
+  wcmFilter.includes("(sn=wang*)"));
+ok("wordStart: middle name is among the WCM attributes searched",
+  wcmFilter.includes("(weillCornellEduMiddleName=* wang*)"));
+ok("wordStart: a literal asterisk is STILL escaped, never a wildcard",
+  buildNameFilter("mar*cos", "(objectClass=eduPerson)", [], true).includes("(sn=* mar\\2acos*)")
+  && !buildNameFilter("mar*cos", "(objectClass=eduPerson)", [], true).includes("mar*cos"));
+ok("wordStart is opt-in — the Cornell (default) form has no `=* ` at all",
+  !buildNameFilter("marcos wang", "(objectClass=person)", ["uid"]).includes("=* "));
 
 // ------------------------------------------------------------------------- 2. attribute map
 console.log("\nattribute mapping — a raw LDAP entry becomes a DirectoryPerson:");
@@ -451,6 +467,43 @@ check("the local-only fallback is not blocked",
   !!typedCwidPreview({ status: "resolved", cwid: "zz9", name: null, hasIdentity: false }).blocked, false);
 check("an ordinary resolved identity is not blocked",
   !!typedCwidPreview({ status: "resolved", cwid: "paa2013", name: "Paul Albert", hasIdentity: true }).blocked, false);
+
+// -------------------------------------------------- one human, two directories (#1020)
+// Fixtures are the verified ED and Cornell records for the reported case: chs4046 in ou=people
+// carries weillCornellEduNetID cjs423 and weillCornellEduPrimaryOrg "Cornell"; the Cornell
+// directory has uid cjs423. The name search listed them as two rows.
+console.log("\nmerge — a person in both directories is ONE row:");
+const wcmDual = (primaryOrg) => projectWcmPerson({
+  uid: "chs4046", weillCornellEduCWID: "chs4046", weillCornellEduNetID: "cjs423",
+  givenName: "Chris", sn: "Smith", weillCornellEduPrimaryOrg: primaryOrg,
+});
+const cornellDual = projectCornellPerson({ uid: "cjs423", givenName: "Chris", sn: "Smith" });
+check("wcm: the netid is read off the ED record", wcmDual("Cornell").netid, "cjs423");
+check("cornell: the netid IS the id", cornellDual.netid, "cjs423");
+check("neither projector sets alsoId — only the merge does", [wcmDual("Cornell").alsoId, cornellDual.alsoId], [null, null]);
+
+const ledByCornell = mergeDirectoryPeople([wcmDual("Cornell"), cornellDual]);
+check("primaryOrg Cornell -> one row", ledByCornell.length, 1);
+check("...led by the Cornell record", [ledByCornell[0].source, ledByCornell[0].id], ["cornell", "cjs423"]);
+check("...naming the cwid as alsoId", ledByCornell[0].alsoId, "chs4046");
+
+const ledByWcm = mergeDirectoryPeople([wcmDual("WCMC"), cornellDual]);
+check("primaryOrg WCMC -> one row", ledByWcm.length, 1);
+check("...led by the WCM record", [ledByWcm[0].source, ledByWcm[0].id], ["wcm", "chs4046"]);
+check("...naming the netid as alsoId", ledByWcm[0].alsoId, "cjs423");
+check("no primary org at all -> WCM leads too",
+  mergeDirectoryPeople([wcmDual(null), cornellDual]).map((p) => [p.id, p.alsoId]), [["chs4046", "cjs423"]]);
+
+const lone = wcmDual("WCMC");
+check("a WCM row with a netid but no Cornell counterpart is untouched",
+  mergeDirectoryPeople([lone]), [lone]);
+check("...as is a Cornell row with no WCM counterpart", mergeDirectoryPeople([cornellDual]), [cornellDual]);
+check("rows with no netid pass straight through, in order",
+  mergeDirectoryPeople([staff, cummings]).map((p) => p.id), ["abc9001", "kjc39"]);
+check("the netid join is case-insensitive",
+  mergeDirectoryPeople([
+    projectWcmPerson({ uid: "x9", weillCornellEduCWID: "x9", sn: "S", weillCornellEduNetID: "CJS423" }), cornellDual,
+  ]).map((p) => [p.id, p.alsoId]), [["x9", "cjs423"]]);
 
 // ---------------------------------------------------------------- SOR title / department
 // fillFromSor does live LDAP, so it cannot be unit-tested here. What IS testable without a bind

@@ -87,6 +87,12 @@ export type DirectoryPerson = {
    *  already have a ReCiter identity, and Martin Wells (mtw1 / maw2065) is already split across
    *  two identities in production because of it. Resolved at assign time in the controller. */
   wcmCwid: string | null;
+  /** The Ithaca netid: WCM's `weillCornellEduNetID` (published for people who also hold one),
+   *  and for a Cornell record simply its id. The key mergeDirectoryPeople joins on (#1020). */
+  netid: string | null;
+  /** Set only by mergeDirectoryPeople: the OTHER directory's identifier for this same human.
+   *  Display only — assignment keeps targeting `id`. */
+  alsoId: string | null;
   /** WCM only: this cwid has been RETIRED by ED (`weillCornellEduStatus: retired-cwid`) — the
    *  person was re-recorded under a different cwid and this identifier is a dead end. 2,880 of
    *  them exist in ED (2026-09-09 census), so this is a routine state, not an oddity.
@@ -178,8 +184,9 @@ const createdOf = (e: Record<string, unknown>) => {
 // ---------------------------------------------------------------- WCM Enterprise Directory
 
 const WCM_ATTRS = [
-  "uid", "weillCornellEduCWID", "displayName", "givenName", "weillCornellEduMiddleName", "sn",
-  "mail", "weillCornellEduDepartment", "weillCornellEduPersonTypeCode", "title",
+  "uid", "weillCornellEduCWID", "weillCornellEduNetID", "displayName", "givenName",
+  "weillCornellEduMiddleName", "sn", "mail", "weillCornellEduDepartment",
+  "weillCornellEduPersonTypeCode", "title",
   // BOTH org spellings. gallric carries `weillCornellEduPrimaryOrg` bare and
   // `weillCornellEduPrimaryOrganization;affiliate` (2026-09-09 prod probe), and the
   // Institutional Client reads the LONGER one — so asking for only one of them would disagree
@@ -252,6 +259,8 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
     // ED-typeless person should actually be.
     personTypes: types.length ? types : ["wcm-directory"],
     wcmCwid: null,
+    netid: attrFirst(e, "weillCornellEduNetID"),
+    alsoId: null,
     retiredCwid: isRetiredCwid(e),
     // Filled in by resolveSupersededBy() over the whole result set — the pointer is on another
     // entry, so it cannot be projected from this one.
@@ -439,6 +448,8 @@ export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerso
     // /authorships campus filter derives from without needing a new authorship_review column.
     personTypes: ["cornell-ithaca", ...types],
     wcmCwid: first(e.cornellEduCWID),
+    netid: id,
+    alsoId: null,
     // Ithaca publishes no cwid-succession concept — `cornelleduprimaryaffiliation: alumni` is a
     // former ROLE, not a dead identifier, and those are deliberately still assignable (see
     // buildNameFilter's "no alumni exclusion" note). So never blocked from here.
@@ -530,13 +541,39 @@ export async function lookupDirectoryPerson(id: string): Promise<DirectoryPerson
   return null;
 }
 
-// Tokens are AND-ed and matched as PREFIXES (`token*`, never `*token*`) so the query stays an
-// indexed scan — Cornell's directory enforces a hard 200-entry cap per search and is a lookup
-// interface, not a bulk one.
-export function buildNameFilter(q: string, objectClause: string, extra: string[]): string {
+// Tokens are AND-ed, each matched as a PREFIX (`tok*`) of every name attribute. With `wordStart`
+// each token ALSO matches at the start of any LATER word of a value (`* tok*`), which is what
+// finds a multi-word surname from its second half: mal4002 is sn "Lu Wang", so "marcos wang"
+// found nothing prefix-only (#1019). Only the WCM call site asks for it. Cornell stays
+// prefix-only — its directory enforces a hard 200-entry cap per search and is a lookup
+// interface, not a bulk one, and the substring form could not be tried against it (no bind
+// available on 2026-09-12); a search it rejected would be swallowed by safe() and silently drop
+// every Cornell result, which is worse than the miss.
+export function buildNameFilter(q: string, objectClause: string, extra: string[], wordStart = false): string {
   const tokens = q.trim().split(/\s+/).filter(Boolean).map(escapeLdapFilter);
-  const per = (t: string) => `(|${["givenName", "sn", "displayName", ...extra].map((a) => `(${a}=${t}*)`).join("")})`;
+  const per = (t: string) => `(|${["givenName", "sn", "displayName", ...extra]
+    .map((a) => `(${a}=${t}*)${wordStart ? `(${a}=* ${t}*)` : ""}`).join("")})`;
   return `(&${objectClause}${tokens.map(per).join("")})`;
+}
+
+/** #1020: one human who is in BOTH directories came back as two rows. ED publishes the Ithaca
+ *  netid on its own record (chs4046 carries weillCornellEduNetID cjs423, and cjs423 is the
+ *  Cornell directory's uid), so a WCM hit whose netid is a Cornell hit's id is the same person.
+ *  The Cornell record leads when ED itself says the person's primary org is Cornell; otherwise
+ *  the WCM one does. The lead names the other identifier as `alsoId`; the other row is dropped.
+ *  Rows with no netid or no counterpart pass through untouched. Pure — asserted by
+ *  scripts/check-directory.mjs. */
+export function mergeDirectoryPeople(people: DirectoryPerson[]): DirectoryPerson[] {
+  const cornell = new Map(people.filter((p) => p.source === "cornell").map((p) => [p.id.toLowerCase(), p]));
+  const lead = new Map<DirectoryPerson, string>();   // lead row -> the other record's id
+  const drop = new Set<DirectoryPerson>();
+  for (const w of people) {
+    const c = w.source === "wcm" && w.netid ? cornell.get(w.netid.toLowerCase()) : undefined;
+    if (!c) continue;
+    const [l, o] = institutionForPrimaryOrg(w.primaryOrg) === PRIMARY_ORG_INSTITUTION.Cornell ? [c, w] : [w, c];
+    lead.set(l, o.id); drop.add(o);
+  }
+  return people.filter((p) => !drop.has(p)).map((p) => (lead.has(p) ? { ...p, alsoId: lead.get(p)! } : p));
 }
 
 /** Name search across both directories. Deliberately NO alumni/affiliation exclusion: Scholars'
@@ -549,15 +586,16 @@ export async function searchDirectoryPeople(q: string, limit = 8): Promise<Direc
   const wcm = wcmEnv(), cornell = cornellEnv();
   const [w, c] = await Promise.all([
     wcm ? safe("wcm search", () => search(
-      wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", ["weillCornellEduCWID"]),
+      wcm, WCM_BASE,
+      buildNameFilter(term, "(objectClass=eduPerson)", ["weillCornellEduCWID", "weillCornellEduMiddleName"], true),
       WCM_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
     cornell ? safe("cornell search", () => search(
       cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]),
       CORNELL_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
   ]);
-  const people = [
+  const people = mergeDirectoryPeople([
     ...w.map(projectWcmPerson), ...c.map(projectCornellPerson),
-  ].filter((p): p is DirectoryPerson => p !== null).slice(0, limit * 2);
+  ].filter((p): p is DirectoryPerson => p !== null)).slice(0, limit * 2);
   // One extra search, and only when this page actually holds a retired cwid — so the ordinary
   // search pays nothing. Awaited rather than fired-and-forgotten: the successor's name is what
   // makes the blocked row actionable ("retired — use ssy9009") instead of a dead end.
