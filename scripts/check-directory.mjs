@@ -24,7 +24,7 @@ import assert from "node:assert/strict";
 import {
   escapeLdapFilter, buildNameFilter, projectWcmPerson, projectCornellPerson,
   directoryIdentityPayload, cornellPersonTypes, ldapDate,
-  institutionForPrimaryOrg, PRIMARY_ORG_INSTITUTION, mergeDirectoryPeople,
+  institutionForPrimaryOrg, PRIMARY_ORG_INSTITUTION, mergeDirectoryPeople, nearMissQuery,
 } from "../src/lib/directory.ts";
 import { typedCwidPreview } from "../src/lib/bulkAssign.ts";
 
@@ -486,6 +486,13 @@ const ledByCornell = mergeDirectoryPeople([wcmDual("Cornell"), cornellDual]);
 check("primaryOrg Cornell -> one row", ledByCornell.length, 1);
 check("...led by the Cornell record", [ledByCornell[0].source, ledByCornell[0].id], ["cornell", "cjs423"]);
 check("...naming the cwid as alsoId", ledByCornell[0].alsoId, "chs4046");
+check("...and carrying it as wcmCwid, so the assign bridge can route the write to the cwid",
+  ledByCornell[0].wcmCwid, "chs4046");
+check("a retired cwid never merges — its successor guidance is the useful row",
+  mergeDirectoryPeople([
+    projectWcmPerson({ uid: "old1", weillCornellEduCWID: "old1", sn: "Smith", weillCornellEduNetID: "cjs423",
+      weillCornellEduPrimaryOrg: "Cornell", weillCornellEduStatus: "retired-cwid" }), cornellDual,
+  ]).map((p) => p.id), ["old1", "cjs423"]);
 
 const ledByWcm = mergeDirectoryPeople([wcmDual("WCMC"), cornellDual]);
 check("primaryOrg WCMC -> one row", ledByWcm.length, 1);
@@ -504,6 +511,11 @@ check("the netid join is case-insensitive",
   mergeDirectoryPeople([
     projectWcmPerson({ uid: "x9", weillCornellEduCWID: "x9", sn: "S", weillCornellEduNetID: "CJS423" }), cornellDual,
   ]).map((p) => [p.id, p.alsoId]), [["x9", "cjs423"]]);
+
+// ------------------------------------------------------ near-miss retry (ReCiterDB #228)
+console.log("\nnear-miss retry — a surname one letter off is found by typing less:");
+check("each token cut to 5 chars", nearMissQuery("pritha subramanyan"), "prith subra");
+check("a query that is already short is not retried", nearMissQuery("li wang"), null);
 
 // ---------------------------------------------------------------- SOR title / department
 // fillFromSor does live LDAP, so it cannot be unit-tested here. What IS testable without a bind

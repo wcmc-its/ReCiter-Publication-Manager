@@ -569,18 +569,31 @@ export function mergeDirectoryPeople(people: DirectoryPerson[]): DirectoryPerson
   const drop = new Set<DirectoryPerson>();
   for (const w of people) {
     const c = w.source === "wcm" && w.netid ? cornell.get(w.netid.toLowerCase()) : undefined;
-    if (!c) continue;
+    // A retired cwid keeps its own row: its "use <successor>" guidance is the useful part.
+    if (!c || w.retiredCwid) continue;
     const [l, o] = institutionForPrimaryOrg(w.primaryOrg) === PRIMARY_ORG_INSTITUTION.Cornell ? [c, w] : [w, c];
     lead.set(l, o.id); drop.add(o);
   }
-  return people.filter((p) => !drop.has(p)).map((p) => (lead.has(p) ? { ...p, alsoId: lead.get(p)! } : p));
+  // A Cornell lead carries the cwid as `wcmCwid` so the existing duplicate-person bridge routes
+  // the write to the cwid whenever that cwid already holds a ReCiter identity.
+  return people.filter((p) => !drop.has(p)).map((p) => (lead.has(p)
+    ? { ...p, alsoId: lead.get(p)!, wcmCwid: p.source === "cornell" ? (p.wcmCwid ?? lead.get(p)!) : p.wcmCwid }
+    : p));
 }
 
 /** Name search across both directories. Deliberately NO alumni/affiliation exclusion: Scholars'
  *  Cornell client centralizes `(!(cornelleduprimaryaffiliation=alumni))`, which is right for a
  *  public profile system and wrong here — a 2021 paper still needs attributing to whoever wrote
  *  it, and one of the 67 people already sitting in the local-only backlog (mh2482) is alumni. */
-export async function searchDirectoryPeople(q: string, limit = 8): Promise<DirectoryPerson[]> {
+/** ponytail: the near-miss surname (byline "Subramanyan", ED "Subramanyam"; 8 open rows queue-wide,
+ *  ReCiterDB #228) is found the way a curator finds it by hand — by typing less. Each token cut to
+ *  its first 5 characters, or null when that changes nothing. */
+export function nearMissQuery(term: string): string | null {
+  const cut = term.trim().split(/\s+/).map((t) => t.slice(0, 5)).join(" ");
+  return cut === term.trim() ? null : cut;
+}
+
+export async function searchDirectoryPeople(q: string, limit = 8, retry = true): Promise<DirectoryPerson[]> {
   const term = q.trim();
   if (term.length < 3) return [];
   const wcm = wcmEnv(), cornell = cornellEnv();
@@ -596,6 +609,8 @@ export async function searchDirectoryPeople(q: string, limit = 8): Promise<Direc
   const people = mergeDirectoryPeople([
     ...w.map(projectWcmPerson), ...c.map(projectCornellPerson),
   ].filter((p): p is DirectoryPerson => p !== null)).slice(0, limit * 2);
+  const cut = !people.length && retry ? nearMissQuery(term) : null;
+  if (cut) return searchDirectoryPeople(cut, limit, false);
   // One extra search, and only when this page actually holds a retired cwid — so the ordinary
   // search pays nothing. Awaited rather than fired-and-forgotten: the successor's name is what
   // makes the blocked row actionable ("retired — use ssy9009") instead of a dead end.
