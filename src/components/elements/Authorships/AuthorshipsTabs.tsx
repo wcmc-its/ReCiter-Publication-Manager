@@ -181,7 +181,7 @@ interface PriorNames {
   // Titles of accepted papers. A byline name alone often cannot separate two WCM homonyms
   // publishing in the same field; what they have already published usually can.
   papers?: Array<{ pmid: number; title: string; year?: number }>;
-  // Roster names, both of them: `identity` holds the HR/LDAP LEGAL name, `person` the
+  // Roster names, both of them: `identity` holds the DIRECTORY (ED) LEGAL name, `person` the
   // DynamoDB PUBLISHING name. They disagree often enough that showing only the legal one
   // reads as "the matcher ignored the primary name" when it did nothing of the kind.
   identity?: { legalName?: string; publishingName?: string; title?: string; division?: string };
@@ -196,6 +196,11 @@ interface PriorNames {
 interface Candidate {
   cwid: string;
   name?: string;
+  // Which of the person's names `name` is — the AAR producer's pick among "primary",
+  // "directory", "alternate" and "accepted" (a byline on their accepted papers, with `name_n`
+  // = how many). Absent on rows the producer wrote before it labelled names: no badge.
+  name_source?: string;
+  name_n?: number;
   person_type?: string;
   dept?: string;
   io_score?: number;
@@ -926,6 +931,20 @@ const Chip = ({ kind, children, style }: { kind: "ok" | "warn" | "neutral"; chil
   );
 };
 
+// The small pill after a candidate's name saying which of their names it is (Candidate.name_source).
+const NAME_SOURCE_LABEL: Record<string, string> = {
+  primary: "Primary name", directory: "Directory name", alternate: "Alternate name", accepted: "Name on accepted pubs",
+};
+const nameSourceBadge = (c?: { name_source?: string; name_n?: number }) => {
+  const label = c?.name_source ? NAME_SOURCE_LABEL[c.name_source] : undefined;
+  if (!c || !label) return null;
+  return (
+    <Chip kind="neutral" style={{ fontWeight: 400 }}>
+      {label}{c.name_source === "accepted" && typeof c.name_n === "number" ? ` · ${c.name_n}` : ""}
+    </Chip>
+  );
+};
+
 const outLinkStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 600,
   color: "#2563eb", textDecoration: "none",
@@ -1049,7 +1068,7 @@ const IdentityHoverCard = ({ subject, priorNames }: {
   // the same card per CANDIDATE. It was row-shaped and therefore single-candidate-only, which
   // is precisely backwards: the row that needs an identity dossier most is the homonym row
   // asking a curator to choose among five people with the same surname.
-  subject: { name?: string; cwid?: string; dept?: string; division?: string; institution?: string };
+  subject: { name?: string; cwid?: string; dept?: string; division?: string; institution?: string; name_source?: string; name_n?: number };
   priorNames?: PriorNames;
 }) => {
   const r = subject;
@@ -1153,12 +1172,13 @@ const IdentityHoverCard = ({ subject, priorNames }: {
         ...(place.max ? { maxHeight: place.max, overflowY: "auto" as const } : {}) }}>
         <span style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 15, fontWeight: 600 }}>{r.name || r.cwid}</span>
+          {nameSourceBadge(r)}
           <span style={{ fontSize: 13, color: CTRL.accent }}>{r.cwid}</span>
         </span>
         {(showLegal || showPublishing) && (
           <span style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12.5, color: "#4a5262" }}>
             {showPublishing && <span><span style={{ color: "#8b93a2" }}>Publishes as </span>{id!.publishingName}</span>}
-            {showLegal && <span><span style={{ color: "#8b93a2" }}>HR name </span>{id!.legalName}</span>}
+            {showLegal && <span><span style={{ color: "#8b93a2" }}>Directory name </span>{id!.legalName}</span>}
           </span>
         )}
         {hasDetail && (
@@ -4144,6 +4164,10 @@ const AuthorshipCard = ({
   const isAbsent = r.top_io_score == null;
   const wcm = hasWcm(r.author_affiliation);
   const candidates = isMulti ? parseCandidates(r.candidate_cwids_json) : [];
+  // top_name is the lead's label and carries no name_source of its own; the lead's own entry in
+  // candidate_cwids_json does (a single-candidate row's JSON holds exactly that one entry).
+  const topCand = isMulti ? undefined : parseCandidates(r.candidate_cwids_json)
+    .find((c) => String(c.cwid || "").toLowerCase() === String(r.top_cwid || "").toLowerCase());
   const meta = CLASS_META[r.classification || "absent"];
   // T4: `selectable` is the same predicate toggleSelect gates on — multi-candidate rows are now
   // checkbox-selectable too (open, non-scopus, bulk-assign only; see isBulkSelectable/
@@ -4224,6 +4248,7 @@ const AuthorshipCard = ({
                 <span onMouseEnter={openIdentityHover} onMouseLeave={closeIdentityHover}
                   style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 600, color: "#0f172a" }}>{r.top_name}</span>
+                  {nameSourceBadge(topCand)}
                   {r.top_cwid && (
                     <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
@@ -4233,7 +4258,8 @@ const AuthorshipCard = ({
                   {identityHover && (
                     <IdentityHoverCard
                       subject={{ name: r.top_name, cwid: r.top_cwid, dept: r.top_dept,
-                                 division: r.top_division, institution: r.top_institution }}
+                                 division: r.top_division, institution: r.top_institution,
+                                 name_source: topCand?.name_source, name_n: topCand?.name_n }}
                       priorNames={r.top_cwid ? priorNamesByCwid[r.top_cwid] : undefined} />
                   )}
                 </span>
@@ -4809,9 +4835,10 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
                 <span onMouseEnter={() => c.cwid && openHover(c.cwid)} onMouseLeave={closeHover}
                   style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 13.5, fontWeight: 600, color: "#0f172a" }}>
                   {c.name}{" "}
+                  {nameSourceBadge(c)}
                   {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
                   {hoverCwid === c.cwid && (
-                    <IdentityHoverCard subject={{ name: c.name, cwid: c.cwid, dept: c.dept }}
+                    <IdentityHoverCard subject={{ name: c.name, cwid: c.cwid, dept: c.dept, name_source: c.name_source, name_n: c.name_n }}
                       priorNames={c.cwid ? priorNamesByCwid[c.cwid] : undefined} />
                   )}
                 </span>
