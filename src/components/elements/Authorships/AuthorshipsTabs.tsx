@@ -2365,8 +2365,14 @@ const AuthorshipsTabs = () => {
   // (T3): expands the card and focuses the AssignOther typed-cwid input it renders. Card
   // expansion mounts <AssignOther> on the next render, so focus has to wait for that DOM to
   // exist — zero-delay setTimeout, a paint wait rather than a debounce.
-  const focusAssignOther = useCallback((id: number) => {
+  // The byline name is seeded into that input: the shortcut is "this author is someone the
+  // producer didn't offer", and the name on the card is the search term nine times in ten.
+  // Keyed by row so only the row that asked is seeded — plain card expansion stays blank
+  // (no directory lookup fired for every card the curator opens).
+  const [assignPrefill, setAssignPrefill] = useState<{ id: number; name: string } | null>(null);
+  const focusAssignOther = useCallback((id: number, name?: string) => {
     setExpanded(id);
+    setAssignPrefill(name ? { id, name } : null);
     setTimeout(() => document.getElementById(`otherCwid-${id}`)?.focus(), 0);
   }, []);
 
@@ -3612,6 +3618,7 @@ const AuthorshipsTabs = () => {
             isFocused={focusedId === r.id}
             acting={actingId === r.id}
             pickedCwid={picked[r.id]}
+            assignPrefill={assignPrefill?.id === r.id ? assignPrefill.name : undefined}
             registerRef={(el) => { cardRefs.current[r.id] = el; }}
             onFocus={() => setFocusedId(r.id)}
             onToggleExpand={() => setExpanded((e) => (e === r.id ? null : r.id))}
@@ -3619,7 +3626,7 @@ const AuthorshipsTabs = () => {
             onPick={(cwid) => setPicked((p) => ({ ...p, [r.id]: cwid }))}
             onAction={(action, extra) => doAction(r, action, extra)}
             onMenu={(anchor) => setMenu({ anchor, row: r })}
-            onAssignOther={() => focusAssignOther(r.id)}
+            onAssignOther={() => focusAssignOther(r.id, r.wcm_author)}
             onNarrowPmid={() => narrowToPmid(r.pmid)}
             onFindOthers={() => findOthersLikeThis(r.wcm_author)}
             // §2.6 hover card: `undefined` means "not asked yet / still in flight", which the
@@ -3671,9 +3678,9 @@ const AuthorshipsTabs = () => {
         )}
         {menu && (
           <MenuItem onClick={() => {
-            const id = menu.row.id;
+            const { id, wcm_author } = menu.row;
             setMenu(null);
-            focusAssignOther(id);
+            focusAssignOther(id, wcm_author);
           }}>
             Assign to someone else…
           </MenuItem>
@@ -4119,6 +4126,7 @@ interface CardProps {
   isFocused: boolean;
   acting: boolean;
   pickedCwid?: string;
+  assignPrefill?: string; // seeds AssignOther's box — set only for the row that asked
   registerRef: (el: HTMLElement | null) => void;
   onFocus: () => void;
   onToggleExpand: () => void;
@@ -4141,7 +4149,7 @@ interface CardProps {
 }
 
 const AuthorshipCard = ({
-  row: r, statusView, selectable, isExpanded, isSelected, isFocused, acting, pickedCwid,
+  row: r, statusView, selectable, isExpanded, isSelected, isFocused, acting, pickedCwid, assignPrefill,
   registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onAssignOther, onNarrowPmid,
   onFindOthers, priorNamesByCwid, onHoverIdentity,
   conflict, onClearConflict,
@@ -4545,7 +4553,7 @@ const AuthorshipCard = ({
           {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
               single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
               it's the case where the curator most often knows a name the card can't offer. */}
-          <AssignOther rowId={r.id} acting={acting} onAction={onAction} />
+          <AssignOther rowId={r.id} acting={acting} onAction={onAction} prefill={assignPrefill} />
           {/* One note for both buttons above. `listed` is candidates-minus-one and does not
               move with the radio: whichever one is picked, the same number of others are
               rejected. `typed` is all N — someone typed into the box is by definition not one
@@ -4928,8 +4936,9 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
 // ponytail: the "lookup route feeding the box" upgrade path landed — #948 built POST
 // /api/db/authorships/lookup for the bulk dialog, so the box debounces into it and a resolved
 // Assign/Enter writes in one click; unresolved (debouncing/errored) falls back to the plain call.
-const AssignOther = ({ rowId, acting, onAction }: {
+const AssignOther = ({ rowId, acting, onAction, prefill }: {
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
+  prefill?: string;
 }) => {
   const [otherCwid, setOtherCwid] = useState("");
   // What the debounced POST /api/db/authorships/lookup has found for the CURRENT otherCwid —
@@ -5009,6 +5018,25 @@ const AssignOther = ({ rowId, acting, onAction }: {
   // disagree — and the lookup is reset on every keystroke, so `blocked` can only ever describe
   // the string currently in the box.
   const typedPreview = typedCwidPreview(lookupState);
+
+  // One path for a keystroke AND the "Assign to someone else…" prefill, so the seeded name gets
+  // the same debounced lookup (and the same stale-answer invalidation) a typed one does.
+  // NOT trimmed here (it used to be): a name needs an interior space, and trimming the
+  // controlled value on every keystroke made one impossible to type. Trimming happens where
+  // it matters instead — at lookup and at submit.
+  const setValue = useCallback((val: string) => {
+    setOtherCwid(val);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    requestSeq.current += 1; // invalidate any in-flight/pending lookup for the old value
+    setLookupState({ status: "idle" }); // EVERY keystroke — a resolved answer never outlives its string
+    setMatches(null);
+    const q = val.trim();
+    if (q.length < 3) return;
+    const seq = requestSeq.current;
+    debounceTimer.current = setTimeout(() => runLookup(q, seq), 350);
+  }, [runLookup]);
+  useEffect(() => { if (prefill) setValue(prefill); }, [prefill, setValue]);
+
   const submittable = /^[A-Za-z0-9]{1,32}$/.test(otherCwid.trim()) && !typedPreview?.blocked;
 
   const submitOther = useCallback(() => {
@@ -5049,21 +5077,7 @@ const AssignOther = ({ rowId, acting, onAction }: {
         </label>
         <input id={`otherCwid-${rowId}`} value={otherCwid} placeholder="cwid or name"
           onClick={(e) => e.stopPropagation()}
-          onChange={(e) => {
-            // NOT trimmed here (it used to be): a name needs an interior space, and trimming
-            // the controlled value on every keystroke made one impossible to type. Trimming
-            // happens where it matters instead — at lookup and at submit.
-            const val = e.target.value;
-            setOtherCwid(val);
-            if (debounceTimer.current) clearTimeout(debounceTimer.current);
-            requestSeq.current += 1; // invalidate any in-flight/pending lookup for the old value
-            setLookupState({ status: "idle" }); // EVERY keystroke — a resolved answer never outlives its string
-            setMatches(null);
-            const q = val.trim();
-            if (q.length < 3) return;
-            const seq = requestSeq.current;
-            debounceTimer.current = setTimeout(() => runLookup(q, seq), 350);
-          }}
+          onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key !== "Enter" || !otherCwid.trim() || acting) return;
             e.preventDefault(); e.stopPropagation();
