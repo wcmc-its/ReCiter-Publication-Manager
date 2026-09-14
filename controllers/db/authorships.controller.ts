@@ -18,6 +18,7 @@ import {
   type DirectoryPerson,
 } from "../../src/lib/directory";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { scheduleAnalysisRefresh } from "../analysisRefresh";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
@@ -2327,6 +2328,7 @@ async function writeGoldStandard(
         body: JSON.stringify(body),
       },
     );
+    if (resp.status === 200) scheduleAnalysisRefresh(uid);
     return resp.status;
   } catch (e) {
     console.log("[authorships] gold-standard write failed:", e);
