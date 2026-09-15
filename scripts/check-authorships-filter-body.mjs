@@ -105,7 +105,7 @@ const readFilterKeys = (src) => {
 // quietly compare a body that no longer exercises the basis at all.
 const MOUNT = {
   lane: "single", classification: "all", search: "", selectedTypes: [], selectedInstitutions: [],
-  selectedAuthorAffiliations: [],
+  selectedAuthorAffiliations: ["wcm"],
   institutionBasis: "either", source: "all", selectedPubTypes: [],
   dateFrom: "2024-09-04", dateTo: "2026-09-04", sort: "io", statusView: "open",
   hideNoSuggestion: false, hideNoIdentity: false, likeAuthor: "",
@@ -257,7 +257,7 @@ const chk = (label, actual, expected) => {
 // the page loads on its own defaults and the chip row starts empty.
 chk("FILTER_DEFAULTS.lane + classification = match class \"All unassigned\"", [defaults.lane, defaults.classification], ["all", "all"]);
 chk("FILTER_DEFAULTS.selectedInstitutions = identity affiliation WCM", defaults.selectedInstitutions, ["wcm"]);
-chk("FILTER_DEFAULTS.selectedAuthorAffiliations = article affiliation any", defaults.selectedAuthorAffiliations, []);
+chk("FILTER_DEFAULTS.selectedAuthorAffiliations = article affiliation WCM (2026-09-15)", defaults.selectedAuthorAffiliations, ["wcm"]);
 chk("FILTER_DEFAULTS.statusView", defaults.statusView, "open");
 chk("FILTER_DEFAULTS.source", defaults.source, "all");
 chk("institutionBasis is no longer a filter key at all", Object.keys(defaults).includes("institutionBasis"), false);
@@ -330,7 +330,7 @@ dep("the summary response is stamped with the body that produced it",
       + `(armed=${armed} then=${thenArm} catch=${catchArm} checks=${guards})`);
   }
 }
-dep("page is NOT part of the posted filter body", /offset: page \* PAGE_SIZE/);
+dep("page is NOT part of the posted filter body", /offset: page \* pageSize/);
 if (/buildFilterBody[\s\S]{0,900}?\bpage\b[\s\S]{0,40}?\n\}\);/.test(workSrc)) fail("buildFilterBody mentions page");
 else pass("buildFilterBody does not mention page");
 
@@ -368,9 +368,11 @@ chk("an empty identity affiliation IS a chip (the default is WCM)", labels({ lan
 chk("non-default identity affiliations chip one by one, by display name",
   labels({ lane: "all", selectedInstitutions: ["nyp", "msk"] }),
   ["Identity affil: New York-Presbyterian Hospital", "Identity affil: Memorial Sloan Kettering"]);
-// ARTICLE AFFILIATION: default is EMPTY, so unlike the identity list it has no "any" chip —
-// every value present is off-default by definition, and the two lists chip independently.
-chk("the default article affiliation is not a chip", labels({ lane: "all", selectedInstitutions: ["wcm"], selectedAuthorAffiliations: [] }), []);
+// ARTICLE AFFILIATION: default is WCM since 2026-09-15, so it follows the identity list's rules —
+// the default is silent, an EMPTY list is the off-default "any" chip, and the two lists chip
+// independently.
+chk("the default article affiliation is not a chip", labels({ lane: "all", selectedInstitutions: ["wcm"], selectedAuthorAffiliations: ["wcm"] }), []);
+chk("an empty article affiliation IS a chip (the default is WCM)", labels({ lane: "all", selectedInstitutions: ["wcm"], selectedAuthorAffiliations: [] }), ["Article affil: any"]);
 chk("article affiliations chip one by one, beside the identity ones",
   labels({ lane: "all", selectedInstitutions: ["nyp"], selectedAuthorAffiliations: ["wcm", "msk"] }),
   ["Identity affil: New York-Presbyterian Hospital", "Article affil: Weill Cornell Medicine", "Article affil: Memorial Sloan Kettering"]);
@@ -605,7 +607,7 @@ dep("the auto-exit on an emptied like view restores them too",
 // All three requests must build from one shared source, or the comparison is against a body that
 // was never sent. Source-level, since these are refs inside the component.
 dep("both list fetchers build their body from the one shared listBody()",
-  /const listBody = useCallback\(\n\s*\(\) => JSON\.stringify\(\{ \.\.\.filterBody\(\), limit: PAGE_SIZE, offset: page \* PAGE_SIZE \}\),/);
+  /const listBody = useCallback\(\n\s*\(\) => JSON\.stringify\(\{ \.\.\.filterBody\(\), limit: pageSize, offset: page \* pageSize \}\),/);
 dep("liveListBody tracks it, so a response can be compared against what is on screen",
   /useEffect\(\(\) => \{ liveListBody\.current = listBody\(\); \}, \[listBody\]\);/);
 dep("fetchData drops a response whose filters moved on",

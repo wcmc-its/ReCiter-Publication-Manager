@@ -119,6 +119,9 @@ export interface CandidateLite {
   /** Identity-only score, the same number the card's rail and the row's "top IO" show.
    *  Optional: a caller that has none passes nothing and those entries sort last. */
   score?: number | null;
+  /** Person type / department off the row's candidate JSON — display only, for the picker. */
+  person_type?: string;
+  dept?: string;
 }
 
 // The union of candidates proposed across a set of selected rows, each annotated with how
@@ -148,12 +151,20 @@ export function unionCandidates(rowCandidateLists: CandidateLite[][]): Array<Can
       if (existing) {
         existing.matches += 1;
         if (!existing.name && c.name) existing.name = c.name;
+        if (!existing.dept && c.dept) existing.dept = c.dept;
+        if (!existing.person_type && c.person_type) existing.person_type = c.person_type;
         // The same person can carry a different score on each row (different paper, different
         // evidence). Keep the strongest — it is the one that justifies their position here.
         if (c.score != null && (existing.score == null || c.score > existing.score)) {
           existing.score = c.score;
         }
-      } else byCwid.set(c.cwid, { cwid: c.cwid, name: c.name, score: c.score ?? null, matches: 1 });
+      } else {
+        // dept / person_type only when present — check-bulk-assign.mjs deepEquals these
+        byCwid.set(c.cwid, {
+          cwid: c.cwid, name: c.name, score: c.score ?? null, matches: 1,
+          ...(c.person_type ? { person_type: c.person_type } : {}), ...(c.dept ? { dept: c.dept } : {}),
+        });
+      }
     }
   }
   const rank = (c: CandidateLite) => (c.score == null ? -Infinity : c.score);
