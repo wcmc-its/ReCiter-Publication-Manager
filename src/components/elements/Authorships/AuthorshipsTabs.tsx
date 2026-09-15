@@ -5258,6 +5258,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, authorName }: {
                             {m.personTypes.length > 1 ? ` +${m.personTypes.length - 1}` : ""}
                           </span>
                         )}
+                        {m.active === false && <span style={{ display: "block", color: "#94a3b8" }}>expired</span>}
                       </td>
                       <td style={{ ...dirCell, color: "#4a5262" }}>{m.title || "—"}</td>
                       <td style={{ ...dirCell, color: "#4a5262" }}>

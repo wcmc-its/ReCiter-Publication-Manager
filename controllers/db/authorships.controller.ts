@@ -947,13 +947,20 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
     const q = String(req.body?.q || "").trim();
     if (q) {
       if (q.length > 64) return res.status(400).send("search term too long");
-      const people = await searchDirectoryPeople(q);
+      const found = await searchDirectoryPeople(q);
       // Which of these does ReCiter already know? A curator searching by name must be told
       // "this one is already in ReCiter" so they pick the identity that exists rather than
       // minting a duplicate of it — and for a Cornell person that also means surfacing the WCM
       // cwid their directory record publishes.
       const known = await reciterIdentitySet(
-        people.flatMap((p) => [p.id, p.id.toLowerCase(), p.wcmCwid].filter(Boolean) as string[]));
+        found.flatMap((p) => [p.id, p.id.toLowerCase(), p.wcmCwid].filter(Boolean) as string[]));
+      // Rank: already in ReCiter, then ED-active, then an exact name match — the three facts
+      // that separate the live biostatistician from four expired affiliates who share her name
+      // (2026-09-15, "Jessica Kim": the right one sat sixth). Stable, so ties keep the
+      // directories' own order. Nothing is removed; expired people stay assignable.
+      const score = (p: typeof found[number]) =>
+        (known.has(p.id) || known.has(p.id.toLowerCase()) ? 4 : 0) + (p.active ? 2 : 0) + (p.exactName ? 1 : 0);
+      const people = found.map((p, i) => ({ p, i })).sort((a, b) => score(b.p) - score(a.p) || a.i - b.i).map((x) => x.p);
       return res.send({
         configured: directoryConfigured(),
         matches: people.map((p) => ({
@@ -994,6 +1001,9 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
           // again, so the client renders the row un-pickable and names the replacement instead.
           // Distinct from every other status ED publishes — see DirectoryPerson.retiredCwid.
           retiredCwid: p.retiredCwid, supersededBy: p.supersededBy,
+          // ED lifecycle: false = every status expired (rendered as a muted "expired" so the
+          // curator can see why a row sank). Null for Cornell, which publishes no such thing.
+          active: p.active,
         })),
       });
     }
