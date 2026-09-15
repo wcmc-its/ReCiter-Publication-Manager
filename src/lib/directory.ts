@@ -549,10 +549,16 @@ export async function lookupDirectoryPerson(id: string): Promise<DirectoryPerson
 // interface, not a bulk one, and the substring form could not be tried against it (no bind
 // available on 2026-09-12); a search it rejected would be swallowed by safe() and silently drop
 // every Cornell result, which is worse than the miss.
-export function buildNameFilter(q: string, objectClause: string, extra: string[], wordStart = false): string {
+// `exact` drops the wildcards: each token must EQUAL a name attribute. It exists because the
+// prefix search is size-limited (sizeLimit = the caller's `limit`, 8 by default) and ED returns
+// whichever entries it reaches first — "alexandra li" came back as Livanos, Lieberman, Linder,
+// Licona, Litt, Lin… and never the one person actually named Li (all4034, 2026-09-15). Only her
+// cwid found her. The exact pass is the same shape with `=li` for `=li*`, run alongside, and its
+// hits lead the merged list.
+export function buildNameFilter(q: string, objectClause: string, extra: string[], wordStart = false, exact = false): string {
   const tokens = q.trim().split(/\s+/).filter(Boolean).map(escapeLdapFilter);
   const per = (t: string) => `(|${["givenName", "sn", "displayName", ...extra]
-    .map((a) => `(${a}=${t}*)${wordStart ? `(${a}=* ${t}*)` : ""}`).join("")})`;
+    .map((a) => exact ? `(${a}=${t})` : `(${a}=${t}*)${wordStart ? `(${a}=* ${t}*)` : ""}`).join("")})`;
   return `(&${objectClause}${tokens.map(per).join("")})`;
 }
 
@@ -597,18 +603,30 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true):
   const term = q.trim();
   if (term.length < 3) return [];
   const wcm = wcmEnv(), cornell = cornellEnv();
-  const [w, c] = await Promise.all([
-    wcm ? safe("wcm search", () => search(
-      wcm, WCM_BASE,
-      buildNameFilter(term, "(objectClass=eduPerson)", ["weillCornellEduCWID", "weillCornellEduMiddleName"], true),
+  const wcmExtra = ["weillCornellEduCWID", "weillCornellEduMiddleName"];
+  // Exact-equality pass first (see buildNameFilter's `exact`), then the prefix pass — four
+  // searches in flight together, so the exact pass costs no wall-clock.
+  const [wx, w, cx, c] = await Promise.all([
+    wcm ? safe("wcm exact", () => search(
+      wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, false, true),
       WCM_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
+    wcm ? safe("wcm search", () => search(
+      wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true),
+      WCM_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
+    cornell ? safe("cornell exact", () => search(
+      cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"], false, true),
+      CORNELL_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
     cornell ? safe("cornell search", () => search(
       cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]),
       CORNELL_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
   ]);
+  // Exact hits also come back from the prefix pass (`li` matches `li*`): keep the first sighting.
+  const seen = new Set<string>();
   const people = mergeDirectoryPeople([
-    ...w.map(projectWcmPerson), ...c.map(projectCornellPerson),
-  ].filter((p): p is DirectoryPerson => p !== null)).slice(0, limit * 2);
+    ...wx.map(projectWcmPerson), ...w.map(projectWcmPerson),
+    ...cx.map(projectCornellPerson), ...c.map(projectCornellPerson),
+  ].filter((p): p is DirectoryPerson => p !== null && !seen.has(`${p.source}:${p.id}`) && !!seen.add(`${p.source}:${p.id}`)))
+    .slice(0, limit * 2);
   const cut = !people.length && retry ? nearMissQuery(term) : null;
   if (cut) return searchDirectoryPeople(cut, limit, false);
   // One extra search, and only when this page actually holds a retired cwid — so the ordinary

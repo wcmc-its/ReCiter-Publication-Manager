@@ -47,6 +47,13 @@ ok("an injected filter cannot close the enclosing clause",
   !buildNameFilter("x)(uid=*", "(objectClass=person)", []).includes(")(uid=*)"));
 ok("tokens are matched as PREFIXES — never a leading wildcard, which would de-index the scan",
   !buildNameFilter("cummings", "(objectClass=person)", []).includes("=*"));
+check("exact mode drops every wildcard — the size-limited prefix pass was hiding sn=Li behind Livanos/Lin/… (2026-09-15)",
+  buildNameFilter("alexandra li", "(objectClass=eduPerson)", ["weillCornellEduCWID"], false, true),
+  "(&(objectClass=eduPerson)"
+  + "(|(givenName=alexandra)(sn=alexandra)(displayName=alexandra)(weillCornellEduCWID=alexandra))"
+  + "(|(givenName=li)(sn=li)(displayName=li)(weillCornellEduCWID=li)))");
+ok("exact mode ignores wordStart",
+  !buildNameFilter("alexandra li", "(objectClass=eduPerson)", [], true, true).includes("* "));
 check("multiple tokens are AND-ed, each as its own OR over the name attributes",
   buildNameFilter("kevin cummings", "(objectClass=person)", ["uid"]),
   "(&(objectClass=person)"
