@@ -1055,7 +1055,10 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     // unbounded `limit` went from an N-value IN() to roughly 6N (n_candidates maxes at 5 on
     // prod). Nothing legitimate is cut off — both app callers send PAGE_SIZE=20, and the bulk
     // "select all N matching" path uses /authorships/selectable, a different endpoint.
-    const limit = Math.min(Number(body.limit) || 25, 200);
+    // …except the like view, which is one person's whole pile on one page (PM 2026-09-15): a
+    // pile is bounded by how many open rows share one byline (147 on dev, Shariat), nowhere
+    // near the bulk endpoint's own 5,000 cap, so that cap is reused rather than a third number.
+    const limit = Math.min(Number(body.limit) || 25, body.likeAuthor ? SELECTABLE_CAP : 200);
     const offset = Number(body.offset) || 0;
     const order = SORTS[body.sort] || SORTS.precision;
     // buildWhere is sync, so the absent-cwid set (needed only when the filter is on) is

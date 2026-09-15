@@ -343,11 +343,13 @@ interface CounterpartResponse {
 }
 
 const PAGE_SIZE = 20;
-// A "Show N others like this" view or a name/cwid/PMID search is one person's pile, and a
-// curator selects the whole pile to bulk-assign it — paging it at 20 meant "select all on this
-// page" quietly took 20 of 25 (owner report 2026-09-15). These views load up to the server's
-// clamp instead; the ordinary queue keeps its 20.
-const PILE_PAGE_SIZE = 200;
+// A "Show N others like this" view is one person's pile, and a curator selects the whole pile
+// to bulk-assign it — paging it at 20 meant "select all on this page" quietly took 20 of 25
+// (owner report 2026-09-15). That view is NOT paged at all: one request for the whole pile
+// (the server lifts its 200 clamp to LIKE_PILE_CAP for likeAuthor) and no pager. A name/cwid/
+// PMID search widens to 200 for the same reason but keeps paging; the ordinary queue keeps 20.
+const SEARCH_PAGE_SIZE = 200;
+const LIKE_PILE_CAP = 5000;
 // Bulk accept is one POST per row and each one is a gold-standard or ExternalArticle write
 // into ReCiter. A page's worth at a time is proven load; firing a whole 2,000-row selection
 // at once is not, against the same service the May 3-4 contention incident came off. Chunks
@@ -1510,6 +1512,14 @@ const AuthorshipsTabs = () => {
   // F13: keyboard focus
   const [focusedId, setFocusedId] = useState<number | null>(null);
   const cardRefs = useRef<Record<number, HTMLElement | null>>({});
+  // Expanding a card anchors it to the top of the viewport (owner request 2026-09-15): the
+  // expanded panel is tall, and a card opened near the bottom of the window put its header —
+  // the byline, the "choose among N" line, the paper — above the fold behind the sticky app
+  // header. block:"start" plus the card's scrollMarginTop (the header's height) lands its top
+  // edge just below that header. Collapsing scrolls nothing.
+  useEffect(() => {
+    if (expanded != null) cardRefs.current[expanded]?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [expanded]);
   // ids optimistically removed by a curator action whose server write may still be in flight.
   // Guards the rolling-queue refill (topUp/fetchData) from resurrecting a just-actioned row when
   // a sibling action hasn't committed yet (rapid-accept race). Cleared per-id once its POST settles.
@@ -1587,7 +1597,7 @@ const AuthorshipsTabs = () => {
   // Compared BY VALUE, not with a generation counter: the staleness lives inside the closure's
   // captured filterBody, so a counter read at call time would look current and wave it through.
   // Every filter change fires its own fetch, so dropping a response can never strand the list.
-  const pageSize = likeAuthor.trim() || search.trim() ? PILE_PAGE_SIZE : PAGE_SIZE;
+  const pageSize = likeAuthor.trim() ? LIKE_PILE_CAP : search.trim() ? SEARCH_PAGE_SIZE : PAGE_SIZE;
   const listBody = useCallback(
     () => JSON.stringify({ ...filterBody(), limit: pageSize, offset: page * pageSize }),
     [filterBody, page, pageSize],
@@ -3675,8 +3685,9 @@ const AuthorshipsTabs = () => {
       </div>
       )}
 
-      {/* pagination — the feed's, so it goes with the feed. A report is capped, not paged. */}
-      {!reportView && (
+      {/* pagination — the feed's, so it goes with the feed. A report is capped, not paged, and
+          a like view is the whole pile on one page (LIKE_PILE_CAP), so it has nothing to page. */}
+      {!reportView && !likeAuthor.trim() && (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 18, color: "#475569", fontSize: 13 }}>
         <span style={{ fontVariantNumeric: "tabular-nums" }}>{count.toLocaleString()} authorships · page {page + 1} of {totalPages}</span>
         <span style={{ display: "flex", gap: 8 }}>
@@ -4237,6 +4248,7 @@ const AuthorshipCard = ({
     boxShadow: isFocused ? "0 0 0 2px #2563eb" : "0 1px 2px rgba(15,23,42,.04)",
     transition: "box-shadow 150ms, background 150ms",
     cursor: "pointer",
+    scrollMarginTop: "calc(var(--header-height, 52px) + 12px)", // see the expand-anchoring effect
   };
 
   return (
