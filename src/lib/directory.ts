@@ -109,6 +109,14 @@ export type DirectoryPerson = {
    *  marked `retiredCwid`. Null when nothing claims the succession (49 of the 2,880 retired
    *  records had no claimant in that same census). */
   supersededBy: string | null;
+  /** ED's lifecycle answer — any `weillCornellEduStatus` of the form `<role>:active` (so
+   *  `employee:active` + `affiliate:expired` is active; a lone `affiliate:expired` is not).
+   *  Null where the directory publishes no such thing (Cornell). Ranking only: an expired
+   *  affiliate is still assignable, they just should not sit above the live employee of the
+   *  same name (2026-09-15). */
+  active: boolean | null;
+  /** Set by searchDirectoryPeople: this row came back from the exact-equality pass. */
+  exactName?: boolean;
 };
 
 // RFC 4515. Applied to every value that reaches a filter, so a literal `*` a curator types is a
@@ -186,7 +194,7 @@ const createdOf = (e: Record<string, unknown>) => {
 const WCM_ATTRS = [
   "uid", "weillCornellEduCWID", "weillCornellEduNetID", "displayName", "givenName",
   "weillCornellEduMiddleName", "sn", "mail", "weillCornellEduDepartment",
-  "weillCornellEduPersonTypeCode", "title",
+  "weillCornellEduPersonTypeCode", "title", "weillCornellEduStatus",
   // BOTH org spellings. gallric carries `weillCornellEduPrimaryOrg` bare and
   // `weillCornellEduPrimaryOrganization;affiliate` (2026-09-09 prod probe), and the
   // Institutional Client reads the LONGER one — so asking for only one of them would disagree
@@ -265,6 +273,7 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
     // Filled in by resolveSupersededBy() over the whole result set — the pointer is on another
     // entry, so it cannot be projected from this one.
     supersededBy: null,
+    active: clean(all(e.weillCornellEduStatus)).some((st) => /:active$/i.test(st)),
   };
 }
 
@@ -455,6 +464,7 @@ export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerso
     // buildNameFilter's "no alumni exclusion" note). So never blocked from here.
     retiredCwid: false,
     supersededBy: null,
+    active: null,
   };
 }
 
@@ -622,9 +632,10 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true):
   ]);
   // Exact hits also come back from the prefix pass (`li` matches `li*`): keep the first sighting.
   const seen = new Set<string>();
+  const tag = (p: DirectoryPerson | null, exactName: boolean): DirectoryPerson | null => (p ? { ...p, exactName } : null);
   const people = mergeDirectoryPeople([
-    ...wx.map(projectWcmPerson), ...w.map(projectWcmPerson),
-    ...cx.map(projectCornellPerson), ...c.map(projectCornellPerson),
+    ...wx.map((e) => tag(projectWcmPerson(e), true)), ...w.map((e) => tag(projectWcmPerson(e), false)),
+    ...cx.map((e) => tag(projectCornellPerson(e), true)), ...c.map((e) => tag(projectCornellPerson(e), false)),
   ].filter((p): p is DirectoryPerson => p !== null && !seen.has(`${p.source}:${p.id}`) && !!seen.add(`${p.source}:${p.id}`)))
     .slice(0, limit * 2);
   const cut = !people.length && retry ? nearMissQuery(term) : null;
