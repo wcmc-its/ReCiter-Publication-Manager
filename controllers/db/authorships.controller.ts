@@ -360,25 +360,21 @@ const SORTS: Record<string, any[]> = {
   fg: [["top_fg_score", "DESC"], ["pmid", "DESC"]],
   date: [["entrez_date", "DESC"], ["pmid", "DESC"]],
   date_asc: [["entrez_date", "ASC"], ["pmid", "ASC"]],
-  // "Most candidates" — the homonym-heaviest rows first, which is the queue a curator wants when
-  // they are deliberately working the ambiguous tail rather than skimming near-certain accepts.
-  // n_candidates is a plain INTEGER column the AAR producer already writes (it is what
-  // single_candidate is derived from), so this needs no JSON_LENGTH over candidate_cwids_json and
-  // no computed expression. NULLs sort last under DESC in MariaDB, which is what we want: a row
-  // the producer never counted is not "many candidates".
-  // Measured on prod 2026-09-04 (15,644 open rows): this sort warm-medians 40 ms against 39 ms for
-  // `io` and 38 ms for `precision`. No index on n_candidates and none needed — EXPLAIN shows the
-  // WHERE takes ix_status (type=range, rows~26k) and then filesorts, and it does that for the
-  // indexed sort columns too (ix_top_io_score, ix_entrez_date both exist), because only one index
-  // per table is usable here. An index on n_candidates would not be read.
-  //
-  // KNOWN CEILING, disclose before relying on this ordering: n_candidates maxes out at 5 on prod,
-  // and 5,305 of 15,192 rows (35%) sit at exactly 5 — a jump from 950 at n=4, so the producer
-  // almost certainly truncates candidate_cwids_json to 5 (n_candidates == JSON_LENGTH of it on all
-  // 15,192 valid rows, 0 disagreements). This sort therefore cannot separate a 5-homonym row from
-  // a 40-homonym one; it puts the whole capped bucket first in arbitrary order, broken only by the
-  // top_io_score tiebreak. A further 452 rows (2.9%) have NULL and sort last.
-  candidates: [["n_candidates", "DESC"], ["top_io_score", "DESC"], ["pmid", "DESC"]],
+  // "Most candidates" — the biggest pile first, where "pile" is the same N the card's "Show N
+  // others like this" button counts: rows sharing the byline's first|last token key (the exact
+  // SUBSTRING_INDEX pair like_count's grouped COUNT below uses). One window COUNT in the ORDER
+  // BY, so no second query, no new column and no alias for the selectable endpoint to trip on.
+  // Measured on dev 2026-09-15 (MariaDB 10.6, 7.7k open rows): 85 ms.
+  // It replaced n_candidates, which capped at 5 on prod and dumped 35% of rows into one
+  // arbitrary bucket — a sort that could not tell a 5-homonym row from a 40-homonym one.
+  // ponytail: the window partitions the FILTERED set, while the card's N counts the whole open
+  // queue, so the two diverge only when a chip (affiliation, date…) has cut part of a pile.
+  // Under the default filters they agree; if exact parity ever matters, JOIN a derived
+  // GROUP BY table on the same two tokens instead.
+  candidates: [
+    [literal("COUNT(*) OVER (PARTITION BY LOWER(SUBSTRING_INDEX(`AuthorshipReview`.`wcm_author`, ' ', 1)), LOWER(SUBSTRING_INDEX(`AuthorshipReview`.`wcm_author`, ' ', -1)))"), "DESC"],
+    ["top_io_score", "DESC"], ["pmid", "DESC"],
+  ],
 };
 
 // Status-view predicate for the current view ("open" | "snoozed" | "dismissed"), or null

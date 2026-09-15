@@ -343,6 +343,11 @@ interface CounterpartResponse {
 }
 
 const PAGE_SIZE = 20;
+// A "Show N others like this" view or a name/cwid/PMID search is one person's pile, and a
+// curator selects the whole pile to bulk-assign it — paging it at 20 meant "select all on this
+// page" quietly took 20 of 25 (owner report 2026-09-15). These views load up to the server's
+// clamp instead; the ordinary queue keeps its 20.
+const PILE_PAGE_SIZE = 200;
 // Bulk accept is one POST per row and each one is a gold-standard or ExternalArticle write
 // into ReCiter. A page's worth at a time is proven load; firing a whole 2,000-row selection
 // at once is not, against the same service the May 3-4 contention incident came off. Chunks
@@ -500,12 +505,12 @@ const FILTER_DEFAULTS: AuthorshipFilters = {
   search: "",
   selectedTypes: [],
   selectedInstitutions: ["wcm"],                         // identity affiliation = WCM
-  selectedAuthorAffiliations: [],                        // article affiliation = any
+  selectedAuthorAffiliations: ["wcm"],                   // article affiliation = WCM (2026-09-15)
   source: "all",
   selectedPubTypes: [],
   dateFrom: "", dateTo: "",                              // the real default window is computed
                                                          // by applyDatePreset(DEFAULT_DATE_PRESET)
-  sort: "io",                                            // never reset — see RESET_EXEMPT
+  sort: "date",                                          // never reset — see RESET_EXEMPT
   statusView: "open",
   hideNoSuggestion: false, hideNoIdentity: false,
   likeAuthor: "",
@@ -712,12 +717,15 @@ const filterChips = (f: AuthorshipFilters, datePreset: string): FilterChip[] => 
       id: `affil:${v}`, label: `Identity affil: ${INSTITUTION_LABELS[v] || v}`,
       patch: { selectedInstitutions: f.selectedInstitutions.filter((x) => x !== v) },
     }));
-  // Article affiliation (mockup:619). Unlike the identity list its default is EMPTY, so there
-  // is no "any" chip to render — every selected value is off-default by definition.
-  f.selectedAuthorAffiliations.forEach((v) => out.push({
-    id: `authorAffil:${v}`, label: `Article affil: ${INSTITUTION_LABELS[v] || v}`,
-    patch: { selectedAuthorAffiliations: f.selectedAuthorAffiliations.filter((x) => x !== v) },
-  }));
+  // Article affiliation: same rules as the identity list now that its default is WCM too
+  // (2026-09-15) — an empty list is off-default and gets an "any" chip that restores WCM.
+  if (f.selectedAuthorAffiliations.length === 0)
+    out.push({ id: "authorAffil:any", label: "Article affil: any", patch: { selectedAuthorAffiliations: FILTER_DEFAULTS.selectedAuthorAffiliations.slice() } });
+  else if (!(f.selectedAuthorAffiliations.length === 1 && f.selectedAuthorAffiliations[0] === FILTER_DEFAULTS.selectedAuthorAffiliations[0]))
+    f.selectedAuthorAffiliations.forEach((v) => out.push({
+      id: `authorAffil:${v}`, label: `Article affil: ${INSTITUTION_LABELS[v] || v}`,
+      patch: { selectedAuthorAffiliations: f.selectedAuthorAffiliations.filter((x) => x !== v) },
+    }));
   if (datePreset !== DEFAULT_DATE_PRESET)
     out.push({ id: "date", label: `Date: ${DATE_PRESET_LABEL[datePreset] || datePreset}`, patch: {}, preset: DEFAULT_DATE_PRESET });
   if (f.hideNoSuggestion) out.push({ id: "hideNoSuggestion", label: "Hiding no suggested identity", patch: { hideNoSuggestion: false } });
@@ -840,9 +848,9 @@ const parseCandidates = (json?: string): Candidate[] => {
 // carries it as the row's own top_io_score; a multi row carries one per candidate.
 const rowCandidateLites = (row: AuthorshipRow): CandidateLite[] =>
   row.single_candidate
-    ? (row.top_cwid ? [{ cwid: row.top_cwid, name: row.top_name, score: row.top_io_score ?? null }] : [])
+    ? (row.top_cwid ? [{ cwid: row.top_cwid, name: row.top_name, score: row.top_io_score ?? null, person_type: row.top_person_type, dept: row.top_dept }] : [])
     : parseCandidates(row.candidate_cwids_json).map((c) => ({
-      cwid: c.cwid, name: c.name, score: c.io_score ?? null,
+      cwid: c.cwid, name: c.name, score: c.io_score ?? null, person_type: c.person_type, dept: c.dept,
     }));
 
 // Full Scopus byline from authors_json ([{given,surname}, ...]) as a comma-joined
@@ -1123,8 +1131,14 @@ const IdentityHoverCard = ({ subject, priorNames }: {
     // scroll. Invisible on macOS overlay scrollbars, which is the easy way to never notice it.
     const vw = document.documentElement.clientWidth;
     const vh = document.documentElement.clientHeight;
+    // The app header is position:sticky at the top of the viewport (Header.module.css .topNav)
+    // and z-indexed over everything, so the room ABOVE an anchor ends at its bottom edge, not at
+    // y=0 — measured from a.top alone, a card flipped upward ran its header (name, cwid — the
+    // identifying part) underneath the app header (owner screenshot 2026-09-15).
+    // ponytail: found by class-name substring — CSS modules hash the name but keep it in there.
+    const hdr = document.querySelector<HTMLElement>('[class*="topNav"]')?.getBoundingClientRect().bottom || 0;
     const below = vh - a.bottom - GAP * 2;
-    const above = a.top - GAP * 2;
+    const above = a.top - hdr - GAP * 2;
     // The card's NATURAL height, off the body's scrollHeight rather than the positioner's
     // offsetHeight. This is what keeps the effect idempotent now that `max` clamps the body:
     // offsetHeight would come back already-clamped on the second run, the card would look like
@@ -1391,7 +1405,7 @@ const AuthorshipsTabs = () => {
   const setSelectedPubTypes: SetFilter<"selectedPubTypes"> = useCallback((v) => setFilter("selectedPubTypes", v), [setFilter]);
   const setDateFrom: SetFilter<"dateFrom"> = useCallback((v) => setFilter("dateFrom", v), [setFilter]);
   const setDateTo: SetFilter<"dateTo"> = useCallback((v) => setFilter("dateTo", v), [setFilter]);
-  // default sort = IO desc, matching the page's own lede ("IO ... leads"). top_confidence
+  // default sort = date desc (Newest, 2026-09-15); IO desc before that. top_confidence
   // (the matcher's identity-match heuristic, not an authorship-likelihood score) was the
   // prior default, but it's near-constant across the queue — most rows land on the same
   // base value for a given given-name-match/affiliation-match combo — so it silently fell
@@ -1573,9 +1587,10 @@ const AuthorshipsTabs = () => {
   // Compared BY VALUE, not with a generation counter: the staleness lives inside the closure's
   // captured filterBody, so a counter read at call time would look current and wave it through.
   // Every filter change fires its own fetch, so dropping a response can never strand the list.
+  const pageSize = likeAuthor.trim() || search.trim() ? PILE_PAGE_SIZE : PAGE_SIZE;
   const listBody = useCallback(
-    () => JSON.stringify({ ...filterBody(), limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
-    [filterBody, page],
+    () => JSON.stringify({ ...filterBody(), limit: pageSize, offset: page * pageSize }),
+    [filterBody, page, pageSize],
   );
   const liveListBody = useRef("");
   useEffect(() => { liveListBody.current = listBody(); }, [listBody]);
@@ -1641,11 +1656,11 @@ const AuthorshipsTabs = () => {
         setRows((current) => {
           const visibleIds = new Set(current.map((r) => r.id));
           const additions = fetched.filter((r) => !visibleIds.has(r.id));
-          return [...current, ...additions].slice(0, PAGE_SIZE);
+          return [...current, ...additions].slice(0, pageSize);
         });
       })
       .catch((e) => console.error("[authorships]", e));
-  }, [listBody, page]);
+  }, [listBody, page, pageSize]);
 
   // DERIVED from the filter object, never hand-listed — the same rule filterBody follows, and
   // for the same reason: a summary dependency array typed out by hand is exactly how a filter
@@ -2178,15 +2193,18 @@ const AuthorshipsTabs = () => {
   // mis-click costs one click back, not a curator decision recorded against a person.
   // Deliberately no failure-bucketing helper: the server's snooze case has no precondition to
   // fail (unlike accept's dup/no-identity gates), so anything rejected here is a plain error.
-  const doBulkSnooze = useCallback((batch: AuthorshipRow[]) => {
+  // Bulk Dismiss (owner request 2026-09-15) is the same shape with the other status-only action
+  // — dismiss writes status/resolved_at and nothing else, and reopen (Undo) reverses both.
+  const doBulkStatus = useCallback((batch: AuthorshipRow[], action: "snooze" | "dismiss") => {
     if (batch.length === 0) return;
+    const done = action === "snooze" ? "Snoozed" : "Dismissed";
     setMenu(null);
     setBulkProgress(batch.length > BULK_CHUNK ? { done: 0, total: batch.length } : null);
     const runChunks = async () => {
       const results: PromiseSettledResult<boolean>[] = [];
       for (let i = 0; i < batch.length; i += BULK_CHUNK) {
         const chunk = batch.slice(i, i + BULK_CHUNK);
-        results.push(...await Promise.allSettled(chunk.map((row) => doActionAsync(row, "snooze"))));
+        results.push(...await Promise.allSettled(chunk.map((row) => doActionAsync(row, action))));
         if (batch.length > BULK_CHUNK) setBulkProgress({ done: results.length, total: batch.length });
       }
       return results;
@@ -2195,9 +2213,9 @@ const AuthorshipsTabs = () => {
       .then((results) => {
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
-        if (ok.length > 0) setUndo({ rows: ok, label: `Snoozed ${ok.length}` });
+        if (ok.length > 0) setUndo({ rows: ok, label: `${done} ${ok.length}` });
         if (failures.length) {
-          setErrorMsg(`Snoozed ${ok.length} of ${batch.length} selected; ${failures.length} failed — refreshing`);
+          setErrorMsg(`${done} ${ok.length} of ${batch.length} selected; ${failures.length} failed — refreshing`);
           // silent — same as every other bulk path: still mid-review of this same page.
           fetchData(true);
         }
@@ -2209,6 +2227,8 @@ const AuthorshipsTabs = () => {
     setSelected(new Set());
     setAllMatching(null);
   }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
+  const doBulkSnooze = useCallback((batch: AuthorshipRow[]) => doBulkStatus(batch, "snooze"), [doBulkStatus]);
+  const doBulkDismiss = useCallback((batch: AuthorshipRow[]) => doBulkStatus(batch, "dismiss"), [doBulkStatus]);
 
   // T4: union of everything the current selection proposes, for the "Assign selected (N) to…"
   // picker — "Name (cwid) — matches k of N selected", ranked k desc. Recomputed on every
@@ -2545,7 +2565,7 @@ const AuthorshipsTabs = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(count / pageSize));
 
   // Active filters, computed in ONE place (HANDOFF §2.4). `filterCount` is the number the
   // Filters button's blue badge shows in phase 3 — it is chips.length by definition (mockup:666),
@@ -2590,7 +2610,8 @@ const AuthorshipsTabs = () => {
     // there), so it must not go on counting towards the button's label and badge either — the
     // button would otherwise name or count a filter with no control behind it and no effect on
     // what is on screen. The selection itself survives untouched.
-    ...(reportView ? [] : selectedAuthorAffiliations),
+    ...(reportView || (selectedAuthorAffiliations.length === 1 && selectedAuthorAffiliations[0] === FILTER_DEFAULTS.selectedAuthorAffiliations[0])
+      ? [] : selectedAuthorAffiliations),
   ].map((k) => INSTITUTION_LABELS[k] || k);
   const affilCount = affilNames.length;
   // Identity affiliation reads `institutions`, which the server computes on EVERY summary call
@@ -2858,9 +2879,8 @@ const AuthorshipsTabs = () => {
             {/* §2.2 uses the mockup's wording where it maps onto a sort the server actually
                 supports (SORTS in authorships.controller.ts: precision/confidence/io/fg/date).
                 Its "Oldest" and "Most candidates" have no server order and are NOT invented here;
-                the three sorts it omits are kept rather than dropped. Default stays `io` — the
-                mockup's DEFAULTS never mentions sort, sort is never a chip and never reset, and
-                IO leading is what the page's own lede promises. */}
+                the three sorts it omits are kept rather than dropped. Default is `date` (Newest,
+                owner request 2026-09-15; was `io`) — sort is never a chip and never reset. */}
             {/* A <select> is as wide as its widest option, so a long label here is what pushes
                 the whole right group onto a second line. The nuance the old "Match confidence
                 (name/affiliation, not IO)" label carried moves into the title instead of costing
@@ -3009,6 +3029,10 @@ const AuthorshipsTabs = () => {
               <button style={barBtn("plain")} disabled={!!bulkProgress}
                 onClick={() => doBulkSnooze(selectedRows)}>
                 Snooze
+              </button>
+              <button style={barBtn("plain")} disabled={!!bulkProgress}
+                onClick={() => doBulkDismiss(selectedRows)}>
+                Dismiss
               </button>
               <button type="button" onClick={() => setRulesOpen((v) => !v)}
                 aria-label="What bulk actions act on" title="What bulk actions act on"
@@ -3394,8 +3418,13 @@ const AuthorshipsTabs = () => {
         {assignCandidateUnion.length === 0 && <MenuItem disabled>No candidates on the selected rows</MenuItem>}
         {assignCandidateUnion.map((c) => (
           <MenuItem key={c.cwid} dense onClick={() => chooseAssignTarget(c.cwid)}
-            style={{ whiteSpace: "normal", lineHeight: 1.35, paddingTop: 5, paddingBottom: 5 }}>
+            style={{ whiteSpace: "normal", lineHeight: 1.35, paddingTop: 5, paddingBottom: 5, display: "block" }}>
             {c.name ? `${c.name} ` : ""}({c.cwid}) — matches {c.matches} of {selectedRows.length} selected
+            {/* the same "Faculty · Medicine" line the card's Pick-one list shows — a homonym
+                picker without it is a list of identical names (owner request 2026-09-15) */}
+            {(c.person_type || c.dept) && (
+              <div style={{ fontSize: 11.5, color: "#64748b" }}>{[c.person_type, c.dept].filter(Boolean).join(" · ")}</div>
+            )}
           </MenuItem>
         ))}
         <div onClick={(e) => e.stopPropagation()} style={{
@@ -4172,6 +4201,8 @@ const AuthorshipCard = ({
   const isAbsent = r.top_io_score == null;
   const wcm = hasWcm(r.author_affiliation);
   const candidates = isMulti ? parseCandidates(r.candidate_cwids_json) : [];
+  // "choose among 0 WCM homonyms" — a multi row the producer left empty; its expand is a lookup
+  const nothingToPick = isMulti && candidates.length === 0;
   // top_name is the lead's label and carries no name_source of its own; the lead's own entry in
   // candidate_cwids_json does (a single-candidate row's JSON holds exactly that one entry).
   const topCand = isMulti ? undefined : parseCandidates(r.candidate_cwids_json)
@@ -4246,7 +4277,7 @@ const AuthorshipCard = ({
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
             <span style={{ color: "#94a3b8" }}>→</span>
             {isMulti ? (
-              <span style={{ color: "#94a3b8" }}>choose among {r.n_candidates} WCM homonyms</span>
+              <span style={{ color: "#94a3b8" }}>{nothingToPick ? "no WCM candidate proposed — look up the directory" : <>choose among {r.n_candidates} WCM homonyms</>}</span>
             ) : noSuggestion ? (
               <span style={{ fontStyle: "italic", color: "#94a3b8" }}>No suggested identity — assign one below</span>
             ) : (
@@ -4384,7 +4415,7 @@ const AuthorshipCard = ({
               font: "inherit", fontSize: 12, fontWeight: 600, color: isExpanded ? "#2563eb" : "#475569", cursor: "pointer",
               padding: "2px 4px", borderRadius: 5, flex: "none",
             }}>
-              {isMulti ? "Pick one" : "Evidence"} {isExpanded ? <IconChevD size={13} /> : <IconChevR size={13} />}
+              {nothingToPick ? "Look up" : isMulti ? "Pick one" : "Evidence"} {isExpanded ? <IconChevD size={13} /> : <IconChevR size={13} />}
             </button>
           </div>
         </div>
@@ -4398,7 +4429,7 @@ const AuthorshipCard = ({
             resolved={statusView === "dismissed"} />
           {statusView === "open" ? (
             isMulti ? (
-              <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>Pick one <IconChevR size={13} /></button>
+              <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>{nothingToPick ? "Look up" : "Pick one"} <IconChevR size={13} /></button>
             ) : noSuggestion ? (
               // #938 — top_cwid null: no candidate to accept OR reject (both 409 server-side
               // with nothing proposed), so neither button is offered. "Someone else" below
@@ -4553,7 +4584,11 @@ const AuthorshipCard = ({
           {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
               single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
               it's the case where the curator most often knows a name the card can't offer. */}
-          <AssignOther rowId={r.id} acting={acting} onAction={onAction} prefill={assignPrefill} />
+          {/* A multi row with NO candidates has nothing to pick, so expanding it runs the
+              directory lookup on the byline name straight away (the prefill path) — the curator
+              was otherwise expanding "Pick one" onto an empty list and retyping the name. */}
+          <AssignOther rowId={r.id} acting={acting} onAction={onAction} authorName={r.wcm_author}
+            prefill={assignPrefill ?? (nothingToPick ? r.wcm_author : undefined)} />
           {/* One note for both buttons above. `listed` is candidates-minus-one and does not
               move with the radio: whichever one is picked, the same number of others are
               rejected. `typed` is all N — someone typed into the box is by definition not one
@@ -4718,14 +4753,23 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
 // (the candidates minus the picked one), `typed` is what the AssignOther box rejects (all of
 // them — someone typed in is by definition not a listed candidate). They differ by one, so
 // one sentence names both rather than two amber paragraphs disagreeing about the number.
+// Tucked behind an info button (owner request 2026-09-15): the amber paragraph was the tallest
+// thing on every card and read the same each time. The full sentence is the tooltip.
 const HomonymNote = ({ listed, typed }: { listed: number; typed: number }) => typed < 1 ? null : (
-  <div style={{ fontSize: 11.5, lineHeight: 1.45, color: "#b45309", marginTop: 7, maxWidth: 620 }}>
-    {listed < 1
-      // single-candidate row: the two counts collapse (0 listed / 1 typed), so the combined
-      // wording would name a choice the curator doesn't have.
-      ? <>Assigning also records “not mine” for the other {typed} candidate{typed === 1 ? "" : "s"} on this row (those with a ReCiter identity).</>
-      : <>Assigning also records “not mine” for the other candidates on this row — the {listed} listed here, or all {typed} if you assign someone you type in (those with a ReCiter identity).</>}
-    {" "}Reopening the row undoes both.
+  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+    <Tip placement="left" arrow title={<>
+      {listed < 1
+        // single-candidate row: the two counts collapse (0 listed / 1 typed), so the combined
+        // wording would name a choice the curator doesn't have.
+        ? <>Assigning also records “not mine” for the other {typed} candidate{typed === 1 ? "" : "s"} on this row (those with a ReCiter identity).</>
+        : <>Assigning also records “not mine” for the other candidates on this row — the {listed} listed here, or all {typed} if you assign someone you type in (those with a ReCiter identity).</>}
+      {" "}Reopening the row undoes both.
+    </>}>
+      <button type="button" onClick={(e) => e.stopPropagation()} aria-label="What assigning also records"
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: "2px 4px", font: "inherit", fontSize: 11.5, color: "#b45309", cursor: "help" }}>
+        <IconInfo size={13} /> also records “not mine” for the others
+      </button>
+    </Tip>
   </div>
 );
 
@@ -4936,9 +4980,10 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
 // ponytail: the "lookup route feeding the box" upgrade path landed — #948 built POST
 // /api/db/authorships/lookup for the bulk dialog, so the box debounces into it and a resolved
 // Assign/Enter writes in one click; unresolved (debouncing/errored) falls back to the plain call.
-const AssignOther = ({ rowId, acting, onAction, prefill }: {
+const AssignOther = ({ rowId, acting, onAction, prefill, authorName }: {
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
   prefill?: string;
+  authorName?: string; // the byline name — one click looks it up instead of retyping it
 }) => {
   const [otherCwid, setOtherCwid] = useState("");
   // What the debounced POST /api/db/authorships/lookup has found for the CURRENT otherCwid —
@@ -5071,7 +5116,16 @@ const AssignOther = ({ rowId, acting, onAction, prefill }: {
   // Enter inside this input collapses the card out from under the curator mid-type.
   return (
     <>
-      <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" }}>
+        {/* Offered whenever the box does not already hold the byline name — including on rows
+            that DO have suggestions, since the suggestion being wrong is exactly when a curator
+            reaches for the directory (owner request 2026-09-15). */}
+        {authorName && otherCwid.trim() !== authorName && (
+          <button style={btn("ghost", acting)} disabled={acting}
+            onClick={(e) => { e.stopPropagation(); setValue(authorName); }}>
+            Lookup {authorName}
+          </button>
+        )}
         <label htmlFor={`otherCwid-${rowId}`} style={{ fontSize: 11.5, color: "#94a3b8" }}>
           Someone else:
         </label>
