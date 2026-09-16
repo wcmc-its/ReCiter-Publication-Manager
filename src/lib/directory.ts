@@ -618,10 +618,13 @@ export function nearMissQuery(term: string): string | null {
  *  structural words never count. Pure — asserted by scripts/check-directory.mjs.
  *  ponytail: bag-of-words, no synonyms ("Ob/Gyn" ≠ "Obstetrics and Gynecology"); ceiling is a
  *  curated alias table when curators report a specific miss. */
-const AFFIL_INSTITUTION_RE = /weill cornell (medicine|medical college)( in qatar)?|new ?york[- ]presbyterian|cornell university|memorial sloan[- ]kettering/g;
+const AFFIL_INSTITUTION_RE = /weill cornell( medicine| medical college)?([- ]+(in )?qatar)?|new ?york[- ]presbyterian|cornell university|memorial sloan[- ]kettering/g;
+// Belt to the regex's braces: bylines spell the institution every way ("Weill Cornell", "Weill
+// Cornell Med"), and ED has residents whose DEPARTMENT is literally "Weill Cornell Medicine".
 const AFFIL_STOP = new Set(["department", "division", "section", "center", "centre", "institute",
-  "hospital", "university", "college", "school", "program", "york", "usa"]);
-const affilTokens = (s: string) => new Set(
+  "hospital", "university", "college", "school", "program", "york", "newyork", "presbyterian",
+  "weill", "cornell", "usa"]);
+export const affilTokens = (s: string) => new Set(
   s.toLowerCase().replace(AFFIL_INSTITUTION_RE, " ").split(/[^a-z]+/)
     .filter((w) => w.length >= 4 && !AFFIL_STOP.has(w)));
 export function affiliationDeptMatch(depts: string[], affil: string | null | undefined): boolean {
@@ -630,16 +633,29 @@ export function affiliationDeptMatch(depts: string[], affil: string | null | und
   return depts.some((d) => [...affilTokens(d)].some((w) => have.has(w)));
 }
 
-export async function searchDirectoryPeople(q: string, limit = 8, retry = true): Promise<DirectoryPerson[]> {
+export async function searchDirectoryPeople(q: string, limit = 8, retry = true, affil = ""): Promise<DirectoryPerson[]> {
   const term = q.trim();
   if (term.length < 3) return [];
   const wcm = wcmEnv(), cornell = cornellEnv();
   const wcmExtra = ["weillCornellEduCWID", "weillCornellEduMiddleName"];
-  // Exact-equality pass first (see buildNameFilter's `exact`), then the prefix pass — four
-  // searches in flight together, so the exact pass costs no wall-clock.
-  const [wx, w, cx, c] = await Promise.all([
+  // A common name TRUNCATES: "j kim" is dozens of ED entries and the prefix pass returns
+  // whichever `limit` the server reaches first, so the person in the byline's own department
+  // may not be on the page at all (jek4015, 2026-09-16). When the caller knows the affiliation,
+  // one more WCM search asks for this name IN a department sharing one of its words. Substring
+  // on the dept attributes — if ED refuses the form, safe() drops only this search and the
+  // ordinary four still answer. Its hits are exempt from the page cap below.
+  const deptToks = [...affilTokens(affil)].map(escapeLdapFilter);
+  const deptClause = deptToks.length
+    ? `(|${deptToks.map((t) => `(weillCornellEduDepartment=*${t}*)(weillCornellEduPrimaryDepartment=*${t}*)`).join("")})`
+    : null;
+  // Exact-equality pass first (see buildNameFilter's `exact`), then the prefix pass — the
+  // searches fly together, so the extra passes cost no wall-clock.
+  const [wx, wd, w, cx, c] = await Promise.all([
     wcm ? safe("wcm exact", () => search(
       wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, false, true),
+      WCM_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
+    wcm && deptClause ? safe("wcm dept-targeted", () => search(
+      wcm, WCM_BASE, `(&${buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true)}${deptClause})`,
       WCM_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
     wcm ? safe("wcm search", () => search(
       wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true),
@@ -655,12 +671,13 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true):
   const seen = new Set<string>();
   const tag = (p: DirectoryPerson | null, exactName: boolean): DirectoryPerson | null => (p ? { ...p, exactName } : null);
   const people = mergeDirectoryPeople([
-    ...wx.map((e) => tag(projectWcmPerson(e), true)), ...w.map((e) => tag(projectWcmPerson(e), false)),
+    ...wx.map((e) => tag(projectWcmPerson(e), true)), ...wd.map((e) => tag(projectWcmPerson(e), false)),
+    ...w.map((e) => tag(projectWcmPerson(e), false)),
     ...cx.map((e) => tag(projectCornellPerson(e), true)), ...c.map((e) => tag(projectCornellPerson(e), false)),
   ].filter((p): p is DirectoryPerson => p !== null && !seen.has(`${p.source}:${p.id}`) && !!seen.add(`${p.source}:${p.id}`)))
-    .slice(0, limit * 2);
+    .slice(0, limit * 2 + wd.length);
   const cut = !people.length && retry ? nearMissQuery(term) : null;
-  if (cut) return searchDirectoryPeople(cut, limit, false);
+  if (cut) return searchDirectoryPeople(cut, limit, false, affil);
   // One extra search, and only when this page actually holds a retired cwid — so the ordinary
   // search pays nothing. Awaited rather than fired-and-forgotten: the successor's name is what
   // makes the blocked row actionable ("retired — use ssy9009") instead of a dead end.

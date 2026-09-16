@@ -951,7 +951,7 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
       // The byline's own affiliation string, when the client has one. Read-only ranking input:
       // it is tokenised and compared, never sent to a directory or written anywhere.
       const affil = String(req.body?.affil || "").slice(0, 500);
-      const found = await searchDirectoryPeople(q);
+      const found = await searchDirectoryPeople(q, 8, true, affil);
       // Which of these does ReCiter already know? A curator searching by name must be told
       // "this one is already in ReCiter" so they pick the identity that exists rather than
       // minting a duplicate of it — and for a Cornell person that also means surfacing the WCM

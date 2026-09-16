@@ -25,7 +25,7 @@ import {
   escapeLdapFilter, buildNameFilter, projectWcmPerson, projectCornellPerson,
   directoryIdentityPayload, cornellPersonTypes, ldapDate,
   institutionForPrimaryOrg, PRIMARY_ORG_INSTITUTION, mergeDirectoryPeople, nearMissQuery,
-  affiliationDeptMatch,
+  affiliationDeptMatch, affilTokens,
 } from "../src/lib/directory.ts";
 import { typedCwidPreview } from "../src/lib/bulkAssign.ts";
 
@@ -534,6 +534,18 @@ ok("...but 'Department of Medicine' still meets a dept named Medicine",
   affiliationDeptMatch(["Medicine"], "Department of Medicine, Weill Cornell Medicine"));
 ok("structural words carry nothing", !affiliationDeptMatch(["Department"], "Department of Surgery"));
 ok("no affiliation, no match", !affiliationDeptMatch(["Surgery"], null));
+const phs = "Department of Population Health Sciences, NewYork-Presbyterian, Weill Cornell, New York, NY, USA.";
+ok("'Weill Cornell' without 'Medicine' is still the institution, not a department word",
+  !affiliationDeptMatch(["Weill Cornell Medicine"], phs));
+ok("the department the byline names does match", affiliationDeptMatch(["Population Health Sciences"], phs));
+// KNOWN CEILING, not a target: ED records research staff under the PI's lab (jek4015 is
+// "Paul J Christos Lab", a PHS lab). No word is shared, so nothing here can lift her. A
+// lab -> PI-department bridge is the upgrade path, once the ED probe says PHS is not also
+// carried as a secondary department.
+ok("a PI-lab department shares no word with the byline (documented gap)",
+  !affiliationDeptMatch(["Paul J Christos Lab"], phs));
+check("the dept-targeted LDAP clause is built from the same tokens, escaped",
+  [...affilTokens(phs)], ["population", "health", "sciences"]);
 check("a query that is already short is not retried", nearMissQuery("li wang"), null);
 
 // ---------------------------------------------------------------- SOR title / department
