@@ -235,13 +235,19 @@ export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | 
   // primary leads, because it is the one the mint writes as primaryOrganizationalUnit.
   // `weillCornellEduDepartment` came back single-valued on that probe; all() covers the
   // multi-valued case without asserting it happens.
+  // ED appends a staff member's DIVISION to displayName ("Jessica Kim - Biostatistics and
+  // Epidemiology", jek4015, 2026-09-16 probe). That is department knowledge wearing a name's
+  // clothes: it goes into `depts`, and the name is the part before the dash. Hyphenated names
+  // are unaffected — they carry no spaces around the hyphen.
+  const [display, ...divisions] = (first(e.displayName) || "").split(" - ");
   const depts = clean([
     ...attrValues(e, "weillCornellEduPrimaryDepartment"),
     ...attrValues(e, "weillCornellEduDepartment"),
+    ...divisions,
   ]);
   return {
     id, source: "wcm",
-    name: first(e.displayName) || clean([given, sn]).join(" ") || id,
+    name: display || clean([given, sn]).join(" ") || id,
     givenName: given, middleName: first(e.weillCornellEduMiddleName), familyName: sn,
     title: first(e.title),
     dept: depts[0] ?? null,
@@ -369,6 +375,43 @@ export async function fillFromSor(people: DirectoryPerson[]): Promise<void> {
       ])).slice(0, 1);
       p.dept = p.depts[0] ?? null;
     }
+  }
+}
+
+/** Every department ED has EVER recorded for these people, unioned into `depts`. Distinct from
+ *  fillFromSor, which fills a BLANK department: here the person already has one, and it is the
+ *  wrong one for matching — ED files research staff under the PI's lab ("Paul J Christos Lab")
+ *  while their older SOR appointment records name the department itself ("Population Health
+ *  Sciences", jek4015's 2022 affiliate record, 2026-09-16 probe). `dept` (the primary, what a
+ *  mint writes) is untouched; only the list a byline is compared against grows.
+ *
+ *  Chunked so no single answer can hit ED's silent 500-entry truncation (≈6 SOR entries per
+ *  person observed). ponytail: capped at 400 people — the first 400 of a bare-surname cohort get
+ *  their history, the rest keep their ou=people department only. Raise it if a curator meets
+ *  the ceiling. Best-effort like the other SOR reads. */
+export async function addSorDepts(people: DirectoryPerson[]): Promise<void> {
+  const wcm = wcmEnv();
+  if (!wcm) return;
+  const ids = people.filter((p) => p.source === "wcm").map((p) => p.id).slice(0, 400);
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50));
+  const entries = (await Promise.all(chunks.map((chunk) => safe("wcm sor dept history", () => search(
+    wcm, SOR_BASE,
+    `(&(|(objectClass=weillCornellEduSORRecord)(objectClass=weillCornellEduSORRoleRecord))`
+      + `(|${chunk.map((id) => `(weillCornellEduCWID=${escapeLdapFilter(id)})`).join("")}))`,
+    ["weillCornellEduCWID", "weillCornellEduDepartment", "weillCornellEduPrimaryDepartment"] as const,
+    500,
+  ), [] as Record<string, unknown>[])))).flat();
+  const byCwid = new Map<string, string[]>();
+  for (const e of entries) {
+    const id = first(e.weillCornellEduCWID)?.toLowerCase();
+    if (!id) continue;
+    byCwid.set(id, [...(byCwid.get(id) ?? []),
+      ...attrValues(e, "weillCornellEduPrimaryDepartment"), ...attrValues(e, "weillCornellEduDepartment")]);
+  }
+  for (const p of people) {
+    const extra = byCwid.get(p.id.toLowerCase());
+    if (extra?.length) p.depts = clean([...p.depts, ...extra]);
   }
 }
 
@@ -638,28 +681,24 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true, 
   if (term.length < 3) return [];
   const wcm = wcmEnv(), cornell = cornellEnv();
   const wcmExtra = ["weillCornellEduCWID", "weillCornellEduMiddleName"];
-  // A common name TRUNCATES: "j kim" is dozens of ED entries and the prefix pass returns
-  // whichever `limit` the server reaches first, so the person in the byline's own department
-  // may not be on the page at all (jek4015, 2026-09-16). When the caller knows the affiliation,
-  // one more WCM search asks for this name IN a department sharing one of its words. Substring
-  // on the dept attributes — if ED refuses the form, safe() drops only this search and the
-  // ordinary four still answer. Its hits are exempt from the page cap below.
-  const deptToks = [...affilTokens(affil)].map(escapeLdapFilter);
-  const deptClause = deptToks.length
-    ? `(|${deptToks.map((t) => `(weillCornellEduDepartment=*${t}*)(weillCornellEduPrimaryDepartment=*${t}*)`).join("")})`
-    : null;
+  // A common name TRUNCATES: "j kim" is 386 ED entries (2026-09-16 probe) and the prefix pass
+  // returns whichever `limit` the server reaches first, so the person in the byline's own
+  // department is usually not on the page at all. When the caller knows the affiliation, the
+  // WCM prefix pass fetches the WHOLE cohort instead (paged), every department ED ever recorded
+  // for them is unioned in (addSorDepts), and the ones sharing a word with the affiliation are
+  // kept ahead of the page cap. Without an affiliation nothing here changes.
+  const deptToks = affilTokens(affil);
+  const wide = deptToks.size > 0;
   // Exact-equality pass first (see buildNameFilter's `exact`), then the prefix pass — the
   // searches fly together, so the extra passes cost no wall-clock.
-  const [wx, wd, w, cx, c] = await Promise.all([
+  const [wx, w, cx, c] = await Promise.all([
     wcm ? safe("wcm exact", () => search(
       wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, false, true),
       WCM_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
-    wcm && deptClause ? safe("wcm dept-targeted", () => search(
-      wcm, WCM_BASE, `(&${buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true)}${deptClause})`,
-      WCM_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
-    wcm ? safe("wcm search", () => search(
-      wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true),
-      WCM_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
+    wcm ? safe("wcm search", () => wide
+      ? searchPaged(wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true), WCM_ATTRS)
+      : search(wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true), WCM_ATTRS, limit),
+    [] as Record<string, unknown>[]) : Promise.resolve([]),
     cornell ? safe("cornell exact", () => search(
       cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"], false, true),
       CORNELL_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
@@ -670,12 +709,13 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true, 
   // Exact hits also come back from the prefix pass (`li` matches `li*`): keep the first sighting.
   const seen = new Set<string>();
   const tag = (p: DirectoryPerson | null, exactName: boolean): DirectoryPerson | null => (p ? { ...p, exactName } : null);
-  const people = mergeDirectoryPeople([
-    ...wx.map((e) => tag(projectWcmPerson(e), true)), ...wd.map((e) => tag(projectWcmPerson(e), false)),
-    ...w.map((e) => tag(projectWcmPerson(e), false)),
+  const all = mergeDirectoryPeople([
+    ...wx.map((e) => tag(projectWcmPerson(e), true)), ...w.map((e) => tag(projectWcmPerson(e), false)),
     ...cx.map((e) => tag(projectCornellPerson(e), true)), ...c.map((e) => tag(projectCornellPerson(e), false)),
-  ].filter((p): p is DirectoryPerson => p !== null && !seen.has(`${p.source}:${p.id}`) && !!seen.add(`${p.source}:${p.id}`)))
-    .slice(0, limit * 2 + wd.length);
+  ].filter((p): p is DirectoryPerson => p !== null && !seen.has(`${p.source}:${p.id}`) && !!seen.add(`${p.source}:${p.id}`)));
+  if (wide) await addSorDepts(all);
+  const matched = wide ? all.filter((p) => affiliationDeptMatch(p.depts, affil)) : [];
+  const people = [...matched, ...all.filter((p) => !matched.includes(p)).slice(0, limit * 2)].slice(0, limit * 4);
   const cut = !people.length && retry ? nearMissQuery(term) : null;
   if (cut) return searchDirectoryPeople(cut, limit, false, affil);
   // One extra search, and only when this page actually holds a retired cwid — so the ordinary

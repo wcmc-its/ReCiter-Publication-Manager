@@ -544,8 +544,17 @@ ok("the department the byline names does match", affiliationDeptMatch(["Populati
 // carried as a secondary department.
 ok("a PI-lab department shares no word with the byline (documented gap)",
   !affiliationDeptMatch(["Paul J Christos Lab"], phs));
-check("the dept-targeted LDAP clause is built from the same tokens, escaped",
+check("the tokens a byline contributes, institution and structure removed",
   [...affilTokens(phs)], ["population", "health", "sciences"]);
+// ED's displayName carries a staff member's division after " - " (jek4015, 2026-09-16 probe).
+const jek = projectWcmPerson({ uid: "jek4015", weillCornellEduCWID: "jek4015", givenName: "Jessica", sn: "Kim",
+  displayName: "Jessica Kim - Biostatistics and Epidemiology", weillCornellEduDepartment: "Paul J Christos Lab" });
+check("the division suffix leaves the name", jek.name, "Jessica Kim");
+check("...and joins the departments, after the primary", jek.depts, ["Paul J Christos Lab", "Biostatistics and Epidemiology"]);
+check("a hyphenated surname is not a suffix",
+  projectWcmPerson({ uid: "x", givenName: "Ana", sn: "Smith-Jones", displayName: "Ana Smith-Jones" }).name, "Ana Smith-Jones");
+ok("with her SOR history unioned in, the byline's department reaches her",
+  affiliationDeptMatch([...jek.depts, "Population Health Sciences"], phs));
 check("a query that is already short is not retried", nearMissQuery("li wang"), null);
 
 // ---------------------------------------------------------------- SOR title / department
