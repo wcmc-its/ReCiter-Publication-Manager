@@ -25,6 +25,7 @@ import {
   escapeLdapFilter, buildNameFilter, projectWcmPerson, projectCornellPerson,
   directoryIdentityPayload, cornellPersonTypes, ldapDate,
   institutionForPrimaryOrg, PRIMARY_ORG_INSTITUTION, mergeDirectoryPeople, nearMissQuery,
+  affiliationDeptMatch, affilTokens,
 } from "../src/lib/directory.ts";
 import { typedCwidPreview } from "../src/lib/bulkAssign.ts";
 
@@ -522,6 +523,38 @@ check("the netid join is case-insensitive",
 // ------------------------------------------------------ near-miss retry (ReCiterDB #228)
 console.log("\nnear-miss retry — a surname one letter off is found by typing less:");
 check("each token cut to 5 chars", nearMissQuery("pritha subramanyan"), "prith subra");
+
+console.log("\naffiliation -> department ranking (2026-09-16, five C. Zhangs for a Pulmonary paper):");
+const pulm = "Division of Pulmonary and Critical Care Medicine, Weill Cornell Medicine, New York, NY, USA.";
+ok("same words in a different order match", affiliationDeptMatch(["Pulmonary Medicine and Critical Care"], pulm));
+ok("an unrelated department does not", !affiliationDeptMatch(["Obstetrics and Gynecology"], pulm));
+ok("'Weill Cornell Medicine' alone never makes a *Medicine department match",
+  !affiliationDeptMatch(["Emergency Medicine"], "Weill Cornell Medicine, New York, NY"));
+ok("...but 'Department of Medicine' still meets a dept named Medicine",
+  affiliationDeptMatch(["Medicine"], "Department of Medicine, Weill Cornell Medicine"));
+ok("structural words carry nothing", !affiliationDeptMatch(["Department"], "Department of Surgery"));
+ok("no affiliation, no match", !affiliationDeptMatch(["Surgery"], null));
+const phs = "Department of Population Health Sciences, NewYork-Presbyterian, Weill Cornell, New York, NY, USA.";
+ok("'Weill Cornell' without 'Medicine' is still the institution, not a department word",
+  !affiliationDeptMatch(["Weill Cornell Medicine"], phs));
+ok("the department the byline names does match", affiliationDeptMatch(["Population Health Sciences"], phs));
+// KNOWN CEILING, not a target: ED records research staff under the PI's lab (jek4015 is
+// "Paul J Christos Lab", a PHS lab). No word is shared, so nothing here can lift her. A
+// lab -> PI-department bridge is the upgrade path, once the ED probe says PHS is not also
+// carried as a secondary department.
+ok("a PI-lab department shares no word with the byline (documented gap)",
+  !affiliationDeptMatch(["Paul J Christos Lab"], phs));
+check("the tokens a byline contributes, institution and structure removed",
+  [...affilTokens(phs)], ["population", "health", "sciences"]);
+// ED's displayName carries a staff member's division after " - " (jek4015, 2026-09-16 probe).
+const jek = projectWcmPerson({ uid: "jek4015", weillCornellEduCWID: "jek4015", givenName: "Jessica", sn: "Kim",
+  displayName: "Jessica Kim - Biostatistics and Epidemiology", weillCornellEduDepartment: "Paul J Christos Lab" });
+check("the division suffix leaves the name", jek.name, "Jessica Kim");
+check("...and joins the departments, after the primary", jek.depts, ["Paul J Christos Lab", "Biostatistics and Epidemiology"]);
+check("a hyphenated surname is not a suffix",
+  projectWcmPerson({ uid: "x", givenName: "Ana", sn: "Smith-Jones", displayName: "Ana Smith-Jones" }).name, "Ana Smith-Jones");
+ok("with her SOR history unioned in, the byline's department reaches her",
+  affiliationDeptMatch([...jek.depts, "Population Health Sciences"], phs));
 check("a query that is already short is not retried", nearMissQuery("li wang"), null);
 
 // ---------------------------------------------------------------- SOR title / department

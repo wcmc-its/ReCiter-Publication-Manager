@@ -14,6 +14,7 @@ import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../.
 import { authorKey } from "../../src/lib/bulkAssign";
 import {
   lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured,
+  affiliationDeptMatch,
   retiredCwidIndex,
   type DirectoryPerson,
 } from "../../src/lib/directory";
@@ -947,19 +948,25 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
     const q = String(req.body?.q || "").trim();
     if (q) {
       if (q.length > 64) return res.status(400).send("search term too long");
-      const found = await searchDirectoryPeople(q);
+      // The byline's own affiliation string, when the client has one. Read-only ranking input:
+      // it is tokenised and compared, never sent to a directory or written anywhere.
+      const affil = String(req.body?.affil || "").slice(0, 500);
+      const found = await searchDirectoryPeople(q, 8, true, affil);
       // Which of these does ReCiter already know? A curator searching by name must be told
       // "this one is already in ReCiter" so they pick the identity that exists rather than
       // minting a duplicate of it — and for a Cornell person that also means surfacing the WCM
       // cwid their directory record publishes.
       const known = await reciterIdentitySet(
         found.flatMap((p) => [p.id, p.id.toLowerCase(), p.wcmCwid].filter(Boolean) as string[]));
-      // Rank: already in ReCiter, then ED-active, then an exact name match — the three facts
-      // that separate the live biostatistician from four expired affiliates who share her name
-      // (2026-09-15, "Jessica Kim": the right one sat sixth). Stable, so ties keep the
+      // Rank: department named in the byline's affiliation first — it is the one fact that
+      // picks the Pulmonary research assistant out of five C. Zhangs for a Pulmonary paper
+      // (2026-09-16) — then already in ReCiter, then ED-active, then an exact name match (the
+      // three that separate the live biostatistician from four expired affiliates who share her
+      // name; 2026-09-15, "Jessica Kim": the right one sat sixth). Stable, so ties keep the
       // directories' own order. Nothing is removed; expired people stay assignable.
+      const deptMatch = (p: typeof found[number]) => affiliationDeptMatch(p.depts, affil);
       const score = (p: typeof found[number]) =>
-        (known.has(p.id) || known.has(p.id.toLowerCase()) ? 4 : 0) + (p.active ? 2 : 0) + (p.exactName ? 1 : 0);
+        (deptMatch(p) ? 8 : 0) + (known.has(p.id) || known.has(p.id.toLowerCase()) ? 4 : 0) + (p.active ? 2 : 0) + (p.exactName ? 1 : 0);
       const people = found.map((p, i) => ({ p, i })).sort((a, b) => score(b.p) - score(a.p) || a.i - b.i).map((x) => x.p);
       return res.send({
         configured: directoryConfigured(),
@@ -976,6 +983,9 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
             return full && norm(full) !== norm(p.name) ? full : null;
           })(),
           depts: p.depts,
+          // One of `depts` is named in the byline's affiliation (see the ranking above); the
+          // client marks the cell so the curator sees WHY this row leads.
+          deptMatch: deptMatch(p),
           created: p.created,
           // ED's OWN answer for which organisation this person primarily belongs to, which is
           // not derivable from `source`: ou=people carries NewYork-Presbyterian people too, so a

@@ -4600,6 +4600,7 @@ const AuthorshipCard = ({
               directory lookup on the byline name straight away (the prefill path) — the curator
               was otherwise expanding "Pick one" onto an empty list and retyping the name. */}
           <AssignOther rowId={r.id} acting={acting} onAction={onAction} authorName={r.wcm_author}
+            affiliation={r.author_affiliation}
             prefill={assignPrefill ?? (nothingToPick ? r.wcm_author : undefined)} />
           {/* One note for both buttons above. `listed` is candidates-minus-one and does not
               move with the radio: whichever one is picked, the same number of others are
@@ -4992,10 +4993,11 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
 // ponytail: the "lookup route feeding the box" upgrade path landed — #948 built POST
 // /api/db/authorships/lookup for the bulk dialog, so the box debounces into it and a resolved
 // Assign/Enter writes in one click; unresolved (debouncing/errored) falls back to the plain call.
-const AssignOther = ({ rowId, acting, onAction, prefill, authorName }: {
+const AssignOther = ({ rowId, acting, onAction, prefill, authorName, affiliation }: {
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
   prefill?: string;
   authorName?: string; // the byline name — one click looks it up instead of retyping it
+  affiliation?: string; // the byline's affiliation — ranks directory hits in that department first
 }) => {
   const [otherCwid, setOtherCwid] = useState("");
   // What the debounced POST /api/db/authorships/lookup has found for the CURRENT otherCwid —
@@ -5031,7 +5033,8 @@ const AssignOther = ({ rowId, acting, onAction, prefill, authorName }: {
   const runLookup = useCallback((val: string, seq: number) => {
     const isIdentifier = /^[A-Za-z0-9]{1,32}$/.test(val);
     setLookupState({ status: "loading" });
-    (isIdentifier ? post({ cwid: val }) : post({ q: val }).then((d) => ({ searchOnly: d })))
+    const nameQuery = { q: val, affil: affiliation || "" };
+    (isIdentifier ? post({ cwid: val }) : post(nameQuery).then((d) => ({ searchOnly: d })))
       .then(async (d: any) => {
         if (requestSeq.current !== seq) return;
         if (d.searchOnly) { setLookupState({ status: "idle" }); setMatches(d.searchOnly.matches || []); return; }
@@ -5040,7 +5043,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, authorName }: {
           name: d.name ?? null, hasIdentity: !!d.hasIdentity, directory: d.directory ?? null,
         });
         if (!d.hasIdentity && !d.directory) {
-          const s = await post({ q: val });
+          const s = await post(nameQuery);
           if (requestSeq.current !== seq) return;
           setMatches(s.matches || []);
         }
@@ -5049,7 +5052,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, authorName }: {
         if (requestSeq.current !== seq) return;
         setLookupState({ status: "error", message: String(e?.message || e) });
       });
-  }, [post]);
+  }, [post, affiliation]);
 
   // Picking a search result puts its identifier in the box and re-asks the cwid question about
   // it, rather than assigning straight off the row: the write must be authorised against what
@@ -5263,6 +5266,9 @@ const AssignOther = ({ rowId, acting, onAction, prefill, authorName }: {
                       <td style={{ ...dirCell, color: "#4a5262" }}>{m.title || "—"}</td>
                       <td style={{ ...dirCell, color: "#4a5262" }}>
                         {m.depts?.length ? m.depts.join(" · ") : (m.dept || "—")}
+                        {/* same chip the candidate card uses: this department is named in the
+                            byline's affiliation, which is why the row sorted to the top */}
+                        {m.deptMatch && <Chip kind="ok" style={{ marginLeft: 6 }}>Dept match</Chip>}
                       </td>
                       {/* Blank is a real answer here — the directory may not serve operational
                           attributes to this bind — so it reads as unknown, not as "brand new". */}
