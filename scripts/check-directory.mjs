@@ -25,6 +25,7 @@ import {
   escapeLdapFilter, buildNameFilter, projectWcmPerson, projectCornellPerson,
   directoryIdentityPayload, cornellPersonTypes, ldapDate,
   institutionForPrimaryOrg, PRIMARY_ORG_INSTITUTION, mergeDirectoryPeople, nearMissQuery,
+  affiliationDeptMatch,
 } from "../src/lib/directory.ts";
 import { typedCwidPreview } from "../src/lib/bulkAssign.ts";
 
@@ -522,6 +523,17 @@ check("the netid join is case-insensitive",
 // ------------------------------------------------------ near-miss retry (ReCiterDB #228)
 console.log("\nnear-miss retry — a surname one letter off is found by typing less:");
 check("each token cut to 5 chars", nearMissQuery("pritha subramanyan"), "prith subra");
+
+console.log("\naffiliation -> department ranking (2026-09-16, five C. Zhangs for a Pulmonary paper):");
+const pulm = "Division of Pulmonary and Critical Care Medicine, Weill Cornell Medicine, New York, NY, USA.";
+ok("same words in a different order match", affiliationDeptMatch(["Pulmonary Medicine and Critical Care"], pulm));
+ok("an unrelated department does not", !affiliationDeptMatch(["Obstetrics and Gynecology"], pulm));
+ok("'Weill Cornell Medicine' alone never makes a *Medicine department match",
+  !affiliationDeptMatch(["Emergency Medicine"], "Weill Cornell Medicine, New York, NY"));
+ok("...but 'Department of Medicine' still meets a dept named Medicine",
+  affiliationDeptMatch(["Medicine"], "Department of Medicine, Weill Cornell Medicine"));
+ok("structural words carry nothing", !affiliationDeptMatch(["Department"], "Department of Surgery"));
+ok("no affiliation, no match", !affiliationDeptMatch(["Surgery"], null));
 check("a query that is already short is not retried", nearMissQuery("li wang"), null);
 
 // ---------------------------------------------------------------- SOR title / department

@@ -609,6 +609,27 @@ export function nearMissQuery(term: string): string | null {
   return cut === term.trim() ? null : cut;
 }
 
+/** Does one of this person's directory departments name the same unit the byline's affiliation
+ *  does? "Division of Pulmonary and Critical Care Medicine, Weill Cornell Medicine" vs ED
+ *  "Pulmonary Medicine and Critical Care" — same words, different order, so this is token
+ *  overlap, not substring. The institution's own name is cut out FIRST so "Weill Cornell
+ *  Medicine" cannot make every *Medicine department match every WCM paper, and after that
+ *  "Department of Medicine" still meets a dept named "Medicine" on its own word. Short and
+ *  structural words never count. Pure — asserted by scripts/check-directory.mjs.
+ *  ponytail: bag-of-words, no synonyms ("Ob/Gyn" ≠ "Obstetrics and Gynecology"); ceiling is a
+ *  curated alias table when curators report a specific miss. */
+const AFFIL_INSTITUTION_RE = /weill cornell (medicine|medical college)( in qatar)?|new ?york[- ]presbyterian|cornell university|memorial sloan[- ]kettering/g;
+const AFFIL_STOP = new Set(["department", "division", "section", "center", "centre", "institute",
+  "hospital", "university", "college", "school", "program", "york", "usa"]);
+const affilTokens = (s: string) => new Set(
+  s.toLowerCase().replace(AFFIL_INSTITUTION_RE, " ").split(/[^a-z]+/)
+    .filter((w) => w.length >= 4 && !AFFIL_STOP.has(w)));
+export function affiliationDeptMatch(depts: string[], affil: string | null | undefined): boolean {
+  if (!affil || !depts.length) return false;
+  const have = affilTokens(affil);
+  return depts.some((d) => [...affilTokens(d)].some((w) => have.has(w)));
+}
+
 export async function searchDirectoryPeople(q: string, limit = 8, retry = true): Promise<DirectoryPerson[]> {
   const term = q.trim();
   if (term.length < 3) return [];
