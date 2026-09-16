@@ -385,14 +385,15 @@ export async function fillFromSor(people: DirectoryPerson[]): Promise<void> {
  *  Sciences", jek4015's 2022 affiliate record, 2026-09-16 probe). `dept` (the primary, what a
  *  mint writes) is untouched; only the list a byline is compared against grows.
  *
- *  Chunked so no single answer can hit ED's silent 500-entry truncation (≈6 SOR entries per
- *  person observed). ponytail: capped at 400 people — the first 400 of a bare-surname cohort get
- *  their history, the rest keep their ou=people department only. Raise it if a curator meets
- *  the ceiling. Best-effort like the other SOR reads. */
+ *  Chunked so no single answer can hit ED's silent 500-entry truncation (≈3 SOR entries per
+ *  person: 1,305 over 463 people, 113 ms for all 8 chunks in parallel, 2026-09-16 probe).
+ *  ponytail: capped at 1,000 people (20 chunks) — "j kim" alone is 463, so a bare common
+ *  surname is the only thing that meets this, and its tail keeps the ou=people department
+ *  only. Best-effort like the other SOR reads. */
 export async function addSorDepts(people: DirectoryPerson[]): Promise<void> {
   const wcm = wcmEnv();
   if (!wcm) return;
-  const ids = people.filter((p) => p.source === "wcm").map((p) => p.id).slice(0, 400);
+  const ids = people.filter((p) => p.source === "wcm").map((p) => p.id).slice(0, 1000);
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50));
   const entries = (await Promise.all(chunks.map((chunk) => safe("wcm sor dept history", () => search(
