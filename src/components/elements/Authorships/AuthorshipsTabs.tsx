@@ -381,6 +381,7 @@ const INSTITUTION_LABELS: Record<string, string> = {
   columbia: "Columbia University",
   sidra: "Sidra Medicine",
   cornell: "Cornell University",
+  rockefeller: "Rockefeller University",
 };
 
 const CLASS_META: Record<string, { label: string; color: string; hint: string }> = {

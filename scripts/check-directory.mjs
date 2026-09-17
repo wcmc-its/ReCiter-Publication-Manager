@@ -534,6 +534,8 @@ ok("...but 'Department of Medicine' still meets a dept named Medicine",
   affiliationDeptMatch(["Medicine"], "Department of Medicine, Weill Cornell Medicine"));
 ok("structural words carry nothing", !affiliationDeptMatch(["Department"], "Department of Surgery"));
 ok("no affiliation, no match", !affiliationDeptMatch(["Surgery"], null));
+ok("Rockefeller is an institution, not a department word",
+  !affiliationDeptMatch(["Rockefeller Lab"], "Laboratory of Virology, The Rockefeller University, New York"));
 const phs = "Department of Population Health Sciences, NewYork-Presbyterian, Weill Cornell, New York, NY, USA.";
 ok("'Weill Cornell' without 'Medicine' is still the institution, not a department word",
   !affiliationDeptMatch(["Weill Cornell Medicine"], phs));

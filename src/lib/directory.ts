@@ -662,7 +662,7 @@ export function nearMissQuery(term: string): string | null {
  *  structural words never count. Pure — asserted by scripts/check-directory.mjs.
  *  ponytail: bag-of-words, no synonyms ("Ob/Gyn" ≠ "Obstetrics and Gynecology"); ceiling is a
  *  curated alias table when curators report a specific miss. */
-const AFFIL_INSTITUTION_RE = /weill cornell( medicine| medical college)?([- ]+(in )?qatar)?|new ?york[- ]presbyterian|cornell university|memorial sloan[- ]kettering/g;
+const AFFIL_INSTITUTION_RE = /weill cornell( medicine| medical college)?([- ]+(in )?qatar)?|new ?york[- ]presbyterian|cornell university|memorial sloan[- ]kettering|(the )?rockefeller university/g;
 // Belt to the regex's braces: bylines spell the institution every way ("Weill Cornell", "Weill
 // Cornell Med"), and ED has residents whose DEPARTMENT is literally "Weill Cornell Medicine".
 const AFFIL_STOP = new Set(["department", "division", "section", "center", "centre", "institute",

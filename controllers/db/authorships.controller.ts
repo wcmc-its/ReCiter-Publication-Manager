@@ -140,6 +140,10 @@ const INSTITUTION_BUCKETS: Record<string, string[]> = {
   // included anyway: the byline side is the point of this bucket, and omitting the roster side
   // would make the `roster` and `either` bases silently disagree with `byline` for one label.
   cornell: ["Cornell University", "Cornell University-Ithaca"],
+  // Tri-Institutional neighbour, added on the owner's request 2026-09-17. Below the >=100 bar
+  // like `cornell`: 44 roster people + 1 under the misspelt literal (a real value, kept so that
+  // person is bucketed rather than dropped), against 546 open byline rows on dev.
+  rockefeller: ["Rockefeller University", "Rockefeller Uniersity"],
 };
 
 // Byline-affiliation patterns for the same buckets. Distinct from INSTITUTION_BUCKETS because
@@ -165,6 +169,7 @@ const INSTITUTION_BYLINE_PATTERNS: Record<string, string[]> = {
   columbia: ["Columbia University"],
   sidra: ["Sidra"],
   cornell: ["Cornell University"],
+  rockefeller: ["Rockefeller Univ"],   // covers "Rockefeller University" and "Rockefeller Univ."
 };
 
 // "Weill Cornell" matches the Qatar campus too; wcm excludes it so the buckets stay disjoint.
@@ -2026,9 +2031,8 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     // Bucket the raw primaryInstitution strings a grouped query returned back into
     // INSTITUTION_BUCKETS' keys, summing counts for a bucket with more than one literal string
     // (wcm has two — "Weill Cornell Medicine" and "Weill Cornell Medical College"). A raw
-    // institution not named by any bucket (e.g. "Rockefeller University", below the curated
-    // list's ~100-person cutoff) simply never gets added to any sum — dropped, not shown as
-    // "Other". Each conditional-SUM query returns a single row, one column per bucket key.
+    // institution not named by any bucket (e.g. "Rogosin Institute", below the curated list's
+    // ~100-person cutoff) simply never gets added to any sum — dropped, not shown as "Other". Each conditional-SUM query returns a single row, one column per bucket key.
     const bucketCounts = (row: Record<string, any>) => Object.keys(INSTITUTION_BUCKETS)
       .map((key) => ({ key, n: Number(row[key] || 0) }))
       .filter((b) => b.n > 0)
