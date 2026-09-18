@@ -33,7 +33,7 @@
     "jwt-decode": "^3.1.2",
     "ldapts": "^8.2.0",
     "moment": "^2.29.4",
-    "mysql2": "^3.11.0",
+    "mysql2": "^3.23.1",
     "next": "^14.2.35",
     "next-auth": "^4.24.13",
     "next-redux-wrapper": "^7.0.5",
