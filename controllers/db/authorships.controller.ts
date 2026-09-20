@@ -2770,8 +2770,9 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           // Never silent: the curator typed one identifier and the write lands on another, so
           // both onward paths ask first. An existing cwid falls through to confirm_off_candidate
           // (a bridged cwid is by definition not a produced candidate); a cwid with no identity
-          // becomes a mint under the CWID, and confirm_mint names the person before anything
-          // happens. bridgedFrom is what lets both messages explain the substitution.
+          // becomes a mint under the CWID with no confirm at all (mint_and_write asks nothing
+          // since 2026-09-20). bridgedFrom is what lets the off-candidate message explain the
+          // substitution.
           if (dir?.wcmCwid) {
             const bridge = await reciterIdentitySet([dir.wcmCwid]);
             bridgedFrom = target;
@@ -2829,43 +2830,6 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
             message: `${target} has no ReCiter identity. Assigning anyway records your decision on `
               + "this row only — it will NOT be added to the person's publication record, because there "
               + `is no identity to add it to.${alsoRejectedNote} Confirm to proceed.`,
-          });
-        }
-        // The same question, asked of a person a DIRECTORY can name — and therefore a different
-        // promise. Confirming here creates their ReCiter identity from the live directory record
-        // and then makes the ordinary authoritative write, so the curator is authorising a real
-        // attribution, not a local note. That is a bigger consequence than the branch above, so
-        // the message names them, says which directory they came from, and says plainly that
-        // an identity will be created.
-        //
-        // Reuses code NO_RECITER_IDENTITY and the client's existing confirmNoIdentity retry
-        // flag deliberately (assignGate's header explains why): the browser needs no new branch,
-        // only this text. `localOnly: false` is what tells an updated client the two apart.
-        if (gate === "confirm_mint") {
-          const d = dir as DirectoryPerson;
-          const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
-          let alsoRejectedNote = "";
-          if (alsoRejected.length) {
-            const names = await Promise.all(alsoRejected.map(async (c) => {
-              const who = await identityLabel(c);
-              return who ? `${who} (${c})` : c;
-            }));
-            alsoRejectedNote = ` It also records "not mine" for ${names.join(", ")}.`;
-          }
-          const where = d.source === "wcm" ? "the WCM Enterprise Directory" : "the Cornell (Ithaca) directory";
-          const desc = [d.title, d.dept].map((v) => String(v || "").trim()).filter(Boolean).join(", ");
-          return res.status(422).json({
-            code: "NO_RECITER_IDENTITY",
-            localOnly: false,
-            willMint: true,
-            cwid: target,
-            offCandidate,
-            alsoRejected,
-            directory: { source: d.source, name: d.name, title: d.title, dept: d.dept },
-            message: `${d.name}${desc ? ` · ${desc}` : ""} · ${target} is not in ReCiter, but `
-              + `${where} has them. Confirming CREATES a ReCiter identity for this person and `
-              + "ADDS this article to their publication record — the same write an Accept makes. "
-              + `Check the identifier.${alsoRejectedNote}`,
           });
         }
         // Data-integrity guard, the same direction as the rejectedpmids one ~60 lines down but
@@ -2951,16 +2915,14 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         }
         if (gate === "mint_and_write") {
           // Create the identity the rest of this branch is about to write into, from the live
-          // directory record the curator just confirmed against. Ordered before every write on
+          // directory record the curator picked. Ordered before every write on
           // purpose: writeGoldStandard has no identity check of its own (ReCiterController
           // validates only that the body is non-null), so a failed mint followed by a
           // successful gold-standard write is exactly the orphaned-attribution shape
           // reciterIdentitySet exists to prevent. A non-200 aborts with 502 and writes nothing.
           //
           // Deliberately NOT followed by a confirm_off_candidate round-trip: a person who did
-          // not exist a moment ago cannot have been one of the producer's candidates, so that
-          // confirm would be a second modal asking the same question the mint confirm already
-          // answered ("this ADDS the article to their publication record").
+          // not exist a moment ago cannot have been one of the producer's candidates.
           const st = await mintIdentity(mintPayload as Record<string, any>);
           if (st !== 200) {
             return res.status(502).send(
