@@ -606,7 +606,9 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
     and.push(sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1)), likeFirst));
     and.push(sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", -1)), likeLast));
   }
-  // free-text search across author name, proposed identity, pmid, doi, and Scopus id
+  // free-text search across author name, proposed identity, pmid, doi, Scopus id, and the
+  // byline's affiliation statement (owner request 2026-09-20: "Pulmonary" or "Ithaca" is a
+  // useful slice of the queue that no other column can give)
   const search = (body.searchTextInput || "").trim();
   if (search) {
     const like = `%${search}%`;
@@ -616,6 +618,7 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
       { top_cwid: { [Op.like]: like } },
       { doi: { [Op.like]: like } },
       { external_id: { [Op.like]: like } },
+      { author_affiliation: { [Op.like]: like } },
     ];
     if (/^\d+$/.test(search)) or.push({ pmid: Number(search) });
     and.push({ [Op.or]: or });
