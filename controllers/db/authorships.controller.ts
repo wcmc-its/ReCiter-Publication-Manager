@@ -13,7 +13,7 @@ import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assi
 import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
 import {
-  lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured,
+  lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured, cornellFallback,
   affiliationDeptMatch,
   retiredCwidIndex,
   type DirectoryPerson,
@@ -956,7 +956,20 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
       // The byline's own affiliation string, when the client has one. Read-only ranking input:
       // it is tokenised and compared, never sent to a directory or written anywhere.
       const affil = String(req.body?.affil || "").slice(0, 500);
-      const found = await searchDirectoryPeople(q, 8, true, affil);
+      // `auto` marks the routine lookup a weak row fires on expand (no candidate, or none at
+      // the full given-name tier), as opposed to a name the curator typed. Routine = WCM ED
+      // first; Cornell (Ithaca) only when WCM has no strong hit -- nobody in the byline's
+      // department and nobody with the exact name -- AND the affiliation itself says "Cornell
+      // University". A typed name keeps searching both, since the curator may know it is an
+      // Ithaca person the affiliation does not admit to. (Owner rule, 2026-09-20.)
+      // ponytail: two sequential LDAP round-trips only on the fallback; measured on the open
+      // pubmed ledger 587 of 3,022 weak rows say "Cornell University", so most rows pay one.
+      const auto = String(req.body?.auto || "") === "1";
+      const deptMatch = (p: { depts: string[] }) => affiliationDeptMatch(p.depts, affil);
+      let found = await searchDirectoryPeople(q, 8, true, affil, auto ? { cornell: false } : {});
+      if (auto && cornellFallback(found, affil)) {
+        found = [...found, ...await searchDirectoryPeople(q, 8, true, affil, { wcm: false })];
+      }
       // Which of these does ReCiter already know? A curator searching by name must be told
       // "this one is already in ReCiter" so they pick the identity that exists rather than
       // minting a duplicate of it — and for a Cornell person that also means surfacing the WCM
@@ -969,7 +982,6 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
       // three that separate the live biostatistician from four expired affiliates who share her
       // name; 2026-09-15, "Jessica Kim": the right one sat sixth). Stable, so ties keep the
       // directories' own order. Nothing is removed; expired people stay assignable.
-      const deptMatch = (p: typeof found[number]) => affiliationDeptMatch(p.depts, affil);
       const score = (p: typeof found[number]) =>
         (deptMatch(p) ? 8 : 0) + (known.has(p.id) || known.has(p.id.toLowerCase()) ? 4 : 0) + (p.active ? 2 : 0) + (p.exactName ? 1 : 0);
       const people = found.map((p, i) => ({ p, i })).sort((a, b) => score(b.p) - score(a.p) || a.i - b.i).map((x) => x.p);

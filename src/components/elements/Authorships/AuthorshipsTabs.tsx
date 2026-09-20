@@ -4597,12 +4597,16 @@ const AuthorshipCard = ({
           {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
               single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
               it's the case where the curator most often knows a name the card can't offer. */}
-          {/* A multi row with NO candidates has nothing to pick, so expanding it runs the
-              directory lookup on the byline name straight away (the prefill path) — the curator
-              was otherwise expanding "Pick one" onto an empty list and retyping the name. */}
+          {/* A row with NO candidates has nothing to pick, and a row whose best candidate is
+              only an initial-tier guess has nothing worth trusting: expanding either runs the
+              directory lookup on the byline name straight away (the prefill path, `auto` so the
+              server applies the WCM-first / Cornell-fallback rule). 93% of open pubmed rows are
+              in one of those two states (2026-09-20), which is why this is routine rather than a
+              button. A full given-name match stays blank on expand as before. */}
           <AssignOther rowId={r.id} acting={acting} onAction={onAction} authorName={r.wcm_author}
             affiliation={r.author_affiliation}
-            prefill={assignPrefill ?? (nothingToPick ? r.wcm_author : undefined)} />
+            prefill={assignPrefill ?? (nothingToPick || r.top_given_match !== "full" ? r.wcm_author : undefined)}
+            autoPrefill={!assignPrefill} />
           {/* One note for both buttons above. `listed` is candidates-minus-one and does not
               move with the radio: whichever one is picked, the same number of others are
               rejected. `typed` is all N — someone typed into the box is by definition not one
@@ -4994,9 +4998,10 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
 // ponytail: the "lookup route feeding the box" upgrade path landed — #948 built POST
 // /api/db/authorships/lookup for the bulk dialog, so the box debounces into it and a resolved
 // Assign/Enter writes in one click; unresolved (debouncing/errored) falls back to the plain call.
-const AssignOther = ({ rowId, acting, onAction, prefill, authorName, affiliation }: {
+const AssignOther = ({ rowId, acting, onAction, prefill, autoPrefill, authorName, affiliation }: {
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
   prefill?: string;
+  autoPrefill?: boolean; // the prefill was the card's own doing (weak row on expand), not a curator's click
   authorName?: string; // the byline name — one click looks it up instead of retyping it
   affiliation?: string; // the byline's affiliation — ranks directory hits in that department first
 }) => {
@@ -5014,6 +5019,10 @@ const AssignOther = ({ rowId, acting, onAction, prefill, authorName, affiliation
   const [matches, setMatches] = useState<any[] | null>(null);
   const requestSeq = useRef(0);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True only for the lookup the card seeded itself; any keystroke or "Lookup <name>" click
+  // clears it, so the server's WCM-first / Cornell-fallback narrowing applies to the routine
+  // search alone and a curator who types a name still gets both directories.
+  const autoSeeded = useRef(false);
   useEffect(() => () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); }, []);
 
   const post = useCallback((payload: Record<string, string>) =>
@@ -5034,7 +5043,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, authorName, affiliation
   const runLookup = useCallback((val: string, seq: number) => {
     const isIdentifier = /^[A-Za-z0-9]{1,32}$/.test(val);
     setLookupState({ status: "loading" });
-    const nameQuery = { q: val, affil: affiliation || "" };
+    const nameQuery = { q: val, affil: affiliation || "", auto: autoSeeded.current ? "1" : "" };
     (isIdentifier ? post({ cwid: val }) : post(nameQuery).then((d) => ({ searchOnly: d })))
       .then(async (d: any) => {
         if (requestSeq.current !== seq) return;
@@ -5085,7 +5094,8 @@ const AssignOther = ({ rowId, acting, onAction, prefill, authorName, affiliation
   // NOT trimmed here (it used to be): a name needs an interior space, and trimming the
   // controlled value on every keystroke made one impossible to type. Trimming happens where
   // it matters instead — at lookup and at submit.
-  const setValue = useCallback((val: string) => {
+  const setValue = useCallback((val: string, auto = false) => {
+    autoSeeded.current = auto;
     setOtherCwid(val);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     requestSeq.current += 1; // invalidate any in-flight/pending lookup for the old value
@@ -5096,7 +5106,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, authorName, affiliation
     const seq = requestSeq.current;
     debounceTimer.current = setTimeout(() => runLookup(q, seq), 350);
   }, [runLookup]);
-  useEffect(() => { if (prefill) setValue(prefill); }, [prefill, setValue]);
+  useEffect(() => { if (prefill) setValue(prefill, !!autoPrefill); }, [prefill, autoPrefill, setValue]);
 
   const submittable = /^[A-Za-z0-9]{1,32}$/.test(otherCwid.trim()) && !typedPreview?.blocked;
 
