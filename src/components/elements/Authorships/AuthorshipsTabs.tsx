@@ -2884,7 +2884,7 @@ const AuthorshipsTabs = () => {
               {/* bound to searchInput, NOT search: the box debounces (300 ms) into the filter, so
                   binding it to the filter would fight the debounce on every keystroke. */}
               <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Name, CWID, or PMID" aria-label="Filter by name, CWID, or PMID"
+                placeholder="Name, CWID, PMID, or affiliation" aria-label="Filter by name, CWID, PMID, or affiliation"
                 style={{ font: "inherit", width: 196, border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 11px", fontSize: 13.5, color: CTRL.ink, background: "#fff" }} />
             </form>
             {/* §2.2 uses the mockup's wording where it maps onto a sort the server actually
