@@ -5112,16 +5112,10 @@ const AssignOther = ({ rowId, acting, onAction, prefill, authorName, affiliation
     // unconditionally is harmless on the rows where the typed cwid happens to already be
     // on-candidate). Anything else (idle/loading/error) — today's unconfirmed call, unchanged;
     // the existing 422 → banner path (doAction's catch) still handles it.
-    // A resolved answer whose assignee has no ReCiter identity but WHOM A DIRECTORY CAN NAME is
-    // deliberately excluded from the one-click path: confirming it mints an identity and writes
-    // a real publication record, which is a bigger consequence than the inline preview alone
-    // should be allowed to authorise. Those go the unconfirmed route and get the server's
-    // confirm_mint 422, which names the person, their department and which directory they came
-    // from before anything happens. Same for the bridge, where the write lands on a DIFFERENT
-    // identifier than the one in the box.
-    const needsServerConfirm = lookupState.status === "resolved"
-      && !lookupState.hasIdentity && !!lookupState.directory;
-    if (lookupState.status === "resolved" && !needsServerConfirm) {
+    // A resolved assignee with no ReCiter identity whom a directory names takes this same
+    // one-click path: the server mints the identity and writes with no confirm since
+    // 2026-09-20 (assignGate's mint_and_write), so there is no 422 left to route them to.
+    if (lookupState.status === "resolved") {
       onAction("assign", { cwid: lookupState.cwid, ...assignConfirmFlags(true, lookupState.hasIdentity) });
     } else {
       onAction("assign", { cwid: typedId });

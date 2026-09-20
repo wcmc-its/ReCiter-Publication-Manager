@@ -7,17 +7,18 @@
 //   confirm_no_identity   ReCiter has never heard of them, and neither directory has → 422,
 //                         ask once (#925)
 //   local_only            …confirmed → resolve the row, write nothing downstream (#925)
-//   confirm_mint          ReCiter has never heard of them but a DIRECTORY has → 422, ask once
-//                         and NAME them, because confirming CREATES their identity and then
-//                         writes their real publication record
-//   mint_and_write        …confirmed → POST /reciter/identity/ from the directory record, then
-//                         fall through to the authoritative write
+//   mint_and_write        ReCiter has never heard of them but a DIRECTORY has → POST
+//                         /reciter/identity/ from the directory record, then fall through to
+//                         the authoritative write. No confirm: creating an identity is cheap
+//                         and the curator already picked the person from a named directory
+//                         row (user decision 2026-09-20; the confirm_mint 422 it replaces was
+//                         a nag)
 //   confirm_off_candidate a real person the AAR producer did not propose → 422, ask once and
 //                         NAME them, because confirming writes their real publication record
 //   write                 the unchanged authoritative assign (on-candidate, or confirmed)
 export type AssignGate =
   | "confirm_no_identity" | "local_only"
-  | "confirm_mint" | "mint_and_write"
+  | "mint_and_write"
   | "confirm_off_candidate" | "write";
 
 export function assignGate(o: {
@@ -40,11 +41,10 @@ export function assignGate(o: {
   // 6 of them resolve in the Cornell directory right now (kjc39 = Kevin J. Cummings, Professor,
   // CVM Public and Ecosystem Health).
   //
-  // The client flag is deliberately the SAME confirmNoIdentity it already sends — only the
-  // 422's message and the work behind the confirmation differ — so the existing retry path
-  // (doAction's 422 → banner → re-send with confirmNoIdentity:"true") needs no new branch.
+  // The directory branch asks nothing: confirmNoIdentity is ignored there, so a client that
+  // still re-sends it after a 422 lands in the same place.
   if (!o.hasIdentity) {
-    if (o.inDirectory) return o.confirmNoIdentity ? "mint_and_write" : "confirm_mint";
+    if (o.inDirectory) return "mint_and_write";
     return o.confirmNoIdentity ? "local_only" : "confirm_no_identity";
   }
   if (o.offCandidate && !o.confirmOffCandidate) return "confirm_off_candidate";

@@ -51,17 +51,16 @@ check("no identity + confirmed => local-only",
 check("no identity is asked even when on-candidate",
   G({ hasIdentity: false, offCandidate: false }), "confirm_no_identity");
 
-// NEW: no ReCiter identity, but a live directory (WCM ED / Cornell Ithaca) can name them.
-// Same question, different promise — confirming CREATES the identity and then writes for real,
-// so the branch must not be reachable without a confirm, and must not fall back to local_only.
-check("no identity + in directory + unconfirmed => mint confirm",
-  G({ hasIdentity: false, inDirectory: true }), "confirm_mint");
-check("no identity + in directory + confirmed => mint then write",
+// No ReCiter identity, but a live directory (WCM ED / Cornell Ithaca) can name them: mint the
+// identity and write, with NO confirm (2026-09-20) — and never fall back to local_only.
+check("no identity + in directory => mint then write, no confirm",
+  G({ hasIdentity: false, inDirectory: true }), "mint_and_write");
+check("a stale confirmNoIdentity re-send lands in the same place",
   G({ hasIdentity: false, inDirectory: true, confirmNoIdentity: true }), "mint_and_write");
-check("in directory is asked even when on-candidate",
-  G({ hasIdentity: false, inDirectory: true, offCandidate: false }), "confirm_mint");
-check("in directory is asked even when off-candidate",
-  G({ hasIdentity: false, inDirectory: true, offCandidate: true }), "confirm_mint");
+check("in directory mints even when on-candidate",
+  G({ hasIdentity: false, inDirectory: true, offCandidate: false }), "mint_and_write");
+check("in directory mints even when off-candidate, no off-candidate confirm either",
+  G({ hasIdentity: false, inDirectory: true, offCandidate: true }), "mint_and_write");
 // The directory only matters when ReCiter is silent. A person ReCiter already knows is never
 // re-minted, whatever a directory says about them.
 check("has identity wins over a directory hit (on-candidate)",
@@ -137,8 +136,7 @@ check("off-candidate, has identity aaa2010", decide("aaa2010"), "aaa2010 / confi
 check("  ...once confirmed                ", decide("aaa2010", { confirmOffCandidate: true }), "aaa2010 / write");
 check("no ReCiter identity         aaa2001", decide("aaa2001"), "aaa2001 / confirm_no_identity");
 check("  ...once confirmed                ", decide("aaa2001", { confirmNoIdentity: true }), "aaa2001 / local_only");
-check("no identity, directory has it kjc39", decide("kjc39"), "kjc39 / confirm_mint");
-check("  ...once confirmed                ", decide("kjc39", { confirmNoIdentity: true }), "kjc39 / mint_and_write");
+check("no identity, directory has it kjc39", decide("kjc39"), "kjc39 / mint_and_write");
 
 // The regression this guards: WITHOUT canonicalCwid, the merged DynamoDB-backed oracle sends
 // a mis-cased cwid down the local-only path — the curator is told a real person has no ReCiter
