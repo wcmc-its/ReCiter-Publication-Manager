@@ -677,10 +677,22 @@ export function affiliationDeptMatch(depts: string[], affil: string | null | und
   return depts.some((d) => [...affilTokens(d)].some((w) => have.has(w)));
 }
 
-export async function searchDirectoryPeople(q: string, limit = 8, retry = true, affil = ""): Promise<DirectoryPerson[]> {
+/** The routine (auto) lookup's Cornell rule: consult the Ithaca directory only when WCM gave no
+ *  strong hit -- nobody in the byline's department, nobody with the exact name -- AND the
+ *  affiliation itself says "Cornell University". Pure so scripts/check-directory-fallback.mjs
+ *  can pin it. */
+export const cornellFallback = (found: { depts: string[]; exactName?: boolean }[], affil: string): boolean =>
+  !found.some((p) => affiliationDeptMatch(p.depts, affil) || !!p.exactName) && /cornell\s+university/i.test(affil);
+
+/** `sources` narrows the search to one directory; both by default. The routine (auto) lookup
+ *  on a weak /authorships row asks WCM alone first and Cornell only as a fallback (see
+ *  authorshipLookupCwid), so a WCM byline is not padded with Ithaca homonyms. */
+export async function searchDirectoryPeople(q: string, limit = 8, retry = true, affil = "",
+  sources: { wcm?: boolean; cornell?: boolean } = {}): Promise<DirectoryPerson[]> {
   const term = q.trim();
   if (term.length < 3) return [];
-  const wcm = wcmEnv(), cornell = cornellEnv();
+  const wcm = sources.wcm === false ? null : wcmEnv();
+  const cornell = sources.cornell === false ? null : cornellEnv();
   const wcmExtra = ["weillCornellEduCWID", "weillCornellEduMiddleName"];
   // A common name TRUNCATES: "j kim" is 386 ED entries (2026-09-16 probe) and the prefix pass
   // returns whichever `limit` the server reaches first, so the person in the byline's own
@@ -718,7 +730,7 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true, 
   const matched = wide ? all.filter((p) => affiliationDeptMatch(p.depts, affil)) : [];
   const people = [...matched, ...all.filter((p) => !matched.includes(p)).slice(0, limit * 2)].slice(0, limit * 4);
   const cut = !people.length && retry ? nearMissQuery(term) : null;
-  if (cut) return searchDirectoryPeople(cut, limit, false, affil);
+  if (cut) return searchDirectoryPeople(cut, limit, false, affil, sources);
   // One extra search, and only when this page actually holds a retired cwid — so the ordinary
   // search pays nothing. Awaited rather than fired-and-forgotten: the successor's name is what
   // makes the blocked row actionable ("retired — use ssy9009") instead of a dead end.
