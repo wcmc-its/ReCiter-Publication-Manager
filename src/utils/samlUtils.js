@@ -49,6 +49,7 @@ export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLast
             // scope and canCurate failed closed for scoped curators and proxies (est4003).
             "scope_person_types": createdAdminUser.scope_person_types,
             "scope_org_units": createdAdminUser.scope_org_units,
+            "scope_institutions": createdAdminUser.scope_institutions,
             "proxy_person_ids": createdAdminUser.proxy_person_ids
         }
         createdAdminUser['databaseUser'] = databaseUser

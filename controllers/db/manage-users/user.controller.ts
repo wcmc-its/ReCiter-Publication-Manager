@@ -227,8 +227,8 @@ export const createOrUpdateAdminUser = async (
   req: NextApiRequest,
   res: NextApiResponse
 ) => {
-  const { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId, scopePersonTypes, scopeOrgUnits } = req.body;
-  // Curator_Scoped's personType/orgUnit scope (admin_users.scope_person_types/scope_org_units,
+  const { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId, scopePersonTypes, scopeOrgUnits, scopeInstitutions } = req.body;
+  // Curator_Scoped's personType/orgUnit/institution scope (admin_users.scope_person_types/scope_org_units/scope_institutions,
   // see PM#849). Empty/absent clears scope -- matches the JSON DEFAULT NULL columns and the
   // full-replace pattern already used for roles/departments below.
   // Array.isArray, not just truthiness -- a client-sent string also has .length, and would
@@ -237,6 +237,7 @@ export const createOrUpdateAdminUser = async (
   const scopeFields = {
     scope_person_types: Array.isArray(scopePersonTypes) && scopePersonTypes.length > 0 ? scopePersonTypes : null,
     scope_org_units: Array.isArray(scopeOrgUnits) && scopeOrgUnits.length > 0 ? scopeOrgUnits : null,
+    scope_institutions: Array.isArray(scopeInstitutions) && scopeInstitutions.length > 0 ? scopeInstitutions : null,
   };
 
   try {
@@ -244,7 +245,7 @@ export const createOrUpdateAdminUser = async (
     // the scope itself now, but the admin roster/role columns should still reflect reality.
     // Looked up dynamically by roleLabel, never hardcoded, since roleID is environment data.
     let effectiveRoleIds: any[] = Array.isArray(selectedRoleIds) ? [...selectedRoleIds] : [];
-    if (scopeFields.scope_person_types || scopeFields.scope_org_units) {
+    if (scopeFields.scope_person_types || scopeFields.scope_org_units || scopeFields.scope_institutions) {
       const curatorScopedRole: any = await models.AdminRole.findOne({ where: { roleLabel: 'Curator_Scoped' }, raw: true });
       if (curatorScopedRole?.roleID != null && !effectiveRoleIds.includes(curatorScopedRole.roleID)) {
         effectiveRoleIds.push(curatorScopedRole.roleID);
@@ -380,7 +381,7 @@ export const fetchUserDetailsByUserId = async (
   try {
     const UserDetails = await models.AdminUser.findAll({
       where: { userID: req.body },
-      attributes: ["userID", "personIdentifier", "nameFirst", "nameMiddle", "nameLast", "email", "status", "scope_person_types", "scope_org_units"],
+      attributes: ["userID", "personIdentifier", "nameFirst", "nameMiddle", "nameLast", "email", "status", "scope_person_types", "scope_org_units", "scope_institutions"],
       include: [{
         model: models.AdminUsersDepartment,
         attributes: ["id", "userID", "departmentID"],

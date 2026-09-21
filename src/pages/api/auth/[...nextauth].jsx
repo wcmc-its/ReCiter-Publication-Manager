@@ -178,6 +178,7 @@ export const authOptions = {
         token.scopeData = JSON.stringify({
           personTypes: parseJsonColumn(dbUser.scope_person_types),
           orgUnits: parseJsonColumn(dbUser.scope_org_units),
+          institutions: parseJsonColumn(dbUser.scope_institutions),
         });
         token.proxyPersonIds = JSON.stringify(parseJsonColumn(dbUser.proxy_person_ids) || []);
 
