@@ -7,7 +7,7 @@ import { RootStateOrAny } from "../../../types/redux";
 import styles from './AddUser.module.css';
 import Loader from '../Common/Loader';
 import TextField from '@mui/material/TextField';
-import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminDepartments, getAdminRoles, getPersonTypes, fetchProxiesForUser, saveProxiesForUser} from "../../../redux/actions/actions";
+import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminDepartments, getAdminRoles, getPersonTypes, fetchProxiesForUser, saveProxiesForUser, institutionsFetchAllData} from "../../../redux/actions/actions";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
@@ -46,6 +46,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     const adminDepartments = useSelector((state: RootStateOrAny) => state.AllAdminDepatments);
     const allAdminRoles = useSelector((state: RootStateOrAny) => state.AllAdminRoles);
     const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData);
+    const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData);
 
     const [state, setState] = useState({
         cwid: "",
@@ -68,6 +69,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     // scope_org_units (see PM#849).
     const [selectedPersonTypes, setSelectedPersonTypes] = useState([]);
     const [selectedScopeOrgUnits, setSelectedScopeOrgUnits] = useState([]);
+    const [selectedScopeInstitutions, setSelectedScopeInstitutions] = useState([]);
     // Individual-level proxy: specific people this user can curate regardless of role/scope
     // (admin_users.proxy_person_ids, see PM#849). Independent of selectedScopeOrgUnits above.
     const [selectedProxies, setSelectedProxies] = useState<PersonOption[]>([]);
@@ -97,8 +99,8 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         // A Curator_Scoped user saved with no scope on either axis is denied everyone server-side
         // (canCurate fails closed on an empty scope, not "unrestricted") -- catch it here instead
         // of letting an admin save a silently-nonfunctional user.
-        if ( isCuratorScoped && selectedPersonTypes.length === 0 && selectedScopeOrgUnits.length === 0 ) {
-            formErrInst.selectedScope = 'Curator — Scoped needs at least one person type or org unit selected below.'
+        if ( isCuratorScoped && selectedPersonTypes.length === 0 && selectedScopeOrgUnits.length === 0 && selectedScopeInstitutions.length === 0 ) {
+            formErrInst.selectedScope = 'Curator — Scoped needs at least one person type, org unit, or institution selected below.'
         }
         setformErrInst(formErrInst)
         return formErrInst
@@ -132,6 +134,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                 // Harmless when unused: only canCurate's Curator_Scoped branch reads these.
                 scopePersonTypes: selectedPersonTypes,
                 scopeOrgUnits: selectedScopeOrgUnits,
+                scopeInstitutions: selectedScopeInstitutions,
             }
 
             if (isEditUserId) {
@@ -157,6 +160,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         dispatch(getAdminRoles());
         dispatch(getAdminDepartments());
         dispatch(getPersonTypes());
+        dispatch(institutionsFetchAllData());
     },[])
 
     useEffect(() => {
@@ -165,7 +169,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         if (isEditUserId) {
             setLoading(true)
             let userDetails = fetchUserInfoByID(isEditUserId).then(result => {
-                const { adminUsersDepartments, adminUsersRoles, email, nameFirst, nameLast, nameMiddle, personIdentifier, scope_person_types, scope_org_units } = result && result[0];
+                const { adminUsersDepartments, adminUsersRoles, email, nameFirst, nameLast, nameMiddle, personIdentifier, scope_person_types, scope_org_units, scope_institutions } = result && result[0];
                 if (adminUsersRoles) {
                     let roleNames = [];
                     allAdminRoles.map(role => {
@@ -188,6 +192,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
 
                 setSelectedPersonTypes(scope_person_types || [])
                 setSelectedScopeOrgUnits(scope_org_units || [])
+                setSelectedScopeInstitutions(scope_institutions || [])
 
                 setState(state => ({ ...state, cwid: personIdentifier, lastName: nameLast, firstName: nameFirst, email, middleName: nameMiddle }))
                 setLoading(false)
@@ -584,6 +589,34 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                         )}
                                     />
                                     <span className={styles.fieldHint}>Only takes effect for Curator — Scoped (see Role(s) above). Separate from &ldquo;Organizational unit(s) user can manage&rdquo; above (that field is for Curator — Department). Leave empty for no org-unit restriction.</span>
+                                </div>
+                            </div>
+                            <div className={styles.fieldGrid} style={{ marginTop: 16 }}>
+                                <div className={styles.field}>
+                                    <label className={styles.fieldLabel}>Institution(s) for scoped access</label>
+                                    <Autocomplete
+                                        freeSolo
+                                        multiple
+                                        id="scopeInstitutions"
+                                        disableClearable
+                                        value={selectedScopeInstitutions}
+                                        options={(institutionsData || []).map((option) => option.primaryInstitution)}
+                                        onChange={(event, value) => setSelectedScopeInstitutions(value as string[])}
+                                        sx={orgUnitSx}
+                                        renderTags={renderOrgTags}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                variant="outlined"
+                                                {...params}
+                                                placeholder={selectedScopeInstitutions.length === 0 ? "Search and select institutions..." : ""}
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    type: 'search',
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                    <span className={styles.fieldHint}>Only takes effect for Curator — Scoped. Matches the person&rsquo;s primary institution (e.g. Weill Cornell Medical College in Qatar). Leave empty for no institution restriction.</span>
                                 </div>
                             </div>
                             {formErrorsInst.selectedScope && <span className={styles.errorText}>{formErrorsInst.selectedScope}</span>}

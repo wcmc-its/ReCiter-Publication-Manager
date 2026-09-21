@@ -23,7 +23,7 @@ getCapabilities } from "../../../utils/constants"
 import Profile from "../Profile/Profile";
 import ProxyBadge from './ProxyBadge';
 import ScopeFilterCheckbox from './ScopeFilterCheckbox';
-import { isProxyFor, withoutScopeKeys } from '../../../utils/scopeResolver';
+import { hasConfiguredScope, isProxyFor, withoutScopeKeys } from '../../../utils/scopeResolver';
 
 // Guard against malformed/absent session claims so a bad JWT value can't white-screen the page.
 const safeParse = (value, fallback) => {
@@ -43,17 +43,14 @@ const Search = () => {
   // Mirrors authorization.controller.ts's canCurate hasScope computation exactly: a configured
   // scope is self-sufficient and shouldn't require the token to also carry the Curator_Scoped
   // role (that role only lands on a user's DB row on a future admin save, never retroactively).
-  const hasScope = scopeData && (
-    (Array.isArray(scopeData.personTypes) && scopeData.personTypes.length > 0) ||
-    (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0)
-  );
+  const hasScope = hasConfiguredScope(scopeData);
   const showScopeFilter = (caps.canCurate.scoped || hasScope) && !caps.canCurate.all;
   // Scope keys must ride on EVERY list request for a scoped curator (initial load and pagination
   // included), not only after the checkbox is toggled or a search is submitted.
   const applyScopeFilters = (base) => {
-    const { scopeOrgUnits, scopePersonTypes, proxyPersonIds: _p, ...rest } = base || {};
+    const { scopeOrgUnits, scopePersonTypes, scopeInstitutions, proxyPersonIds: _p, ...rest } = base || {};
     if (showScopeFilter && scopeFilterChecked && scopeData) {
-      return { ...rest, scopeOrgUnits: scopeData.orgUnits || [], scopePersonTypes: scopeData.personTypes || [], proxyPersonIds };
+      return { ...rest, scopeOrgUnits: scopeData.orgUnits || [], scopePersonTypes: scopeData.personTypes || [], scopeInstitutions: scopeData.institutions || [], proxyPersonIds };
     }
     return rest;
   };

@@ -34,6 +34,7 @@ export function scopeFieldsFromDbUser(dbUser) {
   const scopeData = JSON.stringify({
     personTypes: parseJsonColumn(u.scope_person_types),
     orgUnits: parseJsonColumn(u.scope_org_units),
+    institutions: parseJsonColumn(u.scope_institutions),
   })
   const proxyPersonIds = JSON.stringify(parseJsonColumn(u.proxy_person_ids) || [])
   return { scopeData, proxyPersonIds }

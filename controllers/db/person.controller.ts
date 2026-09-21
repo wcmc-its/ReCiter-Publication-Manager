@@ -30,10 +30,16 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                 ? apiBody.filters.orgUnits.filter((ou) => scopeOrgUnits.includes(ou))
                 : scopeOrgUnits)
             : apiBody.filters?.orgUnits
+        const scopeInstitutions: Array<string> = Array.isArray(apiBody.filters?.scopeInstitutions) ? apiBody.filters.scopeInstitutions : []
+        const effectiveInstitutions = scopeInstitutions.length > 0
+            ? (apiBody.filters?.institutions && apiBody.filters.institutions.length > 0
+                ? apiBody.filters.institutions.filter((i) => scopeInstitutions.includes(i))
+                : scopeInstitutions)
+            : apiBody.filters?.institutions
 
         const where = {}
         if(apiBody.filters) {
-            if(effectivePersonTypes || apiBody.filters.institutions || effectiveOrgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
+            if(effectivePersonTypes || effectiveInstitutions || effectiveOrgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
                 where[Op.and] = []
                 if(apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length > reciterConstants.nameCWIDSpaceCountThreshold) {
                     where[Op.and].push({[Op.or]:[
@@ -54,8 +60,8 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                     ]})
                      }
                // }
-                if(apiBody.filters.institutions) {
-                    where[Op.and].push({'$Person.primaryInstitution$': { [Op.in]: apiBody.filters.institutions }})
+                if(effectiveInstitutions) {
+                    where[Op.and].push({'$Person.primaryInstitution$': { [Op.in]: effectiveInstitutions }})
                 }
                 if(effectiveOrgUnits) {
                     where[Op.and].push({'$Person.primaryOrganizationalUnit$': { [Op.in]: effectiveOrgUnits }})

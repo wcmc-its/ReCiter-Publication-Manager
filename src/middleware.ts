@@ -2,6 +2,7 @@ import {NextRequest, NextResponse } from 'next/server'
 import { allowedPermissions } from './utils/constants'
 import { getToken } from "next-auth/jwt";
 import { effectiveToken } from './utils/viewAs'
+import { hasConfiguredScope } from './utils/scopeResolver'
 
 
 //middleware should run for these router paths
@@ -91,14 +92,11 @@ export async function middleware(request: NextRequest) {
             // middleware doesn't have. canCurate on the write API is what actually enforces scope
             // membership per-target; this only stops the middleware from redirecting a page the
             // API would allow, exactly like the proxy-grant comment above already establishes.
-            let scopeData: { personTypes?: string[] | null; orgUnits?: string[] | null } | null = null;
+            let scopeData: any = null;
             try {
               scopeData = JSON.parse((decodedTokenJson as any)?.scopeData || 'null');
             } catch (e) { /* malformed token field -> no scope allowance */ }
-            const hasScope = !!scopeData && (
-              (Array.isArray(scopeData.personTypes) && scopeData.personTypes.length > 0) ||
-              (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0)
-            );
+            const hasScope = hasConfiguredScope(scopeData);
             if (pathName && pathName.startsWith('/curate')  &&  !isCuratorAll  && !isSuperUser && !isProxiedTarget && !hasScope)
             {
                 if (userRoles.length == 1 && isReporterAll  && !isCuratorSelf) {

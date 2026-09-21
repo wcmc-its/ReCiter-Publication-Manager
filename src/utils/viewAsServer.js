@@ -16,6 +16,7 @@ const MINIMAL_ATTRIBUTES = [
   'status',
   'scope_person_types',
   'scope_org_units',
+  'scope_institutions',
   'proxy_person_ids',
 ]
 
@@ -41,6 +42,7 @@ export async function resolveViewAsTarget(cwid) {
     // run them through parseJsonColumn so the stored overlay holds arrays/null, not strings.
     scope_person_types: parseJsonColumn(plain.scope_person_types),
     scope_org_units: parseJsonColumn(plain.scope_org_units),
+    scope_institutions: parseJsonColumn(plain.scope_institutions),
     proxy_person_ids: parseJsonColumn(plain.proxy_person_ids),
   }
 

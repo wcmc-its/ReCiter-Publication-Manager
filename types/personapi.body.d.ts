@@ -7,6 +7,7 @@ export type PersonApiBody = {
         showOnlyPending: boolean,
         scopePersonTypes?: Array<string>,
         scopeOrgUnits?: Array<string>
+        scopeInstitutions?: Array<string>
     },
     limit?: number,
     offset?: number
