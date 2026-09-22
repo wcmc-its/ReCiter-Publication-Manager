@@ -24,6 +24,16 @@ models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
   
 });
 
+// ponytail: callers send `exportArticlesRTF[0].maxLimit`, which admin_settings stores as a
+// STRING ("1000") and which is `false` when the setting is missing. The procs end in
+// `limit maxRecords`, and MySQL rejects `LIMIT NULL`, so coerce to a positive int.
+// 1000 = the reportingArticleRTFLimit baseline in insertBaselineDataReciterDb.sql.
+const RTF_LIMIT_DEFAULT = 1000;
+const rtfLimit = (limit: unknown): number => {
+  const n = Number(limit);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : RTF_LIMIT_DEFAULT;
+};
+
 export const generatePubsRtf = async (
   req: NextApiRequest,
   res: NextApiResponse
@@ -34,28 +44,26 @@ export const generatePubsRtf = async (
 								
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
       generatePubsRtfOutput = await sequelize.query(
-        // generatePubsRTF takes 2 args (personIdentifierArray, pmidArray) — no limit.
-        // Passing :limit caused ER_SP_WRONG_NO_OF_ARGS (SequelizeDatabaseError).
-        "CALL generatePubsRTF (:uids , :pmids)",
+        // ponytail: prod reciterdb.generatePubsRTF is (personIdentifierArray, pmidArray, maxRecords)
+        // and its body ends in `limit maxRecords`, so the 3rd arg is required and must be a
+        // positive int. Verify before changing this, against PROD (reciter-analysis-report-db-kms),
+        // not the PM dev DB, which carries older 2-arg copies:
+        //   SELECT ORDINAL_POSITION, PARAMETER_NAME FROM information_schema.PARAMETERS
+        //   WHERE SPECIFIC_SCHEMA='reciterdb' AND SPECIFIC_NAME='generatePubsRTF';
+        "CALL generatePubsRTF (:uids , :pmids, :limit)",
         {
-          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(',') },
+          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(','), limit: rtfLimit(apiBody.limit) },
           raw: true,
         }
       );
     } else {
 
 																	   
-      // Stored procedure reciterdb.generatePubsNoPeopleRTF accepts a single
-      // arg (pmids); apiBody.limit is not honored here because the procedure
-      // signature was never updated to accept it. Caller applies a limit when
-      // staging the pmid list if it cares about cap.
-      const cappedPmids = typeof apiBody.limit === 'number' && apiBody.limit > 0
-        ? apiBody.pmids.slice(0, apiBody.limit)
-        : apiBody.pmids;
       generatePubsRtfOutput = await sequelize.query(
-        "CALL generatePubsNoPeopleRTF ( :pmids )",
+        // ponytail: prod signature is (pmidArray, maxRecords) — same caveat as above.
+        "CALL generatePubsNoPeopleRTF ( :pmids, :limit)",
         {
-          replacements: { pmids: cappedPmids.join(',') },
+          replacements: { pmids: apiBody.pmids.join(','), limit: rtfLimit(apiBody.limit) },
           raw: true,
         }
       );
@@ -80,7 +88,7 @@ export const generatePubsPeopleOnlyRtf = async (
       const generatePubsPeopleOnlyRtfOutput: any = await sequelize.query(
         "CALL generatePubsPeopleOnlyRTF (:uids, :limit)",
         {
-          replacements: { uids: apiBody.personIdentifiers?apiBody.personIdentifiers.join(','):'', limit: apiBody.limit },
+          replacements: { uids: apiBody.personIdentifiers?apiBody.personIdentifiers.join(','):'', limit: rtfLimit(apiBody.limit) },
           raw: true,
         }
       );
