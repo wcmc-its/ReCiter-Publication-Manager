@@ -89,7 +89,7 @@ export const authOptions = {
             console.log('SAML bridgeCookie found:', !!bridgeCookie);
             if (!bridgeCookie) return null;
             const samlUser = JSON.parse(decrypt(decodeURIComponent(bridgeCookie)));
-            console.log("samlUser in authorize method read from cookie", samlUser);                                
+            console.log("samlUser in authorize method read from cookie:", samlUser?.personIdentifier);                                
             const samlUserEmail = samlUser?.email;
             const cwid = samlUser?.personIdentifier;
             const firstName = samlUser?.firstName;
@@ -135,7 +135,7 @@ export const authOptions = {
                                 persistUserLogin(cwid);	
                            if(adminUser)
                            {
-                            console.log('finalAdminUser from CWID else if*****************',adminUser);
+                            console.log('finalAdminUser from CWID else if:', adminUser?.personIdentifier);
                                    return adminUser;
  
                            }
@@ -159,7 +159,7 @@ export const authOptions = {
     async jwt({ token, user, trigger, session }) {
       console.log('JWT callback - user exists:', !!user, 'token exists:', !!token);
       if (user) console.log("JWT callback: new login for", user.email);
-       else console.log("JWT callback: existing token", token);
+       else console.log("JWT callback: existing token for", token?.username);
 
       if (user) {
         token.user = user;
