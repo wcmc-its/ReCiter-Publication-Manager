@@ -184,7 +184,8 @@ export const journalFilter = async (
   res: NextApiResponse
 ) => {
   try {
-    let where = {};
+    // NULL titles sort first under ASC and crash the dropdown's label filter.
+    let where: any = { journalTitleVerbose: { [Op.ne]: null } };
     const { journalFilter } = req.query;
     const count = req.query.count as string;
     let limit = parseInt(count) || 10;
