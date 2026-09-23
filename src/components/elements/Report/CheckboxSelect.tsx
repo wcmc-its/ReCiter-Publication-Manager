@@ -84,7 +84,7 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
   }
 
   const getLabel = (option: any) => {
-    return formatOptionTitle ? formatOptionTitle(option) : optionLabel ? option[optionLabel] : option.label;
+    return (formatOptionTitle ? formatOptionTitle(option) : optionLabel ? option[optionLabel] : option.label) ?? '';
   }
 
   const getPersonTypeLabel = (slug: string) => {
