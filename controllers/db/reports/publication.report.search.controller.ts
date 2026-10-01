@@ -1590,7 +1590,11 @@ export const publicationSearchWithFilterPmids = async (
           },
         ],
        
-        attributes: [`AnalysisSummaryAuthor.id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+        // Unfiltered: one row per authorship across the whole table. Only pmid and the row count
+        // are used, so select just pmid as plain rows -- the 25-column model instances OOM-killed
+        // the prod pod (2Gi) when CSV/RTF was opened on an unfiltered report.
+        attributes: [`pmid`],
+        raw: true,
         benchmark: true
       });
 
