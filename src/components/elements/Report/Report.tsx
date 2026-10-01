@@ -83,74 +83,24 @@ const Report = () => {
   // modal management
   const [openModal, uid, updateUid, handleClose, handleShow] = useModal();
 
+  // labels come from admin settings, which _app fetches asynchronously -- on a direct load of
+  // /report they arrive after mount, so re-derive whenever they land (session.adminSettings is
+  // no longer populated by next-auth)
+  useEffect(() => {
+    if (!updatedAdminSettings?.length) return;
+    const attrs = (viewName) => updatedAdminSettings.find(obj => obj.viewName === viewName).viewAttributes;
+    setReportFiltersLabes(attrs("reportingFilters"));
+    setViewProfileLabels(attrs("viewProfile"));
+    setReportLabelsForSort(attrs("reportingWebViewSort"));
+    setHeadShotLabelData(attrs("headshot"))
+    setExportAuthorShipLabels(attrs("reportingAuthorshipCSV"))
+    setExportArticleLabels(attrs("reportingArticleCSV"))
+    setReportingWebDisplay(attrs("reportingWebDisplay"))
+    setExportArticlesRTF(attrs("reportingArticleRTF"))
+  }, [updatedAdminSettings])
+
   // fetch filters on mount
   useEffect(() => {
-    var viewAttributes = [];
-    var profileViewAttributes = [];
-    var sortLabelViewAttributes = [];
-    var headShotLabels = [];
-    var exportAuthorShipCSVLabels = [];
-    var exportArticleCSVLabels = [];
-    var reportingWeb = [];
-    var exportArticleRTF = [];
-
-
-    if (updatedAdminSettings.length > 0) {
-      // updated settings from manage settings page
-      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "reportingFilters")
-      let viewProfileUpdatedData = updatedAdminSettings.find(obj => obj.viewName === "viewProfile")
-      let sortLabelsUpdatedData = updatedAdminSettings.find(obj => obj.viewName === "reportingWebViewSort")
-      let headShotData = updatedAdminSettings.find(obj => obj.viewName === "headshot")
-      let exportAuthors = updatedAdminSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
-      let exportArticle = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleCSV")
-      let reportingWebDisplay = updatedAdminSettings.find(obj => obj.viewName === "reportingWebDisplay")
-      let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
-
-
-      sortLabelViewAttributes = sortLabelsUpdatedData.viewAttributes;
-      profileViewAttributes = viewProfileUpdatedData.viewAttributes;
-      viewAttributes = updatedData.viewAttributes;
-      headShotLabels = headShotData.viewAttributes;
-      exportArticleCSVLabels = exportArticle.viewAttributes;
-      exportAuthorShipCSVLabels = exportAuthors.viewAttributes;
-      reportingWeb = reportingWebDisplay.viewAttributes;
-      exportArticleRTF = exportRTF.viewAttributes;
-
-    } else if (session?.adminSettings) {
-      // regular settings from session
-      let adminSettings = JSON.parse(session.adminSettings);
-      let data = adminSettings.find(obj => obj.viewName === "reportingFilters")
-      let viewProfileUpdatedData = adminSettings.find(obj => obj.viewName === "viewProfile")
-      let sortLabelsUpdatedData = adminSettings.find(obj => obj.viewName === "reportingWebViewSort")
-      let headShotData = adminSettings.find(obj => obj.viewName === "headshot")
-      let exportAuthors = adminSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
-      let exportArticle = adminSettings.find(obj => obj.viewName === "reportingArticleCSV")
-      let reportingWebDisplay = adminSettings.find(obj => obj.viewName === "reportingWebDisplay")
-      let exportRTF = adminSettings.find(obj => obj.viewName === "reportingArticleRTF")
-
-
-      sortLabelViewAttributes = JSON.parse(sortLabelsUpdatedData.viewAttributes);
-      profileViewAttributes = JSON.parse(viewProfileUpdatedData.viewAttributes);
-      viewAttributes = JSON.parse(data.viewAttributes);
-      headShotLabels = JSON.parse(headShotData.viewAttributes);
-      exportArticleCSVLabels = JSON.parse(exportArticle.viewAttributes);
-      exportAuthorShipCSVLabels = JSON.parse(exportAuthors.viewAttributes);
-      reportingWeb = JSON.parse(reportingWebDisplay.viewAttributes);
-      exportArticleRTF = JSON.parse(exportRTF.viewAttributes);
-
-    }
-
-    // view attributes data from session or updated settings
-    setReportFiltersLabes(viewAttributes);
-    setViewProfileLabels(profileViewAttributes);
-    setReportLabelsForSort(sortLabelViewAttributes);
-    setHeadShotLabelData(headShotLabels)
-    setExportAuthorShipLabels(exportAuthorShipCSVLabels)
-    setExportArticleLabels(exportArticleCSVLabels)
-    setReportingWebDisplay(reportingWeb)
-    setExportArticlesRTF(exportArticleRTF)
-
-
     SetIsFirstLoad(true);
     dispatch(showEvidenceByDefault(null));
     const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter.filters;
