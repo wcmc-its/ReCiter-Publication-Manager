@@ -86,7 +86,7 @@ const SearchSummary = ({
       }
     })
     serFormatedSOrtOptions(sortWithDisplayRank.sort((a: any, b: any) => a.displayRank - b.displayRank))
-  }, [])
+  }, [reportLabelsForSort])
 
   const handleSelect = (option) => {
     let optionInfo = option.split('_');
