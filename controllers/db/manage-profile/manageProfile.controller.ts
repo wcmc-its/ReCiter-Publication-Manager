@@ -15,6 +15,13 @@ export const getManageProfileByID = async (
         let adminUserData = await models.AdminUser.findOne({
             where: { "personIdentifier": personIdentifier }
         })
+        // The saved ORCID read on its own: getManageProfileForOCIDData only returns rows for
+        // suggested ORCIDs, so a manually saved ORCID was invisible for anyone without one.
+        const savedOrcidRow: any = await models.AdminOrcid.findOne({
+            where: { "personIdentifier": personIdentifier },
+            raw: true
+        })
+        const savedOrcid = savedOrcidRow?.orcid || ''
 
         if (adminUserData) {
             profileInfo = await sequelize.query(
@@ -30,7 +37,8 @@ export const getManageProfileByID = async (
             if (profileInfo) {
                 let result = {
                     "email": adminUserData.email,
-                    "data": profileInfo
+                    "data": profileInfo,
+                    savedOrcid
                 }
                 res.send(result);
             }
@@ -38,15 +46,16 @@ export const getManageProfileByID = async (
                 let result = {
                     "message": "No data found",
                     "email": adminUserData.email,
-                    "userID": adminUserData.userID
+                    "userID": adminUserData.userID,
+                    savedOrcid
                 }
                 res.send(result);
             }
         } else {
             let noData = {
                 "message": "User does not exist",
-                "email": ''
-
+                "email": '',
+                savedOrcid
             }
             res.send(noData)
         }

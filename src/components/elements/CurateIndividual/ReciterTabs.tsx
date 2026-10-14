@@ -163,7 +163,10 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   // useEffect([pubmedData]) -> filter() renders the result instead of landing on an
   // empty form the curator has to re-search by hand.
   const handleAddViaPubMed = (pmid: number) => {
-    setPubSearchFilters({ pubMendSearchText: String(pmid) });
+    // All four keys, as searchFunction's own pubFilters: TabAddPublication copies the year
+    // keys into state, and undefined years fail its `latestYear >= earliestYear` gate, so
+    // every later search on the tab silently did nothing until a page reload.
+    setPubSearchFilters({ pubMendSearchText: String(pmid), pubMedLatestYear: '', pubMedEarliestYear: '', pubMedshowFiltersCount: true });
     onTabChange('AddPub');
     dispatch(pubmedFetchData({
       "strategy-query": String(pmid),
