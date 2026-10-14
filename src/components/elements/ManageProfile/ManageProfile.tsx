@@ -26,6 +26,7 @@ const ManageProfle = () => {
     const [isSuperUserORCuratorAll, SetIsSuperUserORCuratorAll] = useState<boolean>(false);
     const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
     const [serverValue, setServerValue] = useState('');
+    const [savedOrcid, setSavedOrcid] = useState('');
 
     useEffect(() => {
         let userPermissions = JSON.parse(session.data.userRoles);
@@ -70,15 +71,19 @@ const ManageProfle = () => {
             body: JSON.stringify(payload)
         }).then(response => {
             if (response.status === 200) {
+                setErrorMessage('');
                 toast.success("ORCID Saved Successfully", {
                     position: "top-right",
                     autoClose: 2000,
                     theme: 'colored'
                 });
                 getManageProfileData(router.query.userId ? router.query.userId : "")
+            } else {
+                setErrorMessage(`Unable to save ORCID (HTTP ${response.status}). Please try again.`);
             }
         }).then(data => {
         }).catch(error => {
+            setErrorMessage("Unable to save ORCID. Please try again. (ERR-1010)");
             console.error("[ERR-1010]", error);
             reportError("ERR-1010", "Unable to save ORCID", error);
             toast.error("Unable to save ORCID. Please try again. (ERR-1010)", {
@@ -109,6 +114,7 @@ const ManageProfle = () => {
                 });
                 setManualORCID("");
                 setSelectOrcid("");
+                setSavedOrcid("");
             })
             .catch(error => {
                 console.error("[ERR-1011]", error);
@@ -134,6 +140,7 @@ const ManageProfle = () => {
             },
         }).then(response => response.json())
             .then(data => {
+                setSavedOrcid(data?.savedOrcid || "");
                 if (data.message === "User does not exist") {
                     toast.error("User does not exist", {
                         position: "top-right",
@@ -149,7 +156,7 @@ const ManageProfle = () => {
                     if(recentUpdatedOrcid)
                         setSelectOrcid(recentUpdatedOrcid?.recently_selected_orcid);
                     else
-                       setManualORCID(orcidData && orcidData.length > 0?orcidData[0].recently_selected_orcid:"");
+                       setManualORCID(data?.savedOrcid || "");
                     setProfileData(orcidData);
                     setLoadProfileData(false);
                 }
@@ -170,9 +177,10 @@ const ManageProfle = () => {
         setClearRadioBtns(true);
         setSelectOrcid("");
         const value = e.target.value;
-        const numericValue = value.replace(/\D/g, '');
+        // ORCID's last character is a checksum that can be X.
+        const numericValue = value.toUpperCase().replace(/[^0-9X]/g, '');
         const formattedValue = formatInput(numericValue);
-        if (formattedValue.length === 19) {
+        if (/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(formattedValue)) {
             setErrorMessage('');
         } else {
             setErrorMessage('Please enter the value in the format ####-####-####-####');
@@ -210,14 +218,18 @@ const ManageProfle = () => {
             body: JSON.stringify(payload)
         }).then(response => {
             if (response.status === 200) {
+                setErrorMessage('');
                 toast.success("ORCID Saved Successfully", {
                     position: "top-right",
                     autoClose: 2000,
                     theme: 'colored'
                 });
                 getManageProfileData(router.query.userId ? router.query.userId : "")
+            } else {
+                setErrorMessage(`Unable to save ORCID (HTTP ${response.status}). Please try again.`);
             }
         }).catch(error => {
+            setErrorMessage("Unable to save ORCID. Please try again. (ERR-1013)");
             console.error("[ERR-1013]", error);
             reportError("ERR-1013", "Unable to save ORCID", error);
             toast.error("Unable to save ORCID. Please try again. (ERR-1013)", {
@@ -230,13 +242,13 @@ const ManageProfle = () => {
 
     const formatInput = (value) => {
         const formattedValue = value
-            .replace(/(\d{4})/g, '$1-')
+            .replace(/([\dX]{4})/g, '$1-')
             .slice(0, 19);
         return formattedValue;
     };
 
     /* Current saved ORCID (from selected radio or manual input that was saved) */
-    const currentOrcid = profileData.length > 0 ? profileData[0].recently_selected_orcid : '';
+    const currentOrcid = savedOrcid;
 
     return (
         <>
