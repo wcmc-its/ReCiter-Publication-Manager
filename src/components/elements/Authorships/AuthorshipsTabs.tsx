@@ -535,6 +535,39 @@ const INITIAL_FILTERS: AuthorshipFilters = {
   ...FILTER_DEFAULTS,
 };
 
+// The curator's last view, kept across reloads and return visits (2026-10-23). A curator
+// working one slice of the queue (Article affiliation = Cornell, ~23k rows) otherwise lands on
+// the default WCM 2-year queue after every reload, waits for it, re-applies the chips, and waits
+// again. Restored on mount BEFORE the first fetch, so the saved view is the only one queried.
+// localStorage, not the URL: the owner wants "pick up where I left off", not a bookmark.
+// The date window is saved as its PRESET, so "Last 2 years" still means the last two years when
+// it is restored a month later; only "Custom…" carries its literal From/To. likeAuthor is never
+// saved — a like view is a detour whose filters are deliberately widened (LIKE_WIDEN_PATCH), and
+// restoring it would strand the curator in that widened queue with no stash to return to.
+const SAVED_VIEW_KEY = "authorships.view.v1";
+type SavedView = { filters: Partial<AuthorshipFilters>; datePreset: string };
+const loadSavedView = (): SavedView | null => {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(SAVED_VIEW_KEY) || "null");
+    if (!v || typeof v.filters !== "object" || typeof v.datePreset !== "string") return null;
+    if (!DATE_PRESET_LABEL[v.datePreset]) return null;
+    // Only keys this build still knows, with the type the default has — a view saved by an
+    // older or newer build must not inject a stale or misshapen filter.
+    const filters: Partial<AuthorshipFilters> = {};
+    (Object.keys(FILTER_DEFAULTS) as Array<keyof AuthorshipFilters>).forEach((k) => {
+      const saved = v.filters[k];
+      const dflt = FILTER_DEFAULTS[k];
+      if (saved === undefined || Array.isArray(saved) !== Array.isArray(dflt) || typeof saved !== typeof dflt) return;
+      (filters as any)[k] = saved;
+    });
+    filters.likeAuthor = "";
+    return { filters, datePreset: v.datePreset };
+  } catch { return null; }
+};
+const saveView = (view: SavedView) => {
+  try { window.localStorage.setItem(SAVED_VIEW_KEY, JSON.stringify(view)); } catch { /* private window / quota */ }
+};
+
 // "Reset all" restores FILTER_DEFAULTS except these. Sort is a view preference, not a filter:
 // the mockup's DEFAULTS omits it, it is never a chip, and the owner's standing requirement is
 // that changing one control must not lose the others, sort in particular.
@@ -2515,7 +2548,33 @@ const AuthorshipsTabs = () => {
   // Apply the default "recent" window (Last 2 years) on mount — client-only so the statically
   // prerendered initial render (empty dates) hydrates cleanly. datesReady then releases the first
   // list fetch, so curators land on the windowed view instead of flashing the full backlog.
-  useEffect(() => { applyDatePreset(DEFAULT_DATE_PRESET); setDatesReady(true); }, [applyDatePreset]);
+  // A saved view (see SAVED_VIEW_KEY) replaces the default here, in the same render that releases
+  // datesReady, so the first list fetch is for the restored view — never default-then-restored.
+  useEffect(() => {
+    const saved = loadSavedView();
+    if (saved) {
+      patchFilters(saved.filters);
+      setSearchInput(saved.filters.search || "");
+      applyDatePreset(saved.datePreset);   // "custom" returns early and keeps the restored From/To
+    } else {
+      applyDatePreset(DEFAULT_DATE_PRESET);
+    }
+    setDatesReady(true);
+  }, [applyDatePreset, patchFilters]);
+  // Outside a like view only: its widened filters are not the curator's own (see SAVED_VIEW_KEY).
+  useEffect(() => {
+    if (!datesReady || likeAuthor) return;
+    saveView({ filters, datePreset });
+  }, [filters, datePreset, datesReady, likeAuthor]);
+
+  // A bulk run is a loop in THIS tab: reloading or closing it mid-run silently abandons the rest
+  // of the batch. Ask first.
+  useEffect(() => {
+    if (!bulkProgress) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [bulkProgress]);
 
   // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, U undo,
   // Enter open PubMed. Registered ONCE: it reads the latest rows/focus/view/handlers from refs, so
@@ -3634,7 +3693,16 @@ const AuthorshipsTabs = () => {
       {!reportView && (
       <div>
         {loading && <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>Loading…</div>}
-        {!loading && rows.length === 0 && (
+        {/* During a bulk run every selected row leaves the page at once and the refill waits for
+            the whole batch, so an empty list here means "working", not "nothing matches" — the
+            old message read as a dead page and invited the reload that abandons the run. */}
+        {!loading && rows.length === 0 && bulkProgress && (
+          <div style={{ padding: 24, textAlign: "center", color: "#4a5262", fontVariantNumeric: "tabular-nums" }}>
+            Working through the selection: {bulkProgress.done.toLocaleString()} of {bulkProgress.total.toLocaleString()}.
+            The queue refills when the batch finishes — keep this tab open.
+          </div>
+        )}
+        {!loading && rows.length === 0 && !bulkProgress && (
           <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>No authorships match these filters.</div>
         )}
         {!loading && rows.map((r) => (
