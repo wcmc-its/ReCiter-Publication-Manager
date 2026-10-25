@@ -16,6 +16,8 @@ import { useSession } from "next-auth/react";
 import { clearPubMedData, showEvidenceByDefault, reciterFetchData, pubmedFetchData, reciterUpdatePublication } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { toReciterArticle } from "../../../utils/toReciterArticle";
+import { useRouter } from "next/router";
+import { AddDeepLink, ADD_DEEP_LINK_PARAMS, parseAddDeepLink } from "../../../utils/externalAddSearch";
 
 
 const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData: any, fullName: string, fetchOriginalData: any }) => {
@@ -35,6 +37,11 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   // Single "+ Add publication" dropdown (PubMed / OpenAlex / …) — keeps the tab-bar
   // compact as more external sources (Scopus, WoS) are added.
   const [addMenuAnchor, setAddMenuAnchor] = useState<null | HTMLElement>(null);
+  // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex]: opens the Add tab with
+  // the DOI filled in and searched. Applied once; cleared when the curator changes tab.
+  const router = useRouter();
+  const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(null);
+  const deepLinkApplied = useRef(false);
 
   // Smart change tracking: compare current assertions to originals
   const originalAssertions = useRef<Map<number, string>>(new Map());
@@ -88,6 +95,21 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     });
     originalAssertions.current = origMap;
   }, [])
+
+  useEffect(() => {
+    if (!router.isReady || deepLinkApplied.current) return;
+    deepLinkApplied.current = true;
+    const link = parseAddDeepLink(router.query);
+    if (!link.open) return;
+    setAddDeepLink(link);
+    setKey('External');
+    // Drop the deep-link parameters so a later remount of these tabs (e.g. after Refresh
+    // Suggestions) does not re-open the Add tab and search again. Shallow: no refetch.
+    const rest: Record<string, any> = { ...router.query };
+    ADD_DEEP_LINK_PARAMS.forEach((p) => { delete rest[p]; });
+    router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady]);
 
   const updatePublicationAssertion = (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => {
     let updatedFilteredData = [...filteredData];
@@ -154,6 +176,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
 
   const onTabChange = (k)=>{
     setKey(k)
+    setAddDeepLink(null)
     dispatch(showEvidenceByDefault(false));
   }
 
@@ -429,6 +452,10 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
           getPmidStatus={getPmidStatus}
           viewerCwid={session?.data?.username}
           findRecordPmid={findRecordPmid}
+          initialQuery={addDeepLink?.doi}
+          initialSource={addDeepLink?.source}
+          autoSearch={!!addDeepLink?.doi}
+          deepLinkInvalidDoi={!!addDeepLink?.invalidDoi}
         />
       ) : key === 'ScopusAuth' ? (
         <TabScopusAuthorships
