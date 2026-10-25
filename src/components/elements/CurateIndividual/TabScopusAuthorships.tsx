@@ -3,6 +3,7 @@ import { toast } from "react-toastify"
 import { reciterConfig } from "../../../../config/local"
 import ExternalPublicationCard, { AddState } from "./ExternalPublicationCard"
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
+import { enrichScopusResults, seedAddedStates } from "../../../utils/externalAddSearch"
 
 // PM#772 — Scopus Authorships tab. A high-level Scopus search (by Author ID, keyword,
 // or DOI) surfacing documents not already in the person's record (matched by PMID, or,
@@ -157,8 +158,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                 // person's record (same DOI, or same Scopus document ID) — enrich it with that
                 // record's PMID so it partitions into inRecord below exactly like a PMID-bearing
                 // doc, instead of always surfacing as "needs review".
-                const results = Array.isArray(body.results) ? body.results : []
-                setDocs(results.map((d: any) => d.pmid ? d : { ...d, pmid: props.findRecordPmid(d) ?? undefined }))
+                setDocs(enrichScopusResults(body.results, props.findRecordPmid))
                 setTotal(Number(body.total || 0))
                 setCapped(!!body.capped)
                 setPartial(!!body.partial)
@@ -287,17 +287,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
     // Runs whenever docs or externalIds change, independent of fetch ordering.
     useEffect(() => {
         if (externalIds.size === 0 || docs.length === 0) return
-        setAddStates((prev) => {
-            let changed = false
-            const next = { ...prev }
-            docs.forEach((d) => {
-                if (externalIds.has(d.articleId) && next[d.articleId]?.status !== 'added') {
-                    next[d.articleId] = { status: 'added' }
-                    changed = true
-                }
-            })
-            return changed ? next : prev
-        })
+        setAddStates((prev) => seedAddedStates(prev, docs, externalIds))
     }, [docs, externalIds])
 
     // needsReview = fetched docs not dismissed and not already in the person's record —

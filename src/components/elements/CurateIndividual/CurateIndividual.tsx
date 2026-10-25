@@ -20,6 +20,7 @@ import { reciterConfig } from "../../../../config/local";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import GrantProxyModal from "./GrantProxyModal";
+import { AddDeepLink, ADD_DEEP_LINK_PARAMS, parseAddDeepLink } from "../../../utils/externalAddSearch";
 
 
 
@@ -54,6 +55,11 @@ const CurateIndividual = () => {
   const [showRecentActivity, setShowRecentActivity] = useState(false) // collapsed by default; the Hide/Show toggle still lets a curator open it
   const [headShotLoaded, setHeadShotLoaded] = useState(false)
   const [grantProxyShow, setGrantProxyShow] = useState(false);
+  // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex]. Parsed here, not in
+  // ReciterTabs: this component stays mounted while the tabs are swapped for the loading
+  // skeleton, so a tabs instance mounted before the fetches start would be thrown away along
+  // with the link. Handed to the tabs that mount after loading, then cleared once they take it.
+  const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(null);
   // Grant Proxy hits Superuser-only API routes (see PM#849 / proxy.controller.ts) -- match
   // that gate here so the button isn't shown to someone who'd just get a 403.
   const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
@@ -77,6 +83,17 @@ const CurateIndividual = () => {
     setNewId(id);
     dispatch(identityFetchData(id));
     fetchData();
+    // After fetchData(): reciterFetching is already true, so the tabs only see the link once
+    // this uid's data has loaded.
+    const link = parseAddDeepLink(router.query);
+    setAddDeepLink(link.open ? link : null);
+    if (link.open) {
+      // Drop the deep-link parameters so a reload or a later remount does not re-open the Add
+      // tab and search again. Shallow, and id is unchanged: no refetch, this effect does not rerun.
+      const rest: Record<string, any> = { ...router.query };
+      ADD_DEEP_LINK_PARAMS.forEach((p) => { delete rest[p]; });
+      router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+    }
   }, [id])
 
   // Show the "no identity" message only for a real identity-404 -- not for a generic
@@ -324,6 +341,8 @@ const CurateIndividual = () => {
             reciterData={reciterData}
             fullName={personFullName}
             fetchOriginalData={fetchData}
+            addDeepLink={addDeepLink}
+            onAddDeepLinkConsumed={() => setAddDeepLink(null)}
           />
           <Profile
             uid={identityData.uid}

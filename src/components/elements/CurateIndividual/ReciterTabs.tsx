@@ -16,11 +16,12 @@ import { useSession } from "next-auth/react";
 import { clearPubMedData, showEvidenceByDefault, reciterFetchData, pubmedFetchData, reciterUpdatePublication } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { toReciterArticle } from "../../../utils/toReciterArticle";
+import { AddDeepLink } from "../../../utils/externalAddSearch";
 
 
-const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData: any, fullName: string, fetchOriginalData: any }) => {
-  //default tab
-  const [key, setKey] = useState('NULL');
+const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: incomingDeepLink = null, onAddDeepLinkConsumed }: { reciterData: any, fullName: string, fetchOriginalData: any, addDeepLink?: AddDeepLink | null, onAddDeepLinkConsumed?: () => void }) => {
+  //default tab; a deep link (parsed by CurateIndividual) opens the Add tab instead
+  const [key, setKey] = useState(incomingDeepLink ? 'External' : 'NULL');
   const dispatch = useDispatch();
   const [filteredData, setFilteredData] = useState([])
   const [pubKey, setPubKey] = useState(false);
@@ -35,6 +36,9 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   // Single "+ Add publication" dropdown (PubMed / OpenAlex / …) — keeps the tab-bar
   // compact as more external sources (Scopus, WoS) are added.
   const [addMenuAnchor, setAddMenuAnchor] = useState<null | HTMLElement>(null);
+  // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex]: opens the Add tab with
+  // the DOI filled in and searched. Copied in on mount; cleared when the curator changes tab.
+  const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(incomingDeepLink);
 
   // Smart change tracking: compare current assertions to originals
   const originalAssertions = useRef<Map<number, string>>(new Map());
@@ -88,6 +92,13 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     });
     originalAssertions.current = origMap;
   }, [])
+
+  useEffect(() => {
+    // Taken: clear the parent's copy so a later remount (e.g. after Refresh Suggestions)
+    // does not re-open the Add tab and search again.
+    if (incomingDeepLink) onAddDeepLinkConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updatePublicationAssertion = (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => {
     let updatedFilteredData = [...filteredData];
@@ -154,6 +165,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
 
   const onTabChange = (k)=>{
     setKey(k)
+    setAddDeepLink(null)
     dispatch(showEvidenceByDefault(false));
   }
 
@@ -370,7 +382,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
               title="Switch add source"
             >
               <span className={styles.addRecordPulse} />
-              {key === 'AddPub' ? 'Adding record from PubMed' : key === 'External' ? 'Adding record from OpenAlex' : 'Scopus'}
+              {key === 'AddPub' ? 'Adding record from PubMed' : key === 'External' ? 'Adding record from Scopus / OpenAlex' : 'Scopus'}
               <span style={{ marginLeft: 4 }}>&#9662;</span>
             </div>
           ) : (
@@ -399,7 +411,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
               onClick={() => { setAddMenuAnchor(null); onTabChange('External'); }}
               sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
             >
-              OpenAlex
+              Scopus / OpenAlex (by DOI or title)
             </MenuItem>
             <MenuItem
               selected={key === 'ScopusAuth'}
@@ -428,6 +440,11 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
           onAcceptPmid={handleAcceptPmid}
           getPmidStatus={getPmidStatus}
           viewerCwid={session?.data?.username}
+          findRecordPmid={findRecordPmid}
+          initialQuery={addDeepLink?.doi}
+          initialSource={addDeepLink?.source}
+          autoSearch={!!addDeepLink?.doi}
+          deepLinkInvalidDoi={!!addDeepLink?.invalidDoi}
         />
       ) : key === 'ScopusAuth' ? (
         <TabScopusAuthorships

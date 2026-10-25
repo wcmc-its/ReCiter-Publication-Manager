@@ -1,15 +1,25 @@
-import React, { FunctionComponent, useCallback, useEffect, useState } from "react"
+import React, { FunctionComponent, useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "react-toastify"
 import { reciterConfig } from "../../../../config/local"
 import ExternalPublicationCard, { AddState } from "./ExternalPublicationCard"
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
+import {
+    AddSource, decideScopusOutcome, enrichScopusResults, scopusSearchFor, seedAddedStates,
+} from "../../../utils/externalAddSearch"
 
-// PM#771 — add publications from an external source (OpenAlex in v1) to a person's
+// PM#771 — add publications from an external source (Scopus by default, or OpenAlex) to a person's
 // record. Self-contained (AAR-tab precedent): local state + fetch, no redux. OpenAlex
 // search is proxied server-side; adds go through the ReCiter external-article API
 // (admin-key proxied) which enforces the BLOCKED (no override) / WARNING (Add anyway)
 // duplicate rules. Added pubs are listed here, visually separate from scored PubMed
 // suggestions, with a Delete (= revoke) affordance.
+//
+// Scopus is the default source (curated author lists and affiliations). Its search is the
+// Scopus Authorships tab's document search (/api/reciter/search/scopus, by DOI when the query
+// is a DOI, else by keyword) with the same result mapping, so a Scopus doc added here is the
+// same POST body that tab sends. A DOI Scopus does not hold, or a Scopus outage (502/503),
+// falls back to OpenAlex with an inline note. Search messages are inline text, not toasts:
+// toast.* is a no-op in PM (the toast container never mounts).
 
 interface FuncProps {
     personIdentifier: string,
@@ -24,6 +34,15 @@ interface FuncProps {
     // Signed-in curator's CWID, from useSession(). Gates the Delete button to the row's
     // own adder (item.addedBy) on ExternalPublicationCard.
     viewerCwid?: string,
+    // Match a PMID-less search result to an article already in this person's record by DOI
+    // or Scopus document ID (ReciterTabs.findRecordPmid) — the Scopus tab's result mapping.
+    findRecordPmid: (doc: { doi?: string; articleId?: string }) => number | null,
+    // Deep link (/curate/<uid>?add=external&doi=<doi>[&source=openalex]); read on mount only.
+    initialQuery?: string,
+    initialSource?: AddSource,
+    autoSearch?: boolean,
+    // The link carried a doi parameter that is not a DOI. Its value is never passed down.
+    deepLinkInvalidDoi?: boolean,
 }
 
 const apiHeaders = {
@@ -50,15 +69,40 @@ const sectionLabel: React.CSSProperties = {
 }
 const helpText: React.CSSProperties = { fontSize: 12.5, color: "#8a94a6", marginBottom: 8 }
 const emptyText: React.CSSProperties = { fontSize: 13, color: "#8a94a6", padding: "8px 0" }
+const selectStyle: React.CSSProperties = {
+    height: 36, borderRadius: 6, border: "1px solid #cbd3e0", padding: "0 10px", fontSize: 13, background: "#fff", color: "#1f2733",
+}
+const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "#55607a" }
+const noteStyle: React.CSSProperties = {
+    fontSize: 12.5, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a",
+    borderRadius: 6, padding: "8px 10px", marginBottom: 10,
+}
+const errorStyle: React.CSSProperties = {
+    fontSize: 12.5, color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca",
+    borderRadius: 6, padding: "8px 10px", marginBottom: 10,
+}
+
+const SOURCE_NAME: Record<AddSource, string> = { SCOPUS: "Scopus", OPENALEX: "OpenAlex" }
 
 const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
     const uid = props.personIdentifier
 
-    const source = "OPENALEX" // v1: OpenAlex only. Scopus/WoS join the tab-bar Add menu later.
-    const [query, setQuery] = useState<string>("")
+    const [source, setSource] = useState<AddSource>(props.initialSource || "SCOPUS")
+    const [query, setQuery] = useState<string>(props.initialQuery || "")
     const [searching, setSearching] = useState<boolean>(false)
+    // The source being searched right now / the source the shown results came from — they
+    // differ from `source` after a fallback to OpenAlex.
+    const [searchingSource, setSearchingSource] = useState<AddSource>(source)
+    const [resultSource, setResultSource] = useState<AddSource | null>(null)
+    const [searched, setSearched] = useState<boolean>(false)
     const [results, setResults] = useState<any[]>([])
+    const [scopusTotal, setScopusTotal] = useState<number>(0)
     const [addStates, setAddStates] = useState<Record<string, AddState>>({})
+    const [note, setNote] = useState<string>("")
+    const [errorMsg, setErrorMsg] = useState<string>("")
+    // Only the latest search may write results: a slow Scopus answer must not overwrite a
+    // newer search the curator has since run.
+    const searchSeq = useRef(0)
 
     const [externalList, setExternalList] = useState<any[]>([])
     const [loadingList, setLoadingList] = useState<boolean>(false)
@@ -92,19 +136,11 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
         fetchExternalList()
     }, [fetchExternalList])
 
-    const runSearch = (e?: React.FormEvent) => {
-        if (e) e.preventDefault()
-        const q = query.trim()
-        if (!q) {
-            toast.error("Enter a title or DOI to search.", { position: "top-right", autoClose: 2000, theme: "colored" })
-            return
-        }
-        setSearching(true)
-        setResults([])
-        setAddStates({})
-        fetch(`/api/reciter/search/openalex`, {
+    const searchOpenAlex = (q: string, seq: number): Promise<void> => {
+        setSearchingSource("OPENALEX")
+        return fetch(`/api/reciter/search/openalex`, {
             credentials: "same-origin", method: "POST", headers: apiHeaders,
-            body: JSON.stringify({ query: q, source }),
+            body: JSON.stringify({ query: q, source: "OPENALEX" }),
         })
             .then(async (r) => {
                 const body = await r.json().catch(() => ({}))
@@ -112,17 +148,77 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                 return body
             })
             .then((body) => {
-                const rows = Array.isArray(body.results) ? body.results : []
-                setResults(rows)
-                if (rows.length === 0) {
-                    toast.info("No results found in OpenAlex.", { position: "top-right", autoClose: 2000 })
-                }
+                if (seq !== searchSeq.current) return
+                setResults(Array.isArray(body.results) ? body.results : [])
+                setResultSource("OPENALEX")
             })
             .catch((err) => {
-                toast.error("OpenAlex search failed: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+                if (seq !== searchSeq.current) return
+                setErrorMsg("OpenAlex search failed: " + (err.message || err))
             })
-            .finally(() => setSearching(false))
     }
+
+    const searchScopus = async (q: string, seq: number): Promise<void> => {
+        setSearchingSource("SCOPUS")
+        const { by, term } = scopusSearchFor(q)
+        let status = 0
+        let body: any = {}
+        try {
+            const r = await fetch(`/api/reciter/search/scopus`, {
+                credentials: "same-origin", method: "POST", headers: apiHeaders,
+                body: JSON.stringify({ mode: "documents", by, term }),
+            })
+            status = r.status
+            body = await r.json().catch(() => ({}))
+        } catch (e) { status = 0 } // network failure: treated like a Scopus outage
+        if (seq !== searchSeq.current) return
+        const found = status >= 200 && status < 300 && Array.isArray(body.results) ? body.results : []
+        const outcome = decideScopusOutcome({ status, resultCount: found.length, by })
+        if (outcome.kind === "results" || outcome.kind === "empty") {
+            setResults(enrichScopusResults(found, props.findRecordPmid))
+            setScopusTotal(Number(body.total || 0))
+            setResultSource("SCOPUS")
+        } else if (outcome.kind === "fallback") {
+            setNote(outcome.note)
+            await searchOpenAlex(q, seq)
+        } else {
+            setErrorMsg(outcome.message)
+        }
+    }
+
+    const runSearch = (e?: React.FormEvent, queryArg?: string, sourceArg?: AddSource) => {
+        if (e) e.preventDefault()
+        const q = (queryArg !== undefined ? queryArg : query).trim()
+        const src = sourceArg || source
+        setNote("")
+        setErrorMsg("")
+        if (!q) {
+            setErrorMsg("Enter a title or DOI to search.")
+            return
+        }
+        const seq = ++searchSeq.current
+        setSearching(true)
+        setSearched(true)
+        setResults([])
+        setResultSource(null)
+        setScopusTotal(0)
+        setAddStates({})
+        const run = src === "SCOPUS" ? searchScopus(q, seq) : searchOpenAlex(q, seq)
+        run.finally(() => { if (seq === searchSeq.current) setSearching(false) })
+    }
+
+    // Deep link: fill the query and run the search once, on open.
+    useEffect(() => {
+        if (props.autoSearch && props.initialQuery) runSearch(undefined, props.initialQuery, props.initialSource || "SCOPUS")
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    // Already added: a result that is already a non-suppressed ExternalArticle on this record
+    // shows "Added" instead of offering Add again (same rule as the Scopus tab).
+    useEffect(() => {
+        const ids = new Set<string>(externalList.filter((row) => !row.suppressed).map((row) => row.articleId))
+        setAddStates((prev) => seedAddedStates(prev, results, ids))
+    }, [results, externalList])
 
     // Ask PubMed whether a DOI is indexed there (returns the PMID, or null).
     const checkPubmedByDoi = async (doiVal: string): Promise<number | null> => {
@@ -230,12 +326,28 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
     return (
         <div style={wrap}>
             <p style={helpText}>
-                Add a publication from an external source when it is not indexed in PubMed. External
-                publications are not scored by ReCiter and are listed separately below.
+                Add a publication from an external source when it is not indexed in PubMed. Scopus is searched
+                first; a DOI Scopus does not have is looked up in OpenAlex. External publications are not scored
+                by ReCiter and are listed separately below.
             </p>
 
-            {/* Search OpenAlex (source is chosen from the tab-bar "+ Add publication" menu) */}
+            {props.deepLinkInvalidDoi && (
+                <div style={noteStyle} role="status">
+                    The link&apos;s DOI was not recognised, so nothing was searched. Enter a title or DOI below.
+                </div>
+            )}
+
             <form style={searchPanel} onSubmit={runSearch}>
+                <span style={labelStyle}>Search</span>
+                <select
+                    style={selectStyle}
+                    value={source}
+                    onChange={(e) => setSource(e.target.value as AddSource)}
+                    aria-label="Search source"
+                >
+                    <option value="SCOPUS">Scopus</option>
+                    <option value="OPENALEX">OpenAlex</option>
+                </select>
                 <input
                     type="text"
                     style={inputStyle}
@@ -244,18 +356,33 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                     onChange={(e) => setQuery(e.target.value)}
                 />
                 <button type="submit" style={searchBtn} disabled={searching}>
-                    {searching ? "Searching…" : "Search OpenAlex"}
+                    {searching ? "Searching…" : `Search ${SOURCE_NAME[source]}`}
                 </button>
             </form>
 
+            {errorMsg && <div style={errorStyle} role="alert">{errorMsg}</div>}
+            {note && <div style={noteStyle} role="status">{note}</div>}
+
             {/* Search results */}
-            {(searching || results.length > 0) && (
+            {(searching || searched) && !errorMsg && (
                 <>
-                    <div style={sectionLabel}>Search results</div>
+                    <div style={sectionLabel}>
+                        Search results{!searching && resultSource ? ` from ${SOURCE_NAME[resultSource]}` : ""}
+                    </div>
                     {searching ? (
-                        <div style={emptyText}>Searching OpenAlex…</div>
+                        <div style={emptyText}>Searching {SOURCE_NAME[searchingSource]}…</div>
+                    ) : results.length === 0 ? (
+                        <div style={emptyText}>
+                            {resultSource ? `No results found in ${SOURCE_NAME[resultSource]}.` : "No results."}
+                        </div>
                     ) : (
-                        results.map((item) => (
+                        <>
+                        {resultSource === "SCOPUS" && scopusTotal > results.length && (
+                            <div style={noteStyle}>
+                                Showing the first {results.length} of {scopusTotal.toLocaleString()} Scopus documents — refine your search to see the rest.
+                            </div>
+                        )}
+                        {results.map((item) => (
                             <ExternalPublicationCard
                                 key={item.articleId}
                                 item={item}
@@ -267,7 +394,8 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                                 onAddViaPubMed={(pmid, it) => props.onAddViaPubMed(pmid, it)}
                                 recordStatusOf={props.getPmidStatus}
                             />
-                        ))
+                        ))}
+                        </>
                     )}
                 </>
             )}
