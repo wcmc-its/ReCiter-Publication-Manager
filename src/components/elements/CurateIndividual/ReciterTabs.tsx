@@ -370,7 +370,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
               title="Switch add source"
             >
               <span className={styles.addRecordPulse} />
-              {key === 'AddPub' ? 'Adding record from PubMed' : key === 'External' ? 'Adding record from OpenAlex' : 'Scopus'}
+              {key === 'AddPub' ? 'Adding record from PubMed' : key === 'External' ? 'Adding record from Scopus / OpenAlex' : 'Scopus'}
               <span style={{ marginLeft: 4 }}>&#9662;</span>
             </div>
           ) : (
@@ -399,7 +399,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
               onClick={() => { setAddMenuAnchor(null); onTabChange('External'); }}
               sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
             >
-              OpenAlex
+              Scopus / OpenAlex (by DOI or title)
             </MenuItem>
             <MenuItem
               selected={key === 'ScopusAuth'}
@@ -428,6 +428,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
           onAcceptPmid={handleAcceptPmid}
           getPmidStatus={getPmidStatus}
           viewerCwid={session?.data?.username}
+          findRecordPmid={findRecordPmid}
         />
       ) : key === 'ScopusAuth' ? (
         <TabScopusAuthorships
