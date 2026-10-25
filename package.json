@@ -8,6 +8,7 @@
     "build": "npm install --package-lock-only --ignore-scripts && npx npm-force-resolutions && next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "node --test \"tests/**/*.test.mjs\"",
     "generate-models": "node ./src/db/scripts/generateModels.js"
   },
   "dependencies": {
