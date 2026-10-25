@@ -16,13 +16,12 @@ import { useSession } from "next-auth/react";
 import { clearPubMedData, showEvidenceByDefault, reciterFetchData, pubmedFetchData, reciterUpdatePublication } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { toReciterArticle } from "../../../utils/toReciterArticle";
-import { useRouter } from "next/router";
-import { AddDeepLink, ADD_DEEP_LINK_PARAMS, parseAddDeepLink } from "../../../utils/externalAddSearch";
+import { AddDeepLink } from "../../../utils/externalAddSearch";
 
 
-const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData: any, fullName: string, fetchOriginalData: any }) => {
-  //default tab
-  const [key, setKey] = useState('NULL');
+const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: incomingDeepLink = null, onAddDeepLinkConsumed }: { reciterData: any, fullName: string, fetchOriginalData: any, addDeepLink?: AddDeepLink | null, onAddDeepLinkConsumed?: () => void }) => {
+  //default tab; a deep link (parsed by CurateIndividual) opens the Add tab instead
+  const [key, setKey] = useState(incomingDeepLink ? 'External' : 'NULL');
   const dispatch = useDispatch();
   const [filteredData, setFilteredData] = useState([])
   const [pubKey, setPubKey] = useState(false);
@@ -38,10 +37,8 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   // compact as more external sources (Scopus, WoS) are added.
   const [addMenuAnchor, setAddMenuAnchor] = useState<null | HTMLElement>(null);
   // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex]: opens the Add tab with
-  // the DOI filled in and searched. Applied once; cleared when the curator changes tab.
-  const router = useRouter();
-  const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(null);
-  const deepLinkApplied = useRef(false);
+  // the DOI filled in and searched. Copied in on mount; cleared when the curator changes tab.
+  const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(incomingDeepLink);
 
   // Smart change tracking: compare current assertions to originals
   const originalAssertions = useRef<Map<number, string>>(new Map());
@@ -97,19 +94,11 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   }, [])
 
   useEffect(() => {
-    if (!router.isReady || deepLinkApplied.current) return;
-    deepLinkApplied.current = true;
-    const link = parseAddDeepLink(router.query);
-    if (!link.open) return;
-    setAddDeepLink(link);
-    setKey('External');
-    // Drop the deep-link parameters so a later remount of these tabs (e.g. after Refresh
-    // Suggestions) does not re-open the Add tab and search again. Shallow: no refetch.
-    const rest: Record<string, any> = { ...router.query };
-    ADD_DEEP_LINK_PARAMS.forEach((p) => { delete rest[p]; });
-    router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+    // Taken: clear the parent's copy so a later remount (e.g. after Refresh Suggestions)
+    // does not re-open the Add tab and search again.
+    if (incomingDeepLink) onAddDeepLinkConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.isReady]);
+  }, []);
 
   const updatePublicationAssertion = (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => {
     let updatedFilteredData = [...filteredData];
