@@ -27,6 +27,8 @@ const ManageProfle = () => {
     const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
     const [serverValue, setServerValue] = useState('');
     const [savedOrcid, setSavedOrcid] = useState('');
+    // Set for an active scholar: Scholars owns the ORCID, so the field is read-only here.
+    const [scholars, setScholars] = useState<{ loaded: boolean, orcid: string | null, confirmed: boolean, changeUrl: string } | null>(null);
 
     useEffect(() => {
         let userPermissions = JSON.parse(session.data.userRoles);
@@ -141,6 +143,7 @@ const ManageProfle = () => {
         }).then(response => response.json())
             .then(data => {
                 setSavedOrcid(data?.savedOrcid || "");
+                setScholars(data?.scholars || null);
                 if (data.message === "User does not exist") {
                     toast.error("User does not exist", {
                         position: "top-right",
@@ -284,6 +287,32 @@ const ManageProfle = () => {
                         </div>
                     </div>
 
+                    {scholars ? (
+                    <div className={styles.section}>
+                        <div className={styles.manualCard}>
+                            <div className={styles.manualHead}>ORCID iD in Scholars</div>
+                            <div className={styles.manualBody}>
+                                {!scholars.loaded ? (
+                                    <div className={styles.errorText}>Unable to load the ORCID iD from ReCiter. Please try again.</div>
+                                ) : scholars.orcid ? (
+                                    <div className={styles.currentOrcidBanner}>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M20 6L9 17l-5-5" />
+                                        </svg>
+                                        Current ORCID: <strong><a href={`https://orcid.org/${scholars.orcid}`} target="_blank" rel="noreferrer">{scholars.orcid}</a></strong>
+                                        {!scholars.confirmed && <>&nbsp;(not confirmed in Scholars)</>}
+                                    </div>
+                                ) : (
+                                    <div>No ORCID iD on file.</div>
+                                )}
+                                <div className={styles.orcidFormatHint}>
+                                    This person has a Scholars profile, so their ORCID iD is managed there.
+                                    &nbsp;<a href={scholars.changeUrl} target="_blank" rel="noreferrer">Change in Scholars</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    ) : (<>
                     {/* ── Suggested ORCIDs ── */}
                     <div className={styles.section}>
                         <div className={styles.suggestionsCard}>
@@ -407,6 +436,7 @@ const ManageProfle = () => {
                             </div>
                         </div>
                     </div>
+                    </>)}
 
                     <ToastContainerWrapper />
                 </>
