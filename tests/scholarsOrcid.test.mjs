@@ -15,8 +15,9 @@ test('scholarsManagesOrcid: no row or a stale/empty table keeps the editable fie
     assert.equal(scholarsManagesOrcid({ hasConfirmedOrcid: 1, ageHours: null }), false)
 })
 
-test('scholarsChangeUrl: queue link with lowercased cwid, base override', () => {
-    assert.equal(scholarsChangeUrl('ABC1234'), 'https://scholars.weill.cornell.edu/edit/orcid-queue?q=abc1234')
-    assert.equal(scholarsChangeUrl('abc1234', 'https://scholars-staging.weill.cornell.edu/'),
+test('scholarsChangeUrl: librarians get the queue, others the profile editor; lowercased cwid, base override', () => {
+    assert.equal(scholarsChangeUrl('ABC1234', true), 'https://scholars.weill.cornell.edu/edit/orcid-queue?q=abc1234')
+    assert.equal(scholarsChangeUrl('ABC1234', false), 'https://scholars.weill.cornell.edu/edit/scholar/abc1234?attr=identifiers-profiles')
+    assert.equal(scholarsChangeUrl('abc1234', true, 'https://scholars-staging.weill.cornell.edu/'),
         'https://scholars-staging.weill.cornell.edu/edit/orcid-queue?q=abc1234')
 })

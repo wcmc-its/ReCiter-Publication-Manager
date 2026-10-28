@@ -12,5 +12,10 @@ export type ScholarsActiveRow = { hasConfirmedOrcid: number | boolean, ageHours:
 export const scholarsManagesOrcid = (row: ScholarsActiveRow | undefined | null): boolean =>
     !!row && row.ageHours !== null && row.ageHours < SCHOLARS_ACTIVE_MAX_AGE_HOURS
 
-export const scholarsChangeUrl = (cwid: string, base?: string): string =>
-    `${(base || 'https://scholars.weill.cornell.edu').replace(/\/+$/, '')}/edit/orcid-queue?q=${encodeURIComponent(cwid.toLowerCase())}`
+// Superusers and Curator_All go to the librarian ORCID queue; everyone else to the
+// scholar's own identifiers editor.
+export const scholarsChangeUrl = (cwid: string, librarian: boolean, base?: string): string => {
+    const root = (base || 'https://scholars.weill.cornell.edu').replace(/\/+$/, '')
+    const id = encodeURIComponent(cwid.toLowerCase())
+    return librarian ? `${root}/edit/orcid-queue?q=${id}` : `${root}/edit/scholar/${id}?attr=identifiers-profiles`
+}

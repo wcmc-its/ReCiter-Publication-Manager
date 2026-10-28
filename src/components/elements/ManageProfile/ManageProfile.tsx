@@ -28,13 +28,15 @@ const ManageProfle = () => {
     const [serverValue, setServerValue] = useState('');
     const [savedOrcid, setSavedOrcid] = useState('');
     // Set for an active scholar: Scholars owns the ORCID, so the field is read-only here.
-    const [scholars, setScholars] = useState<{ loaded: boolean, orcid: string | null, confirmed: boolean, changeUrl: string } | null>(null);
+    const [scholars, setScholars] = useState<{ loaded: boolean, orcid: string | null, confirmed: boolean, changeUrls: { librarian: string, scholar: string } } | null>(null);
+    const [isLibrarian, setIsLibrarian] = useState<boolean>(false);
 
     useEffect(() => {
         let userPermissions = JSON.parse(session.data.userRoles);
         let curatorSelfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self);
         let curatorAllfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All);
         let superUserRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser);
+        setIsLibrarian(superUserRole || curatorAllfRole);
 
         if (router.query.userId === session.data.username) {
             if (!curatorSelfRole) {
@@ -307,7 +309,7 @@ const ManageProfle = () => {
                                 )}
                                 <div className={styles.orcidFormatHint}>
                                     This person has a Scholars profile, so their ORCID iD is managed there.
-                                    &nbsp;<a href={scholars.changeUrl} target="_blank" rel="noreferrer">Change in Scholars</a>
+                                    &nbsp;<a href={isLibrarian ? scholars.changeUrls.librarian : scholars.changeUrls.scholar} target="_blank" rel="noreferrer">Change in Scholars</a>
                                 </div>
                             </div>
                         </div>

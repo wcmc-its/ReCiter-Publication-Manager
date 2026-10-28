@@ -38,7 +38,10 @@ const scholarsOrcid = async (personIdentifier: string) => {
         loaded: identity?.statusCode === 200,
         orcid: identity?.statusCode === 200 ? (identity.statusText?.orcid || null) : null,
         confirmed: !!Number(row.hasConfirmedOrcid),
-        changeUrl: scholarsChangeUrl(personIdentifier, process.env.SCHOLARS_BASE_URL),
+        changeUrls: {
+            librarian: scholarsChangeUrl(personIdentifier, true, process.env.SCHOLARS_BASE_URL),
+            scholar: scholarsChangeUrl(personIdentifier, false, process.env.SCHOLARS_BASE_URL),
+        },
     }
 }
 
