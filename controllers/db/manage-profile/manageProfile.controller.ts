@@ -5,34 +5,35 @@ import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
 import { QueryConstants } from "../../../src/utils/namedQueryConstants";
 import { getIdentity } from "../../identity.controller";
-import { scholarsManagesOrcid, scholarsChangeUrl, SCHOLARS_ACTIVE_MAX_AGE_HOURS } from "../../../src/utils/scholarsOrcid";
+import { scholarsStatus, scholarsChangeUrl, identityOrcidUpdate, SCHOLARS_ACTIVE_MAX_AGE_HOURS } from "../../../src/utils/scholarsOrcid";
+import { reciterConfig } from "../../../config/local";
 
-// Does Scholars own this person's ORCID? Reads reciterdb.scholar_active (written by SPS, prod
-// only). Any failure, including the table not existing (PM dev's reciterdb), keeps the
-// editable field. ponytail: hour-level age vs UTC_TIMESTAMP; a few hours of timezone skew
-// doesn't matter against a 48h window.
-const scholarsActiveRow = async (personIdentifier: string) => {
+// Who owns this person's ORCID, from reciterdb.scholar_active (written by SPS, prod only).
+// Any failure, including the table not existing (PM dev's reciterdb), is 'unknown'.
+// ponytail: hour-level age vs UTC_TIMESTAMP; a few hours of timezone skew doesn't matter
+// against a 48h window.
+const scholarsActive = async (personIdentifier: string) => {
     try {
         const [row]: any = await sequelize.query(
-            "SELECT s.has_confirmed_orcid AS hasConfirmedOrcid, " +
-            "(SELECT TIMESTAMPDIFF(HOUR, MAX(refreshed_at), UTC_TIMESTAMP()) FROM scholar_active) AS ageHours " +
-            "FROM scholar_active s WHERE s.cwid = LOWER(:personIdentifier)",
+            "SELECT (SELECT has_confirmed_orcid FROM scholar_active WHERE cwid = LOWER(:personIdentifier)) AS hasConfirmedOrcid, " +
+            "(SELECT TIMESTAMPDIFF(HOUR, MAX(refreshed_at), UTC_TIMESTAMP()) FROM scholar_active) AS ageHours",
             { type: QueryTypes.SELECT, replacements: { personIdentifier } }
         )
-        if (row && !scholarsManagesOrcid(row))
-            console.warn(`scholar_active is stale (${row.ageHours}h, limit ${SCHOLARS_ACTIVE_MAX_AGE_HOURS}h); ORCID field left editable`)
-        return scholarsManagesOrcid(row) ? row : null
+        const status = scholarsStatus(row)
+        if (status === 'unknown')
+            console.warn(`scholar_active is stale or empty (${row?.ageHours}h, limit ${SCHOLARS_ACTIVE_MAX_AGE_HOURS}h); ORCID field left editable, Identity not written`)
+        return { status, row }
     } catch (e) {
-        console.warn("scholar_active unavailable; ORCID field left editable: " + e?.message)
-        return null
+        console.warn("scholar_active unavailable; ORCID field left editable, Identity not written: " + e?.message)
+        return { status: 'unknown' as const, row: null }
     }
 }
 
 // The read-only ORCID block for an active scholar, or null for everyone else. The iD is
 // Identity's, which the SPS push keeps equal to Scholars.
 const scholarsOrcid = async (personIdentifier: string) => {
-    const row = await scholarsActiveRow(personIdentifier)
-    if (!row) return null
+    const { status, row } = await scholarsActive(personIdentifier)
+    if (status !== 'scholar') return null
     const identity: any = await getIdentity(personIdentifier)
     return {
         loaded: identity?.statusCode === 200,
@@ -42,10 +43,32 @@ const scholarsOrcid = async (personIdentifier: string) => {
     }
 }
 
+// Copy a PM save/remove into the person's ReCiter Identity record (GET, change only
+// orcid, POST back; the same API SPS's orcid-push uses). No Identity record (404) is
+// nothing to write. Throws on any other failure so the caller writes nothing.
+const writeIdentityOrcid = async (personIdentifier: string, op: { save: string } | { remove: string | null }) => {
+    const { reciterApiBaseUrl, adminApiKey, reciterIdentityEndpoints } = reciterConfig.reciter
+    const headers = { 'api-key': adminApiKey, 'User-Agent': 'reciter-pub-manager-server' }
+    const got = await fetch(`${reciterIdentityEndpoints.identityByUid}?uid=${encodeURIComponent(personIdentifier)}`, { headers })
+    if (got.status === 404) return
+    if (!got.ok) throw new Error(`ReCiter identity GET ${got.status}`)
+    const save = identityOrcidUpdate(await got.json(), op)
+    if (!save) return
+    const put = await fetch(`${reciterApiBaseUrl}/reciter/identity/`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(save),
+    })
+    if (!put.ok) throw new Error(`ReCiter identity POST ${put.status}`)
+}
+
+// 409 for an active scholar (returns null); otherwise the status, so the caller knows
+// whether PM may also write Identity ('not_scholar' only).
 const refuseIfScholars = async (personIdentifier: string, res: NextApiResponse) => {
-    if (!(await scholarsActiveRow(personIdentifier))) return false
+    const { status } = await scholarsActive(personIdentifier)
+    if (status !== 'scholar') return status
     res.status(409).send(`ORCID for ${personIdentifier} is managed in Scholars`)
-    return true
+    return null
 }
 
 export const getManageProfileByID = async (
@@ -119,7 +142,19 @@ export const saveORCIDProfile = async (
     const { orcid, personIdentifier } = req.body;
 
     try {
-        if (await refuseIfScholars(String(personIdentifier), res)) return
+        if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(String(orcid))) {
+            res.status(400).send("ORCID must be in the format ####-####-####-####")
+            return
+        }
+        const status = await refuseIfScholars(String(personIdentifier), res)
+        if (!status) return
+        try {
+            if (status === 'not_scholar') await writeIdentityOrcid(String(personIdentifier), { save: String(orcid) })
+        } catch (e) {
+            console.log(e)
+            res.status(502).send("Unable to update the ORCID in ReCiter Identity; nothing was saved")
+            return
+        }
         let createUserPayload = {
             'personIdentifier': personIdentifier,
             'orcid': orcid,
@@ -140,10 +175,15 @@ export const resetProfileORCID = async (
 ) => {
     const { orcid, personIdentifier } = req.query;
     try {
-        if (await refuseIfScholars(String(personIdentifier), res)) return
-        let createUserPayload = {
-            'personIdentifier': personIdentifier,
-            'orcid': orcid,
+        const status = await refuseIfScholars(String(personIdentifier), res)
+        if (!status) return
+        const saved: any = await models.AdminOrcid.findOne({ where: { personIdentifier }, raw: true })
+        try {
+            if (status === 'not_scholar') await writeIdentityOrcid(String(personIdentifier), { remove: saved?.orcid || null })
+        } catch (e) {
+            console.log(e)
+            res.status(502).send("Unable to update the ORCID in ReCiter Identity; nothing was removed")
+            return
         }
 
             const response = await models.AdminOrcid.destroy({
