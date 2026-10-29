@@ -52,8 +52,8 @@ const assignCase = controllerSrc.slice(
 );
 assert(assignCase.length > 500, "assign case located");
 const knownGuard = assignCase.slice(
-  assignCase.indexOf("hasIdentity && !isScopus && pmid != null"),
-  assignCase.indexOf("confirm_off_candidate", assignCase.indexOf("hasIdentity && !isScopus && pmid != null")),
+  assignCase.indexOf("hasIdentity && !isExternal && pmid != null"),
+  assignCase.indexOf("confirm_off_candidate", assignCase.indexOf("hasIdentity && !isExternal && pmid != null")),
 );
 assert(knownGuard.length > 20, "the new guard is located");
 assert(/getKnownPmidsByCwid\(\[target\]\)/.test(knownGuard), "checks knownpmids for `target`, not just rejectedpmids");
@@ -62,12 +62,12 @@ assert(/ACCEPTED/.test(knownGuard) && /Dismiss/.test(knownGuard),
   "message names what happened (ACCEPTED) and points at Dismiss, per the issue");
 // must run before confirm_off_candidate can fire, so an off-candidate-but-already-accepted
 // target gets the more useful message
-assert(assignCase.indexOf("hasIdentity && !isScopus && pmid != null") < assignCase.indexOf('gate === "confirm_off_candidate"'),
+assert(assignCase.indexOf("hasIdentity && !isExternal && pmid != null") < assignCase.indexOf('gate === "confirm_off_candidate"'),
   "the guard runs before the off-candidate 422, not after");
 // gate can be "local_only" with hasIdentity false (confirmed, no identity); the guard must
 // not run getKnownPmidsByCwid for a cwid with no Identity record, so it has to be gated on
 // hasIdentity itself rather than on which `gate` branch is active.
-assert(/if \(hasIdentity && !isScopus && pmid != null/.test(assignCase),
+assert(/if \(hasIdentity && !isExternal && pmid != null/.test(assignCase),
   "the guard's own condition leads with hasIdentity, not derived from `gate`");
 
 // ---------------------------------------------------------------------------------------

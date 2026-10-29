@@ -55,7 +55,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
   // hence the distinct tooltip.
   const EXTERNAL_SOURCE_TABS: { value: string, label: string, source: SourceKind, title?: string }[] = [
     { value: 'Ext_SCOPUS', label: 'Scopus', source: 'SCOPUS', title: 'Publications added to this record from Scopus search — separate from the Scopus Authorships review queue.' },
-    { value: 'Ext_OPENALEX', label: 'OpenAlex', source: 'OPENALEX', title: 'Publications added to this record from OpenAlex search.' },
+    { value: 'Ext_OPENALEX', label: 'OpenAlex', source: 'OPENALEX', title: 'Publications added to this record from OpenAlex search or accepted from the OpenAlex Authorships review queue.' },
     // Manual: hidden for now — there is nothing for a curator to do in it. SourceArticleTab
     // short-circuits this tab to a "coming soon" placeholder before it ever lists a row (see
     // isManual there), so it never showed anything despite matchesSource treating MANUAL as the

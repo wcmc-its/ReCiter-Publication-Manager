@@ -60,7 +60,7 @@ const verdictCase = sliceCase("verdict");
 
 // ---------------------------------------------------------------------------------------
 console.log('\n1. case "accept" — samePmid takes the gold-standard lane:');
-assert(/const sameWork = isScopus && String\(body\.samePmid\) === "true"/.test(acceptCase),
+assert(/const sameWork = isExternal && String\(body\.samePmid\) === "true"/.test(acceptCase),
   "sameWork requires BOTH a scopus row and an explicit samePmid flag");
 assert(/const acceptPmid = sameWork \? Number\(row\.matched_pmid\) : \(pmid as number\)/.test(acceptCase),
   "the PMID comes from row.matched_pmid, never from the request body");
@@ -68,9 +68,9 @@ assert(!/body\.(samePmid|pmid)\s*\)?\s*(as )?[Nn]umber/.test(acceptCase) && !/Nu
   "no client-supplied PMID is ever coerced and accepted");
 assert(/if \(sameWork && row\.matched_pmid == null\)[\s\S]{0,160}return res\.status\(400\)/.test(acceptCase),
   "a samePmid accept on a row with no matched_pmid is a 400, not a NaN write");
-assert(/if \(isScopus && !sameWork\) \{/.test(acceptCase),
+assert(/if \(isExternal && !sameWork\) \{/.test(acceptCase),
   "the ExternalArticle branch is skipped for a same-work accept");
-assert(/addExternalArticle/.test(acceptCase) && acceptCase.indexOf("addExternalArticle") > acceptCase.indexOf("if (isScopus && !sameWork)"),
+assert(/addExternalArticle/.test(acceptCase) && acceptCase.indexOf("addExternalArticle") > acceptCase.indexOf("if (isExternal && !sameWork)"),
   "addExternalArticle is reachable ONLY inside the !sameWork branch");
 assert(/getRejectedPmidsByCwid\(\[cwid\]\)\)\[cwid\]\?\.has\(acceptPmid\)/.test(acceptCase),
   "the already-rejected guard runs against acceptPmid (not the null scopus row.pmid)");
@@ -95,11 +95,11 @@ assert(/verdict !== "distinct"/.test(verdictCase),
 
 // ---------------------------------------------------------------------------------------
 console.log('\n3. case "reopen" — a same-work accept has a real undo:');
-assert(/const wasSameWork = isScopus && row\.matched_pmid_verdict === "same"/.test(reopenCase),
+assert(/const wasSameWork = isExternal && row\.matched_pmid_verdict === "same"/.test(reopenCase),
   "reopen recognises a same-work accept from the verdict the accept wrote");
 assert(/const undoPmid = wasSameWork \? Number\(row\.matched_pmid\) : \(pmid as number\)/.test(reopenCase),
   "reopen deletes the twin's PMID, not the null scopus row.pmid");
-assert(/if \(isScopus && !wasSameWork\) \{/.test(reopenCase),
+assert(/if \(isExternal && !wasSameWork\) \{/.test(reopenCase),
   "the ExternalArticle revoke branch is skipped for a same-work row (it never created one)");
 assert(/writeGoldStandard\(reverseCwid, undoPmid, "known", "DELETE", curator\.userID\)/.test(reopenCase),
   "the gold-standard undo uses undoPmid");

@@ -62,7 +62,7 @@ export interface SelectableRow {
   // a bulk accept into a partial failure the curator has to reconcile row by row.
   top_retired_cwid?: boolean;
   top_cwid?: string;
-  source?: "pubmed" | "scopus";
+  source?: "pubmed" | "scopus" | "openalex";
 }
 
 // The existing single-candidate bulk-ACCEPT set: toggleSelect's pre-T4 gate, eligibleRows,

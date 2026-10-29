@@ -6,9 +6,9 @@ import { DataTypes, Model, Optional } from 'sequelize';
 // adversarial-attribution-review producer. Column names are snake_case to match that table.
 export interface AuthorshipReviewAttributes {
   id: number;
-  source: 'pubmed' | 'scopus';
-  pmid?: number;                 // NULL for scopus rows (no PMID)
-  external_id?: string;          // numeric Scopus record ID (scopus rows)
+  source: 'pubmed' | 'scopus' | 'openalex';
+  pmid?: number;                 // NULL for scopus/openalex rows (no PMID)
+  external_id?: string;          // numeric Scopus record ID (scopus rows), OpenAlex W id (openalex rows)
   author_key: string;
   pub_type?: string;             // Scopus subtypeDescription (Article / Book Chapter / …)
   container_id?: string;         // book base DOI (scopus book chapters)
@@ -65,7 +65,7 @@ export type AuthorshipReviewCreationAttributes = Optional<AuthorshipReviewAttrib
 
 export class AuthorshipReview extends Model<AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes> implements AuthorshipReviewAttributes {
   id!: number;
-  source!: 'pubmed' | 'scopus';
+  source!: 'pubmed' | 'scopus' | 'openalex';
   pmid?: number;
   external_id?: string;
   author_key!: string;
@@ -114,7 +114,7 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
   static initModel(sequelize: Sequelize.Sequelize): typeof AuthorshipReview {
     AuthorshipReview.init({
       id: { autoIncrement: true, type: DataTypes.BIGINT, allowNull: false, primaryKey: true },
-      source: { type: DataTypes.ENUM('pubmed', 'scopus'), allowNull: false, defaultValue: 'pubmed' },
+      source: { type: DataTypes.ENUM('pubmed', 'scopus', 'openalex'), allowNull: false, defaultValue: 'pubmed' },
       pmid: { type: DataTypes.BIGINT, allowNull: true },
       external_id: { type: DataTypes.STRING(96), allowNull: true },
       author_key: { type: DataTypes.STRING(160), allowNull: false },

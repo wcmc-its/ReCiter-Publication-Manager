@@ -113,7 +113,7 @@ assert(/const ownCwid = String\(r\.top_cwid \|\| ""\)\.toLowerCase\(\);/.test(li
 assert(/\.filter\(\(a\) => a\.cwid\.toLowerCase\(\) !== ownCwid\)/.test(listFn),
   "and the rival side is lowercased too — matches the _ci collation the SQL exclusion uses");
 assert(/accepted_by,/.test(listFn), "accepted_by is on the response row");
-assert(/r\.source !== "scopus" && r\.pmid != null && r\.author_position != null/.test(listFn),
+assert(/!isExternalSource\(r\) && r\.pmid != null && r\.author_position != null/.test(listFn),
   "scopus / pmid-less / position-less rows get [] rather than a bogus lookup");
 
 // ---------------------------------------------------------------------------------------
