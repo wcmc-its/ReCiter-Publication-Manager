@@ -13,9 +13,8 @@ export function sendEmailNotification(mailOptions) {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD
       },
-      tls: {
-        rejectUnAuthorized: process.env.NODE_ENV === "production" ? process.env.SMTP_SECURE : false,
-      }
+      // TLS certificates are verified (nodemailer default). A misspelled
+      // tls.rejectUnAuthorized used to sit here and was always ignored.
     }))
       transporter.sendMail(mailOptions, function (err, info) {
         if (err) {
