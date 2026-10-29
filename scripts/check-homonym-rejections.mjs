@@ -213,8 +213,8 @@ const hrt = src.slice(
 check("homonymRejectionTargets located", hrt.length > 200, true);
 check("the early-return guard no longer exempts single-candidate rows",
   /row\.single_candidate/.test(hrt), false);
-check("...only scopus and 'no other candidate left' remain",
-  /if \(isScopus \|\| others\.length === 0\) return \[\];/.test(hrt), true);
+check("...only external (scopus/openalex) and 'no other candidate left' remain",
+  /if \(isExternal \|\| others\.length === 0\) return \[\];/.test(hrt), true);
 check("homonymRejections is called with singleCandidate: false unconditionally",
   /singleCandidate: false/.test(hrt), true);
 

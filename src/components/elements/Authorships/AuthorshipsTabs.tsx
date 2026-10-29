@@ -16,6 +16,8 @@ import {
   typedCwidPreview,
 } from "../../../lib/bulkAssign";
 import type { CandidateLite, TypedCwidLookupState } from "../../../lib/bulkAssign";
+import { externalSourceLabel, isExternalSource, openalexRecordUrl } from "../../../lib/externalSource";
+import type { AuthorshipSource } from "../../../lib/externalSource";
 
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
@@ -24,8 +26,10 @@ interface AuthorshipRow {
   author_key: string;
   // Scopus lane (source='scopus'): not-in-PubMed docs from the AF-ID sweep. pmid is null,
   // top_fg_score/top_io_score are null (production never scored a non-PubMed doc), and the
-  // record is keyed by external_id (numeric Scopus id). PubMed rows leave these undefined.
-  source?: "pubmed" | "scopus";
+  // record is keyed by external_id (numeric Scopus id). OpenAlex lane (source='openalex'):
+  // conference abstracts and preprints, same shape, external_id = OpenAlex W id and pub_type =
+  // the OpenAlex work type. PubMed rows leave these undefined.
+  source?: AuthorshipSource;
   external_id?: string;
   pub_type?: string;
   container_id?: string;
@@ -159,7 +163,7 @@ interface ActivityEntry {
   status?: string;
   reviewer?: string;
   resolved_at?: string;
-  source?: "pubmed" | "scopus";
+  source?: AuthorshipSource;
   pmid?: number;
   external_id?: string;
 }
@@ -459,7 +463,7 @@ interface AuthorshipFilters {
   // printed on THIS paper — #982's `byline` basis. A separate, independent list: the server
   // ANDs the two, so "identity WCM + article NYP" means "a WCM person on an NYP byline".
   selectedAuthorAffiliations: string[];
-  source: "all" | "pubmed" | "scopus";
+  source: "all" | AuthorshipSource;
   selectedPubTypes: string[];
   dateFrom: string;
   dateTo: string;
@@ -915,7 +919,9 @@ const formatAuthorsJson = (json?: string): string => {
 // leaving the curator to guess from an unlabelled date (#927). authorship_review has no
 // publication-date column at all; adding one is a ReCiterDB producer/schema change, so
 // labelling what we already have is the whole of the PM-side fix here.
-const dateLabel = (source?: string) => (source === "scopus"
+const dateLabel = (source?: string) => (source === "openalex"
+  ? { label: "Published", tip: "OpenAlex publication date for this work. This lane is not in PubMed, so there is no Entrez date." }
+  : source === "scopus"
   ? { label: "Cover date", tip: "Scopus cover date (prism:coverDate) — the issue date Scopus carries for this document. This lane is not in PubMed, so there is no Entrez date." }
   : { label: "Indexed", tip: "Date NCBI indexed this record (Entrez date), not the publication date — for a record indexed late the two can differ by years. authorship_review has no publication-date column." });
 
@@ -942,6 +948,15 @@ const scopusNote = (r: AuthorshipRow): string => {
     ? "The affiliation names Weill Cornell"
     : `The surname matches ${cohort} WCM identit${cohort === 1 ? "y" : "ies"}`;
   return `Not in PubMed — found via the Scopus AF-ID sweep, so production never scored it (no IO/Authorship Score exists). ${who}; ranked by identity-match confidence (${confBand(r.top_confidence)}). Accepting adds it as an ExternalArticle (no PMID → not gold standard).`;
+};
+
+// openalex lane note — conference abstracts and preprints OpenAlex has and PubMed does not.
+const openalexNote = (r: AuthorshipRow): string => {
+  const cohort = r.top_cohort_size ?? 1;
+  const who = hasWcm(r.author_affiliation)
+    ? "The affiliation names Weill Cornell"
+    : `The surname matches ${cohort} WCM identit${cohort === 1 ? "y" : "ies"}`;
+  return `Not in PubMed — found via the OpenAlex conference-abstract/preprint sweep, so production never scored it (no IO/Authorship Score exists). ${who}; ranked by identity-match confidence (${confBand(r.top_confidence)}). Accepting adds it as an ExternalArticle (no PMID → not gold standard).`;
 };
 
 const btn = (variant: "accept" | "reject" | "soft" | "ghost", disabled?: boolean): CSSProperties => {
@@ -1080,6 +1095,26 @@ const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
       )}
       {r.container_id && <span style={{ fontSize: 12, color: "#94a3b8" }}>in book {r.container_id}</span>}
       {!scopusUrl && !r.doi && <span style={{ fontSize: 12, color: "#94a3b8" }}>No external link</span>}
+    </div>
+  );
+};
+
+// OpenAlex evidence lead: no PMID — OpenAlex work + DOI links (same slot as ScopusLinks).
+const OpenAlexLinks = ({ row: r }: { row: AuthorshipRow }) => {
+  const openalexUrl = openalexRecordUrl(r.external_id);
+  return (
+    <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 9, flexWrap: "wrap" }}>
+      {openalexUrl && (
+        <a href={openalexUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={outLinkStyle}>
+          OpenAlex record <IconExt size={13} />
+        </a>
+      )}
+      {r.doi && (
+        <a href={`https://doi.org/${r.doi}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={outLinkStyle}>
+          doi.org/{r.doi} <IconExt size={13} />
+        </a>
+      )}
+      {!openalexUrl && !r.doi && <span style={{ fontSize: 12, color: "#94a3b8" }}>No external link</span>}
     </div>
   );
 };
@@ -2083,23 +2118,23 @@ const AuthorshipsTabs = () => {
         fetchRecentActivity();
       })
       .catch((e) => {
-        // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error.
+        // external (scopus/openalex) Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error.
         // A same-work accept is excluded: it never calls addExternalArticle, so its only 409 is the
         // already-rejected guard, and "Force add anyway" would answer it by creating the very
         // duplicate ExternalArticle the curator just said not to create. That 409 belongs in the
         // plain error toast, where its message ("already rejected this article") is the right advice.
-        const scopusDup = e?.status === 409 && row.source === "scopus"
+        const externalDup = e?.status === 409 && isExternalSource(row)
           && (action === "accept" || action === "assign") && !extra?.samePmid;
         // Both 422s are the same shape — "allowed, but say you meant it" — and each names the
         // confirmation flag it wants back. The consequences are opposite, so the prompts they
         // raise differ (see ConflictEntry.kind and the banner below); the plumbing doesn't.
-        // MULTI_CANDIDATE checked ahead of scopusDup: both are plain 409s, and a scopus row can
+        // MULTI_CANDIDATE checked ahead of externalDup: both are plain 409s, and an external row can
         // hit the multi-candidate gate too (it's checked before the isScopus branch server-side).
         const kind: ConflictEntry["kind"] | null =
           e?.status === 422 && e?.code === "NO_RECITER_IDENTITY" ? "no_identity"
             : e?.status === 422 && e?.code === "OFF_CANDIDATE" ? "off_candidate"
               : e?.status === 409 && e?.code === "MULTI_CANDIDATE" ? "multi_candidate"
-                : scopusDup ? "dup" : null;
+                : externalDup ? "dup" : null;
         if (kind) {
           const entry: ConflictEntry = {
             id: row.id, action, kind,
@@ -2624,8 +2659,9 @@ const AuthorshipsTabs = () => {
       else if (k === "s") { if (statusView === "open") doAction?.(row, "snooze"); e.preventDefault(); }
       else if (k === "x") { toggleSelect?.(row); e.preventDefault(); }
       else if (e.key === "Enter") {
-        const url = row.source === "scopus"
-          ? (row.doi ? `https://doi.org/${row.doi}` : scopusRecordUrl(row.external_id))
+        const url = isExternalSource(row)
+          ? (row.doi ? `https://doi.org/${row.doi}`
+            : row.source === "openalex" ? openalexRecordUrl(row.external_id) : scopusRecordUrl(row.external_id))
           : `https://pubmed.ncbi.nlm.nih.gov/${row.pmid}/`;
         if (url) window.open(url, "_blank", "noreferrer");
         e.preventDefault();
@@ -2901,12 +2937,15 @@ const AuthorshipsTabs = () => {
                 report cannot honour it. The curator's choice is kept and comes straight back. */}
             {!reportView && (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 2, background: CTRL.track, borderRadius: 7, padding: 3 }}>
-              {([["all", "All"], ["pubmed", "PubMed"], ["scopus", "Scopus"]] as const).map(([key, label]) => {
+              {([["all", "All"], ["pubmed", "PubMed"], ["scopus", "Scopus"], ["openalex", "OpenAlex"]] as const).map(([key, label]) => {
                 const n = key === "all"
                   ? (summary?.bySource ? Object.values(summary.bySource).reduce((a, b) => a + b, 0) : undefined)
                   : summary?.bySource?.[key];
+                // OpenAlex lane ships off by default: no segment until it has produced a row.
+                if (key === "openalex" && !n && source !== "openalex") return null;
                 const what = key === "scopus" ? "WCM authorships found in Scopus but NOT in PubMed (no production score)"
-                  : key === "pubmed" ? "Authorships from PubMed" : "Both sources";
+                  : key === "openalex" ? "WCM conference abstracts and preprints found in OpenAlex but NOT in PubMed (no production score)"
+                  : key === "pubmed" ? "Authorships from PubMed" : "All sources";
                 return (
                   <Tip key={key} title={n != null ? `${what} — ${n.toLocaleString()} in this queue` : what} placement="top" arrow>
                     <button onClick={() => setSource(key)} style={segBtn(source === key)}>{label}</button>
@@ -3593,9 +3632,9 @@ const AuthorshipsTabs = () => {
             <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 14, lineHeight: 1.45 }}>
               Each row also records “not mine” for its other proposed candidates that have a ReCiter
               identity (the F-2 policy) — same as a per-row assign. Reopening a row undoes both.
-              {[...assignConfirm.onCandidate, ...assignConfirm.offCandidate].filter((r) => r.source === "scopus").length > 0 && (
-                <> Scopus rows are the exception: they carry no PMID, so gold standard has nothing to
-                record and their other candidates are left untouched — the same as a per-row Scopus assign.</>
+              {[...assignConfirm.onCandidate, ...assignConfirm.offCandidate].filter((r) => isExternalSource(r)).length > 0 && (
+                <> Scopus and OpenAlex rows are the exception: they carry no PMID, so gold standard has nothing to
+                record and their other candidates are left untouched — the same as a per-row Scopus or OpenAlex assign.</>
               )}
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -3626,10 +3665,10 @@ const AuthorshipsTabs = () => {
               // scopus excluded for the same reason as noIdentityCount below: its reject is row-only
               // (no GoldStandard write), so the "records not mine for every candidate" sentence is
               // false for it. Scopus rows are counted by scopusCount, which has its own sentence.
-              const multiCount = selectedRows.filter((r) => !r.single_candidate && r.source !== "scopus").length;
+              const multiCount = selectedRows.filter((r) => !r.single_candidate && !isExternalSource(r)).length;
               // scopus excluded: its reject is row-only (no GoldStandard write), so the amber sentence below would be false for it
-              const noIdentityCount = selectedRows.filter((r) => r.single_candidate && r.identity_in_reciter === false && r.source !== "scopus").length;
-              const scopusCount = selectedRows.filter((r) => r.source === "scopus").length;
+              const noIdentityCount = selectedRows.filter((r) => r.single_candidate && r.identity_in_reciter === false && !isExternalSource(r)).length;
+              const scopusCount = selectedRows.filter((r) => isExternalSource(r)).length;
               return (
                 <>
                   <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
@@ -3653,7 +3692,7 @@ const AuthorshipsTabs = () => {
                   )}
                   {scopusCount > 0 && (
                     <div style={{ fontSize: 12.5, color: "#475569", marginBottom: 10, lineHeight: 1.45 }}>
-                      {scopusCount} Scopus row{scopusCount === 1 ? "" : "s"} close here only — nothing is
+                      {scopusCount} Scopus/OpenAlex row{scopusCount === 1 ? "" : "s"} close here only — nothing is
                       written to ReCiter (no PMID).
                     </div>
                   )}
@@ -3861,7 +3900,7 @@ const AuthorshipsTabs = () => {
         {recentActivity.map((entry) => {
           const verb = STATUS_LABEL[entry.status || ""] || entry.status || "Resolved";
           const label = entry.title
-            || (entry.source === "scopus" && entry.external_id ? `Scopus ${entry.external_id}` : entry.pmid ? `PMID ${entry.pmid}` : "Untitled");
+            || (isExternalSource(entry) && entry.external_id ? `${entry.source === "openalex" ? "OpenAlex" : "Scopus"} ${entry.external_id}` : entry.pmid ? `PMID ${entry.pmid}` : "Untitled");
           // subject of the authorship — resolution_cwid is the identity actually resolved onto
           // (set for accept/assign; reject/dismiss never set it, so top_cwid is always the right
           // fallback there). The name has to follow the same per-row choice: top_name is the
@@ -4401,9 +4440,9 @@ const AuthorshipCard = ({
           </div>
 
           {/* Scopus source markers — this lane is not-in-PubMed, so no production/IO score exists */}
-          {r.source === "scopus" && (
+          {isExternalSource(r) && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
-              <span style={scopusBadgeStyle}>Scopus</span>
+              <span style={scopusBadgeStyle}>{r.source === "openalex" ? "OpenAlex" : "Scopus"}</span>
               <span style={notInPubmedPillStyle}>Not in PubMed</span>
               {r.pub_type && <Chip kind="neutral" style={{ fontSize: 10, padding: "1px 7px" }}>{r.pub_type}</Chip>}
               {r.dup_flag && (
@@ -4413,7 +4452,7 @@ const AuthorshipCard = ({
               )}
             </div>
           )}
-          {r.source !== "scopus" && r.dup_flag && (
+          {!isExternalSource(r) && r.dup_flag && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
               <Tip title={r.dup_reason || "Possible duplicate — already added as an external article"} placement="top" arrow>
                 <span><Chip kind="warn"><IconAlert size={12} /> Possible duplicate</Chip></span>
@@ -4429,7 +4468,7 @@ const AuthorshipCard = ({
               matched_pmid_verdict='distinct' and this chip stops rendering for it. */}
           {r.matched_pmid != null && !r.matched_pmid_verdict && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
-              <Tip title="The producer found a PubMed record that may be the same paper as this Scopus row (a heuristic title+author search, not a confirmed match). Expand this card to compare and record a verdict." placement="top" arrow>
+              <Tip title={`The producer found a PubMed record that may be the same paper as this ${externalSourceLabel(r)} row (a heuristic title+author search, not a confirmed match). Expand this card to compare and record a verdict.`} placement="top" arrow>
                 <span><Chip kind="warn"><IconAlert size={12} /> PubMed twin? {
                   r.matched_pmid_source === "doi" ? "DOI match"
                     : r.matched_pmid_source === "scopus" ? "Scopus link"
@@ -4452,7 +4491,7 @@ const AuthorshipCard = ({
           )}
 
           {/* Scopus byline — full author list from authors_json, quiet/muted like the L3 meta line */}
-          {r.source === "scopus" && formatAuthorsJson(r.authors_json) && (
+          {isExternalSource(r) && formatAuthorsJson(r.authors_json) && (
             <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3, ...clampStyle(2) }} title={formatAuthorsJson(r.authors_json)}>
               {formatAuthorsJson(r.authors_json)}
             </div>
@@ -4467,7 +4506,7 @@ const AuthorshipCard = ({
           {/* §2.6's meta line: journal · Indexed date · PMID + copy. The PMID moved up here
               from the evidence panel, where it was only reachable by expanding the card — a
               curator cross-checking in PubMed had to open a row to get the number. */}
-          {(r.journal || r.entrez_date || (r.source !== "scopus" && r.pmid)) && (
+          {(r.journal || r.entrez_date || (!isExternalSource(r) && r.pmid)) && (
             <div style={{ display: "flex", alignItems: "baseline", gap: 9, flexWrap: "wrap", fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>
               {(r.journal || r.entrez_date) && (
                 <span>
@@ -4479,7 +4518,7 @@ const AuthorshipCard = ({
                   )}
                 </span>
               )}
-              {r.source !== "scopus" && r.pmid != null && <PmidCite pmid={r.pmid} />}
+              {!isExternalSource(r) && r.pmid != null && <PmidCite pmid={r.pmid} />}
             </div>
           )}
 
@@ -4687,8 +4726,8 @@ const AuthorshipCard = ({
               the server-computed facts that already gate this row's own "No ReCiter identity"
               pill and no-suggestion state). Scopus has no pmid to reject, so neither count. */}
           <HomonymNote
-            listed={r.source !== "scopus" && isMulti ? Math.max(0, candidates.length - 1) : 0}
-            typed={r.source === "scopus" ? 0
+            listed={!isExternalSource(r) && isMulti ? Math.max(0, candidates.length - 1) : 0}
+            typed={isExternalSource(r) ? 0
               : isMulti ? candidates.length
                 : (noSuggestion || noIdentity ? 0 : 1)} />
         </div>
@@ -4740,7 +4779,7 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates, resolved }: { row: A
     );
   }
   if (isAbsent) {
-    const scopus = r.source === "scopus";
+    const scopus = isExternalSource(r);
     return (
       <div style={{ textAlign: "right", minWidth: 46 }}>
         <span style={scoreBadgeStyle(scopus ? "#eef2ff" : "#fdf3e2", scopus ? "#4338ca" : "#8a5a08")}>
@@ -4784,6 +4823,7 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
     {/* Scopus rows have no PMID, so this lane keeps its record/DOI links here. PubMed rows get
         their PMID + copy button on the card's own meta line (§2.6) instead of twice over. */}
     {r.source === "scopus" && <div><ScopusLinks row={r} /></div>}
+    {r.source === "openalex" && <div><OpenAlexLinks row={r} /></div>}
     {/* absent → labeled facts, no score blocks (F10) */}
     {isAbsent && (
       <div style={{ display: "flex", gap: 22, marginBottom: 10 }}>
@@ -4808,16 +4848,17 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
         no-suggestion rows get neither, since both notes assume a matched candidate */}
     <div style={{
       display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px",
-      background: noSuggestion ? "#f8fafc" : r.source === "scopus" ? "#eef2ff" : isAbsent ? "#fffbeb" : "#eff6ff",
-      color: noSuggestion ? "#64748b" : r.source === "scopus" ? "#4338ca" : isAbsent ? "#b45309" : "#475569",
+      background: noSuggestion ? "#f8fafc" : isExternalSource(r) ? "#eef2ff" : isAbsent ? "#fffbeb" : "#eff6ff",
+      color: noSuggestion ? "#64748b" : isExternalSource(r) ? "#4338ca" : isAbsent ? "#b45309" : "#475569",
     }}>
       {noSuggestion
         ? <IconInfo size={15} style={{ marginTop: 1, color: "#64748b" }} />
-        : r.source === "scopus"
+        : isExternalSource(r)
           ? <IconInfo size={15} style={{ marginTop: 1, color: "#4338ca" }} />
           : isAbsent ? <IconAlert size={15} style={{ marginTop: 1, color: "#b45309" }} /> : <IconInfo size={15} style={{ marginTop: 1, color: "#2563eb" }} />}
       <span>{noSuggestion
         ? "No proposed identity — the matcher no longer matches this byline to any WCM identity. Assign it to someone below, or leave it open."
+        : r.source === "openalex" ? openalexNote(r)
         : r.source === "scopus" ? scopusNote(r) : ioFgNote(r)}</span>
     </div>
   </>
@@ -4938,6 +4979,7 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
     <>
       {/* see SingleEvidence — the PMID now sits on the card's meta line, not in here. */}
       {r.source === "scopus" && <div><ScopusLinks row={r} /></div>}
+      {r.source === "openalex" && <div><OpenAlexLinks row={r} /></div>}
       {!anyDeptMatch && (
         <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "#fffbeb", color: "#b45309", marginBottom: 10 }}>
           <IconAlert size={15} style={{ marginTop: 1 }} />
@@ -5511,7 +5553,7 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
 
       <div style={{ display: "grid", gridTemplateColumns: "70px 1fr 1fr", gap: "5px 12px", fontSize: 12.5, alignItems: "start" }}>
         <div />
-        <div style={{ fontWeight: 700, color: "#475569" }}>Scopus record</div>
+        <div style={{ fontWeight: 700, color: "#475569" }}>{externalSourceLabel(r)} record</div>
         <div style={{ fontWeight: 700, color: "#475569" }}>PubMed record</div>
 
         <div style={{ color: "#94a3b8" }}>Title</div>
@@ -5535,7 +5577,7 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
         <div style={{ padding: "4px 8px" }}>{pubmedAuthorLine || emDash}</div>
       </div>
       <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 3 }}>
-        {compare.sharedSurnames} of {compare.scopusAuthorCount} Scopus surname{compare.scopusAuthorCount === 1 ? "" : "s"} shared with PubMed
+        {compare.sharedSurnames} of {compare.scopusAuthorCount} {externalSourceLabel(r)} surname{compare.scopusAuthorCount === 1 ? "" : "s"} shared with PubMed
       </div>
 
       {/* the TWIN's pmid, not this row's — a scopus row has none of its own, so the card's
