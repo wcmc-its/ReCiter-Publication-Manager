@@ -28,15 +28,15 @@
     "date-fns": "^4.1.0",
     "dayjs": "^1.10.7",
     "exceljs": "^4.3.0",
-    "handlebars": "^4.7.8",
+    "handlebars": "^4.7.10",
     "http-build-query": "^0.7.0",
     "jsonwebtoken": "^9.0.3",
     "jwt-decode": "^3.1.2",
     "ldapts": "^8.2.0",
-    "moment": "^2.29.4",
-    "mysql2": "^3.11.0",
+    "moment": "^2.31.0",
+    "mysql2": "^3.23.1",
     "next": "^14.2.35",
-    "next-auth": "^4.24.13",
+    "next-auth": "^4.24.15",
     "next-redux-wrapper": "^7.0.5",
     "nodemailer": "^7.0.7",
     "react": "18.2.0",
@@ -77,5 +77,11 @@
   "resolutions": {
     "@types/react": "18.2.0",
     "@types/react-dom": "18.2.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1",
+    "xmlbuilder2": {
+      "js-yaml": "^3.15.2"
+    }
   }
 }
