@@ -12,6 +12,7 @@ import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldS
 import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
 import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
+import { isExternalSource, openalexWorkId } from "../../src/lib/externalSource";
 import {
   lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured, cornellFallback,
   affiliationDeptMatch,
@@ -494,7 +495,7 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
   if (wantsIdentityConflicts(body)) {
     and.push(identityConflictWhere());
   }
-  // source segment: "all" (default) | "pubmed" | "scopus"
+  // source segment: "all" (default) | "pubmed" | "scopus" | "openalex"
   if (body.source && body.source !== "all") {
     and.push({ source: body.source });
   }
@@ -658,9 +659,9 @@ function immatureScopusExclusion(): any {
   };
 }
 
-// same-document sibling key: pubmed → pmid, scopus → external_id (co-authorships on one doc).
+// same-document sibling key: pubmed → pmid, external lanes → external_id (co-authorships on one doc).
 const siblingKey = (r: any) =>
-  r.source === "scopus" ? String(r.external_id || "") : String(r.pmid ?? "");
+  isExternalSource(r) ? String(r.external_id || "") : String(r.pmid ?? "");
 
 // Which of these cwids have a ReCiter identity? Asks DynamoDB `Identity` directly — the same
 // table ReCiter's own ExternalArticleController.findByUid consults before it will accept an
@@ -1137,10 +1138,10 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     // the document, not the currently-filtered slice of the queue looking at it.
     const status = openStatusWhere(body);
     const scope = (w: any) => (status ? { [Op.and]: [w, status] } : w);
-    const pmids = [...new Set(rows.filter((r: any) => r.source !== "scopus" && r.pmid != null).map((r: any) => Number(r.pmid)))];
-    const scopusIds = [...new Set(rows.filter((r: any) => r.source === "scopus" && r.external_id).map((r: any) => String(r.external_id)))];
+    const pmids = [...new Set(rows.filter((r: any) => !isExternalSource(r) && r.pmid != null).map((r: any) => Number(r.pmid)))];
+    const externalIds = [...new Set(rows.filter((r: any) => isExternalSource(r) && r.external_id).map((r: any) => String(r.external_id)))];
     let pmidSib: Record<string, number> = {};
-    let scopusSib: Record<string, number> = {};
+    let externalSib: Record<string, number> = {};
     if (pmids.length) {
       const sib: any[] = await models.AuthorshipReview.findAll({
         attributes: ["pmid", [fn("COUNT", col("id")), "n"]],
@@ -1149,13 +1150,13 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       });
       pmidSib = Object.fromEntries(sib.map((s) => [String(s.pmid), Number(s.n)]));
     }
-    if (scopusIds.length) {
+    if (externalIds.length) {
       const sib: any[] = await models.AuthorshipReview.findAll({
         attributes: ["external_id", [fn("COUNT", col("id")), "n"]],
-        where: scope({ source: "scopus", external_id: { [Op.in]: scopusIds } }),
+        where: scope({ source: { [Op.ne]: "pubmed" }, external_id: { [Op.in]: externalIds } }),
         group: ["external_id"], raw: true,
       });
-      scopusSib = Object.fromEntries(sib.map((s) => [String(s.external_id), Number(s.n)]));
+      externalSib = Object.fromEntries(sib.map((s) => [String(s.external_id), Number(s.n)]));
     }
     const knownIdentities = await reciterIdentitySet(rows.map((r: any) => r.top_cwid));
     // Which cwids ED has RETIRED, and what replaced each. A whole-directory snapshot on a 30-min
@@ -1214,7 +1215,7 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     // top_cwid+candidates union already used for reject/reopen. Purely additive/annotative
     // here, like identity_in_reciter above — no re-ranking, no dropped rows, no count change;
     // the frontend decides what to do visually.
-    const pubmedRows = rows.filter((r: any) => r.source !== "scopus" && r.pmid != null);
+    const pubmedRows = rows.filter((r: any) => !isExternalSource(r) && r.pmid != null);
     const rejectionCheckIds = new Set(pubmedRows.map((r: any) => r.id));
     const rejectionCwids = new Set<string>();
     // …and, in the SAME pass, every cwid on the page for the department self-heal below.
@@ -1258,7 +1259,7 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     ]);
 
     const out = rows.map((r: any) => {
-      const map = r.source === "scopus" ? scopusSib : pmidSib;
+      const map = isExternalSource(r) ? externalSib : pmidSib;
       const json: any = r.toJSON();
       // The widened include lands as a nested `Person` object. Flatten it to one flat, stable
       // key alongside top_dept/top_name and drop the nested object, so the response shape stays
@@ -1342,7 +1343,7 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       // already excluded it — the two would then disagree on exactly the rows this feature
       // exists to explain.
       const ownCwid = String(r.top_cwid || "").toLowerCase();
-      const accepted_by = (r.source !== "scopus" && r.pmid != null && r.author_position != null)
+      const accepted_by = (!isExternalSource(r) && r.pmid != null && r.author_position != null)
         ? (acceptedByMap[`${r.pmid}|${r.author_position}`] || [])
           .filter((a) => a.cwid.toLowerCase() !== ownCwid)
         : [];
@@ -1406,7 +1407,7 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
     const page = capped ? rows.slice(0, SELECTABLE_CAP) : rows;
 
     const knownIdentities = await reciterIdentitySet(page.map((r: any) => r.top_cwid));
-    const pubmedRows = page.filter((r: any) => r.source !== "scopus" && r.pmid != null);
+    const pubmedRows = page.filter((r: any) => !isExternalSource(r) && r.pmid != null);
     const rejectionCwids = new Set<string>();
     for (const r of pubmedRows) candidateCwidsFromRow(r).forEach((c) => rejectionCwids.add(c));
     const rejectedByCwid = await getRejectedPmidsByCwid([...rejectionCwids]);
@@ -1417,7 +1418,7 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
       // into the same 409 the single-row card guards against. There is nothing to accept
       // without a proposed identity, known-to-ReCiter or not.
       .filter((r: any) => !!r.top_cwid && knownIdentities.has(String(r.top_cwid)))
-      .filter((r: any) => !(r.source !== "scopus" && r.pmid != null && r.top_cwid
+      .filter((r: any) => !(!isExternalSource(r) && r.pmid != null && r.top_cwid
         && rejectedByCwid[String(r.top_cwid)]?.has(Number(r.pmid))))
       .map((r: any) => ({
         id: r.id, source: r.source, wcm_author: r.wcm_author, top_name: r.top_name,
@@ -2513,6 +2514,27 @@ function scopusExternalPayload(row: any) {
   };
 }
 
+// ExternalArticle payload for an openalex row (conference abstract / preprint, no PMID).
+// articleId is "OPENALEX:<W id>", the same key PM's OpenAlex search add writes
+// (openalex.controller.ts normalizeWork), so ReCiter's duplicate check sees both paths as one.
+// publicationType carries the OpenAlex work type the producer stored in pub_type.
+function openalexExternalPayload(row: any) {
+  return {
+    articleId: `OPENALEX:${openalexWorkId(row.external_id)}`,
+    sourceType: "OPENALEX",
+    method: "openalex-authorships-tab",
+    doi: row.doi || undefined,
+    title: row.title || undefined,
+    journalOrVenue: row.journal || undefined,
+    pubDate: row.entrez_date || undefined,
+    publicationType: row.pub_type || undefined,
+    authors: scopusAuthorsFromRow(row),
+  };
+}
+
+const externalArticlePayload = (row: any) =>
+  row.source === "openalex" ? openalexExternalPayload(row) : scopusExternalPayload(row);
+
 // POST /api/db/authorships/authors — batched authors_json lookup by Scopus external_id,
 // for the Curate per-source "Scopus" tab (SourceArticleTab) to backfill a display byline
 // on rows accepted before scopusExternalPayload() started sending `authors` natively
@@ -2582,18 +2604,18 @@ async function homonymRejectionTargets(
   row: any, target: string, pmid: number, checkAccepted = true,
 ): Promise<string[]> {
   const candidates = candidateCwidsFromRow(row);
-  const isScopus = row.source === "scopus";
+  const isExternal = isExternalSource(row);
   const others = candidates.filter((c) => c !== target);
   // Scopus has no pmid to reject (gold standard is PMID-keyed — same precedent as case
   // "reject"'s scopus branch), and a row whose only candidate IS the assign target has nobody
   // left to displace. Nothing else is excluded here anymore — see the F-2 note above.
-  if (isScopus || others.length === 0) return [];
+  if (isExternal || others.length === 0) return [];
   const [identities, accepted] = await Promise.all([
     reciterIdentitySet(others),
     checkAccepted ? getKnownPmidsByCwid(others) : Promise.resolve({} as Record<string, Set<number>>),
   ]);
   return homonymRejections({
-    isScopus, singleCandidate: false, candidates, target,
+    isScopus: isExternal, singleCandidate: false, candidates, target,
     hasIdentity: (c) => identities.has(c),
     hasAccepted: (c) => !!accepted[c]?.has(pmid),
   });
@@ -2615,7 +2637,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
     const row: any = await models.AuthorshipReview.findByPk(id);
     if (!row) return res.status(404).send("Authorship not found");
 
-    const isScopus = row.source === "scopus";
+    const isExternal = isExternalSource(row);
     const pmid = row.pmid != null ? Number(row.pmid) : null;
     const cwid = row.top_cwid as string | undefined;
     const reviewer = curator.cwid || String(curator.userID);
@@ -2656,7 +2678,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // row.pmid is NULL on every scopus row, hence acceptPmid rather than the outer `pmid`.
         // ponytail: single-candidate rows only — the MULTI_CANDIDATE guard above already turns
         // multis away, so no homonym rejections arise here. Widen `assign` if they ever do.
-        const sameWork = isScopus && String(body.samePmid) === "true";
+        const sameWork = isExternal && String(body.samePmid) === "true";
         if (sameWork && row.matched_pmid == null) {
           return res.status(400).send("Row has no matched_pmid to accept as the same work");
         }
@@ -2672,8 +2694,8 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         if (sameWork && (await getKnownPmidsByCwid([cwid]))[cwid]?.has(acceptPmid)) {
           return res.status(422).send(`${row.top_name || cwid} has already accepted PMID ${acceptPmid} — nothing to accept. Use "Same paper — dismiss" to close this Scopus row as a duplicate.`);
         }
-        if (isScopus && !sameWork) {
-          const resp = await addExternalArticle(cwid, scopusExternalPayload(row), reviewer, force);
+        if (isExternal && !sameWork) {
+          const resp = await addExternalArticle(cwid, externalArticlePayload(row), reviewer, force);
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
             // BLOCKED → already in the record: fall through and resolve the row as accepted
@@ -2857,7 +2879,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // rows are in this shape as of 2026-08-30, so it is not rare. hasIdentity gates it
         // because gate can also be "local_only" here (confirmed, no identity), and there is no
         // knownpmids to speak of for a cwid ReCiter has no Identity record for.
-        if (hasIdentity && !isScopus && pmid != null
+        if (hasIdentity && !isExternal && pmid != null
           && (await getKnownPmidsByCwid([target]))[target]?.has(pmid)) {
           return res.status(422).send(
             `${target} already has this article as ACCEPTED — assigning again would just be a `
@@ -2958,8 +2980,8 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // feedback log — which is also what keeps `reopen` sound: it has an identity, so
         // reopen's "no identity == it was local-only" inference still holds and the
         // gold-standard DELETE it does is exactly the write this made.
-        if (isScopus) {
-          const resp = await addExternalArticle(target, scopusExternalPayload(row), reviewer, force);
+        if (isExternal) {
+          const resp = await addExternalArticle(target, externalArticlePayload(row), reviewer, force);
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
             if (!dup.blocked) return res.status(409).json({ message: dup.message, matches: dup.matches });
@@ -3004,7 +3026,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
       }
       case "reject": {
         if (!cwid) return res.status(409).send("No proposed identity to reject");
-        if (isScopus) {
+        if (isExternal) {
           // scopus reject = local dismissal, never gold standard (no PMID to reject).
           await models.AuthorshipReview.update({ status: "rejected", reviewer, resolved_at: new Date() }, { where: { id } });
           break;
@@ -3053,13 +3075,13 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // below, not the ExternalArticle revoke — otherwise reopen clears the row and leaves the
         // PMID permanently accepted with nothing left pointing at it. matched_pmid_verdict is the
         // marker because accept wrote it in the same update as the terminal status.
-        const wasSameWork = isScopus && row.matched_pmid_verdict === "same";
+        const wasSameWork = isExternal && row.matched_pmid_verdict === "same";
         // row.pmid is NULL on scopus rows; the gold standard entry to delete is the twin's PMID.
         const undoPmid = wasSameWork ? Number(row.matched_pmid) : (pmid as number);
-        if (isScopus && !wasSameWork) {
+        if (isExternal && !wasSameWork) {
           // undo a scopus accept/assign = revoke the ExternalArticle (reject/dismiss wrote none).
           if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
-            const resp = await deleteExternalArticle(reverseCwid, `SCOPUS:${row.external_id}`);
+            const resp = await deleteExternalArticle(reverseCwid, externalArticlePayload(row).articleId);
             if (resp.statusCode !== 200) return res.status(502).send(`ExternalArticle revoke failed (${resp.statusCode})`);
           }
         } else if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {

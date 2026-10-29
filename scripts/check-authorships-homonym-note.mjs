@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { isExternalSource } from "../src/lib/externalSource.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const src = readFileSync(join(ROOT, "src/components/elements/Authorships/AuthorshipsTabs.tsx"), "utf8");
@@ -39,8 +40,9 @@ const grab = (prop) => {
   }
   return src.slice(at + prop.length + 2, i);
 };
-const counts = new Function("r", "isMulti", "candidates", "noSuggestion", "noIdentity",
+const countsFn = new Function("isExternalSource", "r", "isMulti", "candidates", "noSuggestion", "noIdentity",
   `return { listed: (${grab("listed")}), typed: (${grab("typed")}) };`);
+const counts = (...a) => countsFn(isExternalSource, ...a);
 
 const pubmed = { source: "pubmed" }, scopus = { source: "scopus" };
 check("3-candidate pubmed row", counts(pubmed, true, [1, 2, 3], false, false), { listed: 2, typed: 3 });
@@ -48,6 +50,7 @@ check("single-candidate row with a real top_cwid", counts(pubmed, false, [1], fa
 check("single-candidate, no ReCiter identity", counts(pubmed, false, [1], false, true), { listed: 0, typed: 0 });
 check("single-candidate, no suggestion", counts(pubmed, false, [], true, false), { listed: 0, typed: 0 });
 check("scopus row", counts(scopus, true, [1, 2, 3], false, false), { listed: 0, typed: 0 });
+check("openalex row", counts({ source: "openalex" }, true, [1, 2, 3], false, false), { listed: 0, typed: 0 });
 
 // 3. the wording branches on `listed`, so the collapsed single-candidate case reads right.
 console.log("3. wording");
