@@ -12,7 +12,7 @@ import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldS
 import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
 import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
-import { isExternalSource, openalexWorkId } from "../../src/lib/externalSource";
+import { externalSourceLabel, isExternalSource, openalexWorkId } from "../../src/lib/externalSource";
 import {
   lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured, cornellFallback,
   affiliationDeptMatch,
@@ -2692,7 +2692,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // so and point at the action that does fit: closing the scopus row as a duplicate.
         // Mirrors the same guard `assign` already applies (getKnownPmidsByCwid, below).
         if (sameWork && (await getKnownPmidsByCwid([cwid]))[cwid]?.has(acceptPmid)) {
-          return res.status(422).send(`${row.top_name || cwid} has already accepted PMID ${acceptPmid} — nothing to accept. Use "Same paper — dismiss" to close this Scopus row as a duplicate.`);
+          return res.status(422).send(`${row.top_name || cwid} has already accepted PMID ${acceptPmid} — nothing to accept. Use "Same paper — dismiss" to close this ${externalSourceLabel(row)} row as a duplicate.`);
         }
         if (isExternal && !sameWork) {
           const resp = await addExternalArticle(cwid, externalArticlePayload(row), reviewer, force);

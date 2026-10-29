@@ -16,7 +16,7 @@ import {
   typedCwidPreview,
 } from "../../../lib/bulkAssign";
 import type { CandidateLite, TypedCwidLookupState } from "../../../lib/bulkAssign";
-import { isExternalSource, openalexRecordUrl } from "../../../lib/externalSource";
+import { externalSourceLabel, isExternalSource, openalexRecordUrl } from "../../../lib/externalSource";
 import type { AuthorshipSource } from "../../../lib/externalSource";
 
 // ---- types ---------------------------------------------------------------
@@ -2118,23 +2118,23 @@ const AuthorshipsTabs = () => {
         fetchRecentActivity();
       })
       .catch((e) => {
-        // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error.
+        // external (scopus/openalex) Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error.
         // A same-work accept is excluded: it never calls addExternalArticle, so its only 409 is the
         // already-rejected guard, and "Force add anyway" would answer it by creating the very
         // duplicate ExternalArticle the curator just said not to create. That 409 belongs in the
         // plain error toast, where its message ("already rejected this article") is the right advice.
-        const scopusDup = e?.status === 409 && isExternalSource(row)
+        const externalDup = e?.status === 409 && isExternalSource(row)
           && (action === "accept" || action === "assign") && !extra?.samePmid;
         // Both 422s are the same shape — "allowed, but say you meant it" — and each names the
         // confirmation flag it wants back. The consequences are opposite, so the prompts they
         // raise differ (see ConflictEntry.kind and the banner below); the plumbing doesn't.
-        // MULTI_CANDIDATE checked ahead of scopusDup: both are plain 409s, and a scopus row can
+        // MULTI_CANDIDATE checked ahead of externalDup: both are plain 409s, and an external row can
         // hit the multi-candidate gate too (it's checked before the isScopus branch server-side).
         const kind: ConflictEntry["kind"] | null =
           e?.status === 422 && e?.code === "NO_RECITER_IDENTITY" ? "no_identity"
             : e?.status === 422 && e?.code === "OFF_CANDIDATE" ? "off_candidate"
               : e?.status === 409 && e?.code === "MULTI_CANDIDATE" ? "multi_candidate"
-                : scopusDup ? "dup" : null;
+                : externalDup ? "dup" : null;
         if (kind) {
           const entry: ConflictEntry = {
             id: row.id, action, kind,
@@ -4468,7 +4468,7 @@ const AuthorshipCard = ({
               matched_pmid_verdict='distinct' and this chip stops rendering for it. */}
           {r.matched_pmid != null && !r.matched_pmid_verdict && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
-              <Tip title="The producer found a PubMed record that may be the same paper as this Scopus row (a heuristic title+author search, not a confirmed match). Expand this card to compare and record a verdict." placement="top" arrow>
+              <Tip title={`The producer found a PubMed record that may be the same paper as this ${externalSourceLabel(r)} row (a heuristic title+author search, not a confirmed match). Expand this card to compare and record a verdict.`} placement="top" arrow>
                 <span><Chip kind="warn"><IconAlert size={12} /> PubMed twin? {
                   r.matched_pmid_source === "doi" ? "DOI match"
                     : r.matched_pmid_source === "scopus" ? "Scopus link"
@@ -5553,7 +5553,7 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
 
       <div style={{ display: "grid", gridTemplateColumns: "70px 1fr 1fr", gap: "5px 12px", fontSize: 12.5, alignItems: "start" }}>
         <div />
-        <div style={{ fontWeight: 700, color: "#475569" }}>Scopus record</div>
+        <div style={{ fontWeight: 700, color: "#475569" }}>{externalSourceLabel(r)} record</div>
         <div style={{ fontWeight: 700, color: "#475569" }}>PubMed record</div>
 
         <div style={{ color: "#94a3b8" }}>Title</div>
@@ -5577,7 +5577,7 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
         <div style={{ padding: "4px 8px" }}>{pubmedAuthorLine || emDash}</div>
       </div>
       <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 3 }}>
-        {compare.sharedSurnames} of {compare.scopusAuthorCount} Scopus surname{compare.scopusAuthorCount === 1 ? "" : "s"} shared with PubMed
+        {compare.sharedSurnames} of {compare.scopusAuthorCount} {externalSourceLabel(r)} surname{compare.scopusAuthorCount === 1 ? "" : "s"} shared with PubMed
       </div>
 
       {/* the TWIN's pmid, not this row's — a scopus row has none of its own, so the card's

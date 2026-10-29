@@ -18,3 +18,9 @@ export const openalexRecordUrl = (externalId?: string | null): string | undefine
   const id = openalexWorkId(externalId);
   return id ? `https://openalex.org/${id}` : undefined;
 };
+
+// Display name of an external lane, for copy shared by every external lane (the PubMed-twin
+// panel, the same-work 422, the twin chip). Unknown/legacy external values read as Scopus,
+// the lane that existed before this helper.
+export const externalSourceLabel = (r: { source?: string | null } | null | undefined): string =>
+  r?.source === "openalex" ? "OpenAlex" : "Scopus";
