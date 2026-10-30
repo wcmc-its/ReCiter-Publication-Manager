@@ -137,6 +137,15 @@ test('parseAddDeepLink: no add param behaves as today (closed)', () => {
     assert.equal(parseAddDeepLink(null).open, false)
 })
 
+test('parseAddDeepLink: add=pubmed opens with a valid PMID only', () => {
+    assert.deepEqual(parseAddDeepLink({ id: 'abc1234', add: 'pubmed', pmid: '41032574' }),
+        { open: true, pmid: 41032574, invalidDoi: false, source: 'SCOPUS' })
+    assert.equal(parseAddDeepLink({ add: 'PubMed', pmid: ' 123 ' }).pmid, 123)
+    for (const pmid of [undefined, '', '0', '-5', '12a', '1234567890', '"><img src=x>']) {
+        assert.equal(parseAddDeepLink({ add: 'pubmed', pmid }).open, false, String(pmid))
+    }
+})
+
 test('parseAddDeepLink: add=external with a bare DOI or doi.org URL', () => {
     assert.deepEqual(parseAddDeepLink({ id: 'abc1234', add: 'external', doi: '10.1000/xyz123' }),
         { open: true, doi: '10.1000/xyz123', invalidDoi: false, source: 'SCOPUS' })
@@ -170,5 +179,5 @@ test('parseAddDeepLink: repeated params use the first value', () => {
 })
 
 test('ADD_DEEP_LINK_PARAMS lists exactly the params the curate page strips', () => {
-    assert.deepEqual(ADD_DEEP_LINK_PARAMS, ['add', 'doi', 'source'])
+    assert.deepEqual(ADD_DEEP_LINK_PARAMS, ['add', 'doi', 'source', 'pmid'])
 })
