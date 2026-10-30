@@ -107,12 +107,14 @@ export function seedAddedStates<S extends { status: string }>(
 }
 
 // Deep link: /curate/<uid>?add=external&doi=<doi>[&source=openalex]
+//        or: /curate/<uid>?add=pubmed&pmid=<pmid> (the PubMed Add tab, that PMID searched)
 //   open       — add=external was given; the curate page opens the Add tab.
 //   doi        — the validated bare DOI, or undefined (absent or invalid).
 //   invalidDoi — a doi parameter was present but is not a DOI or doi.org URL. The value itself
 //                is never returned, so it can never be echoed back into the page.
 //   source     — OPENALEX only for source=openalex, otherwise SCOPUS.
-export type AddDeepLink = { open: boolean, doi?: string, invalidDoi: boolean, source: AddSource }
+//   pmid       — add=pubmed only, a positive integer PMID; without one the link stays closed.
+export type AddDeepLink = { open: boolean, doi?: string, invalidDoi: boolean, source: AddSource, pmid?: number }
 
 const firstParam = (v: unknown): string | undefined => {
     if (typeof v === 'string') return v
@@ -125,6 +127,11 @@ export function parseAddDeepLink(query: Record<string, unknown> | null | undefin
     const add = firstParam(q.add)
     const open = (add || '').trim().toLowerCase() === 'external'
     const source: AddSource = (firstParam(q.source) || '').trim().toLowerCase() === 'openalex' ? 'OPENALEX' : 'SCOPUS'
+    if ((add || '').trim().toLowerCase() === 'pubmed') {
+        const raw = (firstParam(q.pmid) || '').trim()
+        const pmid = /^[1-9]\d{0,8}$/.test(raw) ? Number(raw) : undefined
+        return pmid ? { open: true, pmid, invalidDoi: false, source } : { open: false, invalidDoi: false, source }
+    }
     if (!open) return { open: false, invalidDoi: false, source }
     const rawDoi = firstParam(q.doi)
     if (rawDoi === undefined || rawDoi.trim() === '') return { open, invalidDoi: false, source }
@@ -134,4 +141,4 @@ export function parseAddDeepLink(query: Record<string, unknown> | null | undefin
 
 // The deep-link parameters, so the curate page can drop them from the URL once applied (a
 // later remount of the tabs, e.g. after Refresh Suggestions, must not re-open the Add tab).
-export const ADD_DEEP_LINK_PARAMS = ['add', 'doi', 'source']
+export const ADD_DEEP_LINK_PARAMS = ['add', 'doi', 'source', 'pmid']

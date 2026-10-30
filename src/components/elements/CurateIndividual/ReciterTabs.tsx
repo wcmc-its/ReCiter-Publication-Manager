@@ -21,7 +21,7 @@ import { AddDeepLink } from "../../../utils/externalAddSearch";
 
 const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: incomingDeepLink = null, onAddDeepLinkConsumed }: { reciterData: any, fullName: string, fetchOriginalData: any, addDeepLink?: AddDeepLink | null, onAddDeepLinkConsumed?: () => void }) => {
   //default tab; a deep link (parsed by CurateIndividual) opens the Add tab instead
-  const [key, setKey] = useState(incomingDeepLink ? 'External' : 'NULL');
+  const [key, setKey] = useState(incomingDeepLink?.pmid ? 'AddPub' : incomingDeepLink ? 'External' : 'NULL');
   const dispatch = useDispatch();
   const [filteredData, setFilteredData] = useState([])
   const [pubKey, setPubKey] = useState(false);
@@ -97,6 +97,9 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
     // Taken: clear the parent's copy so a later remount (e.g. after Refresh Suggestions)
     // does not re-open the Add tab and search again.
     if (incomingDeepLink) onAddDeepLinkConsumed?.();
+    // add=pubmed&pmid=<pmid>: run the PubMed tab's search for it, as the External tab's
+    // "Add via PubMed" does; the curator then accepts or rejects it there.
+    if (incomingDeepLink?.pmid) handleAddViaPubMed(incomingDeepLink.pmid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
