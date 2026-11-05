@@ -160,6 +160,12 @@ export const reciterConfig = {
     openAlex: {
         searchHost: 'https://api.openalex.org',
     },
+    // PM#1060 — Crossref DOI lookup (server-side only, keyless). The mailto in the User-Agent
+    // puts requests in Crossref's polite pool.
+    crossref: {
+        host: 'https://api.crossref.org',
+        mailto: 'publications@med.cornell.edu',
+    },
     /**
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.
      * Make sure its a good secret with good mix of alpha numeric characters.

@@ -4,10 +4,11 @@ import { reciterConfig } from "../../../../config/local"
 import ExternalPublicationCard, { AddState } from "./ExternalPublicationCard"
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import {
-    AddSource, decideScopusOutcome, enrichScopusResults, scopusSearchFor, seedAddedStates,
+    AddSource, decideCrossrefOutcome, decideScopusOutcome, enrichScopusResults,
+    normalizeDoiInput, scopusSearchFor, seedAddedStates,
 } from "../../../utils/externalAddSearch"
 
-// PM#771 — add publications from an external source (Scopus by default, or OpenAlex) to a person's
+// PM#771 — add publications from an external source (Scopus by default, OpenAlex or Crossref) to a person's
 // record. Self-contained (AAR-tab precedent): local state + fetch, no redux. OpenAlex
 // search is proxied server-side; adds go through the ReCiter external-article API
 // (admin-key proxied) which enforces the BLOCKED (no override) / WARNING (Add anyway)
@@ -18,8 +19,9 @@ import {
 // Scopus Authorships tab's document search (/api/reciter/search/scopus, by DOI when the query
 // is a DOI, else by keyword) with the same result mapping, so a Scopus doc added here is the
 // same POST body that tab sends. A DOI Scopus does not hold, or a Scopus outage (502/503),
-// falls back to OpenAlex with an inline note. Search messages are inline text, not toasts:
-// toast.* is a no-op in PM (the toast container never mounts).
+// falls back to OpenAlex with an inline note. A DOI OpenAlex does not hold either is searched
+// in Crossref (PM#1060), whose results are addable as CROSSREF: records. Search messages are
+// inline text, not toasts: toast.* is a no-op in PM (the toast container never mounts).
 
 interface FuncProps {
     personIdentifier: string,
@@ -82,7 +84,7 @@ const errorStyle: React.CSSProperties = {
     borderRadius: 6, padding: "8px 10px", marginBottom: 10,
 }
 
-const SOURCE_NAME: Record<AddSource, string> = { SCOPUS: "Scopus", OPENALEX: "OpenAlex" }
+const SOURCE_NAME: Record<AddSource, string> = { SCOPUS: "Scopus", OPENALEX: "OpenAlex", CROSSREF: "Crossref" }
 
 const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
     const uid = props.personIdentifier
@@ -91,7 +93,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
     const [query, setQuery] = useState<string>(props.initialQuery || "")
     const [searching, setSearching] = useState<boolean>(false)
     // The source being searched right now / the source the shown results came from — they
-    // differ from `source` after a fallback to OpenAlex.
+    // differ from `source` after a fallback to OpenAlex or Crossref.
     const [searchingSource, setSearchingSource] = useState<AddSource>(source)
     const [resultSource, setResultSource] = useState<AddSource | null>(null)
     const [searched, setSearched] = useState<boolean>(false)
@@ -136,6 +138,40 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
         fetchExternalList()
     }, [fetchExternalList])
 
+    // Crossref search (PM#1060). `fallback` is set after an empty OpenAlex DOI search: Crossref's
+    // hits replace the empty OpenAlex results with a note saying why, and a failure only adds a
+    // note. Chosen directly from the source menu, a failure is an error like the other sources.
+    const searchCrossref = async (q: string, seq: number, fallback: boolean): Promise<void> => {
+        setSearchingSource("CROSSREF")
+        let status = 0
+        let body: any = {}
+        try {
+            const r = await fetch(`/api/reciter/search/crossref`, {
+                credentials: "same-origin", method: "POST", headers: apiHeaders,
+                body: JSON.stringify({ query: q }),
+            })
+            status = r.status
+            body = await r.json().catch(() => ({}))
+        } catch (e) { status = 0 }
+        if (seq !== searchSeq.current) return
+        const found = status >= 200 && status < 300 && Array.isArray(body.results) ? body.results : []
+        if (!fallback) {
+            if (status >= 200 && status < 300) {
+                setResults(found)
+                setResultSource("CROSSREF")
+            } else {
+                setErrorMsg(status ? `Crossref search failed (HTTP ${status}).` : "Crossref search is unavailable right now.")
+            }
+            return
+        }
+        const outcome = decideCrossrefOutcome({ status, resultCount: found.length })
+        if (outcome.kind === "results") {
+            setResults(found)
+            setResultSource("CROSSREF")
+        }
+        if (outcome.note) setNote((prev) => (prev ? prev + " " : "") + outcome.note)
+    }
+
     const searchOpenAlex = (q: string, seq: number): Promise<void> => {
         setSearchingSource("OPENALEX")
         return fetch(`/api/reciter/search/openalex`, {
@@ -149,8 +185,11 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
             })
             .then((body) => {
                 if (seq !== searchSeq.current) return
-                setResults(Array.isArray(body.results) ? body.results : [])
+                const found = Array.isArray(body.results) ? body.results : []
+                setResults(found)
                 setResultSource("OPENALEX")
+                const doi = found.length === 0 ? normalizeDoiInput(q) : null
+                if (doi) return searchCrossref(doi, seq, true)
             })
             .catch((err) => {
                 if (seq !== searchSeq.current) return
@@ -203,7 +242,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
         setResultSource(null)
         setScopusTotal(0)
         setAddStates({})
-        const run = src === "SCOPUS" ? searchScopus(q, seq) : searchOpenAlex(q, seq)
+        const run = src === "SCOPUS" ? searchScopus(q, seq) : src === "CROSSREF" ? searchCrossref(q, seq, false) : searchOpenAlex(q, seq)
         run.finally(() => { if (seq === searchSeq.current) setSearching(false) })
     }
 
@@ -327,7 +366,8 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
         <div style={wrap}>
             <p style={helpText}>
                 Add a publication from an external source when it is not indexed in PubMed. Scopus is searched
-                first; a DOI Scopus does not have is looked up in OpenAlex. External publications are not scored
+                first; a DOI Scopus does not have is looked up in OpenAlex, then Crossref (where new DOIs appear
+                first). You can also search OpenAlex or Crossref directly. External publications are not scored
                 by ReCiter and are listed separately below.
             </p>
 
@@ -347,6 +387,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                 >
                     <option value="SCOPUS">Scopus</option>
                     <option value="OPENALEX">OpenAlex</option>
+                    <option value="CROSSREF">Crossref</option>
                 </select>
                 <input
                     type="text"

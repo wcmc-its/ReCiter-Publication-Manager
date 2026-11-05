@@ -58,11 +58,12 @@ const SOURCE_LABELS: Record<string, string> = {
     OPENALEX: 'OpenAlex',
     SCOPUS: 'Scopus',
     WOS: 'Web of Science',
+    CROSSREF: 'Crossref',
 }
 
 // The source id lives in the `SOURCE:<id>` prefix of articleId. Turn it into an outbound
-// link where we can build a stable URL: OpenAlex works always resolve; Scopus only when
-// the id is a 2-s2.0 EID. Otherwise leave it as plain text.
+// link where we can build a stable URL: OpenAlex works always resolve; Crossref ids are DOIs
+// (doi.org link); Scopus only when the id is a 2-s2.0 EID. Otherwise leave it as plain text.
 const idLinkFor = (articleId?: string): string | undefined => {
     if (!articleId) return undefined
     const idx = articleId.indexOf(':')
@@ -71,6 +72,7 @@ const idLinkFor = (articleId?: string): string | undefined => {
     const id = articleId.slice(idx + 1)
     if (!id) return undefined
     if (src === 'OPENALEX') return `https://openalex.org/${id}`
+    if (src === 'CROSSREF') return doiUrl + encodeURIComponent(id).replace(/%2F/gi, '/')
     if (src === 'SCOPUS' && /^2-s2\.0-/.test(id)) {
         return `https://www.scopus.com/record/display.uri?eid=${encodeURIComponent(id)}&origin=resultslist`
     }
@@ -265,6 +267,10 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                     )
                 )}
 
+                {mode === 'preview' && !pubmedPmid && item.notAddable && status !== 'added' && (
+                    <div className={styles.warningBox}>{item.notAddable}</div>
+                )}
+
                 {/* In PubMed but NOT yet in the record — direct Add, or steer to the scored
                     PubMed path (same accept, from the Add tab instead of this card) */}
                 {mode === 'preview' && pubmedPmid && !recStatus && status !== 'added' && status !== 'accepted' && (
@@ -387,7 +393,11 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         </button>
                     </div>
                 )}
-                {mode === 'preview' && status !== 'added' && !pubmedPmid && (
+                {/* PM#1060: a Crossref DOI too long for the article id column — say why, no Add. */}
+                {mode === 'preview' && status !== 'added' && !pubmedPmid && item.notAddable && (
+                    <span className={styles.recordTag}>Can&apos;t be added</span>
+                )}
+                {mode === 'preview' && status !== 'added' && !pubmedPmid && !item.notAddable && (
                     <button
                         className={styles.btnAdd}
                         disabled={status === 'adding' || status === 'checking' || status === 'blocked' || status === 'warning'}
