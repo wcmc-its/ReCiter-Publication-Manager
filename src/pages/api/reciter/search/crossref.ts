@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { lookupCrossrefDoi } from '../../../../../controllers/crossref.controller'
+import { searchCrossref } from '../../../../../controllers/crossref.controller'
 import { reciterConfig } from '../../../../../config/local'
 
 type Error = {
@@ -18,7 +18,7 @@ export default async function handler(
 ) {
     if (req.method === "POST") {
         if (req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
-            const apiResponse = await lookupCrossrefDoi(req)
+            const apiResponse = await searchCrossref(req)
             if (apiResponse.statusCode === 200) {
                 res.status(200).send({
                     statusCode: 200,

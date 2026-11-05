@@ -55,7 +55,7 @@ const CurateIndividual = () => {
   const [showRecentActivity, setShowRecentActivity] = useState(false) // collapsed by default; the Hide/Show toggle still lets a curator open it
   const [headShotLoaded, setHeadShotLoaded] = useState(false)
   const [grantProxyShow, setGrantProxyShow] = useState(false);
-  // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex]. Parsed here, not in
+  // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex|crossref]. Parsed here, not in
   // ReciterTabs: this component stays mounted while the tabs are swapped for the loading
   // skeleton, so a tabs instance mounted before the fetches start would be thrown away along
   // with the link. Handed to the tabs that mount after loading, then cleared once they take it.

@@ -3,7 +3,7 @@
 // the Scopus Authorships tab (TabScopusAuthorships). Kept free of imports so the unit tests
 // in tests/ can load this file directly with `node --test`.
 
-export type AddSource = 'SCOPUS' | 'OPENALEX'
+export type AddSource = 'SCOPUS' | 'OPENALEX' | 'CROSSREF'
 
 // Longest DOI we will accept from a query or a link. Real DOIs are well under this; the cap
 // only stops a pathological link parameter from being carried into a search.
@@ -106,13 +106,13 @@ export function seedAddedStates<S extends { status: string }>(
     return changed ? next : prev
 }
 
-// Deep link: /curate/<uid>?add=external&doi=<doi>[&source=openalex]
+// Deep link: /curate/<uid>?add=external&doi=<doi>[&source=openalex|crossref]
 //        or: /curate/<uid>?add=pubmed&pmid=<pmid> (the PubMed Add tab, that PMID searched)
 //   open       — add=external was given; the curate page opens the Add tab.
 //   doi        — the validated bare DOI, or undefined (absent or invalid).
 //   invalidDoi — a doi parameter was present but is not a DOI or doi.org URL. The value itself
 //                is never returned, so it can never be echoed back into the page.
-//   source     — OPENALEX only for source=openalex, otherwise SCOPUS.
+//   source     — OPENALEX for source=openalex, CROSSREF for source=crossref, otherwise SCOPUS.
 //   pmid       — add=pubmed only, a positive integer PMID; without one the link stays closed.
 export type AddDeepLink = { open: boolean, doi?: string, invalidDoi: boolean, source: AddSource, pmid?: number }
 
@@ -126,7 +126,8 @@ export function parseAddDeepLink(query: Record<string, unknown> | null | undefin
     const q = query || {}
     const add = firstParam(q.add)
     const open = (add || '').trim().toLowerCase() === 'external'
-    const source: AddSource = (firstParam(q.source) || '').trim().toLowerCase() === 'openalex' ? 'OPENALEX' : 'SCOPUS'
+    const rawSource = (firstParam(q.source) || '').trim().toLowerCase()
+    const source: AddSource = rawSource === 'openalex' ? 'OPENALEX' : rawSource === 'crossref' ? 'CROSSREF' : 'SCOPUS'
     if ((add || '').trim().toLowerCase() === 'pubmed') {
         const raw = (firstParam(q.pmid) || '').trim()
         const pmid = /^[1-9]\d{0,8}$/.test(raw) ? Number(raw) : undefined
@@ -143,41 +144,70 @@ export function parseAddDeepLink(query: Record<string, unknown> | null | undefin
 // later remount of the tabs, e.g. after Refresh Suggestions, must not re-open the Add tab).
 export const ADD_DEEP_LINK_PARAMS = ['add', 'doi', 'source', 'pmid']
 
-// PM#1060 — Crossref, read-only. A DOI that neither Scopus nor OpenAlex holds is looked up in
-// Crossref (where publishers register DOIs first; OpenAlex lags it by days to weeks). A hit is
-// shown as a read-only card with no Add button: ReCiter accepts no CROSSREF: article id yet.
-export type CrossrefCard = {
-    doi: string, title: string, venue?: string, year?: number, authors: string[], type?: string,
-}
+// PM#1060 — Crossref as an external-article source. Publishers register DOIs in Crossref first
+// (OpenAlex lags it by days to weeks), so a DOI neither Scopus nor OpenAlex holds is searched
+// there. A Crossref paper's article id is "CROSSREF:" + the DOI lowercased, and it stays a
+// CROSSREF: record for good (it is never migrated to OPENALEX:); the duplicate check catches a
+// later add of the same DOI from another source.
+
+// reciterdb external_article.article_id is VARCHAR(96); ReCiter rejects a longer CROSSREF id.
+export const MAX_EXTERNAL_ARTICLE_ID_LENGTH = 96
 
 const stripTags = (s: unknown): string => String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+const firstOf = (v: unknown): unknown => (Array.isArray(v) ? v[0] : v)
 
-// Map a Crossref /works/{doi} `message` to the card fields, or null when it has no DOI or title.
-export function crossrefCardFrom(message: any): CrossrefCard | null {
-    if (!message || !message.DOI) return null
-    const title = stripTags(Array.isArray(message.title) ? message.title[0] : message.title)
+// Crossref date-parts ([[2026, 10, 30]], [[2026, 10]] or [[2026]]) as YYYY-MM-DD, YYYY-MM or YYYY.
+export function crossrefPubDate(dateParts: unknown): string | undefined {
+    const parts = Array.isArray(dateParts) && Array.isArray(dateParts[0]) ? dateParts[0] : null
+    if (!parts || !Number(parts[0])) return undefined
+    const pad = (n: unknown) => String(Number(n)).padStart(2, '0')
+    return [String(Number(parts[0]))].concat(parts.slice(1, 3).filter((n: unknown) => Number(n)).map(pad)).join('-')
+}
+
+// Map one Crossref work (a /works/{doi} `message`, or one of a keyword search's `items`) to the
+// external-article POST body (minus addedBy, set server-side), or null when it has no DOI or
+// title. An id over the 96-char cap gets `notAddable` (the reason) and the card shows no Add.
+export function crossrefExternalArticleFrom(work: any): Record<string, any> | null {
+    if (!work || !work.DOI) return null
+    const title = stripTags(firstOf(work.title))
     if (!title) return null
-    const venue = stripTags(Array.isArray(message['container-title']) ? message['container-title'][0] : '') || undefined
-    const dateParts = (message.issued || message.published || {})['date-parts']
-    const year = Array.isArray(dateParts) && Array.isArray(dateParts[0]) && Number(dateParts[0][0]) || undefined
-    const authors = (Array.isArray(message.author) ? message.author : [])
+    const doi = String(work.DOI).trim()
+    const articleId = 'CROSSREF:' + doi.toLowerCase()
+    const authors = (Array.isArray(work.author) ? work.author : [])
         .map((a: any) => a && (a.name || [a.given, a.family].filter(Boolean).join(' ')))
         .filter(Boolean)
-    return { doi: String(message.DOI), title, venue, year, authors, type: message.type || undefined }
+    // The reference list can run to thousands of entries; it is not needed to describe the work.
+    const { reference: _reference, ...record } = work
+    const row: Record<string, any> = {
+        articleId,
+        title,
+        doi,
+        journalOrVenue: stripTags(firstOf(work['container-title'])) || undefined,
+        authors,
+        pubDate: crossrefPubDate((work.issued || work.published || {})['date-parts']),
+        publicationType: work.type || undefined,
+        sourceType: 'CROSSREF',
+        method: 'dropdown-search',
+        rawRecord: JSON.stringify(record),
+    }
+    if (articleId.length > MAX_EXTERNAL_ARTICLE_ID_LENGTH) {
+        row.notAddable = `This DOI is too long to store as a Crossref record (the id would be ${articleId.length} characters; the limit is ${MAX_EXTERNAL_ARTICLE_ID_LENGTH}).`
+    }
+    return row
 }
 
 // What the Add tab shows after an empty OpenAlex DOI search, given the status of the
-// /api/reciter/search/crossref call (0 for a network failure) and the card it returned.
-//   - 2xx with a card: the read-only Crossref card.
-//   - 404, or 2xx without a usable record: nothing extra; the "No results" empty state stands.
-//   - 5xx / network failure / anything else: the empty state stands, with a note that Crossref
-//     could not be checked.
-export type CrossrefOutcome = { kind: 'card', card: CrossrefCard } | { kind: 'none', note?: string }
+// /api/reciter/search/crossref call (0 for a network failure) and how many rows it returned.
+//   - 2xx with rows: Crossref's results, with a note saying why Crossref was searched.
+//   - 2xx with no rows (Crossref does not hold the DOI either): the "No results" empty state.
+//   - Anything else: the empty state stands, with a note that Crossref could not be checked.
+export type CrossrefOutcome = { kind: 'results', note: string } | { kind: 'none', note?: string }
 
-export function decideCrossrefOutcome(args: { status: number, card?: CrossrefCard | null }): CrossrefOutcome {
-    const { status, card } = args
-    if (status >= 200 && status < 300) return card ? { kind: 'card', card } : { kind: 'none' }
-    if (status === 404) return { kind: 'none' }
+export function decideCrossrefOutcome(args: { status: number, resultCount: number }): CrossrefOutcome {
+    const { status, resultCount } = args
+    if (status >= 200 && status < 300) {
+        return resultCount > 0 ? { kind: 'results', note: 'OpenAlex has no record of this DOI, so Crossref was searched instead.' } : { kind: 'none' }
+    }
     return { kind: 'none', note: 'Crossref could not be checked for this DOI right now.' }
 }
 

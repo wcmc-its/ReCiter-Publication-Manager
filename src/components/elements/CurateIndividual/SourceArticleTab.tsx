@@ -15,7 +15,7 @@ import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrappe
 // (the AAR authorship-suggestion queue — a different data source entirely; do not
 // conflate the two "Scopus" surfaces).
 
-export type SourceKind = 'SCOPUS' | 'OPENALEX' | 'MANUAL'
+export type SourceKind = 'SCOPUS' | 'OPENALEX' | 'CROSSREF' | 'MANUAL'
 
 interface FuncProps {
     uid: string,
@@ -40,8 +40,8 @@ const segmentBtn: React.CSSProperties = {
 const segmentBtnActive: React.CSSProperties = { ...segmentBtn, background: "#1f4e79", borderColor: "#1f4e79", color: "#fff" }
 const emptyText: React.CSSProperties = { fontSize: 13, color: "#8a94a6", padding: "8px 0" }
 
-// No sourceType === 'MANUAL' row exists in prod yet — every current add flow (OpenAlex
-// search, Scopus search) stamps a real sourceType. "Manual" is therefore the catch-all
+// No sourceType === 'MANUAL' row exists in prod yet — every current add flow (OpenAlex,
+// Scopus or Crossref search) stamps a real sourceType. "Manual" is therefore the catch-all
 // for anything that ISN'T a recognized API-search source, so it also future-proofs
 // WoS/WorldCat/typed-in adds that would otherwise have no tab at all.
 // ponytail: revisit this split once a real manual-entry (no-sourceType) add path ships.
@@ -49,7 +49,8 @@ const matchesSource = (row: any, source: SourceKind): boolean => {
     const st = row.sourceType || ''
     if (source === 'SCOPUS') return st === 'SCOPUS'
     if (source === 'OPENALEX') return st === 'OPENALEX'
-    return st !== 'SCOPUS' && st !== 'OPENALEX'
+    if (source === 'CROSSREF') return st === 'CROSSREF'
+    return st !== 'SCOPUS' && st !== 'OPENALEX' && st !== 'CROSSREF'
 }
 
 // AAR-accepted Scopus rows use articleId "SCOPUS:<numeric external_id>" (see

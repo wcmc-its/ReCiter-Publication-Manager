@@ -36,7 +36,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
   // Single "+ Add publication" dropdown (PubMed / OpenAlex / …) — keeps the tab-bar
   // compact as more external sources (Scopus, WoS) are added.
   const [addMenuAnchor, setAddMenuAnchor] = useState<null | HTMLElement>(null);
-  // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex]: opens the Add tab with
+  // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex|crossref]: opens the Add tab with
   // the DOI filled in and searched. Copied in on mount; cleared when the curator changes tab.
   const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(incomingDeepLink);
 
@@ -56,6 +56,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
   const EXTERNAL_SOURCE_TABS: { value: string, label: string, source: SourceKind, title?: string }[] = [
     { value: 'Ext_SCOPUS', label: 'Scopus', source: 'SCOPUS', title: 'Publications added to this record from Scopus search — separate from the Scopus Authorships review queue.' },
     { value: 'Ext_OPENALEX', label: 'OpenAlex', source: 'OPENALEX', title: 'Publications added to this record from OpenAlex search or accepted from the OpenAlex Authorships review queue.' },
+    { value: 'Ext_CROSSREF', label: 'Crossref', source: 'CROSSREF', title: 'Publications added to this record from Crossref search (DOIs not yet in Scopus or OpenAlex).' },
     // Manual: hidden for now — there is nothing for a curator to do in it. SourceArticleTab
     // short-circuits this tab to a "coming soon" placeholder before it ever lists a row (see
     // isManual there), so it never showed anything despite matchesSource treating MANUAL as the
@@ -385,7 +386,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
               title="Switch add source"
             >
               <span className={styles.addRecordPulse} />
-              {key === 'AddPub' ? 'Adding record from PubMed' : key === 'External' ? 'Adding record from Scopus / OpenAlex' : 'Scopus'}
+              {key === 'AddPub' ? 'Adding record from PubMed' : key === 'External' ? 'Adding record from Scopus / OpenAlex / Crossref' : 'Scopus'}
               <span style={{ marginLeft: 4 }}>&#9662;</span>
             </div>
           ) : (
@@ -414,7 +415,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
               onClick={() => { setAddMenuAnchor(null); onTabChange('External'); }}
               sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
             >
-              Scopus / OpenAlex (by DOI or title)
+              Scopus / OpenAlex / Crossref (by DOI or title)
             </MenuItem>
             <MenuItem
               selected={key === 'ScopusAuth'}

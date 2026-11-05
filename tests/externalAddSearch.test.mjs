@@ -166,11 +166,13 @@ test('parseAddDeepLink: an invalid DOI is flagged and never returned', () => {
     assert.equal(parseAddDeepLink({ add: 'external', doi: 'https://example.com/10.1000/x' }).invalidDoi, true)
 })
 
-test('parseAddDeepLink: source=openalex selects OpenAlex; anything else is Scopus', () => {
+test('parseAddDeepLink: source=openalex selects OpenAlex, source=crossref Crossref; anything else is Scopus', () => {
     assert.equal(parseAddDeepLink({ add: 'external', doi: '10.1000/x', source: 'openalex' }).source, 'OPENALEX')
     assert.equal(parseAddDeepLink({ add: 'external', doi: '10.1000/x', source: 'OpenAlex' }).source, 'OPENALEX')
     assert.equal(parseAddDeepLink({ add: 'external', doi: '10.1000/x', source: 'scopus' }).source, 'SCOPUS')
     assert.equal(parseAddDeepLink({ add: 'external', doi: '10.1000/x', source: 'wos' }).source, 'SCOPUS')
+    assert.equal(parseAddDeepLink({ add: 'external', doi: '10.1000/x', source: 'crossref' }).source, 'CROSSREF')
+    assert.equal(parseAddDeepLink({ add: 'external', doi: '10.1000/x', source: ' Crossref ' }).source, 'CROSSREF')
 })
 
 test('parseAddDeepLink: repeated params use the first value', () => {
