@@ -142,3 +142,44 @@ export function parseAddDeepLink(query: Record<string, unknown> | null | undefin
 // The deep-link parameters, so the curate page can drop them from the URL once applied (a
 // later remount of the tabs, e.g. after Refresh Suggestions, must not re-open the Add tab).
 export const ADD_DEEP_LINK_PARAMS = ['add', 'doi', 'source', 'pmid']
+
+// PM#1060 — Crossref, read-only. A DOI that neither Scopus nor OpenAlex holds is looked up in
+// Crossref (where publishers register DOIs first; OpenAlex lags it by days to weeks). A hit is
+// shown as a read-only card with no Add button: ReCiter accepts no CROSSREF: article id yet.
+export type CrossrefCard = {
+    doi: string, title: string, venue?: string, year?: number, authors: string[], type?: string,
+}
+
+const stripTags = (s: unknown): string => String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+
+// Map a Crossref /works/{doi} `message` to the card fields, or null when it has no DOI or title.
+export function crossrefCardFrom(message: any): CrossrefCard | null {
+    if (!message || !message.DOI) return null
+    const title = stripTags(Array.isArray(message.title) ? message.title[0] : message.title)
+    if (!title) return null
+    const venue = stripTags(Array.isArray(message['container-title']) ? message['container-title'][0] : '') || undefined
+    const dateParts = (message.issued || message.published || {})['date-parts']
+    const year = Array.isArray(dateParts) && Array.isArray(dateParts[0]) && Number(dateParts[0][0]) || undefined
+    const authors = (Array.isArray(message.author) ? message.author : [])
+        .map((a: any) => a && (a.name || [a.given, a.family].filter(Boolean).join(' ')))
+        .filter(Boolean)
+    return { doi: String(message.DOI), title, venue, year, authors, type: message.type || undefined }
+}
+
+// What the Add tab shows after an empty OpenAlex DOI search, given the status of the
+// /api/reciter/search/crossref call (0 for a network failure) and the card it returned.
+//   - 2xx with a card: the read-only Crossref card.
+//   - 404, or 2xx without a usable record: nothing extra; the "No results" empty state stands.
+//   - 5xx / network failure / anything else: the empty state stands, with a note that Crossref
+//     could not be checked.
+export type CrossrefOutcome = { kind: 'card', card: CrossrefCard } | { kind: 'none', note?: string }
+
+export function decideCrossrefOutcome(args: { status: number, card?: CrossrefCard | null }): CrossrefOutcome {
+    const { status, card } = args
+    if (status >= 200 && status < 300) return card ? { kind: 'card', card } : { kind: 'none' }
+    if (status === 404) return { kind: 'none' }
+    return { kind: 'none', note: 'Crossref could not be checked for this DOI right now.' }
+}
+
+// Crossref's /works path takes the DOI percent-encoded but with its "/" kept.
+export const crossrefWorkPath = (doi: string): string => '/works/' + encodeURIComponent(doi).replace(/%2F/gi, '/')

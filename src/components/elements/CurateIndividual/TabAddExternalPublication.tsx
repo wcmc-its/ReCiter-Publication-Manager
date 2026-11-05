@@ -4,7 +4,8 @@ import { reciterConfig } from "../../../../config/local"
 import ExternalPublicationCard, { AddState } from "./ExternalPublicationCard"
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import {
-    AddSource, decideScopusOutcome, enrichScopusResults, scopusSearchFor, seedAddedStates,
+    AddSource, CrossrefCard, decideCrossrefOutcome, decideScopusOutcome, enrichScopusResults,
+    normalizeDoiInput, scopusSearchFor, seedAddedStates,
 } from "../../../utils/externalAddSearch"
 
 // PM#771 — add publications from an external source (Scopus by default, or OpenAlex) to a person's
@@ -82,6 +83,13 @@ const errorStyle: React.CSSProperties = {
     borderRadius: 6, padding: "8px 10px", marginBottom: 10,
 }
 
+const crossrefCardStyle: React.CSSProperties = {
+    border: "1px solid #e3e8ef", borderRadius: 8, padding: "12px 14px", marginBottom: 10, background: "#fff",
+}
+const crossrefTitle: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: "#1f2733", marginBottom: 4 }
+const crossrefMeta: React.CSSProperties = { fontSize: 12.5, color: "#55607a", marginBottom: 4 }
+const MAX_CARD_AUTHORS = 10
+
 const SOURCE_NAME: Record<AddSource, string> = { SCOPUS: "Scopus", OPENALEX: "OpenAlex" }
 
 const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
@@ -100,6 +108,8 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
     const [addStates, setAddStates] = useState<Record<string, AddState>>({})
     const [note, setNote] = useState<string>("")
     const [errorMsg, setErrorMsg] = useState<string>("")
+    // PM#1060: a DOI neither Scopus nor OpenAlex holds, found in Crossref (read-only, no Add).
+    const [crossrefCard, setCrossrefCard] = useState<CrossrefCard | null>(null)
     // Only the latest search may write results: a slow Scopus answer must not overwrite a
     // newer search the curator has since run.
     const searchSeq = useRef(0)
@@ -136,6 +146,24 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
         fetchExternalList()
     }, [fetchExternalList])
 
+    // After an empty OpenAlex DOI search: does Crossref have the DOI? Read-only card on a hit.
+    const searchCrossref = async (doi: string, seq: number): Promise<void> => {
+        let status = 0
+        let body: any = {}
+        try {
+            const r = await fetch(`/api/reciter/search/crossref`, {
+                credentials: "same-origin", method: "POST", headers: apiHeaders,
+                body: JSON.stringify({ doi }),
+            })
+            status = r.status
+            body = await r.json().catch(() => ({}))
+        } catch (e) { status = 0 }
+        if (seq !== searchSeq.current) return
+        const outcome = decideCrossrefOutcome({ status, card: body.results })
+        if (outcome.kind === "card") setCrossrefCard(outcome.card)
+        else if (outcome.note) setNote((prev) => (prev ? prev + " " : "") + outcome.note)
+    }
+
     const searchOpenAlex = (q: string, seq: number): Promise<void> => {
         setSearchingSource("OPENALEX")
         return fetch(`/api/reciter/search/openalex`, {
@@ -149,8 +177,11 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
             })
             .then((body) => {
                 if (seq !== searchSeq.current) return
-                setResults(Array.isArray(body.results) ? body.results : [])
+                const found = Array.isArray(body.results) ? body.results : []
+                setResults(found)
                 setResultSource("OPENALEX")
+                const doi = found.length === 0 ? normalizeDoiInput(q) : null
+                if (doi) return searchCrossref(doi, seq)
             })
             .catch((err) => {
                 if (seq !== searchSeq.current) return
@@ -203,6 +234,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
         setResultSource(null)
         setScopusTotal(0)
         setAddStates({})
+        setCrossrefCard(null)
         const run = src === "SCOPUS" ? searchScopus(q, seq) : searchOpenAlex(q, seq)
         run.finally(() => { if (seq === searchSeq.current) setSearching(false) })
     }
@@ -327,7 +359,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
         <div style={wrap}>
             <p style={helpText}>
                 Add a publication from an external source when it is not indexed in PubMed. Scopus is searched
-                first; a DOI Scopus does not have is looked up in OpenAlex. External publications are not scored
+                first; a DOI Scopus does not have is looked up in OpenAlex, then Crossref. External publications are not scored
                 by ReCiter and are listed separately below.
             </p>
 
@@ -371,6 +403,29 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                     </div>
                     {searching ? (
                         <div style={emptyText}>Searching {SOURCE_NAME[searchingSource]}…</div>
+                    ) : results.length === 0 && crossrefCard ? (
+                        <div style={crossrefCardStyle}>
+                            <div style={noteStyle} role="status">
+                                Crossref has this DOI, but OpenAlex hasn&apos;t picked it up yet, so it can&apos;t be
+                                added today. It usually appears in OpenAlex within a few weeks.
+                            </div>
+                            <div style={crossrefTitle}>{crossrefCard.title}</div>
+                            <div style={crossrefMeta}>
+                                {[crossrefCard.venue, crossrefCard.year, crossrefCard.type].filter(Boolean).join(" · ")}
+                            </div>
+                            {crossrefCard.authors.length > 0 && (
+                                <div style={crossrefMeta}>
+                                    {crossrefCard.authors.slice(0, MAX_CARD_AUTHORS).join(", ")}
+                                    {crossrefCard.authors.length > MAX_CARD_AUTHORS ? `, … (${crossrefCard.authors.length} authors)` : ""}
+                                </div>
+                            )}
+                            <div style={crossrefMeta}>
+                                DOI:{" "}
+                                <a href={`https://doi.org/${encodeURI(crossrefCard.doi)}`} target="_blank" rel="noopener noreferrer">
+                                    {crossrefCard.doi}
+                                </a>
+                            </div>
+                        </div>
                     ) : results.length === 0 ? (
                         <div style={emptyText}>
                             {resultSource ? `No results found in ${SOURCE_NAME[resultSource]}.` : "No results."}
