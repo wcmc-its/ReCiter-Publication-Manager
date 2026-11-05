@@ -1,20 +1,24 @@
 import { reciterConfig } from '../config/local'
 import { NextApiRequest } from 'next'
-import { crossrefExternalArticleFrom, crossrefWorkPath, normalizeDoiInput } from '../src/utils/externalAddSearch'
+import { crossrefExternalArticleFrom, crossrefWorkPath, normalizeDoiInput, normalizeIsbnInput } from '../src/utils/externalAddSearch'
 
 // PM#1060 — server-side Crossref search for the Add tab. A DOI query looks the DOI up
 // (/works/{doi}, 0 or 1 result); anything else is a keyword search (query.bibliographic, 10
-// rows). Results are normalized into the external-article POST body, as the OpenAlex route
+// rows); an ISBN uses filter=isbn. Results are normalized into the external-article POST body, as the OpenAlex route
 // does. No key needed; the mailto in the User-Agent puts us in Crossref's polite pool.
 export async function searchCrossref(req: NextApiRequest) {
     const rawQuery: string = (req.body && (req.body.query || req.body.doi) || '').toString().trim()
     if (!rawQuery) return { statusCode: 400, statusText: { message: 'A search query (title or DOI) is required.' } }
 
     const doi = normalizeDoiInput(rawQuery)
+    // An ISBN (books) uses Crossref's isbn filter; its keyword search does not match ISBNs.
+    const isbn = doi ? null : normalizeIsbnInput(rawQuery)
     const { host, mailto } = reciterConfig.crossref
     const uri = doi
         ? host + crossrefWorkPath(doi)
-        : `${host}/works?query.bibliographic=${encodeURIComponent(rawQuery)}&rows=10`
+        : isbn
+            ? `${host}/works?filter=isbn:${isbn}&rows=10`
+            : `${host}/works?query.bibliographic=${encodeURIComponent(rawQuery)}&rows=10`
 
     return fetch(uri, {
         method: 'GET',

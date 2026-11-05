@@ -164,6 +164,32 @@ export function crossrefPubDate(dateParts: unknown): string | undefined {
     return [String(Number(parts[0]))].concat(parts.slice(1, 3).filter((n: unknown) => Number(n)).map(pad)).join('-')
 }
 
+// Crossref's whole-book types. A book-chapter is not one: its container title (the book) is its venue.
+const BOOK_TYPES = new Set(['book', 'edited-book', 'monograph', 'reference-book', 'book-set'])
+export const isBookType = (type: unknown): boolean => typeof type === 'string' && BOOK_TYPES.has(type)
+
+// Return the ISBN-13 (digits only) when the whole input is an ISBN-10 or ISBN-13, with or without
+// hyphens/spaces and an optional "ISBN" label, else null. Check digits are verified, so a 10- or
+// 13-digit number that is not an ISBN stays a keyword search. Crossref's isbn filter matches
+// only the bare ISBN-13 form, so an ISBN-10 is converted.
+export function normalizeIsbnInput(raw: unknown): string | null {
+    if (typeof raw !== 'string') return null
+    const s = raw.trim().replace(/^isbn(?:-1[03])?:?\s*/i, '').replace(/[-\s]/g, '').toUpperCase()
+    if (/^\d{9}[\dX]$/.test(s)) {
+        const sum = s.split('').reduce((acc, c, i) => acc + (c === 'X' ? 10 : Number(c)) * (10 - i), 0)
+        if (sum % 11 !== 0) return null
+        const body = '978' + s.slice(0, 9)
+        return body + isbn13CheckDigit(body)
+    }
+    if (/^97[89]\d{10}$/.test(s)) return isbn13CheckDigit(s.slice(0, 12)) === s[12] ? s : null
+    return null
+}
+
+function isbn13CheckDigit(first12: string): string {
+    const sum = first12.split('').reduce((acc, c, i) => acc + Number(c) * (i % 2 ? 3 : 1), 0)
+    return String((10 - (sum % 10)) % 10)
+}
+
 // Map one Crossref work (a /works/{doi} `message`, or one of a keyword search's `items`) to the
 // external-article POST body (minus addedBy, set server-side), or null when it has no DOI or
 // title. An id over the 96-char cap gets `notAddable` (the reason) and the card shows no Add.
@@ -182,7 +208,8 @@ export function crossrefExternalArticleFrom(work: any): Record<string, any> | nu
         articleId,
         title,
         doi,
-        journalOrVenue: stripTags(firstOf(work['container-title'])) || undefined,
+        // A book has no container title; its publisher is the closest thing to a venue.
+        journalOrVenue: stripTags(firstOf(work['container-title'])) || (isBookType(work.type) ? stripTags(work.publisher) : '') || undefined,
         authors,
         pubDate: crossrefPubDate((work.issued || work.published || {})['date-parts']),
         publicationType: work.type || undefined,

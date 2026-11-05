@@ -5,7 +5,7 @@ import ExternalPublicationCard, { AddState } from "./ExternalPublicationCard"
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import {
     AddSource, decideCrossrefOutcome, decideScopusOutcome, enrichScopusResults,
-    normalizeDoiInput, scopusSearchFor, seedAddedStates,
+    normalizeDoiInput, normalizeIsbnInput, scopusSearchFor, seedAddedStates,
 } from "../../../utils/externalAddSearch"
 
 // PM#771 — add publications from an external source (Scopus by default, OpenAlex or Crossref) to a person's
@@ -232,7 +232,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
         setNote("")
         setErrorMsg("")
         if (!q) {
-            setErrorMsg("Enter a title or DOI to search.")
+            setErrorMsg("Enter a title, DOI or ISBN to search.")
             return
         }
         const seq = ++searchSeq.current
@@ -242,7 +242,11 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
         setResultSource(null)
         setScopusTotal(0)
         setAddStates({})
-        const run = src === "SCOPUS" ? searchScopus(q, seq) : src === "CROSSREF" ? searchCrossref(q, seq, false) : searchOpenAlex(q, seq)
+        // An ISBN goes to Crossref whatever source is selected: Scopus and OpenAlex keyword
+        // searches do not match ISBNs.
+        const isbn = normalizeIsbnInput(q) !== null
+        if (isbn && src !== "CROSSREF") setNote("This looks like an ISBN, so Crossref was searched.")
+        const run = isbn || src === "CROSSREF" ? searchCrossref(q, seq, false) : src === "SCOPUS" ? searchScopus(q, seq) : searchOpenAlex(q, seq)
         run.finally(() => { if (seq === searchSeq.current) setSearching(false) })
     }
 
@@ -367,7 +371,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
             <p style={helpText}>
                 Add a publication from an external source when it is not indexed in PubMed. Scopus is searched
                 first; a DOI Scopus does not have is looked up in OpenAlex, then Crossref (where new DOIs appear
-                first). You can also search OpenAlex or Crossref directly. External publications are not scored
+                first). An ISBN (for a book) is looked up in Crossref. You can also search OpenAlex or Crossref directly. External publications are not scored
                 by ReCiter and are listed separately below.
             </p>
 
@@ -392,7 +396,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                 <input
                     type="text"
                     style={inputStyle}
-                    placeholder="Search by title or DOI…"
+                    placeholder="Search by title, DOI or ISBN…"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                 />
