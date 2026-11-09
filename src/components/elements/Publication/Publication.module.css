@@ -1562,6 +1562,57 @@
 .idChip[data-kind="match"] { --k: var(--pm-slate); --kbg: var(--pm-slate-tint); }
 .idChip[data-kind="partial"] { --k: var(--pm-amber); --kbg: var(--pm-amber-tint); }
 .idChip[data-kind="mismatch"] { --k: var(--pm-red); --kbg: var(--pm-red-tint); }
+.idChip {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.idChip:hover { filter: brightness(0.97); }
+.idChip:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: 2px; }
+.chipPop {
+  max-width: 380px;
+  margin-top: -6px;
+  padding: 10px 12px;
+  border: 1px solid var(--pm-border);
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--pm-foreground);
+}
+.chipPopHead {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pm-muted-foreground);
+  margin-bottom: 6px;
+}
+.chipPopLines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chipPopLines > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.35;
+}
+.chipPopLines .idChipSym {
+  --k: var(--pm-muted-foreground);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.chipPopLines [data-kind="match"] { --k: var(--pm-slate); }
+.chipPopLines [data-kind="partial"] { --k: var(--pm-amber); }
+.chipPopLines [data-kind="mismatch"] { --k: var(--pm-red); }
+.chipPopSub {
+  display: block;
+  font-size: 11.5px;
+  color: var(--pm-muted-foreground);
+}
 .idChipSym {
   width: 15px;
   height: 15px;

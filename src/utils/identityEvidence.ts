@@ -425,6 +425,7 @@ export const knownCoauthorsOf = (article: any, index: CoauthorIndex | null | und
   const ev = article?.evidence?.authorNameEvidence
   const self = new Set([...index.self, authorKey(ev?.institutionalAuthorName), authorKey(ev?.articleAuthorName)])
   const hits: string[] = []
+  const list: { name: string; shared: number }[] = []
   let total = 0
   const seen = new Set<string>()
   for (const a of article?.reCiterArticleAuthorFeatures || []) {
@@ -432,10 +433,12 @@ export const knownCoauthorsOf = (article: any, index: CoauthorIndex | null | und
     if (!k || a.targetAuthor || self.has(k) || seen.has(k)) continue
     seen.add(k)
     total++
-    const pmids = index.byKey.get(k)
-    if (pmids && [...pmids].some((p) => p !== article.pmid)) hits.push(`${a.firstName || ''} ${a.lastName || ''}`.trim())
+    const name = `${a.firstName || ''} ${a.lastName || ''}`.trim()
+    const shared = [...(index.byKey.get(k) || [])].filter((p) => p !== article.pmid).length
+    list.push({ name, shared })
+    if (shared) hits.push(name)
   }
-  return { hits, total, indexEmpty: index.byKey.size === 0 }
+  return { hits, total, list, indexEmpty: index.byKey.size === 0 }
 }
 
 export const identityChips = (evidence: any, co: ReturnType<typeof knownCoauthorsOf>): IdentityChip[] => {
@@ -488,4 +491,34 @@ export const affiliationParts = (evidence: any): { pre: string; hit: string; pos
     pos += seg.length
   }
   return { pre: raw, hit: '', post: '' }
+}
+
+// ---- Chip drill-down (Phase 2c): the evidence lines behind one chip ----
+
+export type DetailKind = MatchType | 'info'
+export interface DetailLine { kind: DetailKind; text: string; sub?: string }
+
+const itemTexts = (list: EvidenceItem[], single: string): string[] =>
+  list.length ? list.filter((i) => i.name && i.name !== '-').map((i) => i.name.trim() + (i.tags.length ? ` (${i.tags.join(', ')})` : ''))
+    : single && single !== '-' ? [String(single).trim()] : []
+
+export const chipDetail = (evidence: any, label: string, co: ReturnType<typeof knownCoauthorsOf>): DetailLine[] => {
+  if (label === 'Co-authors') {
+    if (!co || co.indexEmpty) return [{ kind: 'nodata', text: 'No accepted papers to compare against' }]
+    if (!co.list.length) return [{ kind: 'info', text: 'No co-authors besides the person' }]
+    return co.list.map((c) => c.shared
+      ? { kind: 'match' as const, text: c.name, sub: `On ${c.shared} other accepted paper${c.shared === 1 ? '' : 's'}` }
+      : { kind: 'nodata' as const, text: c.name, sub: 'Not on their accepted papers' })
+  }
+  const name = (CHIP_ROWS.find(([, l]) => l === label) || [])[0]
+  const row = name && evidence ? buildEvidenceRows(evidence).find((r) => r.name === name) : undefined
+  if (!row) return [{ kind: 'nodata', text: 'No evidence for this paper' }]
+  const kind = determineMatchType(name!, row.points)
+  const pts = Number(row.points) || 0
+  const lines: DetailLine[] = []
+  itemTexts(row.articleDataList, row.articleData).forEach((t, i) =>
+    lines.push({ kind, text: `This paper: ${t}`, sub: i === 0 ? `${pts > 0 ? '+' : ''}${pts.toFixed(2)} pts \u00B7 ${MATCH_COLORS[kind].label}` : undefined }))
+  itemTexts(row.institutionalDataList, row.institutionalData).forEach((t) => lines.push({ kind: 'info', text: `Their record: ${t}` }))
+  if (!lines.some((l) => l.kind !== 'info')) lines.unshift({ kind, text: row.title[0].trim(), sub: `${pts > 0 ? '+' : ''}${pts.toFixed(2)} pts \u00B7 ${MATCH_COLORS[kind].label}` })
+  return lines
 }

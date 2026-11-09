@@ -98,7 +98,7 @@ test('buildEvidenceRows: per-row values', () => {
 
 // ---- 2b card summary ----
 import {
-    authorKey, buildCoauthorIndex, knownCoauthorsOf, identityChips, tallyOf, affiliationParts,
+    authorKey, buildCoauthorIndex, knownCoauthorsOf, identityChips, tallyOf, affiliationParts, chipDetail,
 } from '../src/utils/identityEvidence.ts'
 
 const au = (firstName, lastName, targetAuthor = false) => ({ firstName, lastName, targetAuthor })
@@ -117,7 +117,9 @@ test('knownCoauthorsOf: other accepted papers only, never the person', () => {
     const idx = buildCoauthorIndex(articles)
     // The person under any name form is never a co-author, even when not flagged as target here
     const art = { pmid: 9, reCiterArticleAuthorFeatures: [au('Paul', 'Albert'), au('Michael', 'Bales'), au('Zed', 'Zulu'), au('Curtis', 'Cole')] }
-    assert.deepEqual(knownCoauthorsOf(art, idx), { hits: ['Michael Bales', 'Curtis Cole'], total: 3, indexEmpty: false })
+    const co = knownCoauthorsOf(art, idx)
+    assert.deepEqual({ ...co, list: undefined }, { hits: ['Michael Bales', 'Curtis Cole'], total: 3, list: undefined, indexEmpty: false })
+    assert.deepEqual(co.list, [{ name: 'Michael Bales', shared: 1 }, { name: 'Zed Zulu', shared: 0 }, { name: 'Curtis Cole', shared: 1 }])
     // An accepted paper's own co-authors don't make themselves "known"
     const own = knownCoauthorsOf(articles[0], idx)
     assert.deepEqual(own.hits, [])
@@ -153,4 +155,19 @@ test('affiliationParts: highlights the matched institution segment', () => {
     ev.affiliationEvidence.pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType = 'NO_MATCH'
     assert.deepEqual(affiliationParts(ev), { pre: raw, hit: '', post: '' })
     assert.equal(affiliationParts({}), null)
+})
+
+test('chipDetail: lines behind each chip', () => {
+    const name = chipDetail(evidence, 'Name', null)
+    assert.deepEqual(name[0], { kind: 'match', text: 'This paper: Paul J Albert', sub: '+1.23 pts \u00B7 Strong match' })
+    assert.deepEqual(name[1], { kind: 'info', text: 'Their record: Paul Albert' })
+    const aff = chipDetail(evidence, 'Affiliation', null)
+    assert.deepEqual(aff.map(l => l.text), [
+        'This paper: Weill Cornell Medical College (Scopus)', 'This paper: Weill Cornell Medicine, New York, NY (PubMed)',
+        'Their record: Weill Cornell Medicine (Affiliation)',
+    ])
+    assert.deepEqual(chipDetail(evidence, 'Career', null), [{ kind: 'nodata', text: 'No evidence for this paper' }])
+    assert.deepEqual(chipDetail(evidence, 'Co-authors', null), [{ kind: 'nodata', text: 'No accepted papers to compare against' }])
+    const co = { hits: ['A B'], total: 2, indexEmpty: false, list: [{ name: 'A B', shared: 2 }, { name: 'C D', shared: 0 }] }
+    assert.deepEqual(chipDetail(evidence, 'Co-authors', co).map(l => [l.kind, l.sub]), [['match', 'On 2 other accepted papers'], ['nodata', 'Not on their accepted papers']])
 })
