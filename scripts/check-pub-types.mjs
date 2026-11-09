@@ -128,4 +128,12 @@ assert.ok(!isPossibleDuplicate({ ...a }, { ...a }), "definite is not also possib
 assert.ok(!isPossibleDuplicate({ title: "", year: 2025 }, { title: "", year: 2025 }), "blank titles");
 assert.ok(!isPossibleDuplicate({ title: t1 }, { title: t1 }), "no year");
 
+// review fixes: OpenAlex URL-form ids, blank manual-form year, "Yes" living flag
+assert.equal(definiteDuplicateReason({ sourceId: "W123" }, { sourceId: "https://openalex.org/W123" }), "Same OpenAlex id");
+assert.ok(isPossibleDuplicate(
+  { title: "A study of things here now", year: "", date: "2024-01-02" },
+  { title: "A study of things here now", year: 2024 },
+));
+assert.equal(venueOf({ type: "Reference Entry", journal: "UpToDate", living: "Yes" }), "UpToDate · updated continuously");
+
 console.log("check-pub-types: all assertions passed");

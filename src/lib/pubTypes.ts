@@ -248,7 +248,8 @@ const fmtYM = (v: string | null | undefined): string => {
   const m = String(v || "").match(/^(\d{4})-(\d{1,2})$/);
   return m ? `${m[1]} ${MON[+m[2] - 1]}` : String(v || "");
 };
-const isLiving = (v: boolean | string | null | undefined): boolean => v === true || v === "yes";
+const isLiving = (v: boolean | string | null | undefined): boolean =>
+  v === true || (typeof v === "string" && /^(yes|true)$/i.test(v.trim()));
 
 // The venue line, by type (NLM / Citing Medicine order: chapter editors and book, proceedings,
 // publisher, pages). Ported from the prototype's venueOf; missing fields read as empty, not "undefined".
@@ -352,7 +353,13 @@ const normDoi = (d: string | null | undefined): string =>
     .replace(/^doi:\s*/i, "")
     .toLowerCase();
 
-const yearOf = (r: DupRecord): string => String(r.year ?? (r.date || "").slice(0, 4)).trim();
+// A blank year (the manual form's empty string) falls back to the date, like a missing one.
+const yearOf = (r: DupRecord): string => String(r.year ?? "").trim() || String(r.date || "").slice(0, 4).trim();
+
+// Source ids compare in their bare form: OpenAlex ids are stored both as "W123" and as
+// "https://openalex.org/W123" (see src/lib/externalSource.ts openalexWorkId).
+const normSourceId = (id: string | null | undefined): string =>
+  String(id || "").trim().replace(/^https?:\/\/openalex\.org\//i, "");
 
 // Why two records are definitely the same work ("Same PMID 123", "Same DOI ...",
 // "Same OpenAlex id"), or "" when they share no identifier.
@@ -362,8 +369,8 @@ export const definiteDuplicateReason = (a: DupRecord, b: DupRecord): string => {
   if (pa && pb && pa === pb) return "Same PMID " + pa;
   const da = normDoi(a.doi);
   if (da && da === normDoi(b.doi)) return "Same DOI " + a.doi;
-  if (a.sourceId && b.sourceId && a.sourceId === b.sourceId)
-    return "Same " + (String(a.sourceId).startsWith("W") ? "OpenAlex" : "Scopus") + " id";
+  const sa = normSourceId(a.sourceId);
+  if (sa && sa === normSourceId(b.sourceId)) return "Same " + (sa.startsWith("W") ? "OpenAlex" : "Scopus") + " id";
   return "";
 };
 
