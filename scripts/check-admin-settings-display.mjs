@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import {
   SETTING_DISPLAY, displayName, displayDesc,
   isWordExportSetting, exceedsWordExportLimit, WORD_EXPORT_LIMIT, settingSummary,
+  settingSnapshot, settingsSnapshot,
 } from "../src/lib/adminSettingsDisplay.ts";
 
 // 1. display map renames by viewName and leaves the stored viewLabel alone
@@ -51,5 +52,15 @@ assert.equal(settingSummary({ viewName: "EmailNotifications", viewAttributes: [{
 assert.equal(settingSummary({ viewName: "findPeople", viewAttributes: [{}, {}, {}] }, false), "3 settings");
 assert.equal(settingSummary({ viewName: "headshot", viewAttributes: [{ syntax: "x" }] }, false), "1 setting");
 assert.equal(settingSummary({ viewName: "headshot" }, false), "0 settings");
+
+// 4. dirty tracking ignores save-response extras (id, timestamps) and the derived isValidate
+const saved = { id: 7, createTimestamp: { fn: "current_timestamp", args: [] }, viewName: "reportingArticleRTF",
+  viewAttributes: [{ maxLimit: "5000" }], viewLabel: "Reporting Article RTF" };
+const rebuilt = { viewName: "reportingArticleRTF", viewAttributes: [{ maxLimit: "5000" }], viewLabel: "Reporting Article RTF" };
+assert.equal(settingSnapshot(rebuilt), settingSnapshot(saved));
+assert.equal(settingSnapshot({ ...rebuilt, viewAttributes: [{ maxLimit: "5000", isValidate: false }] }), settingSnapshot(saved));
+assert.notEqual(settingSnapshot({ ...rebuilt, viewAttributes: [{ maxLimit: "6000" }] }), settingSnapshot(saved));
+assert.equal(settingsSnapshot([saved]), settingsSnapshot([rebuilt]));
+assert.notEqual(settingsSnapshot([saved]), settingsSnapshot([]));
 
 console.log("check-admin-settings-display: all assertions passed");

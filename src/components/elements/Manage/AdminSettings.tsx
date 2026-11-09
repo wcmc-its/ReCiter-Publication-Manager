@@ -10,7 +10,7 @@ import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import moment from 'moment-timezone';
-import { displayName, displayDesc, isWordExportSetting, exceedsWordExportLimit, settingSummary } from "../../../lib/adminSettingsDisplay";
+import { displayName, displayDesc, isWordExportSetting, exceedsWordExportLimit, settingSummary, settingSnapshot, settingsSnapshot } from "../../../lib/adminSettingsDisplay";
 
 /* ── Group classification ── */
 const getGroup = (viewLabel: string): string => {
@@ -325,9 +325,9 @@ const AdminSettings = () => {
   };
 
   const isItemDirty = (index: number) =>
-    JSON.stringify(settings[index]) !== JSON.stringify(savedSettings[index]);
+    settingSnapshot(settings[index]) !== settingSnapshot(savedSettings[index]);
   const isDirty = useMemo(
-    () => JSON.stringify(settings) !== JSON.stringify(savedSettings),
+    () => settingsSnapshot(settings) !== settingsSnapshot(savedSettings),
     [settings, savedSettings]
   );
   const discardChanges = () => {

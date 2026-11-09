@@ -35,6 +35,27 @@ export const isWordExportSetting = (key: unknown): boolean =>
 export const exceedsWordExportLimit = (value: unknown): boolean =>
   Number(value) > WORD_EXPORT_LIMIT;
 
+/**
+ * Comparable form of a settings row for dirty tracking. Only the fields the page edits count:
+ * the save response carries id/timestamps that handleValueChange drops from untouched rows,
+ * and isValidate is derived from maxLimit, so both are left out.
+ */
+export const settingSnapshot = (s: any): string =>
+  JSON.stringify(s == null ? null : {
+    viewName: s.viewName,
+    viewLabel: s.viewLabel,
+    viewAttributes: Array.isArray(s.viewAttributes)
+      ? s.viewAttributes.map(a => {
+          if (!a || typeof a !== "object") return a;
+          const { isValidate, ...rest } = a;
+          return rest;
+        })
+      : s.viewAttributes,
+  });
+
+export const settingsSnapshot = (rows: any[]): string =>
+  JSON.stringify((rows || []).map(settingSnapshot));
+
 /** Short right-hand summary for a collapsed setting row. */
 export const settingSummary = (
   s: { viewName?: string; viewAttributes?: any[] },
