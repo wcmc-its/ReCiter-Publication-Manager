@@ -535,7 +535,9 @@ h1 {
   --toastify-toast-bd-radius: 8px;
   --toastify-toast-shadow: 0 10px 30px rgba(34, 30, 28, 0.25);
   --toastify-toast-bottom: 24px;
-  --toastify-font-family: inherit;
+  /* not `inherit`: on a custom property that inherits the property itself (react-toastify's
+     :root sans-serif), not the page font */
+  --toastify-font-family: var(--font-sans);
   --toastify-color-dark: #2a2421;
   --toastify-text-color-dark: #fff;
 }
@@ -561,6 +563,7 @@ h1 {
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: none;
   color: #fff;
+  font-family: inherit;
   font-size: 12.5px;
   cursor: pointer;
 }

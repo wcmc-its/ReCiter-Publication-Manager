@@ -98,5 +98,7 @@ assert.ok(!/k === "u"/.test(tabs), "and so is its own U handler");
 const effect = tabs.slice(tabs.indexOf("showUndoToast(undo.label"), tabs.indexOf("}, [undo]);"));
 assert.match(effect, /autoClose: 12000/, "keeps the 12s window");
 assert.match(effect, /doUndoRef\.current\?\.\(\)/, "undo still runs doUndo (reopen the whole batch)");
-assert.match(effect, /canUndo: \(\) => !overlayOpenRef\.current && !reportViewRef\.current/, "same overlay/report gates as its other shortcuts");
+assert.match(effect, /canUndo: \(\) => live && !overlayOpenRef\.current && !reportViewRef\.current/, "same overlay/report gates as its other shortcuts");
+assert.match(effect, /\(\) => \{ if \(live\) doUndoRef\.current\?\.\(\); \}/, "a dismissed (exiting) toast cannot fire a stale undo after unmount or replacement");
+assert.match(read("styles/globals.css"), /--toastify-font-family: var\(--font-sans\)/, "toast font is the page font (a custom property set to inherit would take react-toastify's :root sans-serif)");
 console.log("2. source: ok");

@@ -2546,10 +2546,13 @@ const AuthorshipsTabs = () => {
   // while one of its overlays is up, and not while a canned report replaces the card list.
   useEffect(() => {
     if (!undo) return;
-    let live = true;  // our own cleanup's dismiss must not clear the undo it is replacing
-    const id = showUndoToast(undo.label, () => doUndoRef.current?.(), {
+    // `live` goes false in our cleanup: that dismiss must not clear the undo replacing this one,
+    // and a dismissed toast stays registered until its exit animation ends, so neither U nor its
+    // button may fire this undo after we have left the page or moved on to a newer one.
+    let live = true;
+    const id = showUndoToast(undo.label, () => { if (live) doUndoRef.current?.(); }, {
       autoClose: 12000,
-      canUndo: () => !overlayOpenRef.current && !reportViewRef.current,
+      canUndo: () => live && !overlayOpenRef.current && !reportViewRef.current,
       onClose: () => { if (live) setUndo((u) => (u === undo ? null : u)); },
     });
     return () => { live = false; toast.dismiss(id); };
