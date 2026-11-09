@@ -12,7 +12,9 @@ import { Sheet } from "../../ui";
 import { showEvidenceByDefault } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml } from "../../../utils/htmlText";
-import { buildEvidenceRows, determineMatchType, MATCH_COLORS as matchColors } from "../../../utils/identityEvidence";
+import { toast } from "react-toastify";
+import { buildEvidenceRows, determineMatchType, MATCH_COLORS as matchColors, knownCoauthorsOf, identityChips, tallyOf, affiliationParts } from "../../../utils/identityEvidence";
+import type { CoauthorIndex } from "../../../utils/identityEvidence";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -61,6 +63,25 @@ const friendlyProvSource = (v?: string | null): string | null =>
 const friendlyProvStrategy = (v?: string | null): string | null =>
   v ? (PROV_STRATEGY_LABELS[v] || v.replace(/RetrievalStrategy$/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim()) : null;
 
+const CopyButton = ({ label, value }: { label: string, value: string | number }) => (
+  <button
+    type="button"
+    className={styles.copyBtn}
+    title={`Copy ${label}`}
+    aria-label={`Copy ${label}`}
+    onClick={(e) => {
+      e.stopPropagation();
+      const done = () => toast(`Copied ${label} ${value}`);
+      const fail = () => toast.error(`Couldn't copy ${label}`);
+      navigator.clipboard ? navigator.clipboard.writeText(String(value)).then(done, fail) : fail();
+    }}
+  >
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></svg>
+  </button>
+);
+
+const CHIP_SYM = { match: '\u2713', partial: '~', mismatch: '\u2715', nodata: '?' };
+
 //TEMP: update to required
 interface FuncProps {
     onAccept?(pmid: number, id: number): void,
@@ -82,6 +103,7 @@ interface FuncProps {
     maxArticlesPerPerson?:any,
     showEvidenceDefault?:any,
     isFocused?: boolean,
+    coauthorIndex?: CoauthorIndex,
     onCardMouseDown?: () => void,
 }
 
@@ -486,6 +508,11 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
     const isActioned = userAssertion === 'ACCEPTED' || userAssertion === 'REJECTED';
     const isActionedInSuggested = props.activekey === 'NULL' && isActioned;
     const evDefault = expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault;
+    const coauthors = knownCoauthorsOf(reciterArticle, props.coauthorIndex);
+    const idChips = identityChips(reciterArticle.evidence, coauthors);
+    const tally = tallyOf(idChips);
+    const tallyBase = (tally.match + tally.partial + tally.mismatch) || 1;
+    const affil = affiliationParts(reciterArticle.evidence);
 
     return (
       <div className={`${styles.articleCard}${props.isFocused ? ` ${styles.focused}` : ''}${isActionedInSuggested ? ` ${styles.actionedCard}` : ''}`} data-pmid={reciterArticle.pmid} onMouseDown={props.onCardMouseDown}>
@@ -524,6 +551,16 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                 {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
                   displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
               </div>
+              {affil && (
+                <div className={styles.rawAffiliation} title="Affiliation statement from PubMed">
+                  {affil.pre}{affil.hit && <mark>{affil.hit}</mark>}{affil.post}
+                </div>
+              )}
+              {coauthors && coauthors.hits.length > 0 && (
+                <div className={styles.knownCoauthors}>
+                  Known co-authors: {coauthors.hits.join(', ')}
+                </div>
+              )}
               <div className={styles.articleMeta}>
                 <span>{reciterArticle.journalTitleVerbose}</span>
                 {reciterArticle.publicationDateDisplay && <span>{reciterArticle.publicationDateDisplay}</span>}
@@ -533,10 +570,31 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                   </span>
                 }
               </div>
+              {idChips.length > 0 && (
+                <div className={styles.idSummary}>
+                  <ul className={styles.idChips} aria-label="Identity evidence summary">
+                    {idChips.map((c) => (
+                      <li key={c.label} className={styles.idChip} data-kind={c.kind} title={c.tip}>
+                        <span className={styles.idChipSym} aria-hidden="true">{CHIP_SYM[c.kind]}</span>
+                        {c.label}
+                        <span className={styles.srOnly}>: {matchColors[c.kind].label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <span className={styles.idTally}>
+                    <span className={styles.idTallyBar} aria-hidden="true">
+                      <span data-kind="match" style={{ width: `${(100 * tally.match) / tallyBase}%` }} />
+                      <span data-kind="partial" style={{ width: `${(100 * tally.partial) / tallyBase}%` }} />
+                      <span data-kind="mismatch" style={{ width: `${(100 * tally.mismatch) / tallyBase}%` }} />
+                    </span>
+                    {tally.text}
+                  </span>
+                </div>
+              )}
               <div className={styles.articleLinks}>
                 <div className={styles.articleLinksLeft}>
-                  <span>PMID: <a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a></span>
-                  {reciterArticle.doi && <span><a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI ↗</a></span>}
+                  <span>PMID: <a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a><CopyButton label="PMID" value={reciterArticle.pmid} /></span>
+                  {reciterArticle.doi && <span><a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI ↗</a><CopyButton label="DOI" value={reciterArticle.doi} /></span>}
                   {(hasProvenance || clogEntries.length > 0) && (
                     <span className={styles.curationWrap}>
                       <button className={styles.evidenceBtn} onClick={(e) => { e.stopPropagation(); setShowCurationLog(!showCurationLog); }}>History</button>

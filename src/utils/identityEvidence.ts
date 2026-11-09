@@ -375,3 +375,117 @@ export const buildEvidenceRows = (evidence: any): EvidenceRow[] => {
     }
   return evidenceTableRows
 }
+
+// ---- Card summary (Phase 2b): chips, tally, raw affiliation, known co-authors ----
+
+export interface IdentityChip { label: string; kind: MatchType; tip: string }
+
+// Chip kind = the evidence-table row's kind, so a chip never disagrees with the row it summarizes.
+const CHIP_ROWS: [string, string][] = [
+  ['authorNameEvidence', 'Name'],
+  ['educationYearEvidence', 'Career'],
+  ['affiliationEvidence', 'Affiliation'],
+  ['journalCategoryEvidence', 'Field'],
+]
+
+const norm = (s: any) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
+// Last name + first initial. ponytail: initial-level matching, so two co-authors sharing both
+// collide; byline author ids would fix that if PM ever gets them.
+export const authorKey = (a: any): string => {
+  const last = norm(a?.lastName).replace(/[^a-z]/g, '')
+  const first = norm(a?.firstName).replace(/[^a-z]/g, '')
+  return last ? `${last}|${first.charAt(0)}` : ''
+}
+
+export interface CoauthorIndex { byKey: Map<string, Set<number>>; names: Map<string, string>; self: Set<string> }
+
+// Co-authors on the person's accepted papers. Every name that was ever the target author is "self"
+// and never counts.
+export const buildCoauthorIndex = (articles: any[] = []): CoauthorIndex => {
+  const byKey = new Map<string, Set<number>>(), names = new Map<string, string>(), self = new Set<string>()
+  for (const art of articles) {
+    for (const a of art?.reCiterArticleAuthorFeatures || []) if (a.targetAuthor) self.add(authorKey(a))
+    if (art?.userAssertion !== 'ACCEPTED') continue
+    for (const a of art.reCiterArticleAuthorFeatures || []) {
+      const k = authorKey(a)
+      if (!k || a.targetAuthor) continue
+      if (!byKey.has(k)) byKey.set(k, new Set())
+      byKey.get(k)!.add(art.pmid)
+      if (!names.has(k)) names.set(k, `${a.firstName || ''} ${a.lastName || ''}`.trim())
+    }
+  }
+  self.delete('')
+  return { byKey, names, self }
+}
+
+// This article's co-authors who also appear on a DIFFERENT accepted paper, never the person.
+export const knownCoauthorsOf = (article: any, index: CoauthorIndex | null | undefined) => {
+  if (!index) return null
+  const ev = article?.evidence?.authorNameEvidence
+  const self = new Set([...index.self, authorKey(ev?.institutionalAuthorName), authorKey(ev?.articleAuthorName)])
+  const hits: string[] = []
+  let total = 0
+  const seen = new Set<string>()
+  for (const a of article?.reCiterArticleAuthorFeatures || []) {
+    const k = authorKey(a)
+    if (!k || a.targetAuthor || self.has(k) || seen.has(k)) continue
+    seen.add(k)
+    total++
+    const pmids = index.byKey.get(k)
+    if (pmids && [...pmids].some((p) => p !== article.pmid)) hits.push(`${a.firstName || ''} ${a.lastName || ''}`.trim())
+  }
+  return { hits, total, indexEmpty: index.byKey.size === 0 }
+}
+
+export const identityChips = (evidence: any, co: ReturnType<typeof knownCoauthorsOf>): IdentityChip[] => {
+  if (!evidence) return []
+  const rows = new Map(buildEvidenceRows(evidence).map((r) => [r.name, r]))
+  const chips: IdentityChip[] = CHIP_ROWS.map(([name, label]) => {
+    const r = rows.get(name)
+    const kind = r ? determineMatchType(name, r.points) : 'nodata'
+    return { label, kind, tip: `${r ? r.title[0].trim() : label}: ${MATCH_COLORS[kind].label}${r && kind !== 'nodata' ? ` (${Number(r.points).toFixed(2)} pts)` : ''}` }
+  })
+  const coKind: MatchType = !co || co.indexEmpty || co.total === 0 ? 'nodata' : co.hits.length ? 'match' : 'partial'
+  const coTip = !co || co.indexEmpty ? 'No accepted papers to compare against' : `${co.hits.length} of ${co.total} co-authors on other accepted papers`
+  chips.push({ label: 'Co-authors', kind: coKind, tip: `Co-authors: ${coTip}` })
+  return chips
+}
+
+export const tallyOf = (chips: IdentityChip[]) => {
+  const c = { match: 0, partial: 0, mismatch: 0, nodata: 0 }
+  chips.forEach((k) => { c[k.kind]++ })
+  const text = ['Identity ' + c.match + ' match', c.partial ? c.partial + ' partial' : '', c.mismatch ? c.mismatch + ' mismatch' : ''].filter(Boolean).join(' · ')
+  return { ...c, text }
+}
+
+const STOP = new Set(['university', 'college', 'medical', 'medicine', 'school', 'hospital', 'center', 'centre', 'institute', 'department', 'the', 'and', 'for', 'new', 'york', 'usa'])
+const sigTokens = (s: string) => norm(s).split(/[^a-z0-9]+/).filter((t) => t.length >= 3 && !STOP.has(t))
+
+// The PubMed affiliation statement, split so the segment naming the matched institution can be
+// highlighted. Institution names come from Scopus affiliations ReCiter scored as positive matches.
+export const affiliationParts = (evidence: any): { pre: string; hit: string; post: string } | null => {
+  const ae = evidence?.affiliationEvidence
+  const raw: string = ae?.pubmedTargetAuthorAffiliation?.targetAuthorInstitutionalAffiliationArticlePubmedLabel
+  if (!raw) return null
+  // PubMed's own match type is often absent (only Scopus scored it); highlight unless PubMed says no match.
+  const pubmedType = ae.pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType
+  const positive = !pubmedType || /^POSITIVE_MATCH/.test(pubmedType)
+  const inst = new Set<string>()
+  for (const s of ae.scopusTargetAuthorAffiliation || []) {
+    if (/^POSITIVE_MATCH/.test(s.targetAuthorInstitutionalAffiliationMatchType || '')) sigTokens(s.targetAuthorInstitutionalAffiliationIdentity).forEach((t) => inst.add(t))
+  }
+  if (!positive || !inst.size) return { pre: raw, hit: '', post: '' }
+  const need = Math.min(2, inst.size)
+  let pos = 0
+  for (const seg of raw.split(/(?<=[,;])/)) {
+    const shared = new Set(sigTokens(seg).filter((t) => inst.has(t))).size
+    if (shared >= need) {
+      const lead = seg.length - seg.trimStart().length
+      const body = seg.replace(/[,;]\s*$/, '').trim()
+      return { pre: raw.slice(0, pos + lead), hit: body, post: raw.slice(pos + lead + body.length) }
+    }
+    pos += seg.length
+  }
+  return { pre: raw, hit: '', post: '' }
+}
