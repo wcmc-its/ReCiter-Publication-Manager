@@ -4,6 +4,7 @@ import { Tab, Tabs, Badge } from "react-bootstrap";
 import ReciterTabContent from "./ReciterTabContent";
 import styles from "./CurateIndividual.module.css";
 import { useDispatch, useSelector } from "react-redux";
+import { buildCoauthorIndex } from "../../../utils/identityEvidence";
 import { RootStateOrAny } from "../../../types/redux";
 import TabAddPublication from "../TabAddPublication/TabAddPublication";
 import TabAddExternalPublication from "./TabAddExternalPublication";
@@ -31,6 +32,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
   const userId = session?.data?.databaseUser?.userID;
   const isSearchText = useSelector((state: RootStateOrAny) => state.curateSearchtext)
   const showEvidenceDefault = useSelector((state: RootStateOrAny) => state.showEvidenceDefault)
+  const coauthorIndex = React.useMemo(() => buildCoauthorIndex(reciterData?.reciter?.reCiterArticleFeatures), [reciterData])
   const [pubSearchFilters, setPubSearchFilters] = useState<any>();
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   // Single "+ Add publication" dropdown (PubMed / OpenAlex / …) — keeps the tab-bar
@@ -475,6 +477,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           updatePublicationAssertionBulk={updatePublicationAssertionBulk}
           isSearchText={isSearchText}
           showEvidenceDefault={showEvidenceDefault}
+          coauthorIndex={coauthorIndex}
           activeKey={key}
           totalCount={activeTabData.count}
           onAssertionChange={handleAssertionChange}

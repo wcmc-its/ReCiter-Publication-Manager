@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import type { CoauthorIndex } from "../../../utils/identityEvidence";
 import Publication from "../Publication/Publication";
 import FilterPubSection from "./FilterPubSection";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
@@ -22,6 +23,7 @@ interface TabContentProps {
   updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
   updatePublicationAssertionBulk: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
   showEvidenceDefault?:any,
+  coauthorIndex?: CoauthorIndex,
   activeKey:any,
   totalCount:any,
   onAssertionChange?: (pmid: number, newAssertion: string) => void,
@@ -390,6 +392,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               activekey={props.activeKey}
               totalCount={props.totalCount}
               showEvidenceDefault={props.showEvidenceDefault}
+              coauthorIndex={props.coauthorIndex}
               page={page}
               paginatedPubsCount={publication.userAssertion === "NULL" ? totalNullCount : publication.userAssertion === "ACCEPTED" ? totalAcceptedCount : totalRejectedCount}
               isFocused={isArticleTab && index === focusedIndex}

@@ -95,3 +95,62 @@ test('buildEvidenceRows: per-row values', () => {
     assert.equal(by.genderEvidence.source, 'https://data.world/howarder/gender-by-name')
     assert.equal(by.grantEvidence.points, '0.25')
 })
+
+// ---- 2b card summary ----
+import {
+    authorKey, buildCoauthorIndex, knownCoauthorsOf, identityChips, tallyOf, affiliationParts,
+} from '../src/utils/identityEvidence.ts'
+
+const au = (firstName, lastName, targetAuthor = false) => ({ firstName, lastName, targetAuthor })
+const articles = [
+    { pmid: 1, userAssertion: 'ACCEPTED', reCiterArticleAuthorFeatures: [au('Paul', 'Albert', true), au('Michael', 'Bales'), au('Jie', 'Lin')] },
+    { pmid: 2, userAssertion: 'ACCEPTED', reCiterArticleAuthorFeatures: [au('Curtis', 'Cole'), au('P', 'Albert', true)] },
+    { pmid: 3, userAssertion: 'REJECTED', reCiterArticleAuthorFeatures: [au('Zed', 'Zulu'), au('Philipp', 'Albert', true)] },
+]
+
+test('authorKey: last name + first initial, accents and punctuation folded', () => {
+    assert.equal(authorKey({ firstName: 'José', lastName: "O'Brién" }), 'obrien|j')
+    assert.equal(authorKey({ firstName: 'X' }), '')
+})
+
+test('knownCoauthorsOf: other accepted papers only, never the person', () => {
+    const idx = buildCoauthorIndex(articles)
+    // The person under any name form is never a co-author, even when not flagged as target here
+    const art = { pmid: 9, reCiterArticleAuthorFeatures: [au('Paul', 'Albert'), au('Michael', 'Bales'), au('Zed', 'Zulu'), au('Curtis', 'Cole')] }
+    assert.deepEqual(knownCoauthorsOf(art, idx), { hits: ['Michael Bales', 'Curtis Cole'], total: 3, indexEmpty: false })
+    // An accepted paper's own co-authors don't make themselves "known"
+    const own = knownCoauthorsOf(articles[0], idx)
+    assert.deepEqual(own.hits, [])
+    assert.equal(own.total, 2)
+    assert.equal(knownCoauthorsOf(art, null), null)
+})
+
+test('identityChips + tallyOf: kinds follow the evidence rows', () => {
+    const chips = identityChips(evidence, { hits: ['Ann Lee'], total: 3, indexEmpty: false })
+    assert.deepEqual(chips.map(c => [c.label, c.kind]), [
+        ['Name', 'match'], ['Career', 'nodata'], ['Affiliation', 'match'], ['Field', 'nodata'], ['Co-authors', 'match'],
+    ])
+    assert.match(chips[0].tip, /^Name: Strong match \(1\.23 pts\)$/)
+    assert.equal(identityChips(evidence, { hits: [], total: 2, indexEmpty: false })[4].kind, 'partial')
+    assert.equal(identityChips(evidence, { hits: [], total: 2, indexEmpty: true })[4].kind, 'nodata')
+    assert.deepEqual(identityChips(undefined, null), [])
+    assert.equal(tallyOf(chips).text, 'Identity 3 match')
+    assert.equal(tallyOf([{ kind: 'match' }, { kind: 'partial' }, { kind: 'mismatch' }]).text, 'Identity 1 match · 1 partial · 1 mismatch')
+})
+
+test('affiliationParts: highlights the matched institution segment', () => {
+    const raw = 'Samuel J. Wood Library, Weill Cornell Medical College, New York, NY, USA.'
+    const ev = { affiliationEvidence: {
+        pubmedTargetAuthorAffiliation: { targetAuthorInstitutionalAffiliationMatchType: 'POSITIVE_MATCH_INSTITUTION', targetAuthorInstitutionalAffiliationArticlePubmedLabel: raw },
+        scopusTargetAuthorAffiliation: [{ targetAuthorInstitutionalAffiliationMatchType: 'POSITIVE_MATCH_INSTITUTION', targetAuthorInstitutionalAffiliationIdentity: 'Weill Cornell Medicine' }],
+    } }
+    const p = affiliationParts(ev)
+    assert.equal(p.hit, 'Weill Cornell Medical College')
+    assert.equal(p.pre + p.hit + p.post, raw)
+    // Unscored PubMed label (the common case in prod) still highlights
+    delete ev.affiliationEvidence.pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType
+    assert.equal(affiliationParts(ev).hit, 'Weill Cornell Medical College')
+    ev.affiliationEvidence.pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType = 'NO_MATCH'
+    assert.deepEqual(affiliationParts(ev), { pre: raw, hit: '', post: '' })
+    assert.equal(affiliationParts({}), null)
+})
