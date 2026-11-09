@@ -8,25 +8,28 @@
   margin-bottom: 4px;
 }
 
-/* ── Info banner ── */
-.infoBanner {
+/* ── Page header: subtitle + page-level Save/Discard ── */
+.pageHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.pageSubtitle {
+  font-size: 13px;
+  color: #5a6478;
+}
+.pageActions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: #eef3fb;
-  border: 1px solid #c9d9f0;
-  border-radius: 5px;
-  margin-top: 12px;
-  margin-bottom: 28px;
-  font-size: 12.5px;
-  color: #2563a8;
+  gap: 8px;
 }
-.infoBannerIcon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  opacity: 0.7;
+.unsavedMarker {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #b45309;
 }
 
 /* ── Settings group ── */
@@ -98,6 +101,18 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.accSummary {
+  font-size: 12px;
+  font-weight: 400;
+  color: #8a94a6;
+  white-space: nowrap;
+}
+.accSummaryDirty {
+  color: #b45309;
 }
 
 .accTriggerIcon {
@@ -384,6 +399,11 @@
 .btnCancel:hover {
   color: #5a6478;
   border-color: #bbb5aa;
+}
+.btnSave:disabled,
+.btnCancel:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* ── Test email button ── */
