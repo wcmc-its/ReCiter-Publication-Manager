@@ -21,7 +21,6 @@ import { Container } from "react-bootstrap";
 import { ReportResults } from "./ReportResults";
 import { countPersons } from "../../../../controllers/db/person.controller";
 import { useSession } from 'next-auth/react';
-import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -397,7 +396,6 @@ const Report = () => {
             onCountUpdate={onCountUpdate}
             />
             }
-          <ToastContainerWrapper />
           <ReportResults
             results={reportsSearchResults}
             loading={reportsPaginatedResultsLoading}

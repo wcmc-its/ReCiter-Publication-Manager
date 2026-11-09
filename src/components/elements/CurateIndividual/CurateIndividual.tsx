@@ -15,7 +15,6 @@ import Image from "next/image";
 import Profile from "../Profile/Profile";
 import { useSession } from "next-auth/react";
 import { allowedPermissions, toastMessage, getCapabilities } from "../../../utils/constants";
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../../config/local";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
@@ -152,11 +151,7 @@ const CurateIndividual = () => {
       .catch(error => {
         console.error("[ERR-9010]", error);
         reportError("ERR-9010", "Unable to load display settings", error);
-        toast.error("Unable to load display settings. Please try again. (ERR-9010)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to load display settings. Please try again. (ERR-9010)");
       });
   }
 
@@ -235,7 +230,6 @@ const CurateIndividual = () => {
  if (identityORFeatureGenError && identityORFeatureGenError.length > 0 && !showNoPermitError) {
     return (
       <div className={appStyles.mainContainer}>
-        <ToastContainerWrapper />
         <div style={{ padding: '40px 24px', textAlign: 'center', color: '#8a94a6', fontSize: 14 }}>
           Unable to load publication data. The page may be temporarily unavailable.
         </div>
@@ -245,7 +239,6 @@ const CurateIndividual = () => {
 
   return (
     <div className={appStyles.mainContainer}>
-      <ToastContainerWrapper />
       {
         showNoPermitError ? <p className="text-center">{`${id} does not have an identity to view this page. Please contact system administrator`}</p> : <>
           {identityData &&

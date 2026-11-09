@@ -7,6 +7,8 @@ import Popover from "@mui/material/Popover";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Checkbox from "@mui/material/Checkbox";
+import { toast } from "react-toastify";
+import { showUndoToast } from "../ToastHost/ToastHost";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
 import {
@@ -1604,7 +1606,6 @@ const AuthorshipsTabs = () => {
   const rowsRef = useRef<AuthorshipRow[]>([]);
   const focusedIdRef = useRef<number | null>(null);
   const statusViewRef = useRef(statusView);
-  const undoRef = useRef<{ rows: AuthorshipRow[]; label: string } | null>(null);
   // "is any overlay this component owns currently up?" — read by the same stable keydown
   // listener, which must not act on the row behind an open popover/menu/dialog.
   const overlayOpenRef = useRef(false);
@@ -1625,7 +1626,6 @@ const AuthorshipsTabs = () => {
   useEffect(() => { rowsRef.current = rows; }, [rows]);
   useEffect(() => { focusedIdRef.current = focusedId; }, [focusedId]);
   useEffect(() => { statusViewRef.current = statusView; }, [statusView]);
-  useEffect(() => { undoRef.current = undo; }, [undo]);
   // Every overlay this component owns, in one expression: the four control popovers, the three
   // MUI menus (row overflow, bulk-assign picker, the two history panels), and the three
   // hand-rolled full-screen layers (lookup spinner, assign confirm, reject confirm). The
@@ -2540,6 +2540,23 @@ const AuthorshipsTabs = () => {
   useEffect(() => { doActionRef.current = doAction; }, [doAction]);
   useEffect(() => { toggleSelectRef.current = toggleSelect; }, [toggleSelect]);
   useEffect(() => { doUndoRef.current = doUndo; }, [doUndo]);
+  // The pending Undo rides the global toast host ("Undo · U"). Same 12s window the Snackbar had;
+  // a newer action replaces it, doUndo clears it, and leaving the page takes it down with us.
+  // The U shortcut is the host's, gated here exactly as this page's own shortcuts are: not
+  // while one of its overlays is up, and not while a canned report replaces the card list.
+  useEffect(() => {
+    if (!undo) return;
+    // `live` goes false in our cleanup: that dismiss must not clear the undo replacing this one,
+    // and a dismissed toast stays registered until its exit animation ends, so neither U nor its
+    // button may fire this undo after we have left the page or moved on to a newer one.
+    let live = true;
+    const id = showUndoToast(undo.label, () => { if (live) doUndoRef.current?.(); }, {
+      autoClose: 12000,
+      canUndo: () => live && !overlayOpenRef.current && !reportViewRef.current,
+      onClose: () => { if (live) setUndo((u) => (u === undo ? null : u)); },
+    });
+    return () => { live = false; toast.dismiss(id); };
+  }, [undo]);
 
   // Item 8: date preset → sets dateFrom/dateTo client-side. entrez_date is DATEONLY;
   // backend buildWhere already handles ranges, so no backend change. "Custom..." reveals
@@ -2611,8 +2628,9 @@ const AuthorshipsTabs = () => {
     return () => window.removeEventListener("beforeunload", warn);
   }, [bulkProgress]);
 
-  // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, U undo,
-  // Enter open PubMed. Registered ONCE: it reads the latest rows/focus/view/handlers from refs, so
+  // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, Enter open
+  // PubMed (U undo is the global toast host's, see the showUndoToast effect). Registered ONCE:
+  // it reads the latest rows/focus/view/handlers from refs, so
   // an optimistic action or a rolling-queue refill never swaps the listener (and the post-action
   // focus-advance still sees current state through those same refs).
   useEffect(() => {
@@ -2642,7 +2660,6 @@ const AuthorshipsTabs = () => {
       const k = e.key.toLowerCase();
       if (k === "j") { focus(idx + 1); e.preventDefault(); return; }
       if (k === "k") { focus(idx < 0 ? 0 : idx - 1); e.preventDefault(); return; }
-      if (k === "u") { if (undoRef.current) doUndoRef.current?.(); e.preventDefault(); return; }
       if (focusedId == null) return;
       const row = visible.find((r) => r.id === focusedId);
       if (!row) return;
@@ -3841,15 +3858,6 @@ const AuthorshipsTabs = () => {
         <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
         <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")}>Dismiss</MenuItem>
       </Menu>
-
-      {/* undo (immediate reversal, batched) */}
-      <Snackbar open={!!undo} autoHideDuration={12000} onClose={() => setUndo(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        message={undo ? undo.label : ""}
-        action={
-          <button onClick={doUndo}
-            style={{ color: "#7cc4ff", background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>UNDO</button>
-        } />
 
       {/* error */}
       <Snackbar open={!!errorMsg} autoHideDuration={10000} onClose={() => setErrorMsg("")}

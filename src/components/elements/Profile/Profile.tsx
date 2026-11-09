@@ -144,11 +144,7 @@ const Profile = ({
         console.error("[ERR-1020]", error);
         reportError("ERR-1020", "Unable to load profile", error);
         setIsError(true);
-        toast.error("Unable to load profile. Please try again. (ERR-1020)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to load profile. Please try again. (ERR-1020)");
       })
   }
 
@@ -191,11 +187,7 @@ const Profile = ({
         setExportArticleCsvLoading(false);
         console.error("[ERR-8010]", error);
         reportError("ERR-8010", "Unable to export article CSV", error);
-        toast.error("Unable to export article CSV. Please try again. (ERR-8010)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to export article CSV. Please try again. (ERR-8010)");
       })
   }
 
@@ -266,11 +258,7 @@ const Profile = ({
         console.error("[ERR-8011]", error);
         reportError("ERR-8011", "Unable to export article report", error);
         setExportArticleRTFLoading(false);
-        toast.error("Unable to export article report. Please try again. (ERR-8011)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to export article report. Please try again. (ERR-8011)");
       })
   }
 
@@ -295,11 +283,7 @@ const Profile = ({
         console.error("[ERR-8012]", error);
         reportError("ERR-8012", "Unable to generate bibliometric analysis", error);
         setIsError(true);
-        toast.error("Unable to generate bibliometric analysis. Please try again. (ERR-8012)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to generate bibliometric analysis. Please try again. (ERR-8012)");
       })
   }
 

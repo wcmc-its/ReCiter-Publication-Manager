@@ -2,7 +2,6 @@ import React, { FunctionComponent, useEffect, useState } from "react"
 import { toast } from "react-toastify"
 import { reciterConfig } from "../../../../config/local"
 import ExternalPublicationCard, { AddState } from "./ExternalPublicationCard"
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import { enrichScopusResults, seedAddedStates } from "../../../utils/externalAddSearch"
 
 // PM#772 — Scopus Authorships tab. A high-level Scopus search (by Author ID, keyword,
@@ -138,7 +137,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
         const by = byArg || searchBy
         const t = (termArg !== undefined ? termArg : term).trim()
         if (!t) {
-            toast.error("Enter a search term.", { position: "top-right", autoClose: 2000, theme: "colored" })
+            toast.error("Enter a search term.")
             return
         }
         setLoadingDocs(true); setSearched(true); setDocs([]); setTotal(0); setCapped(false); setPartial(false); setAddStates({})
@@ -164,7 +163,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                 setPartial(!!body.partial)
                 fetchExternalIds()
             })
-            .catch((e) => toast.error((e && e.message) || "Scopus search failed.", { position: "top-right", autoClose: 3000, theme: "colored" }))
+            .catch((e) => toast.error((e && e.message) || "Scopus search failed."))
             .finally(() => setLoadingDocs(false))
     }
 
@@ -213,7 +212,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
     // ponytail: mirrors TabAddExternalPublication.doAdd; extract a shared hook if a
     // third source appears.
     const doAdd = async (item: any, force: boolean) => {
-        if (!uid) { toast.error("Person is still loading — try again in a moment.", { position: "top-right", autoClose: 2500, theme: "colored" }); return }
+        if (!uid) { toast.error("Person is still loading — try again in a moment."); return }
         const articleId = item.articleId
         if (!force && !item.pmid && item.doi) {
             setAddState(articleId, { status: "checking" })
@@ -236,7 +235,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                     // Keep a re-search (no refetch of the ExternalArticle list) from
                     // re-offering this doc as addable.
                     setExternalIds((prev) => new Set(prev).add(articleId))
-                    toast.success("Accepted as an external publication.", { position: "top-right", autoClose: 2000, theme: "colored" })
+                    toast.success("Accepted as an external publication.")
                     return
                 }
                 if (status === 409) {
@@ -247,11 +246,11 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                 const payload = (body && body.message) || {}
                 const msg = payload.message || (typeof payload === "string" ? payload : `HTTP ${status}`)
                 setAddState(articleId, { status: "idle" })
-                toast.error("Could not accept: " + msg, { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not accept: " + msg)
             })
             .catch((err) => {
                 setAddState(articleId, { status: "idle" })
-                toast.error("Could not accept: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not accept: " + (err.message || err))
             })
     }
 
@@ -269,7 +268,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
             })
             .catch((err) => {
                 setAddState(articleId, { status: "idle" })
-                toast.error("Could not accept: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not accept: " + (err.message || err))
             })
     }
 
@@ -416,8 +415,6 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                     )}
                 </>
             )}
-
-            <ToastContainerWrapper />
         </div>
     )
 }

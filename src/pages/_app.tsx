@@ -19,6 +19,7 @@ import { reportError } from '../utils/reportError';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Head from 'next/head';
 import { pm } from '../components/ui/tokens';
+import ToastHost from '../components/elements/ToastHost/ToastHost';
 
 // Values come from src/components/ui/tokens.ts, which mirrors the :root tokens in globals.css.
 const theme = createTheme({
@@ -143,6 +144,7 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
           <RenderErrorBoundary>
             {getLayout(<Component {...pageProps} />)}
           </RenderErrorBoundary>
+          <ToastHost />
         </ReduxProvider>
       </ThemeProvider>
     </SessionProvider>

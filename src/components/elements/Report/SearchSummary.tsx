@@ -145,11 +145,7 @@ const SearchSummary = ({
       reportError("ERR-8001", "Unable to export article report", error);
       setExportError(true);
       setExportArticleLoading(false);
-      toast.error("Unable to export article report. Please try again. (ERR-8001)", {
-        position: "top-right",
-        autoClose: 2000,
-        theme: 'colored'
-      });
+      toast.error("Unable to export article report. Please try again. (ERR-8001)");
     })
   }
 
@@ -192,11 +188,7 @@ const SearchSummary = ({
       reportError("ERR-8002", "Unable to export article report", error);
       setExportError(true);
       setExportArticlePplLoading(false);
-      toast.error("Unable to export article report. Please try again. (ERR-8002)", {
-        position: "top-right",
-        autoClose: 2000,
-        theme: 'colored'
-      });
+      toast.error("Unable to export article report. Please try again. (ERR-8002)");
     })
   }
 
@@ -230,11 +222,7 @@ const SearchSummary = ({
       setExportAuthorshipCsvLoading(false);
       console.error("[ERR-8003]", error);
       reportError("ERR-8003", "Unable to export authorship report", error);
-      toast.error("Unable to export authorship report. Please try again. (ERR-8003)", {
-        position: "top-right",
-        autoClose: 2000,
-        theme: 'colored'
-      });
+      toast.error("Unable to export authorship report. Please try again. (ERR-8003)");
     })
   }
 
@@ -347,11 +335,7 @@ const SearchSummary = ({
       setExportArticleCsvLoading(false);
       console.error("[ERR-8004]", error);
       reportError("ERR-8004", "Unable to export article CSV", error);
-      toast.error("Unable to export article CSV. Please try again. (ERR-8004)", {
-        position: "top-right",
-        autoClose: 2000,
-        theme: 'colored'
-      });
+      toast.error("Unable to export article CSV. Please try again. (ERR-8004)");
     })
   }
 

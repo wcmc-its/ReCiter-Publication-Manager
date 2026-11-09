@@ -2,7 +2,6 @@ import React, { FunctionComponent, useCallback, useEffect, useRef, useState } fr
 import { toast } from "react-toastify"
 import { reciterConfig } from "../../../../config/local"
 import ExternalPublicationCard, { AddState } from "./ExternalPublicationCard"
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import {
     AddSource, decideCrossrefOutcome, decideScopusOutcome, enrichScopusResults,
     normalizeDoiInput, normalizeIsbnInput, scopusSearchFor, seedAddedStates,
@@ -281,12 +280,12 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
             .then(() => { setAddState(articleId, { status: "accepted" }) })
             .catch((err: any) => {
                 setAddState(articleId, { status: "idle" })
-                toast.error("Could not accept: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not accept: " + (err.message || err))
             })
     }
 
     const doAdd = async (item: any, force: boolean) => {
-        if (!uid) { toast.error("Person is still loading — try again in a moment.", { position: "top-right", autoClose: 2500, theme: "colored" }); return }
+        if (!uid) { toast.error("Person is still loading — try again in a moment."); return }
         const articleId = item.articleId
         // If the work is in PubMed, steer to the scored PubMed path instead of adding an
         // unscored external record. OpenAlex's PMID is best-effort, so for no-PMID results
@@ -315,7 +314,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
             .then(({ status, body }) => {
                 if (status === 201 || status === 200) {
                     setAddState(articleId, { status: "added" })
-                    toast.success("Publication added.", { position: "top-right", autoClose: 2000, theme: "colored" })
+                    toast.success("Publication added.")
                     fetchExternalList()
                     return
                 }
@@ -334,11 +333,11 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                 const payload = (body && body.message) || {}
                 const msg = payload.message || (typeof payload === "string" ? payload : `HTTP ${status}`)
                 setAddState(articleId, { status: "idle" })
-                toast.error("Could not add: " + msg, { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not add: " + msg)
             })
             .catch((err) => {
                 setAddState(articleId, { status: "idle" })
-                toast.error("Could not add: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not add: " + (err.message || err))
             })
     }
 
@@ -352,11 +351,11 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                 return body
             })
             .then(() => {
-                toast.success("Publication removed.", { position: "top-right", autoClose: 2000, theme: "colored" })
+                toast.success("Publication removed.")
                 fetchExternalList()
             })
             .catch((err) => {
-                toast.error("Could not remove: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not remove: " + (err.message || err))
             })
     }
 
@@ -458,8 +457,6 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                     />
                 ))
             )}
-
-            <ToastContainerWrapper />
         </div>
     )
 }

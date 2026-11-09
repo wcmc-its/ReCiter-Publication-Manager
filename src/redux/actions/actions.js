@@ -52,11 +52,7 @@ export const identityFetchData = uid => dispatch => {
     }, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("Identity Api successfully fetched for " + uid, {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("Identity Api successfully fetched for " + uid);
                 return response.json()
             } else {
                 throw {
@@ -80,11 +76,7 @@ export const identityFetchData = uid => dispatch => {
         .catch(error => {
             console.log(error)
 
-            toast.error("Identity Api failed for " + uid + " - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Identity Api failed for " + uid + " - " + error.title);
 
             // Only a genuine 404 means "this uid has no identity". Any other failure
             // (500, network error, timeout -- none of which carry a 404 status) is a
@@ -122,11 +114,7 @@ export const identityFetchAllData = (request) => dispatch => {
     }, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("Identity All Api successfully fetched", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("Identity All Api successfully fetched");
                 return response.json()
             } else {
                 throw {
@@ -149,11 +137,7 @@ export const identityFetchAllData = (request) => dispatch => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Identity All Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Identity All Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -234,11 +218,7 @@ export const identityFetchPaginatedData = (page, limit,filters) => dispatch => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Identity Fetch PaginatedData Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Identity Fetch PaginatedData Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -270,11 +250,7 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
     }, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("Feature generator Api successfully fetched for " + uid, {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("Feature generator Api successfully fetched for " + uid);
                 return response.json()
             } else {
                 throw {
@@ -306,11 +282,7 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
         })
         .catch(error => {
 
-            toast.error("Feature generator api for " + uid + " failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Feature generator api for " + uid + " failed - " + error.title);
 
             dispatch(
                 addIdentityORFeatureGenError("Feature-Generator-Error")
@@ -434,11 +406,7 @@ export const pubmedFetchData = query => dispatch => {
                     )
                 }
                 else {
-                    toast.error("Pubmed query " + query["strategy-query"] + " failed", {
-                        position: "top-right",
-                        autoClose: 2000,
-                        theme: 'colored'
-                    });
+                    toast.error("Pubmed query " + query["strategy-query"] + " failed");
                     dispatch(
                         addPubMedFetchMoreData(data.reciter || "")
                     )
@@ -454,11 +422,7 @@ export const pubmedFetchData = query => dispatch => {
                 dispatch(
                     clearError()
                 )
-                toast.success("Pubmed query successfully fetched", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("Pubmed query successfully fetched");
 
                 dispatch(
                     addPubMedFetchMoreData("")
@@ -476,11 +440,7 @@ export const pubmedFetchData = query => dispatch => {
 
         })
         .catch(error => {
-            toast.error("Pubmed query " + query["strategy-query"] + " failed", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Pubmed query " + query["strategy-query"] + " failed");
             
 
             dispatch({
@@ -575,11 +535,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
     }, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("GoldStandard updated successfully for user" + uid, {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("GoldStandard updated successfully for user" + uid);
                 return response.json()
             } else {
                 throw {
@@ -593,11 +549,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         .catch(error => {
 
             console.log(error)
-            toast.error("Update GoldStandard Api Error" + error.title + " for " + uid, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Update GoldStandard Api Error" + error.title + " for " + uid);
 
             dispatch(
                 addError(error)
@@ -634,11 +586,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         }, 300000)
             .then(response => {
                 if (response.status === 200 || response.status === 201) {
-                    toast.success("Feedback log updated in database for " + uid, {
-                        position: "top-right",
-                        autoClose: 2000,
-                        theme: 'colored'
-                    });
+                    toast.success("Feedback log updated in database for " + uid);
                     return response.json()
                 } else {
                     throw {
@@ -652,11 +600,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
             .catch(error => {
 
                 console.log(error)
-                toast.error("Db feedback log Api Error" + error.title + " for " + uid, {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.error("Db feedback log Api Error" + error.title + " for " + uid);
 
                 dispatch(
                     addError(error)
@@ -743,11 +687,7 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
     }, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("GoldStandard updated successfully for user" + uid, {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("GoldStandard updated successfully for user" + uid);
                 return response.json()
             } else {
                 throw {
@@ -761,11 +701,7 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
         .catch(error => {
 
             console.log(error)
-            toast.error("Update GoldStandard Api Error" + error.title + " for " + uid, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Update GoldStandard Api Error" + error.title + " for " + uid);
 
             dispatch(
                 addError(error)
@@ -799,11 +735,7 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
         }, 300000)
             .then(response => {
                 if (response.status === 200 || response.status === 201) {
-                    toast.success("Feedback log updated in database for " + uid, {
-                        position: "top-right",
-                        autoClose: 2000,
-                        theme: 'colored'
-                    });
+                    toast.success("Feedback log updated in database for " + uid);
                     return response.json()
                 } else {
                     throw {
@@ -817,11 +749,7 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
             .catch(error => {
 
                 console.log(error)
-                toast.error("Db feedback log Api Error" + error.title + " for " + uid, {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.error("Db feedback log Api Error" + error.title + " for " + uid);
 
                 dispatch(
                     addError(error)
@@ -847,15 +775,7 @@ export const authUser = auth => dispatch => {
         .then(r => r.json())
         .then(results => {
             if (results.statusCode !== 200) {
-                toast.error("Invalid credentials", {
-                    position: "top-right",
-                    autoClose: 5000,
-                    hideProgressBar: false,
-                    closeOnClick: true,
-                    pauseOnHover: true,
-                    draggable: true,
-                    progress: undefined,
-                });
+                toast.error("Invalid credentials");
                 return dispatch({
                     type: methods.USER_LOGOUT,
                     auth: {
@@ -943,11 +863,7 @@ export const orgUnitsFetchAllData = () => dispatch => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Organizational Units Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Organizational Units Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -996,11 +912,7 @@ export const institutionsFetchAllData = () => dispatch => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Institutional Units Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Institutional Units Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1049,11 +961,7 @@ export const personTypesFetchAllData = () => dispatch => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Person Types Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Person Types Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1149,11 +1057,7 @@ export const fetchAdminSettingsAction = () => (dispatch) => {
     .catch(error => {
         // 3. Failure: Show toast and log error
         console.error("Admin Settings API failed:", error);
-        toast.error("Failed to load Admin Settings", {
-            position: "top-right",
-            autoClose: 2000,
-            theme: 'colored'
-        });
+        toast.error("Failed to load Admin Settings");
         
         // Optional: Dispatch an error to your global error handler
         if (typeof addError === 'function') {
@@ -1234,11 +1138,7 @@ export const publicationsFetchGroupData = (ids, updateData) => dispatch => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Feature generator by group Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Feature generator by group Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1327,11 +1227,7 @@ export const fetchFeedbacklog = (id) => dispatch => {
 
     }).catch(error => {
         console.log(error)
-        toast.error("Feedback log Api failed for " + id + " - " + error.title, {
-            position: "top-right",
-            autoClose: 2000,
-            theme: 'colored'
-        });
+        toast.error("Feedback log Api failed for " + id + " - " + error.title);
         dispatch(
             addError(error)
         )
@@ -1405,11 +1301,7 @@ const getAuthorsFilter = (authorInput) => async (dispatch) => {
         })
     }).catch(error => {
         console.log(error);
-        toast.error("Author Filter Api failed - " + error.title, {
-            position: "top-right",
-            autoClose: 2000,
-            theme: 'colored'
-        });
+        toast.error("Author Filter Api failed - " + error.title);
         dispatch(
             addError(error)
         )
@@ -1436,11 +1328,7 @@ const getDateFilter = () => async (dispatch) => {
         })
     }).catch(error => {
         console.log(error);
-        toast.error("Date Filter Api failed - " + error.title, {
-            position: "top-right",
-            autoClose: 2000,
-            theme: 'colored'
-        });
+        toast.error("Date Filter Api failed - " + error.title);
         dispatch(
             addError(error)
         )
@@ -1478,11 +1366,7 @@ const getArticleTypeFilter = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Article Type Filter Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Article Type Filter Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1520,11 +1404,7 @@ const getJournalFilter = (journalInput) => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Journal Filter Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Journal Filter Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1562,11 +1442,7 @@ const getJournalRank = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Journal Rank Filter Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Journal Rank Filter Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1604,11 +1480,7 @@ export const getOrgUnits = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Organizational Units Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Organizational Units Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1646,11 +1518,7 @@ export const getInstitutions = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Institutional Units Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Institutional Units Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1688,11 +1556,7 @@ export const getAdminDepartments = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("List All Admin DEPATMENTS Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("List All Admin DEPATMENTS Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1729,11 +1593,7 @@ export const getAdminRoles = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("List All Admin DEPATMENTS Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("List All Admin DEPATMENTS Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1771,11 +1631,7 @@ export const getPersonTypes = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Person Types Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Person Types Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -1813,11 +1669,7 @@ export const updateAuthorFilter = (authorInput, count,isFrom) => (dispatch) => {
         }
     }).catch(error => {
         console.log(error);
-        toast.error("Author Filter Api failed - " + error.title, {
-            position: "top-right",
-            autoClose: 2000,
-            theme: 'colored'
-        });
+        toast.error("Author Filter Api failed - " + error.title);
         dispatch(
             addError(error)
         )
@@ -1855,11 +1707,7 @@ export const updateJournalFilter = (journalInput, count) => (dispatch) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("Journal Filter Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Journal Filter Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -2091,11 +1939,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
         })
         .catch(error => {
             console.log(error)
-            toast.error("Reports Search Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Reports Search Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -2196,11 +2040,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
         })
         .catch(error => {
             console.log(error)
-            toast.error("Reports Search Api failed - " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Reports Search Api failed - " + error.title);
             dispatch(
                 addError(error)
             )
@@ -2257,11 +2097,7 @@ export const createAdminUser = (userData) =>{
     })
         .then(response => {
             if (response.status === 200) {
-                toast.success("Admin User Created Successfully" , {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("Admin User Created Successfully" );
                 return response.json()
             } else {
                 throw {
@@ -2274,11 +2110,7 @@ export const createAdminUser = (userData) =>{
         })
         .catch(error => {
             console.log(error)
-            toast.error("create api " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("create api " + error.title);
         })
 }
 
@@ -2308,11 +2140,7 @@ export const fetchUserInfoByID = (userID) =>{
         })
         .catch(error => {
             console.log(error)
-            toast.error("create api " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("create api " + error.title);
         })
 }
 
@@ -2339,11 +2167,7 @@ export const fetchProxiesForUser = (userID) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("fetch proxies " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("fetch proxies " + error.title);
             return []
         })
 }
@@ -2373,11 +2197,7 @@ export const saveProxiesForUser = (userID, personIdentifiers) => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("save proxies " + error.title, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("save proxies " + error.title);
         })
 }
 
@@ -2416,11 +2236,7 @@ export const fetchReportsResultsIds = (requestBody) => dispatch => {
         })
     }).catch(error => {
         console.log(error)
-        toast.error("Reports Search Pmids Api failed - " + error.title, {
-            position: "top-right",
-            autoClose: 2000,
-            theme: 'colored'
-        });
+        toast.error("Reports Search Pmids Api failed - " + error.title);
         dispatch(
             addError(error)
         )
@@ -2456,28 +2272,16 @@ export const saveNotification = (payload) => dispatch => {
         } 
       }).then(data => {
         if(data.message === "User does not exist"){
-            toast.error(data.message, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-              });
+            toast.error(data.message);
         }else{
-            toast.success('Manager Notification Preferences has been saved for this person identifier '+ data.personIdentifier, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-              });
+            toast.success('Manager Notification Preferences has been saved for this person identifier '+ data.personIdentifier);
         }
         dispatch({
             type: methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING,
            })
       }).catch(error => {
         console.log(error)
-        toast.error("Save notification Api failed - " + error.title, {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Save notification Api failed - " + error.title);
         //Cancel the save button loader
         dispatch({
             type: methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING,
@@ -2535,11 +2339,7 @@ export const disableNotificationbyID = (payload) => dispatch => {
       
     }).catch(error => {
       console.log(error)
-      toast.error("Save notification Api failed - " + error.title, {
-        position: "top-right",
-        autoClose: 2000,
-        theme: 'colored'
-      });
+      toast.error("Save notification Api failed - " + error.title);
       dispatch(
         addError(error)
       )
@@ -2566,11 +2366,7 @@ export const sendEmailData = (requestBody) => dispatch => {
         body: JSON.stringify(requestBody)
     }).then(response => {
         if (response.status === 200) {
-            toast.success("Test email sent Successfully - to " + requestBody.emailOverride, {
-            position: "top-right",
-            autoClose: 4000,
-            theme: 'colored'
-        });
+            toast.success("Test email sent Successfully - to " + requestBody.emailOverride);
             return response.json()
         } else {
             throw {
@@ -2583,11 +2379,7 @@ export const sendEmailData = (requestBody) => dispatch => {
     }).then(data => {
         
     }).catch(error => {
-        toast.error("Send Test Email failed - " + error.title, {
-            position: "top-right",
-            autoClose: 2000,
-            theme: 'colored'
-        });
+        toast.error("Send Test Email failed - " + error.title);
         
     })
 }

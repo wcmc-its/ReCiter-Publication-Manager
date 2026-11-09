@@ -8,7 +8,6 @@ import styles from "./AdminSettings.module.css";
 import Loader from "../Common/Loader";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import moment from 'moment-timezone';
 
 /* ── Group classification ── */
@@ -131,11 +130,7 @@ const AdminSettings = () => {
         console.error("[ERR-9001]", error);
         reportError("ERR-9001", "Unable to load settings", error);
         setLoading(false);
-        toast.error("Unable to load settings. Please try again. (ERR-9001)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to load settings. Please try again. (ERR-9001)");
       });
   }
 
@@ -217,11 +212,7 @@ const AdminSettings = () => {
         console.error("[ERR-9002]", error);
         reportError("ERR-9002", "Unable to save settings", error);
         setLoading(false);
-        toast.error("Unable to save settings. Please try again. (ERR-9002)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to save settings. Please try again. (ERR-9002)");
       });
   }
 
@@ -270,11 +261,7 @@ const AdminSettings = () => {
         if (data.message && data.message === "Could not find any notifications") {
           setIsSendTestEmail(false);
           setSendTestEmailLoading(false);
-          toast.info("No data found to send an email", {
-            position: "top-right",
-            autoClose: 4000,
-            theme: 'colored'
-          });
+          toast.info("No data found to send an email");
         } else {
           setIsSendTestEmail(true)
           if (data && data.noConfiguredNotificationMsg)
@@ -285,21 +272,13 @@ const AdminSettings = () => {
             setSuccessEmailNotifMsg(data.successEmailNotifMsg);
           }
           setSendTestEmailLoading(false);
-          toast.success("Test email sent Successfully - to " + payLoad.emailOverride, {
-            position: "top-right",
-            autoClose: 4000,
-            theme: 'colored'
-          });
+          toast.success("Test email sent Successfully - to " + payLoad.emailOverride);
         }
       }).catch(error => {
         console.error("[ERR-9003]", error);
         reportError("ERR-9003", "Unable to send test email", error);
         setSendTestEmailLoading(false);
-        toast.error("Unable to send test email. Please try again. (ERR-9003)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to send test email. Please try again. (ERR-9003)");
       })
     } else {
       setPersonIdentifierError("Person Identifier(s) are required");
@@ -662,8 +641,6 @@ const AdminSettings = () => {
           </div>
         ))
       )}
-
-      <ToastContainerWrapper />
     </div>
   );
 }

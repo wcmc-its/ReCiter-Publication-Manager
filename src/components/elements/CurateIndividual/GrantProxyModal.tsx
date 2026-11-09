@@ -145,17 +145,13 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             toast.success(
-                'Proxy access updated. Changes take effect on the user\'s next login.',
-                { position: 'top-right', autoClose: 5000, theme: 'colored' }
-            );
+                'Proxy access updated. Changes take effect on the user\'s next login.');
             onSave();
             onHide();
         } catch (err) {
             console.error('[GrantProxyModal] save error:', err);
             toast.error(
-                'Failed to update proxy access. Please try again.',
-                { position: 'top-right', autoClose: 5000, theme: 'colored' }
-            );
+                'Failed to update proxy access. Please try again.');
         } finally {
             setSaving(false);
         }

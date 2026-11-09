@@ -9,7 +9,6 @@ import { saveNotification } from "../../../redux/actions/actions";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { reciterConfig } from "../../../../config/local";
-import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { allowedPermissions } from "../../../utils/constants";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
@@ -94,11 +93,7 @@ const Notifications = () => {
           setDisableSaveBtn(true);
           setIsExistingUser(false);
           setEmail(data.email);
-          toast.error("User does not exist", {
-            position: "top-right",
-            autoClose: 2000,
-            theme: 'colored'
-          });
+          toast.error("User does not exist");
         } else if(data.message === "No data found"){
           setEmail(data.email);
           setUserId(data.userID)
@@ -117,11 +112,7 @@ const Notifications = () => {
       .catch(error => {
         console.error("[ERR-6010]", error);
         reportError("ERR-6010", "Unable to load notification preferences", error);
-        toast.error("Unable to load notification preferences. Please try again. (ERR-6010)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to load notification preferences. Please try again. (ERR-6010)");
       });
   }
 
@@ -290,7 +281,6 @@ const Notifications = () => {
               </div>
             </>
           )}
-          <ToastContainerWrapper />
         </>
       ) : (!isCuratorSelf || !isReporterAll) ? (
         <div className={styles.noAccess}>
