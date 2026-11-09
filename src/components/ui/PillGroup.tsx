@@ -16,7 +16,7 @@ export type PillGroupProps = Common & (
 );
 
 // Pill-style single choice (role=radiogroup) or multi choice (group of role=checkbox).
-// One tab stop: arrow keys / Home / End move focus, Space or Enter picks (native button click).
+// One tab stop: arrow keys / Home / End move focus (and select, for radio groups); Space or Enter picks.
 export function PillGroup(props: PillGroupProps) {
   const { label, options, multiple } = props;
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -35,6 +35,8 @@ export function PillGroup(props: PillGroupProps) {
     if (next === null) return;
     e.preventDefault();
     refs.current[next]?.focus();
+    // Radio groups select as focus moves (WAI-ARIA radio pattern); checkbox groups only move focus.
+    if (!multiple) pick(options[next].value);
   };
 
   return (
