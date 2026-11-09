@@ -20,9 +20,6 @@ export type SourceKind = 'SCOPUS' | 'OPENALEX' | 'CROSSREF' | 'MANUAL'
 interface FuncProps {
     uid: string,
     source: SourceKind,
-    // Signed-in curator's CWID (from ReciterTabs' useSession()), threaded down to gate
-    // ExternalPublicationCard's Delete button to the row's own adder.
-    viewerCwid?: string,
 }
 
 const apiHeaders = {
@@ -86,7 +83,7 @@ const authorsFromJson = (json?: string | null): string[] => {
     }
 }
 
-const SourceArticleTab: FunctionComponent<FuncProps> = ({ uid, source, viewerCwid }) => {
+const SourceArticleTab: FunctionComponent<FuncProps> = ({ uid, source }) => {
     const [segment, setSegment] = useState<'ACCEPTED' | 'REJECTED'>('ACCEPTED')
     const [externalList, setExternalList] = useState<any[]>([])
     const [loading, setLoading] = useState<boolean>(false)
@@ -260,7 +257,6 @@ const SourceArticleTab: FunctionComponent<FuncProps> = ({ uid, source, viewerCwi
                         item={withHydratedAuthors(row)}
                         mode="list"
                         hideSourceBadge
-                        viewerCwid={viewerCwid}
                         onDelete={doDelete}
                         onReject={!row.suppressed ? (_item, note) => sendFeedback(row.articleId, 'REJECTED', note) : undefined}
                         onAccept={row.suppressed ? () => sendFeedback(row.articleId, 'ACCEPTED') : undefined}

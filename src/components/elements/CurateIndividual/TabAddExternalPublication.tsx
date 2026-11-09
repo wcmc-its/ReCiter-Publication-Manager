@@ -33,9 +33,6 @@ interface FuncProps {
     onAcceptPmid: (pmid: number, item: any) => Promise<any>,
     // Current status of a PMID in this person's record, to annotate search results.
     getPmidStatus: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
-    // Signed-in curator's CWID, from useSession(). Gates the Delete button to the row's
-    // own adder (item.addedBy) on ExternalPublicationCard.
-    viewerCwid?: string,
     // Match a PMID-less search result to an article already in this person's record by DOI
     // or Scopus document ID (ReciterTabs.findRecordPmid) — the Scopus tab's result mapping.
     findRecordPmid: (doc: { doi?: string; articleId?: string }) => number | null,
@@ -458,7 +455,6 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                         item={row}
                         mode="list"
                         onDelete={doDelete}
-                        viewerCwid={props.viewerCwid}
                     />
                 ))
             )}

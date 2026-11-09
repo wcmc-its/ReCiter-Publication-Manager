@@ -1,7 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getToken } from 'next-auth/jwt'
 import { recordExternalArticleFeedback } from '../../../../../controllers/externalArticle.controller'
+import { canCurate } from '../../../../../controllers/db/authorization.controller'
 import { reciterConfig } from '../../../../../config/local'
+import { effectiveToken } from '../../../../../src/utils/viewAs'
 
 // POST /api/db/external-article/feedback — curate per-source tabs (Option C, Phase 1):
 // Accept / Reject / un-reject an already-added external (non-PubMed) publication. Same
@@ -35,8 +37,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Resolve the curating user's CWID from the JWT — never trust a client-supplied actor.
     let actorPersonIdentifier: string | undefined = undefined
+    let token: any = null
     try {
-        const token: any = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+        token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
         if (token && token.username) actorPersonIdentifier = String(token.username)
     } catch (e) {
         // token decode failed -> no actor resolved; handled by the guard below.
@@ -45,6 +48,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // re-login hint instead of surfacing that as an opaque error mid-curation.
     if (!actorPersonIdentifier) {
         return res.status(401).send({ statusCode: 401, message: 'Your session has expired. Please sign in again.' })
+    }
+
+    // Same canCurate gate as the PubMed accept/reject writes (goldstandard.ts): the api key
+    // only proves the call came from this app's server, not that this curator may curate uid.
+    const allowed = await canCurate(effectiveToken(token), uid)
+    if (!allowed) {
+        return res.status(403).send({
+            statusCode: 403,
+            message: "You do not have permission to curate this person's publications"
+        })
     }
 
     try {

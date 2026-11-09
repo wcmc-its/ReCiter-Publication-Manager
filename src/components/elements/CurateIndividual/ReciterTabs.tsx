@@ -443,7 +443,6 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           onAddViaPubMed={handleAddViaPubMed}
           onAcceptPmid={handleAcceptPmid}
           getPmidStatus={getPmidStatus}
-          viewerCwid={session?.data?.username}
           findRecordPmid={findRecordPmid}
           initialQuery={addDeepLink?.doi}
           initialSource={addDeepLink?.source}
@@ -463,7 +462,6 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
         <SourceArticleTab
           uid={reciterData.reciter?.personIdentifier}
           source={EXTERNAL_SOURCE_TABS.find((tab) => tab.value === key)!.source}
-          viewerCwid={session?.data?.username}
         />
       ) : activeTabData ? (
         <ReciterTabContent
