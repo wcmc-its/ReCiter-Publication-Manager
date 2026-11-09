@@ -43,9 +43,10 @@
   --color-accent: #2563a8;
 
   /* Warm content */
-  --color-warm-bg: #f5f2ee;
-  --color-warm-surface: #ffffff;
-  --color-warm-border: #e8e2d9;
+  /* Aliased to the --pm-* tokens below; was #f5f2ee / #e8e2d9. */
+  --color-warm-bg: var(--pm-page);
+  --color-warm-surface: var(--pm-surface);
+  --color-warm-border: var(--pm-border);
 
   /* Badge colors */
   --color-badge-blue-bg: #eff6ff;
@@ -87,6 +88,39 @@
   /* Layout */
   --header-height: 52px;
   --sidebar-width-expanded: 220px;
+
+  /* Prototype / Scholars design-system tokens (--pm-*). Hex values mirror
+     src/components/ui/tokens.ts, which feeds the MUI theme; change both together. */
+  --pm-bar: #34506e;                 /* top bar, Slate */
+  --pm-slate: #34506e;
+  --pm-slate-tint: #ecf1f6;
+  --pm-slate-tint-border: #d5e0ec;
+  --pm-page: #faf8f6;                /* warm off-white page background */
+  --pm-surface: #ffffff;
+  --pm-surface-2: #f4f1ed;
+  --pm-border: #e9e3df;
+  --pm-border-strong: #dbd3cd;
+  --pm-foreground: #1c1c1c;
+  --pm-muted: #f5f5f5;
+  --pm-muted-foreground: #6a6a6a;
+  --pm-ring: var(--color-accent);
+  --pm-green: #2e7d5b;
+  --pm-green-tint: #e7f3ee;
+  --pm-green-tint-border: #cbe5d8;
+  --pm-amber: #8a5a06;
+  --pm-amber-tint: #fbf1dc;
+  --pm-amber-tint-border: #efdbaf;
+  --pm-red: var(--wcm-red);
+  --pm-red-tint: #f8ecee;
+  --pm-red-tint-border: #e4c9ce;
+  --radius: 0.625rem;
+  --radius-xl: 0.75rem;
+  --radius-card: 13px;
+  --shadow-card: 0 1px 2px rgba(34, 30, 28, 0.04), 0 1px 3px rgba(34, 30, 28, 0.05);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  /* Display serif for person names and page titles. Deliberately separate from --font-serif,
+     which is a legacy alias of --font-display (Inter). System fonts only, no web font. */
+  --font-display-serif: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, Georgia, serif;
 }
 
 html,

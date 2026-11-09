@@ -18,14 +18,25 @@ import ErrorFallback from '../components/elements/Error/Error';
 import { reportError } from '../utils/reportError';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Head from 'next/head';
+import { pm } from '../components/ui/tokens';
 import ToastHost from '../components/elements/ToastHost/ToastHost';
 
+// Values come from src/components/ui/tokens.ts, which mirrors the :root tokens in globals.css.
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#b31b1b',
-      dark: '#8c1515',
-      light: '#f5e6e6',
+      main: pm.red,
+      dark: pm.redDark,
+      light: pm.redLight,
+    },
+    background: {
+      default: pm.page,
+      paper: pm.surface,
+    },
+    divider: pm.border,
+    text: {
+      primary: pm.foreground,
+      secondary: pm.mutedForeground,
     },
   },
   typography: {
@@ -41,6 +52,7 @@ const theme = createTheme({
     ].join(','),
   },
   shape: {
+    // = --radius-md. Overlays use --radius (10px) and cards --radius-card (13px) explicitly.
     borderRadius: 6,
   },
 });
