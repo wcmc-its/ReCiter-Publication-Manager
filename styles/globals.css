@@ -87,7 +87,6 @@
 
   /* Layout */
   --header-height: 52px;
-  --sidebar-width-expanded: 220px;
 
   /* Prototype / Scholars design-system tokens (--pm-*). Hex values mirror
      src/components/ui/tokens.ts, which feeds the MUI theme; change both together. */
@@ -216,13 +215,6 @@ a:hover {
 
 .row-content {
   flex: 1;
-}
-
-.drawer-container {
-  width: 0 !important;
-  height: 0 !important;
-  position: fixed !important;
-  overflow: visible !important;
 }
 
 .btn-primary.primary {

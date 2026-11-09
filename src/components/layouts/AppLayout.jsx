@@ -1,10 +1,8 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import SideNavbar from "../elements/Navbar/SideNavbar";
 import { Footer } from "../elements/Footer/Footer";
-import Header from "../elements/Header/Header";
-import { ExpandNavContext } from "../elements/Navbar/ExpandNavContext";
+import SectionNav from "../elements/SectionNav/SectionNav";
 import styles from "./AppLayout.module.css";
 import NoAccess from "../elements/NoAccess/NoAccess";
 import Loader from "../elements/Common/Loader";
@@ -50,24 +48,15 @@ export const AppLayout = ({ children }) => {
     router.back();
   };
 
-  const [expandedNav, setExpandedNav] = useState(true);
-  const toggleExpand = () => {
-    setExpandedNav(!expandedNav);
-  };
-
   if (status === "loading") {
     return <Loader />;
   }
 
   return session?.data?.databaseUser?.status === 1 ? (
     <>
-      <ExpandNavContext.Provider
-          value={{ expand: expandedNav, updateExpand: toggleExpand }}
-        >
-          <SideNavbar />
-        </ExpandNavContext.Provider>
-      <div className={expandedNav ? styles.expandedSideBarContent : styles.nonExpandedSideBarContent}>
-        <ViewAsBanner />
+      <ViewAsBanner />
+      <SectionNav />
+      <div className={styles.content}>
         {children}
         <Footer />
       </div>

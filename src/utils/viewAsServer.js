@@ -60,7 +60,7 @@ export async function resolveViewAsTarget(cwid) {
   // row (they're per-user, not per-role -- see the comment in [...nextauth].jsx), so storing
   // that raw string a second time inside the overlay roughly doubles the token's role-data
   // cost for no benefit: every consumer of a userRoles row (getCapabilities, canCurate,
-  // middleware.ts, SideNavbar.tsx) reads only .roleLabel and .personIdentifier off it --
+  // middleware.ts, Header.tsx, SectionNav.tsx) reads only .roleLabel and .personIdentifier off it --
   // scope/proxy data is read from token.scopeData/token.proxyPersonIds instead, which
   // effectiveToken() rebuilds from databaseUser above regardless. Trim the overlay's copy to
   // just the two fields every consumer actually reads; still the same JSON-string-of-role-

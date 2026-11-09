@@ -2,53 +2,41 @@
   position: sticky;
   top: var(--header-height);
   z-index: 999;
-  margin: -24px -40px 24px;
-  width: auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 40px;
-  background: linear-gradient(90deg, #7a4f01 0%, #92611a 100%);
-  border-bottom: 2px solid #f0b429;
-  color: #fff8eb;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 8px 20px;
+  background: var(--pm-amber-tint);
+  border-bottom: 1px solid var(--pm-amber-tint-border);
+  color: var(--pm-amber);
   font-family: var(--font-sans);
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: 13px;
   line-height: 1.4;
+  font-variant-numeric: tabular-nums;
 }
 
 .returnButton {
-  background: #fff8eb;
-  color: #7a4f01;
-  border: 0;
-  border-radius: 6px;
-  padding: 6px 12px;
+  height: 28px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--pm-amber);
+  border: 1px solid var(--pm-amber-tint-border);
+  border-radius: var(--radius-md);
   font: inherit;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .returnButton:hover {
-  background: #ffffff;
+  background: var(--pm-surface-2);
 }
 
-.viewAsTrigger {
-  margin: 8px 20px;
-  padding: 8px 12px;
-  background: transparent;
-  border: 1px solid #4a5568;
-  border-radius: 4px;
-  color: #a8b4cc;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-}
-
-.viewAsTrigger:hover {
-  background: #242e44;
-  color: #ffffff;
+.returnButton:focus-visible {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: 2px;
 }
 
 .confirmBody {
