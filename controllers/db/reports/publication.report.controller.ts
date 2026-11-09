@@ -4,6 +4,7 @@ import { GeneratePubsApiBody, GeneratePubsPeopleOnlyApiBody } from "../../../typ
 import { PublicationSearchFilter} from '../../../types/publication.report.search';
 import { Op, Sequelize } from "sequelize";
 import {metrics } from "../../../config/report";
+import { buildReportSort } from "./reportSort";
 		
 						 
 					 
@@ -243,30 +244,7 @@ export const generatePubsPeopleOnlyRtf = async (
         });
 
       }
-      const sort = [];
-      if (apiBody && apiBody.sort) {
-        let sortType = apiBody.sort.type;
-        let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
-        if (sortType === 'datePublicationAddedToEntrez')
-          sort.push([Sequelize.literal('isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez '+sortOrder)]) 
-  
-        if (sortType === 'citationCountNIH')
-          sort.push([Sequelize.literal('isnull(citationCountNIH), citationCountNIH '+sortOrder)])
-
-        if (sortType === 'journalImpactScore1')
-          sort.push([Sequelize.literal('isnull(journalImpactScore1), journalImpactScore1 '+sortOrder)])
-  
-        if (sortType === 'percentileNIH') 
-          sort.push([Sequelize.literal('isnull(percentileNIH), percentileNIH '+sortOrder)])
-  
-        if (sortType === 'publicationDateStandarized')
-          sort.push([Sequelize.literal('isnull(publicationDateStandarized), publicationDateStandarized '+sortOrder)])
-  
-        if (sortType === 'readersMendeley') 
-          sort.push([Sequelize.literal('isnull(readersMendeley), readersMendeley '+sortOrder)])
-        if (sortType === 'trendingPubsScore')
-          sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)])
-      }
+      const sort = buildReportSort(apiBody && apiBody.sort);
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
       let searchOutput: any[] = [];
 
@@ -482,31 +460,7 @@ export const generatePubsPeopleOnlyRtf = async (
           isPersonFilterOn = true;
         }
       }
-      const sort = [];
-      if (apiBody && apiBody.sort) {
-        let sortType = apiBody.sort.type;
-        let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
-        if (sortType === 'datePublicationAddedToEntrez') 
-          sort.push([Sequelize.literal('isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez '+sortOrder)])    
-  
-        if (sortType === 'citationCountNIH')
-          sort.push([Sequelize.literal('isnull(citationCountNIH), citationCountNIH '+sortOrder)]) 
-  
-        if (sortType === 'journalImpactScore1')
-          sort.push([Sequelize.literal('isnull(journalImpactScore1), journalImpactScore1 '+sortOrder)])
-  
-        if (sortType === 'percentileNIH') 
-          sort.push([Sequelize.literal('isnull(percentileNIH), percentileNIH '+sortOrder)])
-  
-        if (sortType === 'publicationDateStandarized')
-          sort.push([Sequelize.literal('isnull(publicationDateStandarized), publicationDateStandarized '+sortOrder)])
-  
-        if (sortType === 'readersMendeley') 
-          sort.push([Sequelize.literal('isnull(readersMendeley), readersMendeley '+sortOrder)])
-  
-        if (sortType === 'trendingPubsScore')
-          sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)])
-      }
+      const sort = buildReportSort(apiBody && apiBody.sort);
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
 										 
       let searchOutput: any[] = [];

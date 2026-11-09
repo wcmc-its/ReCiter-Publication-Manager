@@ -14,6 +14,7 @@ import {
 //import {useSession} from 'next-auth/react'									   
 import sequelize from "../../../src/db/db";
 import { QueryConstants } from "../../../src/utils/namedQueryConstants";
+import { buildReportSort } from "./reportSort";
 
 
 models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'AnalysisSummaryArticleId' });
@@ -298,32 +299,8 @@ export const publicationSearchWithFilter = async (
       }
     }
 
-    const sort = [];
-    if (apiBody && apiBody.sort) {
-      let sortType = apiBody.sort.type;
-      let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
-      if (sortType === 'datePublicationAddedToEntrez')
-      sort.push([Sequelize.literal('isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez '+sortOrder)]) 
-      if (sortType === 'citationCountNIH')
-        sort.push([Sequelize.literal('isnull(citationCountNIH), citationCountNIH '+sortOrder)]) 
-      if (sortType === 'journalImpactScore1')
-        sort.push([Sequelize.literal('isnull(journalImpactScore1), journalImpactScore1 '+sortOrder)]) 
-      if (sortType === 'percentileNIH') 
-        sort.push([Sequelize.literal('isnull(percentileNIH), percentileNIH '+sortOrder)]) 
-      if (sortType === 'publicationDateStandarized')
-        sort.push([Sequelize.literal('isnull(publicationDateStandarized), publicationDateStandarized '+sortOrder)]) 
-      if (sortType === 'readersMendeley') 
-        sort.push([Sequelize.literal('isnull(readersMendeley), readersMendeley '+sortOrder)]) 
-      if (sortType === 'trendingPubsScore')
-        sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)]) 
-      if (sortType === 'citationCountScopus')
-        sort.push([Sequelize.literal('isnull(citationCountScopus), citationCountScopus '+sortOrder)])
-      if (sortType === 'relativeCitationRatioNIH')
-        sort.push([Sequelize.literal('isnull(relativeCitationRatioNIH), relativeCitationRatioNIH '+sortOrder)])
-      if (sortType === 'journalImpactScore2')
-        sort.push([Sequelize.literal('isnull(journalImpactScore2), journalImpactScore2 '+sortOrder)])
-    }
-    else
+    const sort = buildReportSort(apiBody && apiBody.sort);
+    if (!(apiBody && apiBody.sort))
     {
       sort.push(["datePublicationAddedToEntrez","DESC"]);
     }
@@ -1457,32 +1434,8 @@ export const publicationSearchWithFilterPmids = async (
       }
     }
 	
-    const sort = [];
-    if (apiBody && apiBody.sort) {
-      let sortType = apiBody.sort.type;
-      let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
-      if (sortType === 'datePublicationAddedToEntrez')
-        sort.push([Sequelize.literal('isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez '+sortOrder)])
-      if (sortType === 'citationCountNIH')
-        sort.push([Sequelize.literal('isnull(citationCountNIH), citationCountNIH '+sortOrder)])
-      if (sortType === 'journalImpactScore1')
-        sort.push([Sequelize.literal('isnull(journalImpactScore1), journalImpactScore1 '+sortOrder)])
-      if (sortType === 'percentileNIH') 
-        sort.push([Sequelize.literal('isnull(percentileNIH), percentileNIH '+sortOrder)])
-      if (sortType === 'publicationDateStandarized')
-        sort.push([Sequelize.literal('isnull(publicationDateStandarized), publicationDateStandarized '+sortOrder)])
-      if (sortType === 'readersMendeley') 
-        sort.push([Sequelize.literal('isnull(readersMendeley), readersMendeley '+sortOrder)])
-      if (sortType === 'trendingPubsScore')
-        sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)])
-      if (sortType === 'citationCountScopus')
-        sort.push([Sequelize.literal('isnull(citationCountScopus), citationCountScopus '+sortOrder)])
-      if (sortType === 'relativeCitationRatioNIH')
-        sort.push([Sequelize.literal('isnull(relativeCitationRatioNIH), relativeCitationRatioNIH '+sortOrder)])
-      if (sortType === 'journalImpactScore2')
-        sort.push([Sequelize.literal('isnull(journalImpactScore2), journalImpactScore2 '+sortOrder)])
-    }
-    else
+    const sort = buildReportSort(apiBody && apiBody.sort);
+    if (!(apiBody && apiBody.sort))
     {
       sort.push(["datePublicationAddedToEntrez","DESC"]);
     }

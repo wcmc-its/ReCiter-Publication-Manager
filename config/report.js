@@ -95,6 +95,8 @@ export const sortOptions = {
   citationCountNIH: true,
   trendingPubsScore: true,
   readersMendeley: true,
+  publicationDateStandardized: true,
+  // legacy admin_settings key spelling; kept so the option stays visible until the setting is renamed
   publicationDateStandarized: true,
   relativeCitationRatioNIH:true,
   citationCountScopus:true
