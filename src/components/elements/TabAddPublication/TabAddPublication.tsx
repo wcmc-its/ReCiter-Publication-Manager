@@ -16,7 +16,6 @@ import ClearIcon from '@mui/icons-material/Clear';
 import { toast } from "react-toastify"
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import { publicationsPreviousDataFetching } from "../../../redux/reducers/reducers";
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import { toReciterArticle } from "../../../utils/toReciterArticle";
 
 
@@ -394,11 +393,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                 filter()
             }
         } else {
-            toast.error("Earliest year should not be greater than latest year", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Earliest year should not be greater than latest year");
         }
     }
 
@@ -528,7 +523,6 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                     <p>{pubmedFetchingMore.message}</p>
                 </div>
             )}
-            <ToastContainerWrapper />
         </div>
     );
 }

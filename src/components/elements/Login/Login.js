@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Button, Form, FormGroup, FormControl, Row, Col } from "react-bootstrap";
 import styles from "./Login.module.css";
 import { Footer } from "../Footer/Footer";
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import Router from "next/router"
 import Header from "../Header/Header"
 import { signIn,getSession } from "next-auth/react"
@@ -36,11 +35,7 @@ const Login = () => {
         redirect: false
        })
        if (signInResponse.status == 200) {
-            toast.info("Successful Login", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: "colored"
-            });
+            toast.info("Successful Login");
             //if(session && session.data && session.data.userRoles)
              getSession().then((session) => {
                 if (session) {
@@ -60,11 +55,7 @@ const Login = () => {
             
         } else {
             setInvalidCredentialsFlag(true)
-            toast.error("Invalid credentials", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: "colored"
-            });
+            toast.error("Invalid credentials");
         }
     }
 
@@ -124,9 +115,6 @@ const Login = () => {
                     </Button>
                 </Col>
             </Row>
-            {invalidCredentialsFlag ? (
-                <ToastContainerWrapper />
-            ) : null}
             </Form>
         </div>
 

@@ -10,7 +10,6 @@ import TextField from '@mui/material/TextField';
 import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminDepartments, getAdminRoles, getPersonTypes, fetchProxiesForUser, saveProxiesForUser, institutionsFetchAllData} from "../../../redux/actions/actions";
 import { useRouter } from "next/router";
 import Link from "next/link";
-import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import ProxyAssignmentsSection, { PersonOption } from './ProxyAssignmentsSection';
 
 /* ── Role label formatting ── */
@@ -657,7 +656,6 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                     </div>
                 </form>
             )}
-            <ToastContainerWrapper />
         </>
     );
 }

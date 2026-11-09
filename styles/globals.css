@@ -526,3 +526,44 @@ h1 {
 .show-rows .react-datepicker__year-text:hover{
   background-color: blue !important;
 }
+/* Global toast host (src/components/elements/ToastHost): one dark pill, bottom-center. The
+   variables are react-toastify's own; scoping them to .pm-toasts beats its injected :root set. */
+.pm-toasts {
+  --toastify-toast-width: auto;
+  --toastify-toast-min-height: 0;
+  --toastify-toast-padding: 10px 12px 10px 16px;
+  --toastify-toast-bd-radius: 8px;
+  --toastify-toast-shadow: 0 10px 30px rgba(34, 30, 28, 0.25);
+  --toastify-toast-bottom: 24px;
+  --toastify-font-family: inherit;
+  --toastify-color-dark: #2a2421;
+  --toastify-text-color-dark: #fff;
+}
+.pm-toasts .Toastify__toast {
+  max-width: min(560px, calc(100vw - 32px));
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pm-toasts .Toastify__toast--error {
+  border-left: 3px solid #e5484d;
+}
+.pm-undo-toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.pm-undo-toast button {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: none;
+  color: #fff;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.pm-undo-toast button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}

@@ -11,18 +11,10 @@ export const allowedPermissions = Object.freeze({
 
 export const toastMessage = (type, message) => {
 	if (type === "error") {
-		return toast.error(message, {
-			position: "top-right",
-			autoClose: 2000,
-			theme: 'colored'
-		})
+		return toast.error(message)
 	}
 	else if (type === "success") {
-		return toast.success(message, {
-			position: "top-right",
-			autoClose: 2000,
-			theme: 'colored'
-		})
+		return toast.success(message)
 	}
 	else {
 

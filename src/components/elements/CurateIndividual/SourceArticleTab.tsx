@@ -2,7 +2,6 @@ import React, { FunctionComponent, useCallback, useEffect, useMemo, useState } f
 import { toast } from "react-toastify"
 import { reciterConfig } from "../../../../config/local"
 import ExternalPublicationCard from "./ExternalPublicationCard"
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 
 // Curate per-source tabs (Option C), Phase 1. Browses the external (non-PubMed) rows
 // already on this person's record for ONE source, with an Accepted/Rejected segmented
@@ -188,10 +187,10 @@ const SourceArticleTab: FunctionComponent<FuncProps> = ({ uid, source }) => {
             .then(async (r) => {
                 const body = await r.json().catch(() => ({}))
                 if (!r.ok) throw new Error((body && body.message) || `HTTP ${r.status}`)
-                toast.success(action === 'REJECTED' ? "Publication rejected." : "Publication accepted.", { position: "top-right", autoClose: 2000, theme: "colored" })
+                toast.success(action === 'REJECTED' ? "Publication rejected." : "Publication accepted.")
             })
             .catch((err) => {
-                toast.error("Could not update: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not update: " + (err.message || err))
                 // Revert the optimistic flip on failure.
                 setExternalList((prev) => prev.map((r) => (
                     r.articleId === articleId ? { ...r, suppressed: action !== 'REJECTED' } : r
@@ -210,11 +209,11 @@ const SourceArticleTab: FunctionComponent<FuncProps> = ({ uid, source }) => {
                 return body
             })
             .then(() => {
-                toast.success("Publication removed.", { position: "top-right", autoClose: 2000, theme: "colored" })
+                toast.success("Publication removed.")
                 fetchExternalList()
             })
             .catch((err) => {
-                toast.error("Could not remove: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not remove: " + (err.message || err))
             })
     }
 
@@ -263,8 +262,6 @@ const SourceArticleTab: FunctionComponent<FuncProps> = ({ uid, source }) => {
                     />
                 ))
             )}
-
-            <ToastContainerWrapper />
         </div>
     )
 }

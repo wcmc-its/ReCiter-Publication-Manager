@@ -4,7 +4,6 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { reciterConfig } from "../../../../config/local";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
@@ -74,11 +73,7 @@ const ManageProfle = () => {
         }).then(response => {
             if (response.status === 200) {
                 setErrorMessage('');
-                toast.success("ORCID Saved Successfully", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("ORCID Saved Successfully");
                 getManageProfileData(router.query.userId ? router.query.userId : "")
             } else {
                 setErrorMessage(`Unable to save ORCID (HTTP ${response.status}). Please try again.`);
@@ -88,11 +83,7 @@ const ManageProfle = () => {
             setErrorMessage("Unable to save ORCID. Please try again. (ERR-1010)");
             console.error("[ERR-1010]", error);
             reportError("ERR-1010", "Unable to save ORCID", error);
-            toast.error("Unable to save ORCID. Please try again. (ERR-1010)", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Unable to save ORCID. Please try again. (ERR-1010)");
         })
     }
 
@@ -109,11 +100,7 @@ const ManageProfle = () => {
         })
             .then(res => res.json())
             .then(res => {
-                toast.success("ORCID has been deleted successfully", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("ORCID has been deleted successfully");
                 setManualORCID("");
                 setSelectOrcid("");
                 setSavedOrcid("");
@@ -121,11 +108,7 @@ const ManageProfle = () => {
             .catch(error => {
                 console.error("[ERR-1011]", error);
                 reportError("ERR-1011", "Unable to remove ORCID", error);
-                toast.error("Unable to remove ORCID. Please try again. (ERR-1011)", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.error("Unable to remove ORCID. Please try again. (ERR-1011)");
             });
     }
 
@@ -145,11 +128,7 @@ const ManageProfle = () => {
                 setSavedOrcid(data?.savedOrcid || "");
                 setScholars(data?.scholars || null);
                 if (data.message === "User does not exist") {
-                    toast.error("User does not exist", {
-                        position: "top-right",
-                        autoClose: 2000,
-                        theme: 'colored'
-                    });
+                    toast.error("User does not exist");
                     setLoadProfileData(false)
                 } else if (data.message === "No data found") {
                     setLoadProfileData(false)
@@ -168,11 +147,7 @@ const ManageProfle = () => {
                 setLoadProfileData(false)
                 console.error("[ERR-1012]", error);
                 reportError("ERR-1012", "Unable to load profile data", error);
-                toast.error("Unable to load profile data. Please try again. (ERR-1012)", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.error("Unable to load profile data. Please try again. (ERR-1012)");
             });
     }
 
@@ -222,11 +197,7 @@ const ManageProfle = () => {
         }).then(response => {
             if (response.status === 200) {
                 setErrorMessage('');
-                toast.success("ORCID Saved Successfully", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("ORCID Saved Successfully");
                 getManageProfileData(router.query.userId ? router.query.userId : "")
             } else {
                 setErrorMessage(`Unable to save ORCID (HTTP ${response.status}). Please try again.`);
@@ -235,11 +206,7 @@ const ManageProfle = () => {
             setErrorMessage("Unable to save ORCID. Please try again. (ERR-1013)");
             console.error("[ERR-1013]", error);
             reportError("ERR-1013", "Unable to save ORCID", error);
-            toast.error("Unable to save ORCID. Please try again. (ERR-1013)", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Unable to save ORCID. Please try again. (ERR-1013)");
         });
     }
 
@@ -437,8 +404,6 @@ const ManageProfle = () => {
                         </div>
                     </div>
                     </>)}
-
-                    <ToastContainerWrapper />
                 </>
             ) : (!isCuratorSelf || !isReporterAll) ? (
                 <div className={styles.noAccess}>
