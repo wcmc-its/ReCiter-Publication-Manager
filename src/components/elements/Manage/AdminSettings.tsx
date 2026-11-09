@@ -10,6 +10,7 @@ import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import moment from 'moment-timezone';
+import { displayName, displayDesc, isWordExportSetting, exceedsWordExportLimit, settingSummary } from "../../../lib/adminSettingsDisplay";
 
 /* ── Group classification ── */
 const getGroup = (viewLabel: string): string => {
@@ -81,6 +82,8 @@ const AdminSettings = () => {
 
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState([]);
+  /* Last loaded/saved state; the page is dirty when settings differ from it. */
+  const [savedSettings, setSavedSettings] = useState([]);
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
   const [personIdentifierError, setPersonIdentifierError] = useState('');
   const [emailDeliveredTime, setEmailDeliveredTime] = useState("");
@@ -125,6 +128,7 @@ const AdminSettings = () => {
           parsedSettingsArray.push(parsedSettings)
         })
         setSettings(parsedSettingsArray);
+        setSavedSettings(parsedSettingsArray);
         setLoading(false);
       })
       .catch(error => {
@@ -151,8 +155,7 @@ const AdminSettings = () => {
               if (index2 == viewAttrIndex) {
                 if (name === "isVisible") return { ...innerObj, [name]: !innerObj.isVisible }
                 else if (name === "useEmailForScheduledJobs") return { ...innerObj, [name]: !innerObj.useEmailForScheduledJobs }
-                else if (labelName === "Reporting Article RTF" && e.target.value > 30000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: true }
-                else if (labelName === "Reporting Article RTF" && e.target.value < 30000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: false }
+                else if (name === "maxLimit" && isWordExportSetting(labelName)) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: exceedsWordExportLimit(e.target.value) }
                 else if (name === "isChecked" && innerObj.hasOwnProperty('isRoleGroup')) {
                   return {
                     ...innerObj,
@@ -210,8 +213,14 @@ const AdminSettings = () => {
         }));
         dispatch(updatedAdminSettings(parsed))
         setSettings(parsed);
+        setSavedSettings(parsed);
         setIsSendTestEmail(false);
         setLoading(false);
+        toast.success("Configuration saved. Takes effect on next login.", {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
       })
       .catch(error => {
         console.error("[ERR-9002]", error);
@@ -315,6 +324,18 @@ const AdminSettings = () => {
     });
   };
 
+  const isItemDirty = (index: number) =>
+    JSON.stringify(settings[index]) !== JSON.stringify(savedSettings[index]);
+  const isDirty = useMemo(
+    () => JSON.stringify(settings) !== JSON.stringify(savedSettings),
+    [settings, savedSettings]
+  );
+  const discardChanges = () => {
+    setSettings(savedSettings);
+    setPersonIdentifierError("");
+    setEmailError("");
+  };
+
   const groupedSettings = useMemo(() => {
     const groups = GROUP_ORDER.map(label => ({
       label,
@@ -333,13 +354,16 @@ const AdminSettings = () => {
 
   return (
     <div className={appStyles.mainContainer}>
-      <h1 className={styles.pageTitle}>Configuration</h1>
-
-      <div className={styles.infoBanner}>
-        <svg className={styles.infoBannerIcon} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5.5v.5"/>
-        </svg>
-        Changes apply to all users and take effect on next login.
+      <div className={styles.pageHeader}>
+        <div>
+          <h1 className={styles.pageTitle}>Configuration</h1>
+          <div className={styles.pageSubtitle}>Changes apply to all users and take effect on next login.</div>
+        </div>
+        <div className={styles.pageActions}>
+          {isDirty && <span className={styles.unsavedMarker}>Unsaved changes</span>}
+          <button className={styles.btnCancel} onClick={discardChanges} disabled={!isDirty || loading}>Discard</button>
+          <button className={styles.btnSave} onClick={handleSubmit} disabled={!isDirty || loading}>Save</button>
+        </div>
       </div>
 
       {loading ? (
@@ -352,6 +376,7 @@ const AdminSettings = () => {
               {group.items.map(({ setting, originalIndex }) => {
                 const accKey = `acc-${originalIndex}`;
                 const isOpen = openSections.has(accKey);
+                const itemDirty = isItemDirty(originalIndex);
 
                 return (
                   <div key={accKey} className={styles.accItem}>
@@ -364,10 +389,13 @@ const AdminSettings = () => {
                           {getIcon(setting.viewLabel)}
                         </div>
                         <div>
-                          <div className={styles.accName}>{setting.viewLabel}</div>
-                          <div className={styles.accDesc}>{getDescription(setting.viewLabel)}</div>
+                          <div className={styles.accName}>{displayName(setting)}</div>
+                          <div className={styles.accDesc}>{displayDesc(setting) ?? getDescription(setting.viewLabel)}</div>
                         </div>
                       </div>
+                      <span className={`${styles.accSummary} ${itemDirty ? styles.accSummaryDirty : ''}`}>
+                        {settingSummary(setting, itemDirty)}
+                      </span>
                       <svg className={`${styles.accChevron} ${isOpen ? styles.accChevronOpen : ''}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M4 6l4 4 4-4"/>
                       </svg>
@@ -597,7 +625,7 @@ const AdminSettings = () => {
                                           type="number"
                                           placeholder="Max Limit"
                                           value={maxLimit}
-                                          onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, setting.viewLabel)}
+                                          onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, setting.viewName)}
                                         />
                                         {isValidate && (
                                           <span className={styles.fieldHint}>
@@ -617,7 +645,7 @@ const AdminSettings = () => {
                                         <select
                                           className={styles.fieldSelect}
                                           value={maxLimit}
-                                          onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, setting.viewLabel)}
+                                          onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, setting.viewName)}
                                         >
                                           {[...Array(20)].map((_, i) => (
                                             <option key={i} value={1 + i}>{1 + i}</option>
