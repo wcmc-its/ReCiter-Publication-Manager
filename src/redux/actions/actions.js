@@ -52,7 +52,6 @@ export const identityFetchData = uid => dispatch => {
     }, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("Identity Api successfully fetched for " + uid);
                 return response.json()
             } else {
                 throw {
@@ -114,7 +113,6 @@ export const identityFetchAllData = (request) => dispatch => {
     }, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("Identity All Api successfully fetched");
                 return response.json()
             } else {
                 throw {
@@ -250,7 +248,6 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
     }, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("Feature generator Api successfully fetched for " + uid);
                 return response.json()
             } else {
                 throw {
@@ -422,7 +419,6 @@ export const pubmedFetchData = query => dispatch => {
                 dispatch(
                     clearError()
                 )
-                toast.success("Pubmed query successfully fetched");
 
                 dispatch(
                     addPubMedFetchMoreData("")
@@ -535,7 +531,6 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
     }, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("GoldStandard updated successfully for user" + uid);
                 return response.json()
             } else {
                 throw {
@@ -586,7 +581,6 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         }, 300000)
             .then(response => {
                 if (response.status === 200 || response.status === 201) {
-                    toast.success("Feedback log updated in database for " + uid);
                     return response.json()
                 } else {
                     throw {
@@ -687,7 +681,6 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
     }, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("GoldStandard updated successfully for user" + uid);
                 return response.json()
             } else {
                 throw {
@@ -735,7 +728,6 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
         }, 300000)
             .then(response => {
                 if (response.status === 200 || response.status === 201) {
-                    toast.success("Feedback log updated in database for " + uid);
                     return response.json()
                 } else {
                     throw {

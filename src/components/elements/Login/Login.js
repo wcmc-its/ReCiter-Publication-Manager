@@ -35,7 +35,6 @@ const Login = () => {
         redirect: false
        })
        if (signInResponse.status == 200) {
-            toast.info("Successful Login");
             //if(session && session.data && session.data.userRoles)
              getSession().then((session) => {
                 if (session) {
