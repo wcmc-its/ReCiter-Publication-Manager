@@ -9,6 +9,8 @@ export const REPORT_SORT_COLUMNS: Record<string, string> = {
   journalImpactScore2: "journalImpactScore2",
   percentileNIH: "percentileNIH",
   publicationDateStandardized: "publicationDateStandardized",
+  // legacy admin_settings reportingWebViewSort key spelling (see config/report.js)
+  publicationDateStandarized: "publicationDateStandardized",
   readersMendeley: "readersMendeley",
   trendingPubsScore: "trendingPubsScore",
   citationCountScopus: "citationCountScopus",

@@ -57,7 +57,7 @@ for (const key of Object.keys(REPORT_SORT_COLUMNS)) {
   assert.ok(columns.has(REPORT_SORT_COLUMNS[key]), `REPORT_SORT_COLUMNS.${key} is not a model column`);
 }
 assert.deepEqual(buildReportSort(undefined), []);
-assert.deepEqual(buildReportSort({ type: "publicationDateStandarized", order: "DESC" }), [], "old misspelling must not reach SQL");
+assert.equal(buildReportSort({ type: "publicationDateStandarized", order: "DESC" })[0][0].val, "isnull(publicationDateStandardized), publicationDateStandardized DESC", "legacy key must sort on the real column");
 assert.deepEqual(buildReportSort({ type: "constructor" }), [], "prototype keys must not map");
 assert.deepEqual(
   buildReportSort({ type: "citationCountNIH", order: "DESC; DROP TABLE x" }),
@@ -77,7 +77,7 @@ for (const [file, count] of Object.entries(paths)) {
   assert.equal(uses.length, count, `${file}: expected ${count} buildReportSort call(s), got ${uses.length}`);
   assert.doesNotMatch(src, /Sequelize\.literal\('isnull\(/, `${file} still builds sort literals inline`);
 }
-for (const file of [...Object.keys(paths), "config/report.js", "types/publication.report.search.d.ts"]) {
+for (const file of [...Object.keys(paths), "types/publication.report.search.d.ts"]) {
   assert.doesNotMatch(read(file), /Standarized/, `${file} still has the publicationDateStandarized typo`);
 }
 
