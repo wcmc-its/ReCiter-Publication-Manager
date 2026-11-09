@@ -233,6 +233,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      // An open Dialog/Sheet (profile, history, ...) owns the keyboard.
+      if (document.querySelector('[role="dialog"]')) return;
 
       const key = e.key.toLowerCase();
       const focusedPub = publicationsPaginatedData[focusedIndex];
