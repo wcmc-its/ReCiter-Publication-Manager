@@ -109,13 +109,12 @@ interface FuncProps {
     onReject?: (item: any, note?: string) => void,
     // list mode only — un-reject a suppressed row (persists via the feedback route).
     onAccept?: (item: any) => void,
+    // list mode only — remove the row. Shown to anyone the tab hands it to; the server
+    // gates it with the same canCurate check as PubMed curation, not by who added the row.
     onDelete?: (articleId: string) => void,
     // Curate per-source tabs (Option C Phase 1) — the source tab already names the
     // source, so its cards drop the redundant badge.
     hideSourceBadge?: boolean,
-    // list mode only — the signed-in curator's CWID, threaded down from ReciterTabs'
-    // useSession(). Gates the Delete button to the row's own adder (item.addedBy).
-    viewerCwid?: string,
 }
 
 // Map the server's duplicate match type(s) to a state-specific, actionable headline.
@@ -464,7 +463,7 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                                 <CheckIcon style={{ fontSize: 14 }} /> Accept
                             </button>
                         )}
-                        {!!props.viewerCwid && item.addedBy === props.viewerCwid && (
+                        {props.onDelete && (
                             <button
                                 className={styles.btnDelete}
                                 onClick={() => props.onDelete && props.onDelete(item.articleId)}
