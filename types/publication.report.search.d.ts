@@ -33,7 +33,7 @@ export type PublicationSort = {
     // citationCountNIH?: boolean
     // trendingPubsScore?: boolean
     // readersMendeley?: boolean
-    // publicationDateStandarized?: boolean
+    // publicationDateStandardized?: boolean
     type: string,
     order: string
 }

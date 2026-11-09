@@ -95,7 +95,7 @@ export const sortOptions = {
   citationCountNIH: true,
   trendingPubsScore: true,
   readersMendeley: true,
-  publicationDateStandarized: true,
+  publicationDateStandardized: true,
   relativeCitationRatioNIH:true,
   citationCountScopus:true
 }
