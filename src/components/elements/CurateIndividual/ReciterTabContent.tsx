@@ -263,7 +263,10 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         }
       } else if (key === 'arrowdown') {
         e.preventDefault();
-        setFocusedIndex(prev => Math.min(prev + 1, publicationsPaginatedData.length - 1));
+        // Keyboard can walk past the rendered window: grow it before focus reaches the end.
+        const next = Math.min(focusedIndex + 1, publications.length - 1);
+        if (next >= visible - 5) setVisible(v => v + LIST_CHUNK);
+        setFocusedIndex(next);
       } else if (key === 'arrowup') {
         e.preventDefault();
         setFocusedIndex(prev => Math.max(prev - 1, 0));
@@ -272,7 +275,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
 
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isArticleTab, isSuggested, focusedIndex, publicationsPaginatedData, props.personIdentifier]);
+  }, [isArticleTab, isSuggested, focusedIndex, publicationsPaginatedData, props.personIdentifier, visible, publications.length]);
 
   // Scroll focused card into view
   useEffect(() => {
