@@ -30,13 +30,19 @@ interface TabContentProps {
   onTabChange?: (key: string) => void,
 }
 
+const LIST_CHUNK = 50;
+
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [sort, setSort] = useState<string>("0")
   const [publications, setPublications] = useState<any>(props.publications);
   const [searchtextCarier, setSearchtextCarier] = useState<any>("");
 
-  const [page, setPage] = useState(1)
-  const [count, setCount] = useState(20)
+  // Progressive list: render a window that grows by LIST_CHUNK as the sentinel nears the
+  // viewport. ponytail: never shrinks, so a fully scrolled 2,000-card tab keeps 2,000 cards
+  // mounted; switch to real virtualization if that measures slow.
+  const page = 1
+  const [visible, setVisible] = useState(LIST_CHUNK)
+  const sentinelRef = useRef<HTMLDivElement>(null)
   const { data: session, status } = useSession(); const loading = status === "loading";
   const [totalCount, setTotalCount] = useState<number>(publications.length || 0);
   const dispatch = useDispatch();
@@ -46,41 +52,27 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     setPublications(filteredPublications);
     setTotalCount(filteredPublications.length);
     setSearchtextCarier(searchText);
-    if (page !== 1) {
-      setPage(1);
-    }
+    setVisible(LIST_CHUNK);
   }
 
   const sortUpdate = (sort: string) => {
     setSort(sort);
     let sortedPublications = sortPublications(props.publications, sort);
     setPublications(sortedPublications);
+    setVisible(LIST_CHUNK);
   }
 
-  // Update the page
-  const handlePaginationUpdate = (page) => {
-    setPage(page)
-  }
+  let publicationsPaginatedData = publications.slice(0, visible);
 
-  // Update the count per page
-  const handleCountUpdate = (count) => {
-    if (count) {
-      setPage(1);
-      setCount(parseInt(count));
-    }
-  }
-
-  const getPaginatedData = () => {
-    let from = (page - 1) * count;
-    let to = from + count;
-    let dataList = [];
-    if (publications) {
-      dataList = publications;
-    }
-    return dataList.slice(from, to);
-  };
-
-  let publicationsPaginatedData = publications.slice((page - 1) * count, page * count);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || visible >= publications.length) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) setVisible((v) => v + LIST_CHUNK);
+    }, { rootMargin: '800px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible, publications.length]);
 
   var totalNullCount = 0;
   var totalAcceptedCount = 0;
@@ -176,7 +168,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     }
 
     const userId = session?.data?.databaseUser?.userID;
-    const pmids = getPaginatedData().map((publication) => { return publication.pmid });
+    const pmids = publications.map((publication) => { return publication.pmid });
     const request = {
       publications: pmids,
       userAssertion: userAssertion,
@@ -191,11 +183,10 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     dispatch(curateSearchtextAction(SearchInfo));
     dispatch(reciterUpdatePublication(props.personIdentifier, request));
     //TODO Update publications list in the tab
-    let paginatedPublications = getPaginatedData();
     let updatedPublications = [];
     pmids.forEach((pmid) => {
       let updatedPublication = {};
-      let index = paginatedPublications.findIndex(publication => publication.pmid === pmid);
+      let index = publications.findIndex(publication => publication.pmid === pmid);
       if (index > -1) {
         updatedPublication = {
           ...publications[index],
@@ -361,11 +352,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         updateAll={handleUpdatePublicationAll}
         tabType={props.tabType}
         isSearchText={props.isSearchText}
-        page={page}
-        count={count}
         totalCount={totalCount}
-        handlePaginationUpdate={handlePaginationUpdate}
-        handleCountUpdate={handleCountUpdate}
       />
 
       {/* Keyboard hint bar — Suggested tab only */}
@@ -401,13 +388,14 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
           )
         })}
       </div>
+      {visible < publications.length && <div ref={sentinelRef} className={styles.listSentinel} aria-hidden="true" />}
 
       {/* All caught up state */}
       {isSuggested && pendingCount === 0 && publicationsPaginatedData.length > 0 && (
         <div className={styles.allDone}>
           <div className={styles.allDoneCheck}><CheckIcon /></div>
           <p><strong>All caught up!</strong></p>
-          <p>No pending suggestions remaining on this page.</p>
+          <p>No pending suggestions remaining.</p>
         </div>
       )}
     </>

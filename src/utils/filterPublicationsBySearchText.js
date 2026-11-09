@@ -1,9 +1,13 @@
 import { PanoramaWideAngleSelect } from "@mui/icons-material";
 import fullName from "./fullName";
+import { parseIdList, matchesIdList } from "./idList";
 
 const filterPublicationsBySearchText = (reciterData, search) => {
   const filteredPublications = []
   var scopusTargetAuthorAffiliationScore = 0
+  // A pasted list of PMIDs / DOIs / their URLs filters to exactly those records.
+  const ids = parseIdList(search)
+  if (ids) return reciterData.filter((publication) => matchesIdList(publication, ids))
   reciterData.forEach((publication) => {
       // Check search and sort
       if(search !== "") {
