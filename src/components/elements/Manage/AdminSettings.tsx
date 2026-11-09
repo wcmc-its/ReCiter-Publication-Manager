@@ -211,11 +211,7 @@ const AdminSettings = () => {
         setSavedSettings(parsed);
         setIsSendTestEmail(false);
         setLoading(false);
-        toast.success("Configuration saved. Takes effect on next login.", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.success("Configuration saved. Takes effect on next login.");
       })
       .catch(error => {
         console.error("[ERR-9002]", error);
