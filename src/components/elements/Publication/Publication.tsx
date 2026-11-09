@@ -13,7 +13,8 @@ import { showEvidenceByDefault } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml } from "../../../utils/htmlText";
 import { toast } from "react-toastify";
-import { buildEvidenceRows, determineMatchType, MATCH_COLORS as matchColors, knownCoauthorsOf, identityChips, tallyOf, affiliationParts } from "../../../utils/identityEvidence";
+import Popover from "@mui/material/Popover";
+import { buildEvidenceRows, determineMatchType, MATCH_COLORS as matchColors, knownCoauthorsOf, identityChips, tallyOf, affiliationParts, chipDetail } from "../../../utils/identityEvidence";
 import type { CoauthorIndex } from "../../../utils/identityEvidence";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
@@ -80,7 +81,7 @@ const CopyButton = ({ label, value }: { label: string, value: string | number })
   </button>
 );
 
-const CHIP_SYM = { match: '\u2713', partial: '~', mismatch: '\u2715', nodata: '?' };
+const CHIP_SYM = { match: '\u2713', partial: '~', mismatch: '\u2715', nodata: '?', info: '\u2022' };
 
 //TEMP: update to required
 interface FuncProps {
@@ -112,6 +113,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const [showEvidence, setShowEvidence] = useState<boolean>(false)
     const [expandedAuthors, setExpandedAuthors] = useState<boolean>(false)
     const [showZeroWeight, setShowZeroWeight] = useState<boolean>(false)
+    const [chipOpen, setChipOpen] = useState<{ label: string, el: HTMLElement } | null>(null)
 
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [showCurationLog, setShowCurationLog] = useState<boolean>(false)
@@ -574,13 +576,45 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                 <div className={styles.idSummary}>
                   <ul className={styles.idChips} aria-label="Identity evidence summary">
                     {idChips.map((c) => (
-                      <li key={c.label} className={styles.idChip} data-kind={c.kind} title={c.tip}>
-                        <span className={styles.idChipSym} aria-hidden="true">{CHIP_SYM[c.kind]}</span>
-                        {c.label}
-                        <span className={styles.srOnly}>: {matchColors[c.kind].label}</span>
+                      <li key={c.label}>
+                        <button
+                          type="button"
+                          className={styles.idChip}
+                          data-kind={c.kind}
+                          title={c.tip}
+                          aria-haspopup="dialog"
+                          aria-expanded={chipOpen?.label === c.label}
+                          onClick={(e) => { e.stopPropagation(); setChipOpen({ label: c.label, el: e.currentTarget }); }}
+                        >
+                          <span className={styles.idChipSym} aria-hidden="true">{CHIP_SYM[c.kind]}</span>
+                          {c.label}
+                          <span className={styles.srOnly}>: {matchColors[c.kind].label}</span>
+                        </button>
                       </li>
                     ))}
                   </ul>
+                  {/* Drill-down: opens upward over the card (portal, so nothing shifts); Escape or click away closes and returns focus to the chip */}
+                  <Popover
+                    open={!!chipOpen}
+                    anchorEl={chipOpen?.el}
+                    onClose={() => setChipOpen(null)}
+                    anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+                    transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                    PaperProps={{ role: 'dialog', 'aria-label': `${chipOpen?.label} evidence`, className: styles.chipPop }}
+                  >
+                    <div className={styles.chipPopHead}>{chipOpen?.label}</div>
+                    <ul className={styles.chipPopLines}>
+                      {chipOpen && chipDetail(reciterArticle.evidence, chipOpen.label, coauthors).map((l, i) => (
+                        <li key={i}>
+                          <span className={styles.idChipSym} data-kind={l.kind} aria-hidden="true">{CHIP_SYM[l.kind]}</span>
+                          <span>
+                            {l.text}
+                            {l.sub && <span className={styles.chipPopSub}>{l.sub}</span>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Popover>
                   <span className={styles.idTally}>
                     <span className={styles.idTallyBar} aria-hidden="true">
                       <span data-kind="match" style={{ width: `${(100 * tally.match) / tallyBase}%` }} />
