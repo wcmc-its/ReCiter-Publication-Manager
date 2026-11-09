@@ -1,27 +1,10 @@
-.main.mainCompact {
-  margin-left: 250px;
-  width: -webkit-fill-available;
+.content {
+  padding: 24px 40px;
+  min-height: calc(100vh - var(--header-height) - 44px);
 }
 
-.main {
-  height: 100%;
-  margin-left: 82px;
-  padding: 20px 40px;
-  width: -webkit-fill-available;
-  background: var(--color-warm-bg);
-}
-
-.containerFluid {
-  height: 100%;
-}
-
-.expandedSideBarContent{
-  margin-left: 220px;
-  padding: 24px 40px !important;
-  min-height: calc(100vh - 52px);
-}
-.nonExpandedSideBarContent{
-  margin-left: 73px;
-  padding: 24px 40px !important;
-  min-height: calc(100vh - 52px);
+@media (max-width: 700px) {
+  .content {
+    padding: 16px;
+  }
 }

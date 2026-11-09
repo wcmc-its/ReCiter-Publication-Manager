@@ -60,7 +60,8 @@ const lookupSrc = read("src/pages/api/db/admin/view-as/lookup.ts");
 const appLayoutSrc = read("src/components/layouts/AppLayout.jsx");
 const bannerSrc = read("src/components/elements/ViewAs/ViewAsBanner.jsx");
 const modalSrc = read("src/components/elements/ViewAs/ViewAsModal.jsx");
-const sideNavbarSrc = read("src/components/elements/Navbar/SideNavbar.tsx");
+const headerSrc = read("src/components/elements/Header/Header.tsx");
+const sectionNavSrc = read("src/components/elements/SectionNav/SectionNav.tsx");
 const searchSrc = read("src/components/elements/Search/Search.js");
 const viewAsCssSrc = read("src/components/elements/ViewAs/ViewAs.module.css");
 const scopeResolverSrc = read("src/utils/scopeResolver.ts");
@@ -205,8 +206,8 @@ assert(/applied as them but logged to you/.test(modalSrc), "modal copy: 'applied
 assert(/update\(\{\s*viewAs:\s*cwid\s*\}\)|update\(\{\s*viewAs:\s*target\.personIdentifier\s*\}\)/.test(modalSrc), "modal confirm calls update({ viewAs: <cwid> })");
 assert(/No active Publication Manager user with that CWID/.test(modalSrc), "modal maps not_found to its inline copy");
 assert(/You can't view as another Superuser/.test(modalSrc), "modal maps target_is_superuser to its inline copy");
-assert(/canViewAs\s*&&\s*!.*viewAs/.test(sideNavbarSrc), "nav entry gated on session.canViewAs && !session.viewAs");
-assert(/ViewAsModal/.test(sideNavbarSrc), "SideNavbar renders ViewAsModal");
+assert(/canViewAs\s*&&\s*!.*viewAs/.test(headerSrc), "top-bar entry gated on session.canViewAs && !session.viewAs");
+assert(/ViewAsModal/.test(headerSrc), "Header renders ViewAsModal");
 
 // ---------------------------------------------------------------------------------------
 console.log("\n9. Cookie size -- representative token vs. the 3900-byte budget:");
@@ -296,7 +297,7 @@ assert(/const scopeFilterInitRef = useRef\(true\);/.test(searchSrc), "scopeFilte
 // ---------------------------------------------------------------------------------------
 console.log("\n11. ViewAs.module.css -- banner flush under the header, app font:");
 assert(/\.banner \{[^}]*top:\s*var\(--header-height\);/.test(viewAsCssSrc), ".banner: top: var(--header-height)");
-assert(/\.banner \{[^}]*margin:\s*-24px -40px 24px;/.test(viewAsCssSrc), ".banner: negative margins cancel the content column's 24px 40px padding");
+assert(!/\.banner \{[^}]*margin:/.test(viewAsCssSrc), ".banner: no margins (mounted above the content column, under the top bar)");
 assert(/\.banner \{[^}]*font-family:\s*var\(--font-sans\);/.test(viewAsCssSrc), ".banner: font-family: var(--font-sans)");
 assert(!/\.banner \{[^}]*border-radius/.test(viewAsCssSrc), ".banner: no border-radius (edge-to-edge strip)");
 assert(/\.returnButton \{[^}]*font:\s*inherit;/.test(viewAsCssSrc), ".returnButton: font: inherit");
@@ -309,8 +310,8 @@ assert(/let filtersOn = Object\.keys\(withoutScopeKeys\(filters\)\)\.length !== 
 assert(/fetchPaginatedData\('reset'\)\n/.test(searchSrc.split("fetchAllAdminSettings()")[0]), "Search.js: mount fetch passes 'reset' (no re-hydration of a previous visit's filters from the stale closure)");
 assert(/\(!filtersOn && !showScopeFilter && identityPaginatedData\?\.persons\?\.length <= 0\)/.test(searchSrc), "Search.js: empty-means-not-loaded heuristic disabled for scoped curators (a scope matching nobody shows the empty state, not a spinner)");
 assert(/\/\/ A search or scope-toggle fetch is in flight: spin regardless of user filters\.\n\s*identityAllFetching\) \{/.test(searchSrc), "Search.js: identityAllFetching spins regardless of filtersOn (scope toggle shows the spinner)");
-assert(/disabled: \(Object\.keys\(withoutScopeKeys\(filters\)\)\.length === 0\) && !hasOwnProfile,/.test(sideNavbarSrc), "SideNavbar.tsx: Curate Publications disabled-gate ignores the scope keys");
-assert(/import \{ withoutScopeKeys \} from '\.\.\/\.\.\/\.\.\/utils\/scopeResolver';/.test(sideNavbarSrc), "SideNavbar.tsx imports withoutScopeKeys");
+assert(/disabled: \(Object\.keys\(withoutScopeKeys\(filters\)\)\.length === 0\) && !hasOwnProfile,/.test(sectionNavSrc), "SectionNav.tsx: Curate disabled-gate ignores the scope keys");
+assert(/import \{ withoutScopeKeys \} from '\.\.\/\.\.\/\.\.\/utils\/scopeResolver';/.test(sectionNavSrc), "SectionNav.tsx imports withoutScopeKeys");
 
 // ---------------------------------------------------------------------------------------
 console.log(`\n${failures === 0 ? PASS : FAIL} ${passes} passed, ${failures} failed\n`);
