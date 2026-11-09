@@ -38,15 +38,3 @@
   outline: 2px solid var(--pm-ring);
   outline-offset: 2px;
 }
-
-.confirmBody {
-  font-size: 13px;
-  line-height: 1.5;
-  color: #1a2133;
-}
-
-.errorText {
-  color: #b42318;
-  font-size: 12px;
-  margin-top: 8px;
-}

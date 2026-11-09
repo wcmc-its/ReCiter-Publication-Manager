@@ -1,7 +1,4 @@
-import { Modal, Button, Alert } from "react-bootstrap";
-import { ExportButton } from "./ExportButton";
-import Loader from "../Common/Loader";
-import { ExportButtonProps } from "../../../../types/Export";
+import { Dialog, Button } from "../../ui";
 
 interface ExportModalProps {
   title: string,
@@ -10,22 +7,16 @@ interface ExportModalProps {
   error?: boolean,
 }
 
-const NoAccessModal = ({ show, handleClose, title, error }: ExportModalProps) => {
-
+const NoAccessModal = ({ show, handleClose }: ExportModalProps) => {
   return (
-    <div>
-      <Modal show={show}>
-        {/* <Modal.Header closeButton>
-          <Modal.Title> {title}</Modal.Title>
-        </Modal.Header> */}
-        <Modal.Body >
-            <p>You do not have sufficient privileges to visit other profiles. Please contact your administrator if you need access.</p>
-            <div className="textAlignCenter">
-            <ExportButton title="Ok Continue" onClick={()=> handleClose()}/>
-            </div>
-        </Modal.Body>
-      </Modal>
-    </div>
+    <Dialog
+      open={show}
+      onClose={handleClose}
+      title="No access"
+      footer={<Button variant="primary" onClick={() => handleClose()}>OK, continue</Button>}
+    >
+      You do not have sufficient privileges to visit other profiles. Please contact your administrator if you need access.
+    </Dialog>
   )
 }
 

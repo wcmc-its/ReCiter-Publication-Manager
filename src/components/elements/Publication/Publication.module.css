@@ -1494,3 +1494,14 @@
 .stValGreen { color: #5de0a0; }
 .stValAmber { color: #f0b84a; }
 .stValMuted { color: rgba(255, 255, 255, 0.4); }
+
+/* History content inside the shared Sheet (PubMed cards): quiet section labels, not the popover's dark bars. */
+.curationLogSheet .clogHead {
+  padding: 16px 0 6px;
+  background: none;
+  color: var(--pm-muted-foreground);
+}
+.curationLogSheet .clogEntry {
+  padding: 8px 0;
+  border-bottom-color: var(--pm-border);
+}

@@ -4,12 +4,16 @@ import { RootStateOrAny } from "../../../types/redux";
 import Image from 'next/image'
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
-import styles from "./Profile.module.css";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import Box from "@mui/material/Box";
+import { Sheet, Button } from "../../ui";
 import { reciterConfig } from '../../../../config/local';
 import { metrics, labels } from "../../../../config/report";
 import Excel from 'exceljs';
 import { useSession } from 'next-auth/react';
-import { allowedPermissions } from "../../../utils/constants";
+import { allowedPermissions, getCapabilities } from "../../../utils/constants";
+import { hasConfiguredScope, isProxyFor } from "../../../utils/scopeResolver";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import { stripHtml } from "../../../utils/htmlText";
@@ -56,6 +60,7 @@ const Profile = ({
   const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
   const { data: session, status } = useSession(); const loading = status === "loading";
+  const router = useRouter();
   const userPermissions = JSON.parse(session.data.userRoles);
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
@@ -111,18 +116,6 @@ const Profile = ({
     }
     setExportArticlesRTF(exportArticleRTFViewAttr)
   }, [])
-
-  // Body scroll lock + Escape key
-  useEffect(() => {
-    if (!modalShow) return;
-    document.body.style.overflow = 'hidden';
-    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
-    document.addEventListener('keydown', onEsc);
-    return () => {
-      document.body.style.overflow = '';
-      document.removeEventListener('keydown', onEsc);
-    };
-  }, [modalShow]);
 
   // ── Data fetching ──
 
@@ -295,242 +288,261 @@ const Profile = ({
 
   // ── Render ──
 
-  if (!modalShow) return null;
-
   // Email permission check
   const roleAccess = userPermissions.some((role: any) =>
     role.roleLabel === (allowedPermissions.Superuser || allowedPermissions.Curator_Self)
   );
   const showEmails = identity.emails && identity.emails.length > 0 && roleAccess;
 
-  return (
-    <div className={styles.profileOverlay} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
-      <div className={styles.profileDrawer}>
+  // Curate link: same rule as Search.js canCuratePerson (curate-all / scoped / proxy-for / self).
+  // The curate APIs still enforce scope server-side.
+  const caps = getCapabilities(userPermissions);
+  const scopeData = safeParse((session?.data as any)?.scopeData, null);
+  const proxyPersonIds = safeParse((session?.data as any)?.proxyPersonIds, []);
+  const canCurateThisPerson = caps.canCurate.all || caps.canCurate.scoped || hasConfiguredScope(scopeData)
+    || isProxyFor(proxyPersonIds, uid)
+    || (caps.canCurate.self && uid === caps.canCurate.personIdentifier);
+  const onThisCuratePage = router.pathname === '/curate/[id]' && router.query.id === uid;
 
+  const name = identity.primaryName ? fullName(identity.primaryName) : '';
+  const initials = ((identity.primaryName?.firstName || '').charAt(0) + (identity.primaryName?.lastName || '').charAt(0)).toUpperCase();
+  const showPhoto = displayImage && identity.identityImageEndpoint && headShotLabelData?.length > 0 && headShotLabelData[0].isVisible;
+  const loaded = !isLoading && !isError;
+
+  const metricItems = [
+    { value: acceptedCount, label: 'Accepted' },
+    { value: identity.hindexNIH ?? '–', label: 'h-index' },
+    { value: identity.h5indexNIH ?? '–', label: 'h5-index' },
+  ];
+
+  const header = loaded ? (
+    <Box component="span" sx={{ display: 'flex', gap: 1.75, alignItems: 'flex-start' }}>
+      <Box component="span" sx={{
+        width: 56, height: 56, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, display: 'grid', placeItems: 'center',
+        bgcolor: 'var(--pm-surface-2)', border: '1px solid var(--pm-border)', color: 'var(--pm-slate)', fontSize: 17, fontWeight: 600,
+      }}>
+        {showPhoto ? (
+          <Image
+            alt="Profile photo"
+            width={56}
+            height={56}
+            style={{ objectFit: 'cover' }}
+            src={headShotLabelData[0]?.syntax?.replace("{personIdentifier}", identity.uid)}
+            onError={() => setDisplayImage(false)}
+          />
+        ) : initials}
+      </Box>
+      <Box component="span" sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
+        <Box component="span" sx={{ fontFamily: 'var(--font-display-serif)', fontSize: 20, fontWeight: 600, lineHeight: 1.25 }}>{name}</Box>
+        {identity.title && <Box component="span" sx={subtleSx}>{identity.title}</Box>}
+        <Box component="span" sx={subtleSx}>
+          {identity.primaryOrganizationalUnit && <>{identity.primaryOrganizationalUnit} · </>}
+          <Box component="span" sx={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{uid}</Box>
+        </Box>
+      </Box>
+    </Box>
+  ) : 'Profile';
+
+  return (
+    <Sheet open={modalShow} onClose={handleClose} title={header}>
         {isLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', flex: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 7.5 }}>
             <Loader />
-          </div>
+          </Box>
         ) : isError ? (
-          <div style={{ padding: '40px 24px', textAlign: 'center', color: '#8a94a6', fontSize: 13 }}>
+          <Box sx={{ py: 5, textAlign: 'center', color: 'var(--pm-muted-foreground)', fontSize: 13 }}>
             Unable to load profile. Please try again.
-          </div>
+          </Box>
         ) : (
           <>
-            {/* ── Drawer Head (sticky) ── */}
-            <div className={styles.drawerHead}>
-              <button className={styles.drawerClose} onClick={handleClose}>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l10 10M13 3L3 13"/></svg>
-              </button>
+            {/* ── Metrics + actions ── */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', border: '1px solid var(--pm-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+              {metricItems.map((m, i) => (
+                <Box key={m.label} sx={{ px: 1.5, py: 1, display: 'flex', flexDirection: 'column', gap: 0.25, borderLeft: i > 0 ? '1px solid var(--pm-border)' : 'none' }}>
+                  <Box component="span" sx={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>{m.value}</Box>
+                  <Box component="span" sx={capsLabelSx}>{m.label}</Box>
+                </Box>
+              ))}
+            </Box>
 
-              <div className={styles.drawerIdentity}>
-                <div className={styles.drawerPhoto}>
-                  {displayImage && identity.identityImageEndpoint && headShotLabelData?.length > 0 && headShotLabelData[0].isVisible ? (
-                    <Image
-                      className={styles.drawerPhotoImg}
-                      alt="Profile photo"
-                      width={64}
-                      height={64}
-                      src={headShotLabelData[0]?.syntax?.replace("{personIdentifier}", identity.uid)}
-                      onError={() => setDisplayImage(false)}
-                    />
-                  ) : (
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" width="28" height="28">
-                      <circle cx="8" cy="5.5" r="3"/><path d="M2 14c0-3.31 2.69-6 6-6s6 2.69 6 6"/>
-                    </svg>
-                  )}
-                </div>
-                <div>
-                  <div className={styles.drawerName}>{identity.primaryName ? fullName(identity.primaryName) : ''}</div>
-                  {identity.title && <div className={styles.drawerTitle}>{identity.title}</div>}
-                  {identity.primaryOrganizationalUnit && <div className={styles.drawerDept}>{identity.primaryOrganizationalUnit}</div>}
-                  <div className={styles.drawerMetrics}>
-                    <div className={styles.drawerMetric}>
-                      <div className={styles.drawerMetricVal}>{acceptedCount}</div>
-                      <div className={styles.drawerMetricLbl}>Accepted</div>
-                    </div>
-                    <div className={styles.drawerMetricDivider} />
-                    <div className={styles.drawerMetric}>
-                      <div className={styles.drawerMetricVal}>{identity.hindexNIH ?? '–'}</div>
-                      <div className={styles.drawerMetricLbl}>h-index</div>
-                    </div>
-                    <div className={styles.drawerMetricDivider} />
-                    <div className={styles.drawerMetric}>
-                      <div className={styles.drawerMetricVal}>{identity.h5indexNIH ?? '–'}</div>
-                      <div className={styles.drawerMetricLbl}>h5-index</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mt: 1.75, pb: 1, borderBottom: '1px solid var(--pm-border)' }}>
+              <Button size="sm" onClick={exportArticleCSV} disabled={exportArticleCsvLoading} sx={slateTintSx}>
+                {exportArticleCsvLoading ? 'Exporting…' : 'Excel'}
+              </Button>
+              <Button size="sm" onClick={generateRTFPeopleOnly} disabled={exportArticlRTFLoading} sx={slateTintSx}>
+                {exportArticlRTFLoading ? 'Exporting…' : 'Word'}
+              </Button>
+              {canCurateThisPerson && !onThisCuratePage && (
+                <Button size="sm" component={Link} href={`/curate/${uid}`} onClick={handleClose}>Curate</Button>
+              )}
+              {showBiblioBtn && (
+                <Button size="sm" onClick={generateBiblioAnalysis} sx={amberTintSx}>Bibliometric analysis</Button>
+              )}
+            </Box>
 
-              <div className={styles.drawerActions}>
-                <button className={styles.drawerActionBtn} onClick={exportArticleCSV} disabled={exportArticleCsvLoading}>
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M2 4h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/><path d="M2 4l6 5 6-5"/></svg>
-                  {exportArticleCsvLoading ? 'Exporting…' : 'Export CSV'}
-                </button>
-                <button className={styles.drawerActionBtn} onClick={generateRTFPeopleOnly} disabled={exportArticlRTFLoading}>
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M2 4h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/><path d="M2 4l6 5 6-5"/></svg>
-                  {exportArticlRTFLoading ? 'Exporting…' : 'Export RTF'}
-                </button>
-                {showBiblioBtn && (
-                  <button className={styles.drawerActionBtn} onClick={generateBiblioAnalysis}>
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M5 7h6M5 10h4"/></svg>
-                    Bibliometric analysis
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* ── Drawer Body ── */}
-            <div className={styles.drawerBody}>
-
-              {/* Names section */}
-              <div className={styles.drawerSection}>
-                <div className={styles.drawerSectionTitle}>Names</div>
-                <div className={styles.drawerFieldVal}>
-                  {identity.primaryName && (
-                    <div className={styles.drawerListItem}>
-                      {fullName(identity.primaryName)} <span className={styles.primaryDot}>·</span> <span className={styles.primaryLabel}>Primary</span>
-                    </div>
-                  )}
-                  {identity.alternateNames && (() => {
-                    const primaryStr = identity.primaryName ? fullName(identity.primaryName) : '';
-                    const seen = new Set([primaryStr]);
-                    return identity.alternateNames
-                      .filter((altName: PrimaryName) => {
-                        const str = fullName(altName);
-                        if (seen.has(str)) return false;
-                        seen.add(str);
-                        return true;
-                      })
-                      .map((altName: PrimaryName, i: number) => (
-                        <div key={i} className={`${styles.drawerListItem} ${styles.drawerListItemSecondary}`}>{fullName(altName)}</div>
-                      ));
-                  })()}
-                </div>
-              </div>
-
-              {/* Affiliation section */}
-              <div className={styles.drawerSection}>
-                <div className={styles.drawerSectionTitle}>Affiliation</div>
-
-                {/* Org units */}
-                {identity.organizationalUnits && identity.organizationalUnits.length > 0 && (
-                  <div className={styles.drawerField}>
-                    <div className={styles.drawerFieldLabel}>Org units</div>
-                    <div className={styles.drawerFieldVal}>
-                      {identity.organizationalUnits.map((unit: any, i: number) => {
-                        let dateStr = '';
-                        if (unit.startDate) {
-                          dateStr = unit.startDate.split('-')[0] + ' – ' + (unit.endDate ? unit.endDate.split('-')[0] : 'present');
-                        }
-                        return (
-                          <div key={i} className={`${styles.drawerListItem} ${i > 0 ? styles.drawerListItemSecondary : ''}`}>
-                            {unit.organizationalUnitLabel}
-                            {dateStr && <span className={styles.yearBadge}>{dateStr}</span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Institutions */}
-                {identity.institutions && identity.institutions.length > 0 && (
-                  <div className={styles.drawerField}>
-                    <div className={styles.drawerFieldLabel}>Institutions</div>
-                    <div className={styles.drawerFieldVal}>
-                      {[...new Set(identity.institutions)].map((inst: string, i: number) => (
-                        <div key={i} className={`${styles.drawerListItem} ${inst !== identity.primaryInstitution ? styles.drawerListItemSecondary : ''}`}>
-                          {inst}
-                          {inst === identity.primaryInstitution && (
-                            <><span className={styles.primaryDot}>·</span> <span className={styles.primaryLabel}>Primary</span></>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Email */}
-                {showEmails && (
-                  <div className={styles.drawerField}>
-                    <div className={styles.drawerFieldLabel}>Email</div>
-                    <div className={styles.drawerFieldVal}>
-                      {[...new Set(identity.emails as string[])].map((email: string, i: number) => (
-                        <div key={i} className={`${styles.drawerListItem} ${i > 0 ? styles.drawerListItemSecondary : ''}`}>{email}</div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Grants */}
-                {identity.grants && identity.grants.length > 0 && (
-                  <div className={styles.drawerField}>
-                    <div className={styles.drawerFieldLabel}>Grants</div>
-                    <div className={styles.drawerFieldVal}>
-                      <div className={styles.grantPillList}>
-                        {identity.grants.map((grant: string, i: number) => (
-                          <span key={i} className={styles.grantPill}>{grant}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Known relationships section */}
-              {(() => {
-                // Group relationships by person, combine types
-                const rels = identity.knownRelationships || [];
-                const map = new Map<string, { name: any, types: string[] }>();
-                rels.forEach((rel: any) => {
-                  const personName = fullName(rel.name);
-                  if (map.has(personName)) {
-                    const existing = map.get(personName)!;
-                    if (rel.type && !existing.types.includes(rel.type)) {
-                      existing.types.push(rel.type);
-                    }
-                  } else {
-                    map.set(personName, { name: rel.name, types: rel.type ? [rel.type] : [] });
-                  }
-                });
-                const grouped = Array.from(map.values()).sort((a, b) => {
-                  if (b.types.length !== a.types.length) return b.types.length - a.types.length;
-                  return (a.name.lastName || '').localeCompare(b.name.lastName || '');
-                });
-                if (grouped.length === 0) return null;
-                const visible = showAllRels ? grouped : grouped.slice(0, relsDefaultCount);
-                const hiddenCount = grouped.length - relsDefaultCount;
+            {/* ── Names ── */}
+            <Section title="Names">
+              {identity.primaryName && (
+                <Row label="Primary"><span>{fullName(identity.primaryName)}</span></Row>
+              )}
+              {identity.alternateNames && (() => {
+                const primaryStr = identity.primaryName ? fullName(identity.primaryName) : '';
+                const seen = new Set([primaryStr]);
+                const variants = identity.alternateNames
+                  .filter((altName: PrimaryName) => {
+                    const str = fullName(altName);
+                    if (seen.has(str)) return false;
+                    seen.add(str);
+                    return true;
+                  });
+                if (variants.length === 0) return null;
                 return (
-                  <div className={styles.drawerSection}>
-                    <div className={styles.drawerSectionTitle}>Known relationships</div>
-                    <div className={styles.drawerRelList}>
-                      {visible.map((rel, i) => {
-                        const name = fullName(rel.name);
-                        const typeStr = rel.types.map(slugToText).join(' · ');
-                        return (
-                          <div key={i} className={styles.drawerRelItem}>
-                            <span className={styles.drawerRelName}>{name}</span>
-                            {typeStr && <span className={styles.drawerRelType}>{typeStr}</span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {hiddenCount > 0 && (
-                      <button className={styles.showMoreBtn} onClick={() => setShowAllRels(!showAllRels)}>
-                        {showAllRels ? 'Show less \u2191' : `Show ${hiddenCount} more \u2192`}
-                      </button>
-                    )}
-                  </div>
+                  <Row label="Variants" column>
+                    {variants.map((altName: PrimaryName, i: number) => (
+                      <Box component="span" key={i} sx={{ color: 'var(--pm-muted-foreground)' }}>{fullName(altName)}</Box>
+                    ))}
+                  </Row>
                 );
               })()}
-            </div>
+            </Section>
+
+            {/* ── Affiliation ── */}
+            <Section title="Affiliation">
+              {identity.organizationalUnits && identity.organizationalUnits.length > 0 && (
+                <Row label="Org units" column>
+                  {identity.organizationalUnits.map((unit: any, i: number) => {
+                    let dateStr = '';
+                    if (unit.startDate) {
+                      dateStr = unit.startDate.split('-')[0] + ' – ' + (unit.endDate ? unit.endDate.split('-')[0] : 'present');
+                    }
+                    return (
+                      <span key={i}>
+                        {unit.organizationalUnitLabel}
+                        {dateStr && <Note>{dateStr}</Note>}
+                      </span>
+                    );
+                  })}
+                </Row>
+              )}
+
+              {identity.institutions && identity.institutions.length > 0 && (
+                <Row label="Institutions" column>
+                  {[...new Set(identity.institutions)].map((inst: string, i: number) => (
+                    <span key={i}>
+                      {inst}
+                      {inst === identity.primaryInstitution && <Note>Primary</Note>}
+                    </span>
+                  ))}
+                </Row>
+              )}
+
+              {showEmails && (
+                <Row label="Email" column>
+                  {[...new Set(identity.emails as string[])].map((email: string, i: number) => (
+                    <span key={i}>{email}</span>
+                  ))}
+                </Row>
+              )}
+
+              {identity.grants && identity.grants.length > 0 && (
+                <Row label="Grants">
+                  {identity.grants.map((grant: string, i: number) => (
+                    <Box component="span" key={i} sx={{
+                      height: 22, px: 1, display: 'inline-flex', alignItems: 'center', borderRadius: 999,
+                      bgcolor: 'var(--pm-surface-2)', border: '1px solid var(--pm-border)', fontSize: 12, fontFamily: 'var(--font-mono)',
+                    }}>{grant}</Box>
+                  ))}
+                </Row>
+              )}
+            </Section>
+
+            {/* ── Known relationships ── */}
+            {(() => {
+              // Group relationships by person, combine types
+              const rels = identity.knownRelationships || [];
+              const map = new Map<string, { name: any, types: string[] }>();
+              rels.forEach((rel: any) => {
+                const personName = fullName(rel.name);
+                if (map.has(personName)) {
+                  const existing = map.get(personName)!;
+                  if (rel.type && !existing.types.includes(rel.type)) {
+                    existing.types.push(rel.type);
+                  }
+                } else {
+                  map.set(personName, { name: rel.name, types: rel.type ? [rel.type] : [] });
+                }
+              });
+              const grouped = Array.from(map.values()).sort((a, b) => {
+                if (b.types.length !== a.types.length) return b.types.length - a.types.length;
+                return (a.name.lastName || '').localeCompare(b.name.lastName || '');
+              });
+              if (grouped.length === 0) return null;
+              const visible = showAllRels ? grouped : grouped.slice(0, relsDefaultCount);
+              const hiddenCount = grouped.length - relsDefaultCount;
+              return (
+                <Section title="Known relationships">
+                  <Row label="People" column>
+                    {visible.map((rel, i) => {
+                      const typeStr = rel.types.map(slugToText).join(' · ');
+                      return (
+                        <span key={i}>
+                          {fullName(rel.name)}
+                          {typeStr && <Note>{typeStr}</Note>}
+                        </span>
+                      );
+                    })}
+                  </Row>
+                  {hiddenCount > 0 && (
+                    <Box>
+                      <Button variant="ghost" size="sm" onClick={() => setShowAllRels(!showAllRels)} sx={{ color: 'var(--pm-slate)' }}>
+                        {showAllRels ? 'Show less' : `Show ${hiddenCount} more`}
+                      </Button>
+                    </Box>
+                  )}
+                </Section>
+              );
+            })()}
           </>
         )}
-      </div>
-    </div>
+    </Sheet>
   );
 }
+
+// ── Sheet section layout (prototype: uppercase section title, 92px label column) ──
+
+const subtleSx = { fontSize: 13, fontWeight: 400, color: 'var(--pm-muted-foreground)', lineHeight: 1.4 };
+const capsLabelSx = { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--pm-muted-foreground)' } as const;
+const slateTintSx = {
+  color: 'var(--pm-slate)', bgcolor: 'var(--pm-slate-tint)', borderColor: 'var(--pm-slate-tint-border)',
+  '&:hover': { bgcolor: 'var(--pm-surface)', borderColor: 'var(--pm-slate-tint-border)' },
+};
+const amberTintSx = {
+  color: 'var(--pm-amber)', bgcolor: 'var(--pm-amber-tint)', borderColor: 'var(--pm-amber-tint-border)',
+  '&:hover': { bgcolor: 'var(--pm-surface)', borderColor: 'var(--pm-amber-tint-border)' },
+};
+
+const Section = ({ title, children }: { title: string, children: React.ReactNode }) => (
+  <Box component="section" sx={{ py: 1.75, borderBottom: '1px solid var(--pm-border)', display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+    <Box component="h3" sx={{ m: 0, ...capsLabelSx }}>{title}</Box>
+    {children}
+  </Box>
+);
+
+const Row = ({ label, column, children }: { label: string, column?: boolean, children: React.ReactNode }) => (
+  <Box sx={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr)', gap: 1.5, alignItems: 'start' }}>
+    <Box component="span" sx={{ fontSize: 12, color: 'var(--pm-muted-foreground)', pt: '2px' }}>{label}</Box>
+    <Box sx={{ display: 'flex', flexDirection: column ? 'column' : 'row', flexWrap: 'wrap', gap: column ? 0.5 : 0.75, minWidth: 0, fontSize: 13, lineHeight: 1.45 }}>
+      {children}
+    </Box>
+  </Box>
+);
+
+const Note = ({ children }: { children: React.ReactNode }) => (
+  <Box component="span" sx={{ color: 'var(--pm-muted-foreground)', fontSize: 12 }}> · {children}</Box>
+);
+
+const safeParse = (value: any, fallback: any) => {
+  try { return value != null ? JSON.parse(value) : fallback; } catch { return fallback; }
+};
 
 export default Profile;

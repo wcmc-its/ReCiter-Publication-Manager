@@ -8,7 +8,7 @@ import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
 import type { Author } from '../../../../types/Author';
 import { useSelector, useDispatch } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
-import HistoryModal from "./HistoryModal";
+import { Sheet } from "../../ui";
 import { showEvidenceByDefault } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml } from "../../../utils/htmlText";
@@ -91,35 +91,11 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const [showZeroWeight, setShowZeroWeight] = useState<boolean>(false)
 
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
-    const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false)
     const [showCurationLog, setShowCurationLog] = useState<boolean>(false)
-    const curationLogRef = useRef<HTMLSpanElement>(null)
     const [expandedPubIndex, setExpandedPubIndex] = useState<any>(props.showEvidenceDefault ? props.showEvidenceDefault : null)
 
     const maxArticlesPerPerson = reciterConfig.reciter.featureGeneratorByGroup.featureGeneratorByGroupApiParams.maxArticlesPerPerson;
     const dispatch = useDispatch();
-
-    const onOpenModal = () => setShowHistoryModal(true)
-    const onCloseModal = () => setShowHistoryModal(false)
-
-    // Close curation log popover on click outside or Escape
-    useEffect(() => {
-      if (!showCurationLog) return;
-      const handleClickOutside = (e: MouseEvent) => {
-        if (curationLogRef.current && !curationLogRef.current.contains(e.target as Node)) {
-          setShowCurationLog(false);
-        }
-      };
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') setShowCurationLog(false);
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEscape);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('keydown', handleEscape);
-      };
-    }, [showCurationLog]);
 
     const formatClogDate = (timestamp: string | Date) => {
       const d = new Date(timestamp);
@@ -904,10 +880,10 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                   <span>PMID: <a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a></span>
                   {reciterArticle.doi && <span><a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI ↗</a></span>}
                   {(hasProvenance || clogEntries.length > 0) && (
-                    <span className={styles.curationWrap} ref={curationLogRef}>
+                    <span className={styles.curationWrap}>
                       <button className={styles.evidenceBtn} onClick={(e) => { e.stopPropagation(); setShowCurationLog(!showCurationLog); }}>History</button>
-                      {showCurationLog && (
-                        <div className={styles.curationLogPopover}>
+                      <Sheet open={showCurationLog} onClose={() => setShowCurationLog(false)} title="History" description={`PMID ${reciterArticle.pmid}`}>
+                        <div className={styles.curationLogSheet}>
                           <div className={styles.clogHead}>Provenance</div>
                           {hasProvenance ? (
                             <div className={styles.provBlock}>
@@ -956,7 +932,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                             </div>
                           )}
                         </div>
-                      )}
+                      </Sheet>
                     </span>
                   )}
                 </div>
@@ -1020,13 +996,6 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
         </div>
 
 
-        <HistoryModal
-          showModal={showHistoryModal}
-          onOpen={onOpenModal}
-          onClose={onCloseModal}
-          id={reciterArticle.pmid}
-          userId={props.personIdentifier}
-        />
       </div>
     );
 }
