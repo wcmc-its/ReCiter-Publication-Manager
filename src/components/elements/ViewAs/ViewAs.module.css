@@ -50,15 +50,3 @@
   background: #242e44;
   color: #ffffff;
 }
-
-.confirmBody {
-  font-size: 13px;
-  line-height: 1.5;
-  color: #1a2133;
-}
-
-.errorText {
-  color: #b42318;
-  font-size: 12px;
-  margin-top: 8px;
-}

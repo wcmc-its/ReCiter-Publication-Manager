@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Modal } from 'react-bootstrap';
-import Autocomplete from '@mui/material/Autocomplete';
-import TextField from '@mui/material/TextField';
-import { Spinner } from 'react-bootstrap';
+import Box from '@mui/material/Box';
 import { toast } from 'react-toastify';
 import Loader from '../Common/Loader';
 import { reciterConfig } from '../../../../config/local';
-import styles from './GrantProxyModal.module.css';
+import { Dialog, Button, Input } from '../../ui';
+import { focusRing } from '../../ui/tokens';
 
 interface ProxyUser {
     userID: number;
@@ -24,6 +22,8 @@ interface GrantProxyModalProps {
     onSave: () => void;
 }
 
+const mutedSx = { fontSize: 13, color: 'var(--pm-muted-foreground)' };
+
 const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
     show,
     onHide,
@@ -31,10 +31,10 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
     personName,
     onSave,
 }) => {
+    const [query, setQuery] = useState('');
     const [searchResults, setSearchResults] = useState<ProxyUser[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [selectedUsers, setSelectedUsers] = useState<ProxyUser[]>([]);
-    const [existingUsers, setExistingUsers] = useState<ProxyUser[]>([]);
     const [loadingExisting, setLoadingExisting] = useState(false);
     const [loadError, setLoadError] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -46,10 +46,10 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
         }
         if (!show) {
             // Reset state when modal closes
+            setQuery('');
             setSearchResults([]);
             setSearchLoading(false);
             setSelectedUsers([]);
-            setExistingUsers([]);
             setLoadingExisting(false);
             setLoadError(false);
             setSaving(false);
@@ -74,7 +74,6 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
             );
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data: ProxyUser[] = await res.json();
-            setExistingUsers(data);
             setSelectedUsers(data);
         } catch (err) {
             console.error('[GrantProxyModal] loadExisting error:', err);
@@ -84,11 +83,12 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
         }
     };
 
-    const handleSearch = (query: string) => {
+    const handleSearch = (value: string) => {
+        setQuery(value);
         if (searchTimer.current) {
             clearTimeout(searchTimer.current);
         }
-        if (!query || query.length < 2) {
+        if (!value || value.length < 2) {
             setSearchResults([]);
             setSearchLoading(false);
             return;
@@ -97,7 +97,7 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
         searchTimer.current = setTimeout(async () => {
             try {
                 const res = await fetch(
-                    `/api/db/admin/proxy/search-users?q=${encodeURIComponent(query)}`,
+                    `/api/db/admin/proxy/search-users?q=${encodeURIComponent(value)}`,
                     {
                         headers: {
                             'Authorization': reciterConfig.backendApiKey,
@@ -124,9 +124,15 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
         }, 300);
     };
 
-    const formatUserLabel = (user: ProxyUser): string => {
-        const name = [user.nameLast, user.nameFirst].filter(Boolean).join(', ');
-        return user.personIdentifier ? `${name} (${user.personIdentifier})` : name;
+    const formatUserName = (user: ProxyUser): string =>
+        [user.nameFirst, user.nameLast].filter(Boolean).join(' ') || user.personIdentifier;
+
+    const addUser = (user: ProxyUser) => {
+        setSelectedUsers((prev) => [...prev, user]);
+    };
+
+    const removeUser = (userID: number) => {
+        setSelectedUsers((prev) => prev.filter((u) => u.userID !== userID));
     };
 
     const handleSave = async () => {
@@ -157,165 +163,120 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
         }
     };
 
-    const handleDiscard = () => {
-        onHide();
-    };
-
     // Filter out already-selected users from search results
     const filteredResults = searchResults.filter(
         (sr) => !selectedUsers.some((su) => su.userID === sr.userID)
     );
+    const searching = query.trim().length >= 2;
 
     return (
-        <Modal show={show} onHide={onHide} centered size="lg">
-            <Modal.Header closeButton>
-                <Modal.Title style={{ fontSize: 13, fontWeight: 600, color: '#1a2133' }}>
-                    Manage Proxy Access
-                </Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-                <div className={styles.subtitle}>for {personName}</div>
-
-                {loadingExisting ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-                        <Loader />
-                    </div>
-                ) : loadError ? (
-                    <div className={styles.errorState}>
-                        Unable to load proxy data. Please close and try again.
-                    </div>
-                ) : (
-                    <>
-                        <Autocomplete
-                            multiple
-                            disablePortal
-                            options={filteredResults}
-                            getOptionLabel={formatUserLabel}
-                            filterOptions={(x) => x}
-                            value={selectedUsers}
-                            loading={searchLoading}
-                            noOptionsText="No users found matching your search."
-                            isOptionEqualToValue={(option, value) => option.userID === value.userID}
-                            onChange={(_event, newValue) => {
-                                setSelectedUsers(newValue as ProxyUser[]);
-                            }}
-                            onInputChange={(_event, value, reason) => {
-                                if (reason === 'input') {
-                                    handleSearch(value);
-                                }
-                            }}
-                            renderTags={(value, getTagProps) =>
-                                value.map((user, index) => {
-                                    const { key, ...tagProps } = getTagProps({ index });
-                                    return (
-                                        <span
-                                            key={key}
-                                            {...tagProps}
-                                            style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 4,
-                                                background: '#1a2133',
-                                                color: '#fff',
-                                                borderRadius: 20,
-                                                padding: '3px 10px',
-                                                fontSize: 12,
-                                                fontWeight: 500,
-                                                margin: '2px 4px 2px 0',
-                                            }}
-                                        >
-                                            {formatUserLabel(user)}
-                                            <button
-                                                type="button"
-                                                onClick={tagProps.onDelete}
-                                                aria-label="Remove"
-                                                style={{
-                                                    cursor: 'pointer',
-                                                    fontSize: 16,
-                                                    lineHeight: 1,
-                                                    marginLeft: 4,
-                                                    opacity: 0.7,
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    padding: 0,
-                                                    color: 'inherit',
-                                                    minWidth: 24,
-                                                    minHeight: 24,
-                                                }}
-                                            >
-                                                &times;
-                                            </button>
-                                        </span>
-                                    );
-                                })
-                            }
-                            renderInput={(params) => (
-                                <TextField
-                                    {...params}
-                                    variant="outlined"
-                                    placeholder="Search users by name or CWID..."
-                                    size="small"
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            background: '#fff',
-                                            '& fieldset': {
-                                                borderColor: '#ddd7ce',
-                                            },
-                                            '&:hover fieldset': {
-                                                borderColor: '#ddd7ce',
-                                            },
-                                            '&.Mui-focused fieldset': {
-                                                borderColor: '#2563a8',
-                                                borderWidth: 2,
-                                            },
-                                        },
-                                    }}
-                                />
-                            )}
-                        />
-                        {existingUsers.length === 0 && selectedUsers.length === 0 && (
-                            <div className={styles.emptyState}>
-                                No users currently have proxy access for this person.
-                            </div>
+        <Dialog
+            open={show}
+            onClose={onHide}
+            width={560}
+            title="Manage proxy access"
+            description={`for ${personName} · proxies can curate their publications`}
+            footer={
+                <>
+                    <Button onClick={onHide}>Cancel</Button>
+                    <Button
+                        variant="primary"
+                        onClick={handleSave}
+                        disabled={saving || loadingExisting || loadError}
+                    >
+                        {saving ? 'Saving…' : 'Save'}
+                    </Button>
+                </>
+            }
+        >
+            {loadingExisting ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
+                    <Loader />
+                </Box>
+            ) : loadError ? (
+                <Box role="alert" sx={{ fontSize: 13, color: 'var(--pm-red)' }}>
+                    Unable to load proxy data. Please close and try again.
+                </Box>
+            ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center', minHeight: 26 }}>
+                        {selectedUsers.length === 0 && (
+                            <Box component="span" sx={mutedSx}>
+                                No proxies yet.
+                            </Box>
                         )}
-                        <div className={styles.loginNote}>
-                            Any user who has logged in can be assigned as a proxy. Access takes effect on their next login.
-                        </div>
-                    </>
-                )}
-            </Modal.Body>
-            <div className={styles.footer}>
-                <button
-                    type="button"
-                    className={styles.btnDiscard}
-                    onClick={handleDiscard}
-                >
-                    Discard Changes
-                </button>
-                <button
-                    type="button"
-                    className={styles.btnSave}
-                    onClick={handleSave}
-                    disabled={saving || loadingExisting || loadError}
-                >
-                    {saving ? (
-                        <>
-                            <Spinner
-                                as="span"
-                                animation="border"
-                                size="sm"
-                                role="status"
-                                aria-hidden="true"
-                                style={{ marginRight: 6 }}
-                            />
-                            Saving...
-                        </>
-                    ) : (
-                        'Save Changes'
+                        {selectedUsers.map((user) => (
+                            <Box
+                                component="span"
+                                key={user.userID}
+                                sx={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 0.25, height: 26, pl: 1.25, pr: 0.375,
+                                    borderRadius: 999, bgcolor: 'var(--pm-bar)', color: '#fff',
+                                    fontSize: 12.5, fontWeight: 500, whiteSpace: 'nowrap',
+                                }}
+                            >
+                                {formatUserName(user)}{user.personIdentifier ? ` · ${user.personIdentifier}` : ''}
+                                <Box
+                                    component="button"
+                                    type="button"
+                                    onClick={() => removeUser(user.userID)}
+                                    aria-label={`Remove ${formatUserName(user)}`}
+                                    sx={{
+                                        width: 22, height: 22, border: 0, borderRadius: '50%', bgcolor: 'transparent',
+                                        color: 'inherit', opacity: 0.75, cursor: 'pointer', fontSize: 15, lineHeight: 1, p: 0,
+                                        '&:hover': { opacity: 1, bgcolor: 'rgba(255,255,255,0.15)' },
+                                        '&:focus-visible': focusRing,
+                                    }}
+                                >
+                                    &times;
+                                </Box>
+                            </Box>
+                        ))}
+                    </Box>
+                    <Input
+                        autoFocus
+                        placeholder="Search users by name or CWID…"
+                        value={query}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        inputProps={{ 'aria-label': 'Search users by name or CWID' }}
+                        fullWidth
+                    />
+                    {searching && (
+                        <Box sx={{
+                            display: 'flex', flexDirection: 'column', maxHeight: 240, overflow: 'auto',
+                            border: '1px solid var(--pm-border)', borderRadius: 'var(--radius-md)',
+                        }}>
+                            {searchLoading ? (
+                                <Box sx={{ ...mutedSx, py: 2.25, textAlign: 'center' }}>Searching…</Box>
+                            ) : filteredResults.length === 0 ? (
+                                <Box sx={{ ...mutedSx, py: 2.25, textAlign: 'center' }}>No users found matching your search.</Box>
+                            ) : (
+                                filteredResults.map((user) => (
+                                    <Box
+                                        key={user.userID}
+                                        sx={{
+                                            display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5, py: 1,
+                                            borderBottom: '1px solid var(--pm-border)', '&:last-of-type': { borderBottom: 0 },
+                                        }}
+                                    >
+                                        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                                            <Box component="span" sx={{ fontSize: 13, fontWeight: 600 }}>{formatUserName(user)}</Box>
+                                            <Box component="span" sx={{ fontSize: 12, color: 'var(--pm-muted-foreground)' }}>{user.personIdentifier}</Box>
+                                        </Box>
+                                        <Button size="sm" variant="ghost" onClick={() => addUser(user)} aria-label={`Add ${formatUserName(user)}`} sx={{ color: 'var(--pm-slate)', fontWeight: 600 }}>
+                                            Add
+                                        </Button>
+                                    </Box>
+                                ))
+                            )}
+                        </Box>
                     )}
-                </button>
-            </div>
-        </Modal>
+                    <Box sx={{ fontSize: 12, color: 'var(--pm-muted-foreground)' }}>
+                        Any user who has logged in can be assigned as a proxy. Access takes effect on their next login.
+                    </Box>
+                </Box>
+            )}
+        </Dialog>
     );
 };
 

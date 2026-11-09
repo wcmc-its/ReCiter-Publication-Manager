@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Modal } from 'react-bootstrap';
+import Box from '@mui/material/Box';
 import { useSession } from 'next-auth/react';
 import { reciterConfig } from '../../../../config/local';
-import styles from './ViewAs.module.css';
+import { Dialog, Button, Input } from '../../ui';
 
 const REASON_MESSAGES = {
   not_found: 'No active Publication Manager user with that CWID',
@@ -10,6 +10,14 @@ const REASON_MESSAGES = {
   self: "That's you",
   missing_cwid: 'Enter a CWID',
 };
+
+const initials = (name = '') => {
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+};
+
+const errorSx = { mt: 1, fontSize: 13, color: 'var(--pm-red)' };
 
 // Superuser-only "View as <cwid>" -- always confirm-before-commit (never a direct action).
 // The lookup here is advisory display only; the jwt() callback re-validates everything
@@ -76,72 +84,68 @@ const ViewAsModal = ({ show, onHide }) => {
   };
 
   return (
-    <Modal show={show} onHide={handleHide} centered>
-      <Modal.Header closeButton>
-        <Modal.Title style={{ fontSize: 13, fontWeight: 600, color: '#1a2133' }}>
-          View as…
-        </Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        {!target ? (
-          <>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="text"
-                placeholder="CWID"
-                value={cwid}
-                onChange={(e) => setCwid(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
-                style={{ flex: 1, padding: '6px 10px', border: '1px solid #ddd7ce', borderRadius: 4 }}
-              />
-              <button
-                type="button"
-                className={styles.returnButton}
-                style={{ background: '#1a2133', color: '#fff' }}
-                onClick={handleLookup}
-                disabled={looking}
-              >
-                {looking ? 'Looking up…' : 'Look up'}
-              </button>
-            </div>
-            {error && <div className={styles.errorText}>{error}</div>}
-          </>
-        ) : (
-          <div className={styles.confirmBody}>
-            <p>
-              View as {target.name} ({target.personIdentifier})? Roles: {(target.roleLabels || []).join(', ') || 'none'}.
-            </p>
-            <p>
-              You will see and act on the Publication Manager exactly as {target.name}. Any changes you make are
-              applied as them but logged to you. Your view returns to your own after 30 minutes.
-            </p>
-            {error && <div className={styles.errorText}>{error}</div>}
-          </div>
-        )}
-      </Modal.Body>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: 12 }}>
-        {target ? (
-          <>
-            <button type="button" className={styles.returnButton} style={{ background: '#eee', color: '#1a2133' }} onClick={() => setTarget(null)}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={styles.returnButton}
-              style={{ background: '#1a2133', color: '#fff' }}
-              onClick={handleConfirm}
-              disabled={starting}
-            >
-              {starting ? 'Starting…' : `View as ${target.name}`}
-            </button>
-          </>
-        ) : (
-          <button type="button" className={styles.returnButton} style={{ background: '#eee', color: '#1a2133' }} onClick={handleHide}>
-            Cancel
-          </button>
-        )}
-      </div>
-    </Modal>
+    <Dialog
+      open={!!show}
+      onClose={handleHide}
+      width={440}
+      title="View as…"
+      description="See Publication Manager exactly as another user does."
+      footer={target ? (
+        <>
+          <Button onClick={() => setTarget(null)}>Back</Button>
+          <Button variant="primary" onClick={handleConfirm} disabled={starting}>
+            {starting ? 'Starting…' : `View as ${target.name}`}
+          </Button>
+        </>
+      ) : (
+        <Button onClick={handleHide}>Cancel</Button>
+      )}
+    >
+      {!target ? (
+        <>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Input
+              autoFocus
+              placeholder="CWID"
+              value={cwid}
+              onChange={(e) => setCwid(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
+              inputProps={{ 'aria-label': 'CWID' }}
+              sx={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-mono)' }}
+            />
+            <Button variant="primary" onClick={handleLookup} disabled={looking}>
+              {looking ? 'Looking up…' : 'Look up'}
+            </Button>
+          </Box>
+          {error && <Box role="alert" sx={errorSx}>{error}</Box>}
+        </>
+      ) : (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <Box sx={{
+            display: 'flex', gap: 1.5, alignItems: 'center', px: 1.5, py: 1.25,
+            borderRadius: 'var(--radius-md)', bgcolor: 'var(--pm-surface-2)', border: '1px solid var(--pm-border)',
+          }}>
+            <Box component="span" sx={{
+              width: 34, height: 34, borderRadius: '50%', bgcolor: 'var(--pm-bar)', color: '#fff', flexShrink: 0,
+              display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 600,
+            }}>
+              {initials(target.name)}
+            </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <Box component="span" sx={{ fontSize: 14, fontWeight: 600 }}>{target.name}</Box>
+              <Box component="span" sx={{ fontSize: 12.5, color: 'var(--pm-muted-foreground)' }}>
+                {target.personIdentifier} · Roles: {(target.roleLabels || []).join(', ') || 'none'}
+              </Box>
+            </Box>
+          </Box>
+          <Box component="p" sx={{ m: 0, lineHeight: 1.55 }}>
+            You will see and act on the Publication Manager exactly as {target.name}. Any changes you make are
+            applied as them but logged to you. Your view returns to your own after 30 minutes.
+          </Box>
+          {error && <Box role="alert" sx={errorSx}>{error}</Box>}
+        </Box>
+      )}
+    </Dialog>
   );
 };
 
