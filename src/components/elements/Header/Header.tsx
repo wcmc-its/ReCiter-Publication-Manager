@@ -47,6 +47,14 @@ const useNotificationsVisible = (session: any) => {
   return !!manageNotifications.find((data: any) => data.isVisible);
 };
 
+// Name + "cwid · role" header row of the avatar menu. Not a menu item: the static flag makes
+// MUI's MenuList skip it when picking the item to focus on open, so keyboard focus lands on
+// the first real item (a plain <li> there would take tabIndex=0 and swallow arrow-key focus).
+const MenuIdentity = ({ children }: { children: React.ReactNode }) => (
+  <li className={styles.menuIdentity} role="presentation">{children}</li>
+);
+(MenuIdentity as any).muiSkipListHighlight = true;
+
 const menuPaperSx = {
   mt: 1,
   minWidth: 200,
@@ -80,6 +88,8 @@ const Header = () => {
     roles = [];
   }
   const signedIn = !!s?.data;
+  // Inactive users get AppLayout's NoAccess page; like the old header they see only Log out.
+  const active = s?.data?.databaseUser?.status === 1;
   const homeHref = signedIn ? getLandingPage(getCapabilities(roles)) : "/";
 
   const username: string = s?.data?.username || "";
@@ -88,13 +98,13 @@ const Header = () => {
   const isSuperuser = hasRole(roles, ["Superuser"]);
 
   // Same role rules the retired side rail used.
-  const adminItems = isSuperuser
+  const adminItems = active && isSuperuser
     ? [
         { label: "Manage users", to: "/manageusers" },
         { label: "Configuration", to: "/configuration" },
       ]
     : [];
-  const userItems = hasRole(roles, ["Department_user", "Curator_Self", "Superuser", "Curator_All"])
+  const userItems = active && hasRole(roles, ["Department_user", "Curator_Self", "Superuser", "Curator_All"])
     ? [
         { label: "Manage profile", to: `/manageprofile/${username}` },
         ...(isSuperuser || (notificationsVisible && s?.data?.email)
@@ -149,7 +159,7 @@ const Header = () => {
           )}
 
           {/* Hidden while an overlay is active: the banner's "Return to my view" is the exit. */}
-          {s.canViewAs && !s.viewAs && (
+          {active && s.canViewAs && !s.viewAs && (
             <button type="button" className={styles.barButton} onClick={() => setShowViewAsModal(true)}>
               View as…
             </button>
@@ -179,12 +189,12 @@ const Header = () => {
             MenuListProps={{ "aria-labelledby": "pm-user-trigger" }}
             PaperProps={{ sx: { ...menuPaperSx, minWidth: 220 } }}
           >
-            <li className={styles.menuIdentity} role="presentation">
+            <MenuIdentity>
               <span className={styles.menuName}>{displayName}</span>
               <span className={styles.menuMeta}>
                 {username}{roleLabel ? ` · ${roleLabel.replace(/_/g, " ")}` : ""}
               </span>
-            </li>
+            </MenuIdentity>
             <Divider sx={{ my: "4px !important", borderColor: "var(--pm-border)" }} />
             {userItems.map((item) => (
               <MenuItem key={item.to} onClick={() => go(item.to)}>{item.label}</MenuItem>
