@@ -11,6 +11,11 @@ import { useDispatch, useSelector } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
 import styles from "./CurateIndividual.module.css";
 import CheckIcon from '@mui/icons-material/Check';
+import { Dialog, Button } from "../../ui";
+import { showUndoToast } from "../ToastHost/ToastHost";
+import { sanitizeInlineHtml } from "../../../utils/htmlText";
+import { BANDS, groupModeFor, groupKeyOf, groupsOf, yearHistogram, spotCheckSample, scoreOf, yearOf } from "../../../utils/curateGroups";
+import type { Band } from "../../../utils/curateGroups";
 
 
 interface TabContentProps {
@@ -62,17 +67,43 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     setVisible(LIST_CHUNK);
   }
 
-  let publicationsPaginatedData = publications.slice(0, visible);
+  // Grouping (bands on long Suggested lists sorted by score, years on long Accepted/Rejected
+  // lists sorted by date). Collapsed groups keep their header and drop out of the window.
+  const mode = groupModeFor(props.tabType, sort, publications.length);
+  const [closed, setClosed] = useState<Record<string, boolean>>({});
+  // Groups must be contiguous, so grouped modes sort a copy by the active key (default "0" = score).
+  const ordered = mode === 'flat' ? publications : sortPublications([...publications], sort);
+  const openList = mode === 'flat' ? publications : ordered.filter((p: any) => !closed[groupKeyOf(mode, p)]);
+  const groups = groupsOf(mode, ordered);
+  const hist = mode === 'year' ? yearHistogram(publications) : [];
+  const pendingJump = useRef<string | null>(null);
+
+  let publicationsPaginatedData = openList.slice(0, visible);
+
+  const jumpToYear = (year: string) => {
+    const nextClosed = { ...closed, [year]: false };
+    const idx = ordered.filter((p: any) => !nextClosed[yearOf(p)]).findIndex((p: any) => yearOf(p) === year);
+    if (idx < 0) return;
+    setClosed(nextClosed);
+    setVisible((v) => Math.max(v, idx + LIST_CHUNK));
+    pendingJump.current = year;
+  };
+  useEffect(() => {
+    if (!pendingJump.current) return;
+    const el = document.querySelector(`[data-year-head="${pendingJump.current}"]`) as HTMLElement | null;
+    pendingJump.current = null;
+    if (el) { el.scrollIntoView({ block: 'start' }); el.focus({ preventScroll: true }); }
+  });
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || visible >= publications.length) return;
+    if (!el || visible >= openList.length) return;
     const io = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) setVisible((v) => v + LIST_CHUNK);
     }, { rootMargin: '800px 0px' });
     io.observe(el);
     return () => io.disconnect();
-  }, [visible, publications.length]);
+  }, [visible, openList.length]);
 
   var totalNullCount = 0;
   var totalAcceptedCount = 0;
@@ -148,22 +179,43 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     props.onAssertionChange?.(pmid, userAssertion);
   }
 
+  // Suggested tab: cards stay in place with an actioned look; the change is persisted at once.
+  const applySuggested = (pmids: number[], userAssertion: string) => {
+    if (!pmids.length) return;
+    const set = new Set(pmids);
+    pmids.forEach((pmid) => props.onAssertionChange?.(pmid, userAssertion));
+    setPublications(prev => prev.map((p: any) => set.has(p.pmid) ? { ...p, userAssertion } : p));
+    dispatch(reciterUpdatePublication(props.personIdentifier, {
+      publications: pmids,
+      userAssertion: userAssertion,
+      manuallyAddedFlag: false,
+      userID: session?.data?.databaseUser?.userID,
+      personIdentifier: props.personIdentifier,
+    }));
+  };
+
+  // Per-band bulk (Suggested): accept the strong band or reject the weak band after a spot-check
+  // of the records likeliest to be wrong. Only still-pending records are touched, so Undo is exact.
+  const [bandBulk, setBandBulk] = useState<{ band: Band, verb: 'ACCEPTED' | 'REJECTED', excl: Record<number, boolean> } | null>(null);
+  const bandPending = (band: string) => publications.filter((p: any) => groupKeyOf('band', p) === band && p.userAssertion === 'NULL');
+  const bulkItems = bandBulk ? bandPending(bandBulk.band) : [];
+  const bulkSample = bandBulk ? spotCheckSample(bulkItems, bandBulk.verb) : [];
+  const bulkPmids = bulkItems.filter((p: any) => !bandBulk?.excl[p.pmid]).map((p: any) => p.pmid);
+  const confirmBandBulk = () => {
+    if (!bandBulk) return;
+    const { verb } = bandBulk;
+    const pmids = bulkPmids;
+    setBandBulk(null);
+    applySuggested(pmids, verb);
+    if (pmids.length) {
+      showUndoToast(`${verb === 'ACCEPTED' ? 'Accepted' : 'Rejected'} ${pmids.length} publication${pmids.length === 1 ? '' : 's'}`, () => applySuggested(pmids, 'NULL'));
+    }
+  };
+
   const handleUpdatePublicationAll = (userAssertion: string) => {
     // Suggested tab: keep cards in place with actioned visual state
     if (isSuggested) {
-      publications.forEach((p: any) => props.onAssertionChange?.(p.pmid, userAssertion));
-      setPublications(prev => prev.map((p: any) => ({ ...p, userAssertion })));
-      // ...and persist them, same reason as the single-article path above.
-      const suggestedPmids = publications.map((p: any) => p.pmid);
-      if (suggestedPmids.length) {
-        dispatch(reciterUpdatePublication(props.personIdentifier, {
-          publications: suggestedPmids,
-          userAssertion: userAssertion,
-          manuallyAddedFlag: false,
-          userID: session?.data?.databaseUser?.userID,
-          personIdentifier: props.personIdentifier,
-        }));
-      }
+      applySuggested(publications.map((p: any) => p.pmid), userAssertion);
       return;
     }
 
@@ -264,7 +316,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       } else if (key === 'arrowdown') {
         e.preventDefault();
         // Keyboard can walk past the rendered window: grow it before focus reaches the end.
-        const next = Math.min(focusedIndex + 1, publications.length - 1);
+        const next = Math.min(focusedIndex + 1, openList.length - 1);
         if (next >= visible - 5) setVisible(v => v + LIST_CHUNK);
         setFocusedIndex(next);
       } else if (key === 'arrowup') {
@@ -275,7 +327,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
 
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isArticleTab, isSuggested, focusedIndex, publicationsPaginatedData, props.personIdentifier, visible, publications.length]);
+  }, [isArticleTab, isSuggested, focusedIndex, publicationsPaginatedData, props.personIdentifier, visible, openList.length]);
 
   // Scroll focused card into view
   useEffect(() => {
@@ -285,6 +337,52 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     const el = document.querySelector(`[data-pmid="${focusedPub.pmid}"]`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [focusedIndex, isArticleTab]);
+
+  // Cards, with group headers interleaved. Stops at the end of the rendered window (the sentinel
+  // brings in more), except that headers of collapsed groups still render.
+  const renderRows = (card: (p: any, index: number) => React.ReactNode) => {
+    if (mode === 'flat') return publicationsPaginatedData.map(card);
+    const rows: React.ReactNode[] = [];
+    let i = 0;
+    for (const g of groups) {
+      if (i >= publicationsPaginatedData.length && publicationsPaginatedData.length < openList.length) break;
+      const isClosed = !!closed[g.key];
+      const band = mode === 'band' ? BANDS.find((b) => b.key === g.key) : undefined;
+      const pending = isSuggested && band && band.key !== 'moderate' ? bandPending(band.key).length : 0;
+      rows.push(
+        <div key={`h-${g.key}`} className={styles.groupHead} data-band={band?.key}>
+          <button
+            type="button"
+            className={styles.groupToggle}
+            aria-expanded={!isClosed}
+            data-year-head={mode === 'year' ? g.key : undefined}
+            onClick={() => setClosed((c) => ({ ...c, [g.key]: !c[g.key] }))}
+          >
+            <span className={styles.groupChevron} aria-hidden="true">{'\u203A'}</span>
+            {band && <span className={styles.groupDot} aria-hidden="true" />}
+            <span className={styles.groupLabel}>{band ? band.label : g.key}</span>
+            <span className={styles.groupCount}>{g.count.toLocaleString()}{band ? ` \u00B7 ${band.range}` : ` publication${g.count === 1 ? '' : 's'}`}</span>
+          </button>
+          {pending > 0 && (
+            <button
+              type="button"
+              className={band!.key === 'strong' ? styles.groupBulkAccept : styles.groupBulkReject}
+              onClick={() => setBandBulk({ band: band!.key, verb: band!.key === 'strong' ? 'ACCEPTED' : 'REJECTED', excl: {} })}
+            >
+              {band!.key === 'strong' ? 'Accept' : 'Reject'} all {pending}{'\u2026'}
+            </button>
+          )}
+        </div>
+      );
+      if (!isClosed) {
+        while (i < publicationsPaginatedData.length && groupKeyOf(mode, publicationsPaginatedData[i]) === g.key) {
+          rows.push(card(publicationsPaginatedData[i], i));
+          i++;
+        }
+      }
+    }
+    return rows;
+  };
 
   if (!props.publications.length) {
     if (props.tabType === 'NULL') {
@@ -369,8 +467,30 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         </div>
       )}
 
+      {hist.length > 1 && (
+        <div className={styles.yearHist} role="group" aria-label="Publications by year">
+          <span className={styles.yearHistEnd}>{hist[0].year}</span>
+          <div className={styles.yearHistBars}>
+            {hist.map((h) => (
+              <button
+                type="button"
+                key={h.year}
+                className={styles.yearHistBar}
+                title={`${h.year}: ${h.count} publication${h.count === 1 ? '' : 's'}`}
+                aria-label={`${h.year}: ${h.count} publication${h.count === 1 ? '' : 's'}`}
+                disabled={!h.count}
+                onClick={() => jumpToYear(String(h.year))}
+              >
+                <span style={{ height: h.count ? Math.max(3, Math.round((h.count / Math.max(...hist.map((x) => x.count))) * 30)) : 1 }} />
+              </button>
+            ))}
+          </div>
+          <span className={styles.yearHistEnd}>{hist[hist.length - 1].year}</span>
+        </div>
+      )}
+
       <div className={styles.articleList}>
-        {publicationsPaginatedData.map((publication: any, index: number) => {
+        {renderRows((publication: any, index: number) => {
           return (
             <Publication
               key={publication.pmid}
@@ -391,7 +511,42 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
           )
         })}
       </div>
-      {visible < publications.length && <div ref={sentinelRef} className={styles.listSentinel} aria-hidden="true" />}
+      {visible < openList.length && <div ref={sentinelRef} className={styles.listSentinel} aria-hidden="true" />}
+
+      <Dialog
+        open={!!bandBulk}
+        onClose={() => setBandBulk(null)}
+        width={600}
+        title={bandBulk ? `${bandBulk.verb === 'ACCEPTED' ? 'Accept' : 'Reject'} ${bulkPmids.length} ${bandBulk.band === 'strong' ? 'strong' : 'weak'}-match suggestion${bulkPmids.length === 1 ? '' : 's'}?` : ''}
+        description={bandBulk ? (bandBulk.verb === 'ACCEPTED'
+          ? `Spot-check first. These are the ${bulkSample.length} lowest-scoring in the band, where mistakes are likeliest. Exclude any that look wrong; they stay in Suggested.`
+          : `Spot-check first. These are the ${bulkSample.length} highest-scoring in the band, the likeliest to be real. Exclude any that should stay; they remain in Suggested.`) : ''}
+        footer={<>
+          <Button variant="ghost" onClick={() => setBandBulk(null)}>Cancel</Button>
+          <Button variant={bandBulk?.verb === 'REJECTED' ? 'danger' : 'primary'} disabled={!bulkPmids.length} onClick={confirmBandBulk}>
+            {bandBulk?.verb === 'REJECTED' ? 'Reject' : 'Accept'} {bulkPmids.length}
+          </Button>
+        </>}
+      >
+        <ul className={styles.spotList}>
+          {bulkSample.map((p: any) => {
+            const ex = !!bandBulk?.excl[p.pmid];
+            return (
+              <li key={p.pmid} className={ex ? styles.spotExcluded : undefined}>
+                <span className={styles.spotScore}>{scoreOf(p)}</span>
+                <span className={styles.spotText}>
+                  <span className={styles.spotTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(p.articleTitleRTF || p.articleTitle) }} />
+                  <span className={styles.spotMeta}>{p.journalTitleVerbose} · {yearOf(p)} · PMID {p.pmid}</span>
+                </span>
+                <Button size="sm" variant="ghost" aria-pressed={ex} onClick={() => setBandBulk((b) => b && ({ ...b, excl: { ...b.excl, [p.pmid]: !ex } }))}>
+                  {ex ? 'Include' : 'Exclude'}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+        {bulkItems.length > bulkSample.length && <p className={styles.spotMore}>+ {bulkItems.length - bulkSample.length} more not shown</p>}
+      </Dialog>
 
       {/* All caught up state */}
       {isSuggested && pendingCount === 0 && publicationsPaginatedData.length > 0 && (
