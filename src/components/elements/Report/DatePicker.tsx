@@ -14,7 +14,7 @@ const PRESETS = [
   { label: "Last 30 days", days: 30 },
 ];
 
-export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, selectedFilters, handleChange, filterLowerName, filterUpperName }) => {
+export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, selectedFilters, handleChange, filterLowerName, filterUpperName, onClose }) => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [activePreset, setActivePreset] = useState<string | null>(null);
@@ -61,9 +61,16 @@ export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, sel
   const displayEnd = endDate ? moment(endDate).format("MM/DD/YYYY") : "";
 
   return (
-    <Dropdown className="d-inline-block" autoClose="outside">
+    <Dropdown className="d-inline-block" autoClose="outside" onToggle={(nextShow) => { if (!nextShow && onClose) onClose(); }}>
       <Dropdown.Toggle variant={(startDate || endDate) ? "primary" : "white"} id="dropdown-date">
-        {setReportFilterLabels(reportFiltersLabes, name)}
+        {(() => {
+          const l = setReportFilterLabels(reportFiltersLabes, name) || name;
+          if (activePreset) return `${l}: ${activePreset}`;
+          if (displayStart && displayEnd) return `${l}: ${displayStart} – ${displayEnd}`;
+          if (displayStart) return `${l}: since ${displayStart}`;
+          if (displayEnd) return `${l}: through ${displayEnd}`;
+          return l;
+        })()}
       </Dropdown.Toggle>
       <Dropdown.Menu style={{ padding: 0, minWidth: 280 }}>
         {/* Header */}

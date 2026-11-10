@@ -11,10 +11,25 @@
 .btnNoStyling {
   background: transparent;
   border: none;
+  color: inherit;
   text-decoration: underline;
 }
 
+/* WCM authors (a known person): Slate, bold, opens the profile. */
+.wcmAuthor {
+  color: var(--pm-slate);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wcmAuthor:hover {
+  text-decoration: underline;
+}
+
+/* A WCM author picked in the Person filter. */
 .highlightedAuthor {
-  background-color: #EBF4BC;
+  background-color: var(--pm-slate-tint);
+  border-radius: 3px;
+  padding: 1px 3px;
   cursor: pointer;
 }

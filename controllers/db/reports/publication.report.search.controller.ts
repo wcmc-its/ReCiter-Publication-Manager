@@ -15,6 +15,8 @@ import {
 import sequelize from "../../../src/db/db";
 import { QueryConstants } from "../../../src/utils/namedQueryConstants";
 import { buildReportSort } from "./reportSort";
+import { authorPositionSql, sourceSql } from "./reportFilterSql";
+import { articleColumns, articleExtraAttributes } from "./reportColumns";
 
 
 import "./reportAssociations";
@@ -28,6 +30,11 @@ export const publicationSearchWithFilter = async (
 ) => {
   try {
     let apiBody: PublicationSearchFilter = req.body;
+    const hasSourceColumn = (await articleColumns()).sourceType;
+    const extraAttrs = await articleExtraAttributes();
+    if (apiBody.filters) {
+      apiBody.filters.authorPosition = (apiBody.filters.authorPosition || []).filter((p) => !!authorPositionSql("x", [p]));
+    }
     
     const where = {};
     const whereForOnlyAuthors = {};
@@ -116,22 +123,10 @@ export const publicationSearchWithFilter = async (
         apiBody.filters.authorPosition &&
         apiBody.filters.authorPosition.length > 0
       ) {
-        where[Op.and].push({
-          "$AnalysisSummaryAuthor.authorPosition$": {
-            [Op.in]: apiBody.filters.authorPosition,
-          },
-        });
-        whereForOnlyAuthors[Op.and].push({
-          "$AnalysisSummaryAuthor.authorPosition$": {
-            [Op.in]: apiBody.filters.authorPosition,
-          },
-        });
+        where[Op.and].push(Sequelize.literal(authorPositionSql("AnalysisSummaryAuthor", apiBody.filters.authorPosition)));
+        whereForOnlyAuthors[Op.and].push(Sequelize.literal(authorPositionSql("AnalysisSummaryAuthor", apiBody.filters.authorPosition)));
 
-        joinWhereAuthorsFilters[Op.and].push({
-          "$AnalysisSummaryAuthor.authorPosition$": {
-            [Op.in]: apiBody.filters.authorPosition,
-          },
-        });
+        joinWhereAuthorsFilters[Op.and].push(Sequelize.literal(authorPositionSql("AnalysisSummaryAuthor", apiBody.filters.authorPosition)));
 
         joinWherePersonIdentifiers = {
           autauthorPositionhor: {
@@ -231,13 +226,19 @@ export const publicationSearchWithFilter = async (
         });
         isArticleFilter = true;
       }
+      const sourceClause = sourceSql("AnalysisSummaryArticle", apiBody.filters.sourceTypes, hasSourceColumn);
+      if (sourceClause) {
+        where[Op.and].push(Sequelize.literal(sourceClause));
+        whereForOnlyArticles[Op.and].push(Sequelize.literal(sourceClause));
+        isArticleFilter = true;
+      }
       if (
         apiBody.filters.journalImpactScoreLowerBound &&
         apiBody.filters.journalImpactScoreUpperBound
       ) {
         where[Op.and].push({
           "$AnalysisSummaryArticle.journalImpactScore1$": {
-            [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+            [Op.gte]: apiBody.filters.journalImpactScoreLowerBound,
           },
         });
         where[Op.and].push({
@@ -247,7 +248,7 @@ export const publicationSearchWithFilter = async (
         });
         whereForOnlyArticles[Op.and].push({
           "$AnalysisSummaryArticle.journalImpactScore1$": {
-            [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+            [Op.gte]: apiBody.filters.journalImpactScoreLowerBound,
           },
         });
         whereForOnlyArticles[Op.and].push({
@@ -344,7 +345,7 @@ export const publicationSearchWithFilter = async (
                 
                 if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
                 {
-                  whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                  whereAuthorsSql.push(" " + authorPositionSql("asu", apiBody.filters.authorPosition));
                   let authorPosition = apiBody.filters.authorPosition;
                   replaceOfAuthPos = {"authorPosition": [authorPosition]};
                 }
@@ -437,7 +438,7 @@ export const publicationSearchWithFilter = async (
                  }
                  if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
                  {
-                     whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                     whereAuthorsSql.push(" " + authorPositionSql("asu", apiBody.filters.authorPosition));
                      let authorPosition = apiBody.filters.authorPosition;
                       replaceOfAuthPos = {"authorPosition": [authorPosition]};
                  }
@@ -527,7 +528,7 @@ export const publicationSearchWithFilter = async (
               }
               if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
               {
-                  whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                  whereAuthorsSql.push(" " + authorPositionSql("asu", apiBody.filters.authorPosition));
                   let authorPosition = apiBody.filters.authorPosition;
                   replaceOfAuthPos = {"authorPosition": [authorPosition]};
               }
@@ -572,7 +573,7 @@ export const publicationSearchWithFilter = async (
           offset: apiBody.offset,
           order: sort,
           distinct: true,
-          attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('AnalysisSummaryArticle.pmid')), 'pmid'], `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+          attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('AnalysisSummaryArticle.pmid')), 'pmid'], `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`, ...extraAttrs],
           col:'pmid',
           raw:true,
           benchmark: true
@@ -635,7 +636,7 @@ export const publicationSearchWithFilter = async (
             }
             if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
             {
-                      whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                      whereAuthorsSql.push(" " + authorPositionSql("asu", apiBody.filters.authorPosition));
                       let authorPosition = apiBody.filters.authorPosition;
                       replaceOfAuthPos = {"authorPosition": [authorPosition]};
               
@@ -669,7 +670,7 @@ export const publicationSearchWithFilter = async (
             }
             if(apiBody.filters.journalImpactScoreLowerBound && apiBody.filters.journalImpactScoreLowerBound > 0)
              {
-               whereArticlesSql.push(" asa.journalImpactScore1 > :journalImpactScore1Lower");
+               whereArticlesSql.push(" asa.journalImpactScore1 >= :journalImpactScore1Lower");
                let journalImpactScore1LowerBound = apiBody.filters.journalImpactScoreLowerBound;
                replaceJounrnalImpactScoreLowerBound = {"journalImpactScore1Lower" : [journalImpactScore1LowerBound]}
              }
@@ -679,6 +680,8 @@ export const publicationSearchWithFilter = async (
                let journalImpactScore1UpperBound = apiBody.filters.journalImpactScoreUpperBound;
                replaceJounrnalImpactScoreUpperBound = {"journalImpactScore1Upper" : [journalImpactScore1UpperBound]}
              }
+             const rawSourceClause = sourceSql("asa", apiBody.filters.sourceTypes, hasSourceColumn);
+             if (rawSourceClause) whereArticlesSql.push(" " + rawSourceClause);
             if((whereAuthorsSql && whereAuthorsSql.length > 0) ||
                    whereArticlesSql && whereArticlesSql.length > 0)
                     {
@@ -783,7 +786,7 @@ export const publicationSearchWithFilter = async (
              }
              if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
              {
-                 whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                 whereAuthorsSql.push(" " + authorPositionSql("asu", apiBody.filters.authorPosition));
                   let authorPosition = apiBody.filters.authorPosition;
                   replaceOfAuthPos = {"authorPosition": [authorPosition]};
              }
@@ -824,7 +827,7 @@ export const publicationSearchWithFilter = async (
                  }
                  if(apiBody.filters.journalImpactScoreLowerBound && apiBody.filters.journalImpactScoreLowerBound > 0)
                   {
-                    whereArticlesSql.push(" asa.journalImpactScore1 > :journalImpactScore1Lower");
+                    whereArticlesSql.push(" asa.journalImpactScore1 >= :journalImpactScore1Lower");
                     let journalImpactScore1LowerBound = apiBody.filters.journalImpactScoreLowerBound;
                     replaceJounrnalImpactScoreLowerBound = {"journalImpactScore1Lower" : [journalImpactScore1LowerBound]}
                   }
@@ -834,6 +837,8 @@ export const publicationSearchWithFilter = async (
                     let journalImpactScore1UpperBound = apiBody.filters.journalImpactScoreUpperBound;
                     replaceJounrnalImpactScoreUpperBound = {"journalImpactScore1Upper" : [journalImpactScore1UpperBound]}
                   }
+                  const rawSourceClause = sourceSql("asa", apiBody.filters.sourceTypes, hasSourceColumn);
+                  if (rawSourceClause) whereArticlesSql.push(" " + rawSourceClause);
              if((whereAuthorsSql && whereAuthorsSql.length > 0)
 			    || (whereArticlesSql && whereArticlesSql > 0))
              {
@@ -927,7 +932,7 @@ export const publicationSearchWithFilter = async (
            }
            if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
            {
-               whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+               whereAuthorsSql.push(" " + authorPositionSql("asu", apiBody.filters.authorPosition));
                      let authorPosition = apiBody.filters.authorPosition;
                       replaceOfAuthPos = {"authorPosition": [authorPosition]};
            }
@@ -959,7 +964,7 @@ export const publicationSearchWithFilter = async (
             }
             if(apiBody.filters.journalImpactScoreLowerBound && apiBody.filters.journalImpactScoreLowerBound > 0)
             {
-              whereArticlesSql.push(" asa.journalImpactScore1 > :journalImpactScore1Lower");
+              whereArticlesSql.push(" asa.journalImpactScore1 >= :journalImpactScore1Lower");
               let journalImpactScore1LowerBound = apiBody.filters.journalImpactScoreLowerBound;
               replaceJounrnalImpactScoreLowerBound = {"journalImpactScore1Lower" : [journalImpactScore1LowerBound]}
             }
@@ -969,6 +974,8 @@ export const publicationSearchWithFilter = async (
               let journalImpactScore1UpperBound = apiBody.filters.journalImpactScoreUpperBound;
               replaceJounrnalImpactScoreUpperBound = {"journalImpactScore1Upper" : [journalImpactScore1UpperBound]}
             }
+            const rawSourceClause = sourceSql("asa", apiBody.filters.sourceTypes, hasSourceColumn);
+            if (rawSourceClause) whereArticlesSql.push(" " + rawSourceClause);
 
 			 if((whereAuthorsSql && whereAuthorsSql.length > 0)
 			    || (whereArticlesSql && whereArticlesSql > 0))
@@ -1024,7 +1031,7 @@ export const publicationSearchWithFilter = async (
               limit: apiBody.limit,
               offset: apiBody.offset,
               order:sort,
-              attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+              attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`, ...extraAttrs],
               benchmark:true
             });
         }
@@ -1073,7 +1080,7 @@ export const publicationSearchWithFilter = async (
         order: sort,
 
         attributes:[[Sequelize.fn('DISTINCT', Sequelize.col("AnalysisSummaryAuthor.pmid")), 'pmid'],
-              `id`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+              `id`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`, ...extraAttrs],
         col:'pmid',
         benchmark: true
       });
@@ -1155,6 +1162,10 @@ export const publicationSearchWithFilterPmids = async (
 ) => {
   try {
     let apiBody: PublicationSearchFilter = req.body;
+    const hasSourceColumn = (await articleColumns()).sourceType;
+    if (apiBody.filters) {
+      apiBody.filters.authorPosition = (apiBody.filters.authorPosition || []).filter((p) => !!authorPositionSql("x", [p]));
+    }
     const where = {};
     const whereForOnlyAuthors = {};
     const whereForOnlyArticles = {};
@@ -1244,22 +1255,10 @@ export const publicationSearchWithFilterPmids = async (
         apiBody.filters.authorPosition &&
         apiBody.filters.authorPosition.length > 0
       ) {
-        where[Op.and].push({
-          "$AnalysisSummaryAuthor.authorPosition$": {
-            [Op.in]: apiBody.filters.authorPosition,
-          },
-        });
-        whereForOnlyAuthors[Op.and].push({
-          "$AnalysisSummaryAuthor.authorPosition$": {
-            [Op.in]: apiBody.filters.authorPosition,
-          },
-        });
+        where[Op.and].push(Sequelize.literal(authorPositionSql("AnalysisSummaryAuthor", apiBody.filters.authorPosition)));
+        whereForOnlyAuthors[Op.and].push(Sequelize.literal(authorPositionSql("AnalysisSummaryAuthor", apiBody.filters.authorPosition)));
 
-        joinWhereAuthorsFilters[Op.and].push({
-          "$AnalysisSummaryAuthor.authorPosition$": {
-            [Op.in]: apiBody.filters.authorPosition,
-          },
-        });
+        joinWhereAuthorsFilters[Op.and].push(Sequelize.literal(authorPositionSql("AnalysisSummaryAuthor", apiBody.filters.authorPosition)));
 
         joinWherePersonIdentifiers = {
           autauthorPositionhor: {
@@ -1366,13 +1365,19 @@ export const publicationSearchWithFilterPmids = async (
         });
         isArticleFilter = true;
       }
+      const sourceClause = sourceSql("AnalysisSummaryArticle", apiBody.filters.sourceTypes, hasSourceColumn);
+      if (sourceClause) {
+        where[Op.and].push(Sequelize.literal(sourceClause));
+        whereForOnlyArticles[Op.and].push(Sequelize.literal(sourceClause));
+        isArticleFilter = true;
+      }
       if (
         apiBody.filters.journalImpactScoreLowerBound &&
         apiBody.filters.journalImpactScoreUpperBound
       ) {
         where[Op.and].push({
           "$AnalysisSummaryArticle.journalImpactScore1$": {
-            [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+            [Op.gte]: apiBody.filters.journalImpactScoreLowerBound,
           },
         });
         where[Op.and].push({
@@ -1382,7 +1387,7 @@ export const publicationSearchWithFilterPmids = async (
         });
         whereForOnlyArticles[Op.and].push({
           "$AnalysisSummaryArticle.journalImpactScore1$": {
-            [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+            [Op.gte]: apiBody.filters.journalImpactScoreLowerBound,
           },
         });
         whereForOnlyArticles[Op.and].push({
@@ -1466,7 +1471,7 @@ export const publicationSearchWithFilterPmids = async (
         }
         if(apiBody.filters.journalImpactScoreLowerBound && apiBody.filters.journalImpactScoreLowerBound > 0)
         {
-           whereArticlesSql.push(" asa.journalImpactScore1 > :journalImpactScore1Lower");
+           whereArticlesSql.push(" asa.journalImpactScore1 >= :journalImpactScore1Lower");
            let journalImpactScore1LowerBound = apiBody.filters.journalImpactScoreLowerBound;
            replaceJounrnalImpactScoreLowerBound = {"journalImpactScore1Lower" : [journalImpactScore1LowerBound]}
         }
@@ -1476,6 +1481,8 @@ export const publicationSearchWithFilterPmids = async (
            let journalImpactScore1UpperBound = apiBody.filters.journalImpactScoreUpperBound;
            replaceJounrnalImpactScoreUpperBound = {"journalImpactScore1Upper" : [journalImpactScore1UpperBound]}
         }
+        const rawSourceClause = sourceSql("asa", apiBody.filters.sourceTypes, hasSourceColumn);
+        if (rawSourceClause) whereArticlesSql.push(" " + rawSourceClause);
 
         if(whereArticlesSql && whereArticlesSql.length > 0)
         {

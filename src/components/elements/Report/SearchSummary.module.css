@@ -10,22 +10,100 @@
   padding-right: 4px;
 }
 
-.articlesCount {
-  font-family: var(--font-serif);
-  font-size: 28px;
-  font-weight: 500;
-  color: var(--gray-900);
+/* Result header: "N publications" on the left; range, paging, per-page and Sort by on the right. */
+.controlsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 28px 0 14px;
 }
 
-.controlsRow {
-  margin-bottom: 12px;
-  flex-wrap: nowrap;
-  overflow: visible;
+.countBlock {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.articlesCount {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--pm-foreground);
+}
+
+.countNoun {
+  font-size: 15px;
+  color: var(--pm-muted-foreground);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .inlinePagination {
+  display: flex;
+  align-items: center;
   gap: 4px;
-  margin-right: 8px;
+}
+
+.pageBtn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pm-slate);
+  cursor: pointer;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background: var(--pm-surface-2);
+}
+
+.pageBtn:disabled {
+  color: var(--pm-border-strong);
+  cursor: default;
+}
+
+.sortButton {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--pm-border-strong);
+  background: var(--pm-surface);
+  font-size: 13px;
+  color: var(--pm-foreground);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sortButton:hover {
+  background: var(--pm-surface-2);
+}
+
+.sortByLabel {
+  color: var(--pm-muted-foreground);
+}
+
+.sortMenu {
+  width: 340px;
+  max-height: 420px;
+  padding: 6px;
+  border: 1px solid var(--pm-border-strong);
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(34, 30, 28, 0.12) !important;
 }
 
 .showLabel {
@@ -83,26 +161,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  font-size: 12.5px;
-  color: #5a6478;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--pm-foreground);
   cursor: default;
-  border-left: 2px solid transparent;
-  transition: background 0.1s;
   white-space: nowrap;
 }
 
 .sortItem:hover {
-  background: #eeeae4;
-  color: #1a2133;
-  border-left-color: #2563a8;
+  background: var(--pm-surface-2);
 }
 
 .sortItemActive {
-  color: #2c2a27;
-  font-weight: 500;
-  background: #f7f5f1;
-  border-left-color: #2563a8;
+  font-weight: 600;
+  background: var(--pm-slate-tint);
 }
 
 .sortLabel {
@@ -111,32 +185,31 @@
 
 .sortToggle {
   display: flex;
-  border: 1px solid #d6d0c4;
-  border-radius: 20px;
-  overflow: hidden;
+  gap: 4px;
 }
 
+/* Mockup: two small bordered buttons per sort key, Slate fill on the active direction. */
 .sortToggleBtn {
-  padding: 3px 8px;
-  font-size: 11px;
-  background: #eeeae4;
-  border: none;
-  color: #8a94a6;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 5px;
+  border: 1px solid var(--pm-border-strong);
+  background: var(--pm-surface);
+  color: var(--pm-muted-foreground);
+  font-size: 11.5px;
+  font-weight: 600;
   cursor: pointer;
-  font-family: 'Inter', sans-serif;
-  transition: all 0.12s;
-  display: flex;
-  align-items: center;
-  gap: 3px;
   white-space: nowrap;
 }
 
-.sortToggleBtn + .sortToggleBtn {
-  border-left: 1px solid #ddd7ce;
+.sortToggleBtn:hover {
+  color: var(--pm-foreground);
 }
 
-.sortToggleBtnActive {
-  background: #2563a8;
+.sortToggleBtnActive,
+.sortToggleBtnActive:hover {
+  background: var(--pm-slate);
+  border-color: var(--pm-slate);
   color: #fff;
 }
 
@@ -155,18 +228,18 @@
 .showItem:hover {
   background: #eeeae4 !important;
   color: #1a2133 !important;
-  border-left-color: #2563a8;
+  border-left-color: var(--pm-slate);
 }
 
 .showItemActive {
   color: #2c2a27 !important;
   font-weight: 500;
   background: #f7f5f1 !important;
-  border-left-color: #2563a8;
+  border-left-color: var(--pm-slate);
 }
 
 .showCheck {
-  color: #2563a8;
+  color: var(--pm-slate);
   font-size: 11px;
 }
 

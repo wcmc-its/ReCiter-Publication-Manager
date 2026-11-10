@@ -1,57 +1,49 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { DropdownWrapper } from "../Common/DropdownWrapper";
 import styles from "./ChecboxSelect.module.css";
 import { setReportFilterLabels } from "../../../utils/constants";
 
-const positionDescriptions: Record<string, string> = {
-  first: "Article's first listed author",
-  last: "Corresponding / senior author",
-};
-
-export const CheckList = ({ reportFiltersLabes, title, options, onUpdateFilter, filterName, selectedOptions, isFilterClear }) => {
-  const [selectedList, setSelectedList] = useState<any>([]);
-
+// Fixed multi-select list (Author position, Source). Options carry their own label and
+// description in config/report.js.
+export const CheckList = ({ reportFiltersLabes, title, options, onUpdateFilter, filterName, selectedOptions, onClose }: any) => {
   const onSelect = (key: string) => {
     const isChecked = selectedOptions && selectedOptions.includes(key);
-    let updatedSelected = [];
-
-    if (!isChecked) {
-      updatedSelected = [...selectedOptions, key];
-      let optionObj = options.find(option => option.key === key);
-      if (optionObj) {
-        setSelectedList([...selectedList, optionObj]);
-      }
-    } else {
-      updatedSelected = selectedOptions.filter(option => option !== key);
-      setSelectedList(selectedList.filter(item => item.key !== key));
-    }
+    const updatedSelected = isChecked
+      ? selectedOptions.filter((option: string) => option !== key)
+      : [...(selectedOptions || []), key];
     onUpdateFilter(filterName, updatedSelected);
   }
 
-  useEffect(() => {
-    if (selectedList) setSelectedList([]);
-  }, [isFilterClear])
+  const label = setReportFilterLabels(reportFiltersLabes, title) || title;
+  const count = selectedOptions?.length || 0;
 
   return (
-    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
+    <DropdownWrapper title={count ? `${label} · ${count}` : label} variant={count > 0 ? "primary" : "white"} onClose={onClose}>
       <div>
-        {options.map((option) => {
+        {options.map((option: any) => {
           const isChecked = selectedOptions && selectedOptions.includes(option.key);
-          const desc = positionDescriptions[option.key];
           return (
             <div
               key={option.key}
+              role="menuitemcheckbox"
+              aria-checked={!!isChecked}
               className={styles.posItem}
               onClick={() => onSelect(option.key)}
             >
               <div className={isChecked ? styles.cbOn : styles.cb} />
               <div>
-                <div className={styles.posLabel}>{option.label} author</div>
-                {desc && <div className={styles.posDesc}>{desc}</div>}
+                <div className={styles.posLabel}>{option.label}</div>
+                {option.desc && <div className={styles.posDesc}>{option.desc}</div>}
               </div>
             </div>
           );
         })}
+        {count > 0 && (
+          <div className={styles.ddFooter}>
+            <button className={styles.ddClear} onClick={() => onUpdateFilter(filterName, [])}>Clear</button>
+            <span className={styles.ddSelectedCount}>{count} selected</span>
+          </div>
+        )}
       </div>
     </DropdownWrapper>
   )

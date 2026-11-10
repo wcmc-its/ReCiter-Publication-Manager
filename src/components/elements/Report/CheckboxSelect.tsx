@@ -5,7 +5,7 @@ import { useSelector } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
 import { setReportFilterLabels } from "../../../utils/constants";
 
-export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,isFilterClear, title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions,authorsFilteredData, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
+export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,isFilterClear, title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions,authorsFilteredData, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions, onClose }) => {
   const [userInput, setUserInput] = useState<string>('');
   const [selectedList, setSelectedList] = useState<any>([]);
   const [totalCount, setTotalCount] = useState<number>(10);
@@ -140,7 +140,10 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
   const selectedCount = selectedOptions?.length || 0;
 
   return (
-    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
+    <DropdownWrapper
+      title={(() => { const l = setReportFilterLabels(reportFiltersLabes, title) || title; return selectedCount ? `${l} · ${selectedCount}` : l; })()}
+      variant={selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}
+      onClose={onClose}>
       <div className={styles.dropdownContainer}>
         {/* Search bar */}
         <div className={styles.ddSearch}>

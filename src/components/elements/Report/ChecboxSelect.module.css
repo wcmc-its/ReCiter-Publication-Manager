@@ -104,8 +104,8 @@
 
 .cbOn {
   composes: cb;
-  background: #2563a8;
-  border-color: #2563a8;
+  background: var(--pm-slate);
+  border-color: var(--pm-slate);
 }
 
 .cbOn::after {
@@ -147,7 +147,7 @@
 
 .ddClear {
   font-size: 14px;
-  color: #2563a8;
+  color: var(--pm-slate);
   cursor: pointer;
   background: none;
   border: none;
@@ -163,7 +163,7 @@
 .ddSelectedCount {
   font-size: 11px;
   font-weight: 600;
-  color: #2563a8;
+  color: var(--pm-slate);
 }
 
 /* ── LEGACY COMPAT (divider for selected section) ── */
@@ -189,7 +189,7 @@
 
 .ptItem:hover {
   background: #eeeae4;
-  border-left-color: #2563a8;
+  border-left-color: var(--pm-slate);
 }
 
 .ptLabel {
@@ -222,7 +222,7 @@
 .posItem:hover {
   background: #eeeae4;
   color: #1a2133;
-  border-left-color: #2563a8;
+  border-left-color: var(--pm-slate);
 }
 
 .posLabel {
@@ -235,4 +235,19 @@
   font-size: 10.5px;
   color: #8a94a6;
   margin-top: 1px;
+}
+
+/* Single-choice presets (Journal rank) */
+.radio {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  border: 1.5px solid #d0cbc3;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.radioOn {
+  composes: radio;
+  border: 5px solid var(--pm-slate);
 }

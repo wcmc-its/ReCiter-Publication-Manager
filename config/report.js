@@ -1,6 +1,6 @@
 export const reportConfig = {
   authorFilters: {
-    name: "Author Filters",
+    name: "People",
     list: {
       author: {
         name: "Author",
@@ -40,9 +40,11 @@ export const reportConfig = {
       },
       authorPosition: {
         name: "Author Position",
+        // middle = NULL in analysis_summary_author (PubMed and external rows alike)
         options: [
-          {key: "first", label: "First"},
-          {key: "last", label: "Last"}
+          {key: "first", label: "First author", desc: "Article's first listed author"},
+          {key: "middle", label: "Middle author", desc: "Any position between first and last"},
+          {key: "last", label: "Last author", desc: "Corresponding / senior author"}
         ],
         filterType: "Checklist",
         isEnabled: true,
@@ -51,13 +53,27 @@ export const reportConfig = {
     }
   },
   articleFilters: {
-    name: "Article Filters",
+    name: "Publications",
     list: {
       date: {
         name: "Date",
         options: "dateFilterData",
         isEnabled: true,
         filterType: "DateRange",
+      },
+      source: {
+        name: "Source",
+        // analysis_summary_article.source_type; external rows are unioned in by ReCiterDB STEP 6b
+        options: [
+          {key: "PUBMED", label: "PubMed", desc: "Indexed in PubMed"},
+          {key: "SCOPUS", label: "Scopus", desc: "In Scopus, not PubMed"},
+          {key: "OPENALEX", label: "OpenAlex", desc: "Preprints, abstracts and other works"},
+          {key: "CROSSREF", label: "Crossref", desc: "Books, chapters and DOI-only records"},
+          {key: "WOS", label: "Web of Science", desc: "In Web of Science, not PubMed"}
+        ],
+        filterType: "Checklist",
+        isEnabled: true,
+        dynamicFetchOptions: false,
       },
       type: {
         name: "Type",
@@ -77,11 +93,16 @@ export const reportConfig = {
         isEnabled: true,
         dynamicFetchOptions: true,
       },
+      // SJR threshold presets (was a min-max slider). Lower bound is inclusive; the upper bound
+      // only exists because some search paths need both bounds set.
       journalRank: {
         name: "Journal Rank",
-        options: "journalRankFilterData",
+        options: [
+          {key: "1", label: "SJR 1.0 and above", lower: 1, upper: 1000},
+          {key: "3", label: "SJR 3.0 and above", lower: 3, upper: 1000}
+        ],
         isEnabled: true,
-        filterType: "Range",
+        filterType: "Preset",
       }
     }
   }
@@ -93,8 +114,9 @@ export const sortOptions = {
   journalImpactScore2: true,
   percentileNIH: true,
   citationCountNIH: true,
-  trendingPubsScore: true,
-  readersMendeley: true,
+  // TrendingPubs and Mendeley sorts dropped in the UI refresh (5b)
+  trendingPubsScore: false,
+  readersMendeley: false,
   publicationDateStandardized: true,
   // legacy admin_settings key spelling; kept so the option stays visible until the setting is renamed
   publicationDateStandarized: true,

@@ -27,33 +27,36 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ reportingWebDispla
     )
   }
 
+  const rows = results && Object.keys(results).length > 0 && results?.rows ? results.rows : [];
+  if (!rows.length) {
+    return Array.isArray(results?.rows) ? <div className={reportStyles.resultsCard}><div className={reportStyles.emptyRow}>No publications match these filters.</div></div> : null;
+  }
+
   return (
-    <>
-      {
-        Object.keys(results).length > 0 && results?.rows && results?.rows?.map((row) => {
-          return (
-            <ReportsResultPane
-            key={row.pmid}
-            title={row.articleTitle}
-            pmid={row.pmid}
-            doi={row.doi}
-            citationCount={row.citationCountNIH}
-            percentileRank={row.percentileNIH}
-            relativeCitationRatio={row.relativeCitationRatioNIH}
-            trendingPubsScore={row.trendingPubsScore}
-            journalImpactScore1={row.journalImpactScore1}
-            journalImpactScore2={row.journalImpactScore2}
-            citationCountScopus = {row.citationCountScopus}
-            authors={highlightSelectedAuthors(row.authors, pubSearchFilter)}
-            journalTitleVerbose={row.journalTitleVerbose}
-            publicationDateDisplay={row.publicationDateDisplay}
-            publicationTypeCanonical={row.publicationTypeCanonical}
-            onClickAuthor={onClickAuthor}
-            reportingWebDisplay = {reportingWebDisplay}
-           
-          />
-        )})
-      }
-    </>
+    <div className={reportStyles.resultsCard} data-testid="report-results">
+      {rows.map((row) => (
+        <ReportsResultPane
+          key={row.pmid}
+          title={row.articleTitle}
+          pmid={row.pmid}
+          doi={row.doi}
+          pmcid={row.pmcid}
+          sourceType={row.sourceType}
+          articleId={row.articleId}
+          citationCount={row.citationCountNIH}
+          percentileRank={row.percentileNIH}
+          relativeCitationRatio={row.relativeCitationRatioNIH}
+          journalImpactScore1={row.journalImpactScore1}
+          journalImpactScore2={row.journalImpactScore2}
+          citationCountScopus={row.citationCountScopus}
+          authors={highlightSelectedAuthors(row.authors, pubSearchFilter)}
+          journalTitleVerbose={row.journalTitleVerbose}
+          publicationDateDisplay={row.publicationDateDisplay}
+          publicationTypeCanonical={row.publicationTypeCanonical}
+          onClickAuthor={onClickAuthor}
+          reportingWebDisplay={reportingWebDisplay}
+        />
+      ))}
+    </div>
   )
 }
