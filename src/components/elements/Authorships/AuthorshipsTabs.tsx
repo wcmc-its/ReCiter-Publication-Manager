@@ -5083,9 +5083,13 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
   const rowInput = { byline: r.wcm_author, affiliation: r.author_affiliation, journal: r.journal,
     year: Number((r.entrez_date || "").slice(0, 4)) || null, source: r.source,
     coauthors: ev.status === "ok" ? ev.data.coauthors : null };
-  const cols = ev.status === "ok" && visible.length >= 2
-    ? orderByEvidence(visible, (c) => buildCandidateEvidence(rowInput, c, ev.data.facts[c.cwid])) : null;
-  const gridPicks = !!cols && visible.length <= 3;
+  // The grid takes every non-retired candidate, ignoring the "never retrieved" fold: the fold
+  // exists because those candidates have no IO, and the evidence rows don't need one. In prod
+  // the fold often left a single visible candidate, which hid the grid until "Show all".
+  const gridCands = [...ranked, ...rejectedCandidates];
+  const cols = ev.status === "ok" && gridCands.length >= 2
+    ? orderByEvidence(gridCands, (c) => buildCandidateEvidence(rowInput, c, ev.data.facts[c.cwid])) : null;
+  const gridPicks = !!cols && gridCands.length <= 3;
   // Name, badges, cwid link and hover card: shared by the list rows and the grid headers.
   const nameLine = (c: Candidate) => (
     <span onMouseEnter={() => c.cwid && openHover(c.cwid)} onMouseLeave={closeHover}
@@ -5188,8 +5192,8 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
           );
         })}
         {cols && !gridPicks && <CompareGrid cols={cols} pickedCwid={pickedCwid} onPick={onPick} paged renderHead={gridHead} />}
-        {visible.length >= 2 && ev.status === "loading" && <div style={{ fontSize: 12, color: "#6b7484", margin: "0 0 8px" }}>Loading the comparison…</div>}
-        {!showAll && unfolded.length > 0 && folded.length > 0 && (
+        {gridCands.length >= 2 && ev.status === "loading" && <div style={{ fontSize: 12, color: "#6b7484", margin: "0 0 8px" }}>Loading the comparison…</div>}
+        {!gridPicks && !showAll && unfolded.length > 0 && folded.length > 0 && (
           <button onClick={(e) => { e.stopPropagation(); setShowAll(true); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: 12, cursor: "pointer", padding: "2px 0", marginBottom: 8 }}>
             Show all {ranked.length} ({folded.length} never retrieved, IO unavailable)
           </button>
