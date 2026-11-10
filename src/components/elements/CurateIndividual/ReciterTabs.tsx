@@ -509,6 +509,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           onTabChange={onTabChange}
           acceptedCount={getCount('ACCEPTED')}
           rejectedCount={getCount('REJECTED')}
+          onRefresh={handleRefresh}
         />
       ) : null}
     </>

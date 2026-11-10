@@ -19,14 +19,15 @@ export const useNextPerson = () => {
     if (next) router.push(`/curate/${next.cwid}`);
   }, [next?.cwid]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The current person has nothing left in Suggested: zero their count in the results so the
-  // cycle does not come back to them.
-  const markCaughtUp = useCallback(() => {
+  // `cwid` has nothing left in Suggested: zero their count in the results so the cycle does not
+  // come back to them. Takes the cwid of the loaded data, not the route: right after "Next" the
+  // route already names the next person while the previous person's empty tab is still mounted.
+  const markCaughtUp = useCallback((cwid: string | undefined) => {
     const persons = results?.persons;
-    if (!current || !Array.isArray(persons)) return;
-    if (!persons.some((p: any) => p.personIdentifier === current && p.countPendingArticles)) return;
-    dispatch({ type: methods.IDENTITY_CHANGE_PAGINATED_DATA, payload: { ...results, persons: withPendingCount(persons, current, 0) } });
-  }, [current, results, dispatch]);
+    if (!cwid || !Array.isArray(persons)) return;
+    if (!persons.some((p: any) => p.personIdentifier === cwid && p.countPendingArticles)) return;
+    dispatch({ type: methods.IDENTITY_CHANGE_PAGINATED_DATA, payload: { ...results, persons: withPendingCount(persons, cwid, 0) } });
+  }, [results, dispatch]);
 
   return { next, goNext, markCaughtUp };
 };

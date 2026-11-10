@@ -38,6 +38,7 @@ interface TabContentProps {
   onTabChange?: (key: string) => void,
   acceptedCount?: number,
   rejectedCount?: number,
+  onRefresh?: () => void,
 }
 
 const LIST_CHUNK = 50;
@@ -62,7 +63,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const { next, goNext, markCaughtUp } = useNextPerson();
   const caughtUp = props.tabType === 'NULL' && !props.publications.length;
   // Nothing left in Suggested: drop this person out of the "Next" cycle.
-  useEffect(() => { if (caughtUp) markCaughtUp(); }, [caughtUp, markCaughtUp]);
+  useEffect(() => { if (caughtUp) markCaughtUp(props.personIdentifier); }, [caughtUp, markCaughtUp, props.personIdentifier]);
 
   const searchTextUpdate = (searchText: string) => {
     let filteredPublications = filterPublicationsBySearchText(props.publications, searchText.trim());
@@ -427,7 +428,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
             <Button variant="secondary" onClick={() => router.push('/search')}>
               Back to people
             </Button>
-            <Button variant="ghost">
+            <Button variant="ghost" onClick={props.onRefresh} disabled={!props.onRefresh}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M13.5 8a5.5 5.5 0 11-1.1-3.3M13.5 2v3h-3"/></svg>
               Run ReCiter now
             </Button>
