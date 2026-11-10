@@ -36,6 +36,8 @@ interface TabContentProps {
 }
 
 const LIST_CHUNK = 50;
+// Remembered view (Cards or Detail), per browser. ponytail: one key; add more prefs when asked.
+const VIEW_KEY = 'pm.curate.view';
 
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [sort, setSort] = useState<string>("0")
@@ -267,6 +269,22 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     return -1;
   }, []);
 
+  // Detail (split) view: a sticky list on the left, the focused record in full on the right.
+  const [view, setView] = useState<'cards' | 'detail'>('cards');
+  useEffect(() => { try { if (localStorage.getItem(VIEW_KEY) === 'detail') setView('detail'); } catch {} }, []);
+  const chooseView = (v: 'cards' | 'detail') => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch {} };
+  const split = isArticleTab && view === 'detail';
+  const detailIdx = Math.min(Math.max(focusedIndex, 0), publicationsPaginatedData.length - 1);
+  const detailPub = split ? publicationsPaginatedData[detailIdx] : undefined;
+  // Acting in the pane on Suggested moves on to the next pending record, like the A/R keys.
+  const updateFromDetail = (uid: string, pmid: number, userAssertion: string) => {
+    handleUpdatePublication(uid, pmid, userAssertion);
+    if (isSuggested && userAssertion !== 'NULL') {
+      const next = findNextPending(detailIdx + 1, publicationsPaginatedData);
+      if (next >= 0) setFocusedIndex(next);
+    }
+  };
+
   // Count pending cards
   const pendingCount = publicationsPaginatedData.filter((p: any) => p.userAssertion === 'NULL').length;
 
@@ -308,11 +326,9 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         lastActioned.current = null;
       } else if (key === 'e' && focusedPub) {
         e.preventDefault();
-        const el = document.querySelector(`[data-pmid="${focusedPub.pmid}"]`);
-        if (el) {
-          const btn = el.querySelector('button[data-evidence-toggle]') as HTMLButtonElement;
-          if (btn) btn.click();
-        }
+        // In Detail view the list row shares the data-pmid; the toggle is in the pane's card.
+        const btn = document.querySelector(`[data-pmid="${focusedPub.pmid}"] button[data-evidence-toggle]`) as HTMLButtonElement | null;
+        if (btn) btn.click();
       } else if (key === 'arrowdown') {
         e.preventDefault();
         // Keyboard can walk past the rendered window: grow it before focus reaches the end.
@@ -464,6 +480,10 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
           <span><span className={styles.kbd}>U</span> Undo last</span>
           <span><span className={styles.kbd}>E</span> Toggle Evidence</span>
           <span><span className={styles.kbd}>&uarr;</span><span className={styles.kbd}>&darr;</span> Navigate</span>
+          <div className={styles.viewSwitch} role="group" aria-label="View">
+            <button type="button" aria-pressed={view === 'cards'} onClick={() => chooseView('cards')}>Cards</button>
+            <button type="button" aria-pressed={view === 'detail'} onClick={() => chooseView('detail')}>Detail</button>
+          </div>
         </div>
       )}
 
@@ -489,6 +509,48 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         </div>
       )}
 
+      {split ? (
+        <div className={styles.split}>
+          <div className={styles.splitList} aria-label="Publications">
+            {renderRows((p: any, index: number) => (
+              <button
+                type="button"
+                key={p.pmid}
+                data-pmid={p.pmid}
+                data-state={p.userAssertion}
+                className={styles.splitRow}
+                aria-current={index === detailIdx ? 'true' : undefined}
+                onClick={() => setFocusedIndex(index)}
+              >
+                <span className={styles.splitScore}>{scoreOf(p)}</span>
+                <span className={styles.splitText}>
+                  <span className={styles.splitTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(p.articleTitleRTF || p.articleTitle) }} />
+                  <span className={styles.splitMeta}>{p.journalTitleVerbose} · {yearOf(p)}</span>
+                </span>
+              </button>
+            ))}
+            {visible < openList.length && <div ref={sentinelRef} className={styles.listSentinel} aria-hidden="true" />}
+          </div>
+          <div className={styles.splitDetail}>
+            {detailPub && (
+              <Publication
+                key={detailPub.pmid}
+                index="detail"
+                reciterArticle={detailPub}
+                personIdentifier={props.personIdentifier}
+                fullName={props.fullName}
+                updatePublication={updateFromDetail}
+                activekey={props.activeKey}
+                totalCount={props.totalCount}
+                showEvidenceDefault="detail"
+                coauthorIndex={props.coauthorIndex}
+                page={page}
+                paginatedPubsCount={detailPub.userAssertion === "NULL" ? totalNullCount : detailPub.userAssertion === "ACCEPTED" ? totalAcceptedCount : totalRejectedCount}
+              />
+            )}
+          </div>
+        </div>
+      ) : (<>
       <div className={styles.articleList}>
         {renderRows((publication: any, index: number) => {
           return (
@@ -512,6 +574,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         })}
       </div>
       {visible < openList.length && <div ref={sentinelRef} className={styles.listSentinel} aria-hidden="true" />}
+      </>)}
 
       <Dialog
         open={!!bandBulk}
