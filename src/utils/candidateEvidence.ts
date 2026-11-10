@@ -11,6 +11,7 @@ export type EvidenceKind = 'match' | 'partial' | 'mismatch' | 'nodata'
 export interface EvidenceRow {
     label: string
     kind: EvidenceKind
+    mine?: string        // what this article says (the same for every candidate on the row)
     theirs?: string      // what their record says
     why?: string         // one short reason, shown under the verdict
 }
@@ -86,6 +87,7 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
     rows.push({
         label: 'Name',
         kind: exact ? 'match' : fits ? 'partial' : bl ? 'mismatch' : 'nodata',
+        mine: byline || undefined,
         theirs: forms.length ? forms.slice(0, 3).map(formName).join(' · ') : c.name,
         why: exact ? `Publishes as “${formName(exact)}” (${plural(exact.n, 'paper')})`
             : fits ? 'Surname and initial agree; this exact form is new for them'
@@ -95,6 +97,7 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
     rows.push({
         label: 'Given name',
         kind: c.given_match === 'full' ? 'match' : c.given_match === 'initial' ? 'partial' : 'nodata',
+        mine: byline.split(/\s+/)[0] || undefined,
         why: c.given_match === 'full' ? 'Full given name agrees' : c.given_match === 'initial' ? 'Initial only, so many people fit' : '',
     })
 
@@ -106,6 +109,7 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
         rows.push({
             label: 'Email',
             kind: mine ? 'match' : 'mismatch',
+            mine: emails.map((e) => `${e}@…`).join(', '),
             why: mine ? `The affiliation carries their address (${cw}@…)` : `The affiliation's Cornell address is ${emails.join(', ')}`,
         })
     }
@@ -115,6 +119,7 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
     rows.push({
         label: 'Institution',
         kind: inst ? 'match' : aff.trim() ? 'mismatch' : 'nodata',
+        mine: aff.trim() || undefined,
         why: inst ? '' : aff.trim() ? 'No Cornell institution in the affiliation' : 'No affiliation on this byline',
     })
 
@@ -129,14 +134,17 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
     const accepted = f?.accepted ?? 0
     if (row.coauthors == null) {
         rows.push({ label: 'Co-authors', kind: 'nodata', why: 'Author list not available for this paper' })
+    } else if (!row.coauthors.length) {
+        rows.push({ label: 'Co-authors', kind: 'nodata', mine: 'No other authors' })
     } else if (!f || !accepted) {
-        rows.push({ label: 'Co-authors', kind: 'nodata', why: 'No accepted papers to compare against' })
+        rows.push({ label: 'Co-authors', kind: 'nodata', mine: plural(row.coauthors.length, 'co-author'), why: 'No accepted papers to compare against' })
     } else {
         const hitN = new Map(f.coauthorHits.map((h) => [`${h.initial.toLowerCase()} ${lastToken(h.last)}`, h.n]))
         const hits = row.coauthors.filter((a) => hitN.has(authorKey(a)))
         rows.push({
             label: 'Co-authors',
             kind: hits.length ? 'match' : 'mismatch',
+            mine: plural(row.coauthors.length, 'co-author'),
             theirs: hits.length ? hits.slice(0, 3).map((a) => `${a} (${hitN.get(authorKey(a))})`).join(', ') + (hits.length > 3 ? ` +${hits.length - 3}` : '') : undefined,
             why: hits.length ? `${hits.length} of ${row.coauthors.length} have published with them`
                 : `None of the ${plural(row.coauthors.length, 'co-author')} appear on their accepted papers`,
@@ -147,11 +155,11 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
     if (f && accepted && row.journal) {
         rows.push({
             label: 'Journal',
-            kind: f.journalHits ? 'match' : 'nodata',
+            kind: f.journalHits ? 'match' : 'nodata', mine: row.journal,
             why: f.journalHits ? `Published here ${plural(f.journalHits, 'time')} before` : 'Not a journal they have published in',
         })
     } else {
-        rows.push({ label: 'Journal', kind: 'nodata', why: accepted ? '' : 'No accepted papers to compare against' })
+        rows.push({ label: 'Journal', kind: 'nodata', mine: row.journal || undefined, why: accepted ? '' : 'No accepted papers to compare against' })
     }
 
     // Career window: published well before their first degree is a strong mismatch.
@@ -159,11 +167,11 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
     if (dy && row.year) {
         const early = row.year < dy - 2
         rows.push({
-            label: 'Career window', kind: early ? 'mismatch' : 'match', theirs: `First degree ${dy}`,
+            label: 'Career window', kind: early ? 'mismatch' : 'match', mine: String(row.year), theirs: `First degree ${dy}`,
             why: early ? `Published ${dy - row.year} years before their first degree` : '',
         })
     } else {
-        rows.push({ label: 'Career window', kind: 'nodata', why: dy ? '' : 'No degree year on record' })
+        rows.push({ label: 'Career window', kind: 'nodata', mine: row.year ? String(row.year) : undefined, why: dy ? '' : 'No degree year on record' })
     }
 
     // Prior decisions: only when there is one.

@@ -20,6 +20,8 @@ import {
 import type { CandidateLite, TypedCwidLookupState } from "../../../lib/bulkAssign";
 import { externalSourceLabel, isExternalSource, openalexRecordUrl } from "../../../lib/externalSource";
 import type { AuthorshipSource } from "../../../lib/externalSource";
+import { EvidenceTable, useCandidateEvidence } from "./CandidateEvidence";
+import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
@@ -4899,8 +4901,26 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
         : r.source === "openalex" ? openalexNote(r)
         : r.source === "scopus" ? scopusNote(r) : ioFgNote(r)}</span>
     </div>
+    {!noSuggestion && <SingleEvidenceTable row={r} />}
   </>
   );
+};
+
+// 4d-3: the evidence table for the row's one candidate. Mounted with the expanded panel, so it
+// fetches at the same moment AssignOther's directory lookup fires. A single row carries its
+// candidate as top_* fields, not a candidate object, so build one from them.
+const SingleEvidenceTable = ({ row: r }: { row: AuthorshipRow }) => {
+  const ev = useCandidateEvidence(r.id, r.top_cwid || "");
+  if (ev.status === "loading") return <div style={{ marginTop: 10, fontSize: 12.5, color: "#6b7484" }}>Loading evidence…</div>;
+  if (ev.status === "error") return <div style={{ marginTop: 10, fontSize: 12.5, color: "#b45309" }}>Couldn't load the evidence table. Collapse and reopen the row to retry.</div>;
+  const year = Number((r.entrez_date || "").slice(0, 4)) || null;
+  const rows = buildCandidateEvidence(
+    { byline: r.wcm_author, affiliation: r.author_affiliation, journal: r.journal, year, source: r.source, coauthors: ev.data.coauthors },
+    { cwid: r.top_cwid, name: r.top_name, dept: r.top_dept, io_score: r.top_io_score, given_match: r.top_given_match,
+      affil_dept_match: r.top_affil_match, already_rejected: r.top_already_rejected },
+    ev.data.facts[r.top_cwid || ""],
+  );
+  return <EvidenceTable rows={rows} who={`${r.top_name || r.top_cwid} · ${r.top_cwid}`} />;
 };
 
 // What an assign does to the OTHER candidate(s) on the row, said before the click rather than
