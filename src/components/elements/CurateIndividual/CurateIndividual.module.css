@@ -1163,3 +1163,44 @@
 .tabsBar[data-compact] .tab,
 .tabsBar[data-compact] .tabActive { padding: 12px 10px; }
 .tabsBar[data-compact] .tabGroupLabel { padding: 0 4px 0 8px; }
+
+/* Phase 2h: cross-source duplicates banner on Accepted (read-only) */
+.dupBanner {
+  margin: 12px 32px 0;
+  border: 1px solid var(--pm-amber-tint-border);
+  background: var(--pm-amber-tint);
+  border-radius: 8px;
+}
+.dupHead { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+.dupText { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.dupText strong { font-size: 13px; color: var(--pm-amber); }
+.dupText span { font-size: 12px; color: var(--pm-muted-foreground); line-height: 1.45; }
+.dupToggle {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--pm-amber-tint-border);
+  background: #fff;
+  color: var(--pm-amber);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dupToggle:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: 2px; }
+.dupList { list-style: none; margin: 0; padding: 0 14px 12px; display: flex; flex-direction: column; gap: 10px; }
+.dupPair { background: #fff; border: 1px solid var(--pm-border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.dupReason {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--pm-amber-tint);
+  color: var(--pm-amber);
+}
+.dupReason[data-definite] { background: var(--pm-red-tint); color: var(--pm-red); }
+.dupRecs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.dupRec { padding: 8px 10px; border-radius: 6px; background: var(--pm-surface-2); border: 1px solid var(--pm-border); display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 13px; line-height: 1.4; }
+.dupId { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dupMeta { font-size: 12px; color: var(--pm-muted-foreground); }

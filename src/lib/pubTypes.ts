@@ -383,3 +383,48 @@ export const isPossibleDuplicate = (a: DupRecord, b: DupRecord): boolean => {
   if (!normTitle(a.title) || !normTitle(b.title)) return false;
   return !!ya && ya === yearOf(b) && titleSimilarity(a.title, b.title) >= POSSIBLE_DUPLICATE_TITLE_SIMILARITY;
 };
+
+// 2h: accepted external records (Scopus / OpenAlex / Crossref / manual) that duplicate an
+// accepted PubMed record. Cross-source only; two PubMed records are never paired (plan, Nov 9).
+// Uses the tiers above. Tested in tests/crossSourceDups.test.mjs.
+
+export interface DupPair { pub: any; ext: any; reason: string; definite: boolean }
+
+const SOURCES = ['SCOPUS', 'OPENALEX', 'CROSSREF']
+export const extSourceLabel = (e: any): string => {
+  const st = String(e?.sourceType || '').toUpperCase()
+  return st === 'SCOPUS' ? 'Scopus' : st === 'OPENALEX' ? 'OpenAlex' : st === 'CROSSREF' ? 'Crossref' : 'Manual'
+}
+
+const pubRec = (p: any): DupRecord => ({
+  pmid: p.pmid, doi: p.doi, title: p.articleTitle,
+  date: String(p.publicationDateStandardized || p.publicationDateDisplay || '').match(/\d{4}/)?.[0] || null,
+})
+const extRec = (e: any): DupRecord => {
+  const id = String(e.articleId || ''), i = id.indexOf(':'), src = id.slice(0, i).toUpperCase()
+  return {
+    pmid: e.pmid, doi: e.doi, title: e.title,
+    // Only Scopus / OpenAlex ids are comparable source ids; a Crossref id is its DOI.
+    sourceId: SOURCES.includes(src) && src !== 'CROSSREF' ? id.slice(i + 1) : null,
+    date: String(e.pubDate || e.publicationDate || e.displayDate || '').match(/\d{4}/)?.[0] || null,
+  }
+}
+
+// One pair per external record (its best PubMed match: definite before possible).
+// ponytail: O(accepted × external); fine at hundreds × tens, bucket by year if a record measures slow.
+export const crossSourceDuplicates = (accepted: any[], external: any[]): DupPair[] => {
+  const pubs = accepted.map((p) => [p, pubRec(p)] as const)
+  const out: DupPair[] = []
+  for (const e of external) {
+    if (e.suppressed) continue
+    const er = extRec(e)
+    let best: DupPair | null = null
+    for (const [p, pr] of pubs) {
+      const why = definiteDuplicateReason(pr, er)
+      if (why) { best = { pub: p, ext: e, reason: why, definite: true }; break }
+      if (!best && isPossibleDuplicate(pr, er)) best = { pub: p, ext: e, reason: 'Title + year match', definite: false }
+    }
+    if (best) out.push(best)
+  }
+  return out
+}
