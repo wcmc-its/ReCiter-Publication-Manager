@@ -5,6 +5,7 @@ import { useSelector } from "react-redux";
 import { useSession } from "next-auth/react";
 import { withoutScopeKeys } from '../../../utils/scopeResolver';
 import { RootStateOrAny } from "../../../types/redux";
+import { useNextPerson } from "../../../hooks/useNextPerson";
 import styles from "./SectionNav.module.css";
 
 // Section row under the top bar. Not sticky: it scrolls away while the top bar stays pinned.
@@ -12,6 +13,7 @@ const SectionNav = () => {
   const router = useRouter();
   const { data: session } = useSession();
   const filters = useSelector((state: RootStateOrAny) => state.filters);
+  const { next, goNext } = useNextPerson();
 
   let roles: any[] = [];
   try {
@@ -73,6 +75,19 @@ const SectionNav = () => {
           </Link>
         );
       })}
+      {next && (
+        <button
+          type="button"
+          className={styles.nextPill}
+          onClick={goNext}
+          title={`Next person with suggestions: ${next.name}`}
+        >
+          <span className={styles.nextLabel}>Next</span>
+          <span className={styles.nextName}>{next.name}</span>
+          <span className={styles.nextCount}>{next.pending.toLocaleString()}</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+        </button>
+      )}
     </nav>
   );
 };

@@ -518,6 +518,9 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           onAssertionChange={handleAssertionChange}
           onTabChange={onTabChange}
           toolbarSlot={toolbarSlot}
+          acceptedCount={getCount('ACCEPTED')}
+          rejectedCount={getCount('REJECTED')}
+          onRefresh={handleRefresh}
         />
       ) : null}
     </>
