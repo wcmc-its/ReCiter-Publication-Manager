@@ -8,7 +8,7 @@ import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
 import type { Author } from '../../../../types/Author';
 import { useSelector, useDispatch } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
-import { Sheet } from "../../ui";
+import { Sheet, Button as Btn } from "../../ui";
 import { showEvidenceByDefault } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml } from "../../../utils/htmlText";
@@ -16,6 +16,7 @@ import { toast } from "react-toastify";
 import Popover from "@mui/material/Popover";
 import { buildEvidenceRows, determineMatchType, MATCH_COLORS as matchColors, knownCoauthorsOf, identityChips, tallyOf, affiliationParts, chipDetail } from "../../../utils/identityEvidence";
 import type { CoauthorIndex } from "../../../utils/identityEvidence";
+import { BANDS, BAND_NOTES, bandOf } from "../../../utils/curateGroups";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -106,6 +107,7 @@ interface FuncProps {
     isFocused?: boolean,
     coauthorIndex?: CoauthorIndex,
     onCardMouseDown?: () => void,
+    detail?: boolean,
 }
 
 const Publication: FunctionComponent<FuncProps> = (props) => {
@@ -515,65 +517,8 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
     const tally = tallyOf(idChips);
     const tallyBase = (tally.match + tally.partial + tally.mismatch) || 1;
     const affil = affiliationParts(reciterArticle.evidence);
-
-    return (
-      <div className={`${styles.articleCard}${props.isFocused ? ` ${styles.focused}` : ''}${isActionedInSuggested ? ` ${styles.actionedCard}` : ''}`} data-pmid={reciterArticle.pmid} onMouseDown={props.onCardMouseDown}>
-        {/* Status strip for accepted/rejected */}
-        {userAssertion === 'ACCEPTED' && <div className={styles.statusStripAccepted} />}
-        {userAssertion === 'REJECTED' && <div className={styles.statusStripRejected} />}
-
-        {/* Main content column */}
-        <div className={styles.cardMain}>
-          <div className={styles.cardTop}>
-            {/* Content area */}
-            <div className={styles.cardContent}>
-              <div className={styles.titleRow}>
-                <span className={styles.scoreTip}>
-                  <span className={scoreNum >= 70 ? styles.scoreInlineHigh : scoreNum >= 40 ? styles.scoreInlineMedium : styles.scoreInlineLow}>
-                    {score !== null ? score : "N/A"}
-                  </span>
-                  {score !== null && (
-                    <span className={styles.scoreTooltip}>
-                      <span className={styles.stRow}>
-                        <span className={styles.stLabel}>Score</span>
-                        <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>{rawScore !== null ? Number(rawScore).toFixed(2) : scoreNum}</span>
-                      </span>
-                      <span className={styles.stRow}>
-                        <span className={styles.stLabel}>Tier</span>
-                        <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>
-                          {scoreNum >= 70 ? 'Strong match' : scoreNum >= 40 ? 'Moderate match' : 'Weak match'}
-                        </span>
-                      </span>
-                    </span>
-                  )}
-                </span>
-                <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml((reciterArticle as any).articleTitleRTF || reciterArticle.articleTitle) }} />
-              </div>
-              <div className={styles.articleAuthors}>
-                {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
-                  displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
-              </div>
-              {affil && (
-                <div className={styles.rawAffiliation} title="Affiliation statement from PubMed">
-                  {affil.pre}{affil.hit && <mark>{affil.hit}</mark>}{affil.post}
-                </div>
-              )}
-              {coauthors && coauthors.hits.length > 0 && (
-                <div className={styles.knownCoauthors}>
-                  Known co-authors: {coauthors.hits.join(', ')}
-                </div>
-              )}
-              <div className={styles.articleMeta}>
-                <span>{reciterArticle.journalTitleVerbose}</span>
-                {reciterArticle.publicationDateDisplay && <span>{reciterArticle.publicationDateDisplay}</span>}
-                {reciterArticle.publicationType?.publicationTypeCanonical &&
-                  <span>
-                    <span className={styles.typeBadge}>{reciterArticle.publicationType.publicationTypeCanonical}</span>
-                  </span>
-                }
-              </div>
-              {idChips.length > 0 && (
-                <div className={styles.idSummary}>
+    // Shared by the card and the Detail pane (#1102).
+    const chipList = (<>
                   <ul className={styles.idChips} aria-label="Identity evidence summary">
                     {idChips.map((c) => (
                       <li key={c.label}>
@@ -615,6 +560,8 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                       ))}
                     </ul>
                   </Popover>
+    </>);
+    const tallyEl = (
                   <span className={styles.idTally}>
                     <span className={styles.idTallyBar} aria-hidden="true">
                       <span data-kind="match" style={{ width: `${(100 * tally.match) / tallyBase}%` }} />
@@ -623,9 +570,8 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                     </span>
                     {tally.text}
                   </span>
-                </div>
-              )}
-              <div className={styles.articleLinks}>
+    );
+    const linksLeft = (
                 <div className={styles.articleLinksLeft}>
                   <span>PMID: <a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a><CopyButton label="PMID" value={reciterArticle.pmid} /></span>
                   {reciterArticle.doi && <span><a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI ↗</a><CopyButton label="DOI" value={reciterArticle.doi} /></span>}
@@ -686,23 +632,145 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                     </span>
                   )}
                 </div>
+    );
+    const band = bandOf(reciterArticle);
+    const evOpen = props.detail ? !showEvidence : (props.index === props.showEvidenceDefault || showEvidence);
+
+    return (
+      <div className={`${styles.articleCard}${props.isFocused ? ` ${styles.focused}` : ''}${isActionedInSuggested ? ` ${styles.actionedCard}` : ''}`} data-pmid={reciterArticle.pmid} onMouseDown={props.onCardMouseDown}>
+        {/* Status strip for accepted/rejected */}
+        {userAssertion === 'ACCEPTED' && <div className={styles.statusStripAccepted} />}
+        {userAssertion === 'REJECTED' && <div className={styles.statusStripRejected} />}
+
+        {/* Main content column */}
+        <div className={styles.cardMain}>
+          <div className={styles.cardTop}>
+            {/* Content area */}
+            <div className={styles.cardContent}>
+              {props.detail ? (<>
+                <div className={styles.detailKicker}>
+                  {reciterArticle.publicationType?.publicationTypeCanonical && <span className={styles.typeBadge}>{reciterArticle.publicationType.publicationTypeCanonical}</span>}
+                  <span>{[reciterArticle.journalTitleVerbose, reciterArticle.publicationDateDisplay].filter(Boolean).join(' \u00B7 ')}</span>
+                </div>
+                <h2 className={styles.detailTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml((reciterArticle as any).articleTitleRTF || reciterArticle.articleTitle) }} />
+              </>) : (
+              <div className={styles.titleRow}>
+                <span className={styles.scoreTip}>
+                  <span className={scoreNum >= 70 ? styles.scoreInlineHigh : scoreNum >= 40 ? styles.scoreInlineMedium : styles.scoreInlineLow}>
+                    {score !== null ? score : "N/A"}
+                  </span>
+                  {score !== null && (
+                    <span className={styles.scoreTooltip}>
+                      <span className={styles.stRow}>
+                        <span className={styles.stLabel}>Score</span>
+                        <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>{rawScore !== null ? Number(rawScore).toFixed(2) : scoreNum}</span>
+                      </span>
+                      <span className={styles.stRow}>
+                        <span className={styles.stLabel}>Tier</span>
+                        <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>
+                          {scoreNum >= 70 ? 'Strong match' : scoreNum >= 40 ? 'Moderate match' : 'Weak match'}
+                        </span>
+                      </span>
+                    </span>
+                  )}
+                </span>
+                <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml((reciterArticle as any).articleTitleRTF || reciterArticle.articleTitle) }} />
+              </div>
+            )}
+              <div className={`${styles.articleAuthors}${props.detail ? ` ${styles.detailAuthors}` : ''}`}>
+                {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
+                  displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
+              </div>
+              {affil && (
+                <div className={styles.rawAffiliation} title="Affiliation statement from PubMed">
+                  {affil.pre}{affil.hit && <mark>{affil.hit}</mark>}{affil.post}
+                </div>
+              )}
+              {coauthors && coauthors.hits.length > 0 && (
+                <div className={styles.knownCoauthors}>
+                  Known co-authors: {coauthors.hits.join(', ')}
+                </div>
+              )}
+              {props.detail ? (<>
+                <div className={styles.articleLinks}>{linksLeft}</div>
+                <div className={styles.detailActions}>
+                  {!isActionedInSuggested && userAssertion !== 'ACCEPTED' && (
+                    <Btn variant="primary" onClick={() => { props.updatePublication(props.personIdentifier, reciterArticle.pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(evDefault)); }}>
+                      <CheckIcon style={{fontSize:16}}/> Accept <span className={styles.detailKbd}>A</span>
+                    </Btn>
+                  )}
+                  {userAssertion !== 'NULL' && (
+                    <Btn variant="secondary" onClick={() => { props.updatePublication(props.personIdentifier, reciterArticle.pmid, 'NULL'); dispatch(showEvidenceByDefault(evDefault)); }}>
+                      <UndoIcon style={{fontSize:16}}/> {isActionedInSuggested ? `${userAssertion === 'ACCEPTED' ? 'Accepted' : 'Rejected'} \u2014 Undo` : 'Undo'}
+                    </Btn>
+                  )}
+                  {!isActionedInSuggested && userAssertion !== 'REJECTED' && (
+                    <Btn variant="secondary" onClick={() => { props.updatePublication(props.personIdentifier, reciterArticle.pmid, 'REJECTED'); dispatch(showEvidenceByDefault(evDefault)); }}>
+                      <ClearIcon style={{fontSize:16}}/> Reject <span className={styles.detailKbd}>R</span>
+                    </Btn>
+                  )}
+                </div>
+                <div className={styles.detailEvidence}>
+                  {reciterArticle.evidence !== undefined && (
+                    <button type="button" className={styles.detailEvHead} data-evidence-toggle aria-expanded={evOpen} onClick={() => setShowEvidence((v) => !v)}>
+                      <span className={styles.detailEvTitle}>Supporting evidence</span>
+                      <span className={styles.detailKbdKey}>E</span>
+                      <span className={styles.detailEvToggle}>
+                        {evOpen ? 'Summary only' : 'Details'}
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: `rotate(${evOpen ? 90 : 0}deg)` }}><path d="m9 18 6-6-6-6" /></svg>
+                      </span>
+                    </button>
+                  )}
+                  <div className={styles.detailSummary}>
+                    <div className={styles.detailScore}>{score !== null ? score : 'N/A'}</div>
+                    {score !== null && (
+                      <div className={styles.detailVerdict}>
+                        <strong>{BANDS.find((b) => b.key === band)?.label}</strong>
+                        <span>{BAND_NOTES[band]}</span>
+                      </div>
+                    )}
+                    {idChips.length > 0 && tallyEl}
+                  </div>
+                  {idChips.length > 0 && <div className={styles.idSummary}>{chipList}</div>}
+                </div>
+              </>) : (<>
+              <div className={styles.articleMeta}>
+                <span>{reciterArticle.journalTitleVerbose}</span>
+                {reciterArticle.publicationDateDisplay && <span>{reciterArticle.publicationDateDisplay}</span>}
+                {reciterArticle.publicationType?.publicationTypeCanonical &&
+                  <span>
+                    <span className={styles.typeBadge}>{reciterArticle.publicationType.publicationTypeCanonical}</span>
+                  </span>
+                }
+              </div>
+              {idChips.length > 0 && (
+                <div className={styles.idSummary}>
+                  {chipList}
+                  {tallyEl}
+                </div>
+              )}
+              <div className={styles.articleLinks}>
+                {linksLeft}
                 {reciterArticle.evidence !== undefined && (
                   <button className={styles.evidenceBtnPrimary} data-evidence-toggle onClick={() => toogleEvidence(props.index)}>
                     Supporting evidence
                   </button>
                 )}
               </div>
+              </>)}
 
               {/* Evidence panel */}
               {reciterArticle.evidence !== undefined && (
-                <div className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
+                <div className={`${styles.publicationShowEvidenceContainer} ${evOpen ? styles.publicationShowEvidenceContainerOpen : ""}`}>
 
                   {/* Feedback-based scores panel */}
-                  <div className={styles.sectionPanel}>
+                  <div className={`${styles.sectionPanel}${props.detail ? ` ${styles.detailCard}` : ''}`}>
                     <div className={styles.sectionHeader}>
                       <div className={styles.sectionTitleGroup}>
-                        <span className={styles.sectionTitle}>Feedback-based scores</span>
-                        <span className={styles.sectionSubtitle}>Scores learned from curation history</span>
+                        <span className={styles.sectionTitle}>{props.detail ? 'Feedback scores' : 'Feedback-based scores'}</span>
+                        {props.detail
+                          ? <span className={styles.detailLegend}>{'\u2212'} against {'\u00B7'} for +</span>
+                          : <span className={styles.sectionSubtitle}>Scores learned from curation history</span>}
                       </div>
                       <div className={styles.learnMoreWrap}>
                         <div className={styles.learnMoreBtn}>
@@ -740,7 +808,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
               )}
 
               {/* Action buttons (inside card-content, per mockup) */}
-              <CardFooter pmid={reciterArticle.pmid} userAssertion={userAssertion} />
+              {!props.detail && <CardFooter pmid={reciterArticle.pmid} userAssertion={userAssertion} />}
             </div>
           </div>
         </div>

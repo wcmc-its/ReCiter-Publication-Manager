@@ -15,7 +15,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import { Dialog, Button } from "../../ui";
 import { showUndoToast } from "../ToastHost/ToastHost";
 import { sanitizeInlineHtml } from "../../../utils/htmlText";
-import { BANDS, groupModeFor, groupKeyOf, groupsOf, yearHistogram, spotCheckSample, scoreOf, yearOf } from "../../../utils/curateGroups";
+import { BANDS, groupModeFor, groupKeyOf, groupsOf, yearHistogram, spotCheckSample, scoreOf, yearOf, bandOf, authorLine } from "../../../utils/curateGroups";
 import type { Band } from "../../../utils/curateGroups";
 
 
@@ -515,23 +515,50 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       {split ? (
         <div className={styles.split}>
           <div className={styles.splitList} aria-label="Publications">
-            {renderRows((p: any, index: number) => (
-              <button
-                type="button"
-                key={p.pmid}
-                data-pmid={p.pmid}
-                data-state={p.userAssertion}
-                className={styles.splitRow}
-                aria-current={index === detailIdx ? 'true' : undefined}
-                onClick={() => setFocusedIndex(index)}
-              >
-                <span className={styles.splitScore}>{scoreOf(p)}</span>
-                <span className={styles.splitText}>
-                  <span className={styles.splitTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(p.articleTitleRTF || p.articleTitle) }} />
-                  <span className={styles.splitMeta}>{p.journalTitleVerbose} · {yearOf(p)}</span>
-                </span>
-              </button>
-            ))}
+            {renderRows((p: any, index: number) => {
+              const by = authorLine(p);
+              const type = p.publicationType?.publicationTypeCanonical;
+              // Same actions as the card footer: pending → accept/reject; actioned on Suggested → undo only;
+              // Accepted tab → undo/reject; Rejected tab → accept/undo.
+              const held = isSuggested && p.userAssertion !== 'NULL';
+              const act = (verb: string) => (index === detailIdx ? updateFromDetail : handleUpdatePublication)(props.personIdentifier, p.pmid, verb);
+              return (
+                <div
+                  key={p.pmid}
+                  data-pmid={p.pmid}
+                  data-state={p.userAssertion}
+                  data-held={held || undefined}
+                  className={styles.splitRow}
+                  aria-current={index === detailIdx ? 'true' : undefined}
+                >
+                  <button type="button" className={styles.splitSelect} onClick={() => setFocusedIndex(index)}>
+                    <span className={styles.splitScore} data-band={bandOf(p)}>{scoreOf(p)}</span>
+                    <span className={styles.splitText}>
+                      <span className={styles.splitTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(p.articleTitleRTF || p.articleTitle) }} />
+                      {(by.pre || by.tgt) && <span className={styles.splitAuthors}>{by.pre}{by.tgt && <strong>{by.tgt}</strong>}{by.post}</span>}
+                      <span className={styles.splitMeta}>{p.journalTitleVerbose} · {yearOf(p)}{type ? ` · ${type}` : ''}</span>
+                    </span>
+                  </button>
+                  <span className={styles.splitActions}>
+                    {!held && p.userAssertion !== 'ACCEPTED' && (
+                      <button type="button" className={styles.splitAccept} title="Accept (A)" aria-label="Accept" onClick={() => act('ACCEPTED')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                      </button>
+                    )}
+                    {p.userAssertion !== 'NULL' && (
+                      <button type="button" className={styles.splitUndo} title="Undo" aria-label="Undo" onClick={() => act('NULL')}>
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M3 8a5 5 0 105-5H5M3 8V4m0 4H7" /></svg>
+                      </button>
+                    )}
+                    {!held && p.userAssertion !== 'REJECTED' && (
+                      <button type="button" className={styles.splitReject} title="Reject (R)" aria-label="Reject" onClick={() => act('REJECTED')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                      </button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
             {visible < openList.length && <div ref={sentinelRef} className={styles.listSentinel} aria-hidden="true" />}
           </div>
           <div className={styles.splitDetail}>
@@ -546,6 +573,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
                 activekey={props.activeKey}
                 totalCount={props.totalCount}
                 showEvidenceDefault="detail"
+                detail
                 coauthorIndex={props.coauthorIndex}
                 page={page}
                 paginatedPubsCount={detailPub.userAssertion === "NULL" ? totalNullCount : detailPub.userAssertion === "ACCEPTED" ? totalAcceptedCount : totalRejectedCount}

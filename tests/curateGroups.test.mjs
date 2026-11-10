@@ -1,7 +1,7 @@
 // Unit tests for src/utils/curateGroups.ts. Run with `npm test`.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { bandOf, yearOf, groupModeFor, groupsOf, yearHistogram, spotCheckSample, GROUP_MIN, fmtCount } from '../src/utils/curateGroups.ts'
+import { bandOf, yearOf, groupModeFor, groupsOf, yearHistogram, spotCheckSample, GROUP_MIN, fmtCount, authorLine } from '../src/utils/curateGroups.ts'
 
 const p = (score, date) => ({ authorshipLikelihoodScore: score, publicationDateStandardized: date })
 
@@ -54,4 +54,18 @@ test('fmtCount: full unless compact, then 1.2k / 12k', () => {
     assert.equal(fmtCount(1234, true), '1.2k')
     assert.equal(fmtCount(2000, true), '2k')
     assert.equal(fmtCount(12345, true), '12k')
+})
+
+test('authorLine: splits the byline around the target and shortens long sides', () => {
+    const a = (first, last, targetAuthor = false) => ({ firstName: first, lastName: last, targetAuthor })
+    assert.deepEqual(authorLine({ reCiterArticleAuthorFeatures: [a('Stephen B', 'Johnson'), a('Michael E', 'Bales', true), a('Daniel', 'Dine')] }),
+        { pre: 'Stephen B Johnson, ', tgt: 'Michael E Bales', post: ', Daniel Dine' })
+    const many = ['A', 'B', 'C', 'D', 'E'].map((x) => a(x, 'X'))
+    many.splice(4, 0, a('T', 'Target', true))
+    many.push(a('F', 'X'), a('G', 'X'), a('H', 'X'))
+    assert.deepEqual(authorLine({ reCiterArticleAuthorFeatures: many }),
+        { pre: 'A X, B X, …, D X, ', tgt: 'T Target', post: ', E X, …, H X' })
+    assert.deepEqual(authorLine({ reCiterArticleAuthorFeatures: [a('T', 'Target', true)] }), { pre: '', tgt: 'T Target', post: '' })
+    assert.deepEqual(authorLine({ reCiterArticleAuthorFeatures: [a('A', 'X'), a('B', 'X'), a('C', 'X'), a('D', 'X')] }), { pre: 'A X, B X, …, D X', tgt: '', post: '' })
+    assert.deepEqual(authorLine({}), { pre: '', tgt: '', post: '' })
 })

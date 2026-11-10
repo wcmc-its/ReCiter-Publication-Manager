@@ -26,7 +26,7 @@
   margin-left: 0;
 }
 .suggestionsBanner{
-  margin: 2em 0 !important;
+  margin: 2em 0;
 }
 
 .count {
@@ -70,7 +70,7 @@
 
 .activeTab {
   font-weight: bold;
-  border-bottom: 2px solid var(--wcm-red) !important;
+  border-bottom: 2px solid var(--wcm-red);
 }
 
 .nav-tabs .nav-link.active .tabTitle {
@@ -85,7 +85,7 @@
 }
 
 .filterSectionButtons button:first-of-type {
-  margin-left: 0px !important;
+  margin-left: 0px;
 }
 
 .filterSort {
@@ -119,34 +119,34 @@
   left: 80%;
 }
 .tabDisplayNone{
-  justify-content: flex-end !important;
+  justify-content: flex-end;
   width: 34em;
   display: flex;
   padding-right: 3px ;
 }
 .pubMadeTab{
-  border: none !important;
-  color: var(--wcm-red) !important;
+  border: none;
+  color: var(--wcm-red);
   padding: 9px 0 0 0;
 }
 .pubMadeTab .nav-tabs .nav-link.active .tabTitle{
   padding: 6px 0 0 0;
 }
 .tabsMain{
-  background-color: #ffffff !important;
-  border-bottom: 1px solid var(--gray-200) !important;
-  border-top: none !important;
-  border-right: none !important;
-  border-left: none !important;
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--gray-200);
+  border-top: none;
+  border-right: none;
+  border-left: none;
 }
 .pubMadeTab .nav .nav-tabs{
-  margin: 0 0 I !important;
+  margin: 0 0 I;
 }
 .curateTabsMainPub{
-  background-color: var(--gray-50) !important;
+  background-color: var(--gray-50);
 }
 .tab-content>.active{
-  background-color: var(--gray-50) !important;
+  background-color: var(--gray-50);
 }
 
 /* ── Person header card ── */
@@ -640,42 +640,42 @@
 
 /* ── Sort by dropdown ── */
 .sortDropdown button {
-  font-size: 12px !important;
-  padding: 4px 10px !important;
-  background-color: #eeeae4 !important;
-  border: 1px solid #ddd7ce !important;
-  color: #5a6478 !important;
-  border-radius: var(--radius-pill) !important;
+  font-size: 12px;
+  padding: 4px 10px;
+  background-color: #eeeae4;
+  border: 1px solid #ddd7ce;
+  color: #5a6478;
+  border-radius: var(--radius-pill);
 }
 
 .sortDropdown button:hover,
 .sortDropdown button:focus,
 .sortDropdown button:active {
-  background-color: #e4e0d8 !important;
-  border-color: #ccc6bc !important;
-  color: #1a2133 !important;
+  background-color: #e4e0d8;
+  border-color: #ccc6bc;
+  color: #1a2133;
 }
 
 .sortItem {
-  display: flex !important;
+  display: flex;
   align-items: center;
-  padding: 8px 16px !important;
-  font-size: 12.5px !important;
-  color: #5a6478 !important;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  color: #5a6478;
   border-left: 2px solid transparent;
   transition: background 0.1s;
 }
 
 .sortItem:hover {
-  background: #eeeae4 !important;
-  color: #1a2133 !important;
+  background: #eeeae4;
+  color: #1a2133;
   border-left-color: #2563a8;
 }
 
 .sortItem:active,
 .sortItem.active {
-  background: #eef3fb !important;
-  color: #1a2133 !important;
+  background: #eef3fb;
+  color: #1a2133;
   border-left-color: #2563a8;
   font-weight: 600;
 }
@@ -1091,7 +1091,7 @@
 .viewSwitch button:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: -2px; }
 .split {
   display: grid;
-  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 440px) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
   padding: 12px 32px;
@@ -1108,39 +1108,64 @@
 }
 .splitRow {
   display: flex;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  border: 0;
+  align-items: flex-start;
+  gap: 8px;
   border-left: 3px solid transparent;
-  border-radius: 4px;
-  background: none;
-  padding: 7px 8px;
-  font: inherit;
+  border-bottom: 1px solid var(--pm-border);
+  padding: 10px 8px 10px 0;
   color: var(--pm-foreground);
-  cursor: pointer;
 }
 .splitRow:hover { background: var(--pm-surface-2); }
 .splitRow[aria-current="true"] { background: var(--pm-slate-tint); border-left-color: var(--pm-slate); }
-.splitRow:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: -2px; }
-.splitRow[data-state="ACCEPTED"] .splitScore { color: var(--pm-green); }
-.splitRow[data-state="REJECTED"] .splitScore { color: var(--pm-red); }
+.splitRow[data-held] .splitSelect { opacity: 0.6; }
+.splitSelect {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 10px;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 0 0 0 8px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.splitSelect:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: 2px; border-radius: 4px; }
+/* Score badge tinted by band (70/40, same cut-offs as the card score and the list groups). */
 .splitScore {
-  flex: 0 0 26px;
+  flex: 0 0 34px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid var(--pm-slate-tint-border);
+  background: var(--pm-slate-tint);
+  color: var(--pm-slate);
   font-size: 12.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--pm-muted-foreground);
 }
-.splitText { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.splitScore[data-band="moderate"] { border-color: var(--pm-amber-tint-border); background: var(--pm-amber-tint); color: var(--pm-amber); }
+.splitScore[data-band="weak"] { border-color: var(--pm-red-tint-border); background: var(--pm-red-tint); color: var(--pm-red); }
+.splitText { display: flex; flex-direction: column; min-width: 0; gap: 3px; }
 .splitTitle {
-  font-size: 13px;
-  line-height: 1.3;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.splitAuthors {
+  font-size: 12px;
+  color: var(--pm-muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.splitAuthors strong { color: var(--pm-foreground); font-weight: 600; }
 .splitMeta {
   font-size: 11.5px;
   color: var(--pm-muted-foreground);
@@ -1148,6 +1173,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.splitActions { display: flex; gap: 6px; flex-shrink: 0; }
+.splitActions button {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--pm-border-strong);
+  background: var(--pm-surface);
+  color: var(--pm-muted-foreground);
+  cursor: pointer;
+}
+.splitActions button:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: 1px; }
+.splitActions .splitAccept { border-color: var(--pm-slate-tint-border); background: var(--pm-slate-tint); color: var(--pm-slate); }
+.splitActions .splitAccept:hover { background: var(--pm-slate); border-color: var(--pm-slate); color: #fff; }
+.splitActions .splitReject { border-color: var(--pm-red-tint-border); background: var(--pm-red-tint); color: var(--pm-red); }
+.splitActions .splitReject:hover { background: var(--pm-red); border-color: var(--pm-red); color: #fff; }
+.splitActions .splitUndo:hover { background: var(--pm-surface-2); color: var(--pm-foreground); }
 .splitDetail { min-width: 0; }
 .split .groupHead { margin: 8px 0 4px; flex-wrap: wrap; gap: 4px 8px; }
 .split .groupToggle { white-space: nowrap; }
