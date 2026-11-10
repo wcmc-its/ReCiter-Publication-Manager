@@ -17,6 +17,7 @@ import { hasConfiguredScope, isProxyFor } from "../../../utils/scopeResolver";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import { stripHtml } from "../../../utils/htmlText";
+import { degreeLines } from "../../../utils/degreeLines";
 
 // Title/journal fields can carry PubMed inline markup (<i>, <sub>, …); strip to
 // plain text for spreadsheet cells, which can't render HTML.
@@ -302,12 +303,15 @@ const Profile = ({
   const canCurateThisPerson = caps.canCurate.all || caps.canCurate.scoped || hasConfiguredScope(scopeData)
     || isProxyFor(proxyPersonIds, uid)
     || (caps.canCurate.self && uid === caps.canCurate.personIdentifier);
+  // Opened from that person's own Curate page, the button just closes the sheet.
   const onThisCuratePage = router.pathname === '/curate/[id]' && router.query.id === uid;
 
   const name = identity.primaryName ? fullName(identity.primaryName) : '';
   const initials = ((identity.primaryName?.firstName || '').charAt(0) + (identity.primaryName?.lastName || '').charAt(0)).toUpperCase();
   const showPhoto = displayImage && identity.identityImageEndpoint && headShotLabelData?.length > 0 && headShotLabelData[0].isVisible;
   const loaded = !isLoading && !isError;
+
+  const degrees = degreeLines(identity.degreeYear);
 
   const metricItems = [
     { value: acceptedCount, label: 'Accepted' },
@@ -372,9 +376,11 @@ const Profile = ({
               <Button size="sm" onClick={generateRTFPeopleOnly} disabled={exportArticlRTFLoading} sx={slateTintSx}>
                 {exportArticlRTFLoading ? 'Exporting…' : 'Word'}
               </Button>
-              {canCurateThisPerson && !onThisCuratePage && (
+              {canCurateThisPerson && (onThisCuratePage ? (
+                <Button size="sm" onClick={handleClose}>Curate</Button>
+              ) : (
                 <Button size="sm" component={Link} href={`/curate/${uid}`} onClick={handleClose}>Curate</Button>
-              )}
+              ))}
               {showBiblioBtn && (
                 <Button size="sm" onClick={generateBiblioAnalysis} sx={amberTintSx}>Bibliometric analysis</Button>
               )}
@@ -441,6 +447,12 @@ const Profile = ({
                   {[...new Set(identity.emails as string[])].map((email: string, i: number) => (
                     <span key={i}>{email}</span>
                   ))}
+                </Row>
+              )}
+
+              {degrees.length > 0 && (
+                <Row label="Degrees" column>
+                  {degrees.map((d) => <span key={d}>{d}</span>)}
                 </Row>
               )}
 
