@@ -41,6 +41,11 @@ interface FuncProps {
     autoSearch?: boolean,
     // The link carried a doi parameter that is not a DOI. Its value is never passed down.
     deepLinkInvalidDoi?: boolean,
+    // Phase 3a: rendered inside the Add publication dialog, which owns the query box and the
+    // source switch (it remounts this with initialQuery/initialSource/autoSearch per search).
+    // Shows only the search messages and results; the record's external works are listed in
+    // the All sources tab instead.
+    embedded?: boolean,
 }
 
 const apiHeaders = {
@@ -363,13 +368,13 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
     const visibleExternal = externalList.filter((row) => !row.suppressed)
 
     return (
-        <div style={wrap}>
-            <p style={helpText}>
+        <div style={props.embedded ? undefined : wrap}>
+            {!props.embedded && <p style={helpText}>
                 Add a publication from an external source when it is not indexed in PubMed. Scopus is searched
                 first; a DOI Scopus does not have is looked up in OpenAlex, then Crossref (where new DOIs appear
                 first). An ISBN (for a book) is looked up in Crossref. You can also search OpenAlex or Crossref directly. External publications are not scored
                 by ReCiter and are listed separately below.
-            </p>
+            </p>}
 
             {props.deepLinkInvalidDoi && (
                 <div style={noteStyle} role="status">
@@ -377,7 +382,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                 </div>
             )}
 
-            <form style={searchPanel} onSubmit={runSearch}>
+            {!props.embedded && <form style={searchPanel} onSubmit={runSearch}>
                 <span style={labelStyle}>Search</span>
                 <select
                     style={selectStyle}
@@ -399,7 +404,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                 <button type="submit" style={searchBtn} disabled={searching}>
                     {searching ? "Searching…" : `Search ${SOURCE_NAME[source]}`}
                 </button>
-            </form>
+            </form>}
 
             {errorMsg && <div style={errorStyle} role="alert">{errorMsg}</div>}
             {note && <div style={noteStyle} role="status">{note}</div>}
@@ -442,6 +447,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
             )}
 
             {/* Already-added external publications */}
+            {!props.embedded && <>
             <div style={sectionLabel}>External publications on this record</div>
             {loadingList ? (
                 <div style={emptyText}>Loading…</div>
@@ -457,6 +463,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                     />
                 ))
             )}
+            </>}
         </div>
     )
 }

@@ -8,11 +8,11 @@ import { useDispatch, useSelector } from "react-redux";
 import { buildCoauthorIndex } from "../../../utils/identityEvidence";
 import { RootStateOrAny } from "../../../types/redux";
 import TabAddPublication from "../TabAddPublication/TabAddPublication";
-import TabAddExternalPublication from "./TabAddExternalPublication";
 import TabScopusAuthorships from "./TabScopusAuthorships";
-import SourceArticleTab, { SourceKind } from "./SourceArticleTab";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
+import AllSourcesTab from "./AllSourcesTab";
+import AddPublicationDialog from "./AddPublicationDialog";
+import { useExternalArticles } from "./useExternalArticles";
+import { countWorks, groupExternalWorks } from "../../../utils/allSources";
 import { allowedPermissions } from "../../../utils/constants";
 import { useSession } from "next-auth/react";
 import { clearPubMedData, showEvidenceByDefault, reciterFetchData, pubmedFetchData, reciterUpdatePublication } from "../../../redux/actions/actions";
@@ -23,8 +23,9 @@ import { Button } from "../../ui";
 
 
 const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: incomingDeepLink = null, onAddDeepLinkConsumed }: { reciterData: any, fullName: string, fetchOriginalData: any, addDeepLink?: AddDeepLink | null, onAddDeepLinkConsumed?: () => void }) => {
-  //default tab; a deep link (parsed by CurateIndividual) opens the Add tab instead
-  const [key, setKey] = useState(incomingDeepLink?.pmid ? 'AddPub' : incomingDeepLink ? 'External' : 'NULL');
+  //default tab; a deep link (parsed by CurateIndividual) opens the PubMed add view (pmid) or
+  //All sources with the Add publication dialog searching the DOI (add=external)
+  const [key, setKey] = useState(incomingDeepLink?.pmid ? 'AddPub' : incomingDeepLink ? 'AllSources' : 'NULL');
   const dispatch = useDispatch();
   const [filteredData, setFilteredData] = useState([])
   const [pubKey, setPubKey] = useState(false);
@@ -37,14 +38,19 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
   const coauthorIndex = React.useMemo(() => buildCoauthorIndex(reciterData?.reciter?.reCiterArticleFeatures), [reciterData])
   const [pubSearchFilters, setPubSearchFilters] = useState<any>();
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
-  // Single "+ Add publication" dropdown (PubMed / OpenAlex / …) — keeps the tab-bar
-  // compact as more external sources (Scopus, WoS) are added.
-  const [addMenuAnchor, setAddMenuAnchor] = useState<null | HTMLElement>(null);
+  // Phase 3a: one Add publication dialog (PubMed / Scopus / OpenAlex / Crossref) in place of
+  // the Add publication dropdown. Opened on mount by an add=external deep link.
+  const [addOpen, setAddOpen] = useState<boolean>(!!incomingDeepLink && !incomingDeepLink.pmid);
   // Toolbar row above the tab strip: the active tab's filter/sort/view portal into this slot.
   const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
-  // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex|crossref]: opens the Add tab with
-  // the DOI filled in and searched. Copied in on mount; cleared when the curator changes tab.
+  // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex|crossref]: opens the Add
+  // publication dialog with the DOI filled in and searched. Copied in on mount; cleared when
+  // the dialog closes.
   const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(incomingDeepLink);
+  // The person's external (Scopus / OpenAlex / Crossref) works, for the All sources tab and its
+  // count and "N to review" pill in the tab strip.
+  const ext = useExternalArticles(reciterData?.reciter?.personIdentifier);
+  const extCounts = React.useMemo(() => countWorks(groupExternalWorks(ext.rows)), [ext.rows]);
 
   // Smart change tracking: compare current assertions to originals
   const originalAssertions = useRef<Map<number, string>>(new Map());
@@ -53,23 +59,6 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
 
   const addnewtabName = <p id="addnewtabName" className="noSpace" >Add New record:</p>
   const pubMedTabName = <p id="pubMedTabName" className="text-primary noSpace" ><span >PubMed</span></p>
-
-  // Curate per-source tabs (Option C), Phase 1 — one browse tab per external source,
-  // grouped visually apart from the PubMed-based tabs below. The "Scopus" tab here browses
-  // already-added ExternalArticle rows (source=SCOPUS); it is a DIFFERENT surface from the
-  // "ScopusAuth" tab (the AAR authorship-suggestion queue) reachable from the Add menu —
-  // hence the distinct tooltip.
-  const EXTERNAL_SOURCE_TABS: { value: string, label: string, source: SourceKind, title?: string }[] = [
-    { value: 'Ext_SCOPUS', label: 'Scopus', source: 'SCOPUS', title: 'Publications added to this record from Scopus search — separate from the Scopus Authorships review queue.' },
-    { value: 'Ext_OPENALEX', label: 'OpenAlex', source: 'OPENALEX', title: 'Publications added to this record from OpenAlex search or accepted from the OpenAlex Authorships review queue.' },
-    { value: 'Ext_CROSSREF', label: 'Crossref', source: 'CROSSREF', title: 'Publications added to this record from Crossref search.' },
-    // Manual: hidden for now — there is nothing for a curator to do in it. SourceArticleTab
-    // short-circuits this tab to a "coming soon" placeholder before it ever lists a row (see
-    // isManual there), so it never showed anything despite matchesSource treating MANUAL as the
-    // catch-all. Restore this line when a real manual-entry add path ships; the MANUAL handling
-    // in SourceArticleTab and SourceKind is left in place so re-enabling is this one line.
-    // { value: 'Ext_MANUAL', label: 'Manual', source: 'MANUAL', title: 'Publications added to this record from other/manual sources.' },
-  ]
 
   const tabsData = [
     { name: 'Suggested', value: 'NULL',allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"] },
@@ -102,7 +91,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
 
   useEffect(() => {
     // Taken: clear the parent's copy so a later remount (e.g. after Refresh Suggestions)
-    // does not re-open the Add tab and search again.
+    // does not re-open the Add dialog and search again.
     if (incomingDeepLink) onAddDeepLinkConsumed?.();
     // add=pubmed&pmid=<pmid>: run the PubMed tab's search for it, as the External tab's
     // "Add via PubMed" does; the curator then accepts or rejects it there.
@@ -175,8 +164,14 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
 
   const onTabChange = (k)=>{
     setKey(k)
-    setAddDeepLink(null)
     dispatch(showEvidenceByDefault(false));
+  }
+
+  const closeAdd = () => {
+    setAddOpen(false);
+    setAddDeepLink(null);
+    // The dialog may have added external works; refresh All sources and its count.
+    ext.refetch();
   }
 
   // Steer an in-PubMed external result to the scored PubMed path: pre-fill the PubMed
@@ -184,16 +179,23 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
   // TabAddPublication.tsx searchFunction (~358-397) exactly so the Add tab's existing
   // useEffect([pubmedData]) -> filter() renders the result instead of landing on an
   // empty form the curator has to re-search by hand.
-  const handleAddViaPubMed = (pmid: number) => {
+  const handleAddViaPubMed = (pmid: number) => runPubMedSearch(String(pmid), '', '')
+
+  // The Add publication dialog's PubMed route (a PMID, or a PubMed author/title search with an
+  // optional year range): the same query and date bounds TabAddPublication's searchFunction
+  // builds, run in the PubMed add view.
+  const runPubMedSearch = (query: string, from: string, to: string) => {
     // All four keys, as searchFunction's own pubFilters: TabAddPublication copies the year
     // keys into state, and undefined years fail its `latestYear >= earliestYear` gate, so
     // every later search on the tab silently did nothing until a page reload.
-    setPubSearchFilters({ pubMendSearchText: String(pmid), pubMedLatestYear: '', pubMedEarliestYear: '', pubMedshowFiltersCount: true });
+    setPubSearchFilters({ pubMendSearchText: query, pubMedLatestYear: to, pubMedEarliestYear: from, pubMedshowFiltersCount: true });
+    setAddOpen(false);
+    setAddDeepLink(null);
     onTabChange('AddPub');
     dispatch(pubmedFetchData({
-      "strategy-query": String(pmid),
-      "start": '',
-      "end": '',
+      "strategy-query": query,
+      "start": from ? from + '/01/01' : to ? '1600/01/01' : '',
+      "end": to ? to + '/12/31' : from ? '2500/12/31' : '',
       "personIdentifier": reciterData?.reciter?.personIdentifier,
     }));
   }
@@ -362,56 +364,22 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
     <>
       <div className={styles.curateToolbar}>
         <div ref={setToolbarSlot} className={styles.curateToolbarSlot} />
-        {(key === 'AddPub' || key === 'External' || key === 'ScopusAuth') ? (
+        {(key === 'AddPub' || key === 'ScopusAuth') && (
           <button
             type="button"
             className={styles.addRecordIndicator}
-            onClick={(e) => setAddMenuAnchor(e.currentTarget)}
+            onClick={() => setAddOpen(true)}
             style={{ cursor: 'pointer' }}
-            title="Switch add source"
-            aria-haspopup="menu"
+            title="Search another source"
           >
             <span className={styles.addRecordPulse} />
-            {key === 'AddPub' ? 'Adding record from PubMed' : key === 'External' ? 'Adding record from Scopus / OpenAlex / Crossref' : 'Scopus'}
-            <span style={{ marginLeft: 4 }}>&#9662;</span>
+            {key === 'AddPub' ? 'Adding record from PubMed' : 'Searching Scopus by Author ID'}
           </button>
-        ) : (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={(e) => setAddMenuAnchor(e.currentTarget)}
-          >
-            + Add publication &#9662;
-          </Button>
         )}
-        <Menu
-          anchorEl={addMenuAnchor}
-          open={Boolean(addMenuAnchor)}
-          onClose={() => setAddMenuAnchor(null)}
-          MenuListProps={{ dense: true }}
-        >
-          <MenuItem
-            selected={key === 'AddPub'}
-            onClick={() => { setAddMenuAnchor(null); onTabChange('AddPub'); }}
-            sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
-          >
-            PubMed
-          </MenuItem>
-          <MenuItem
-            selected={key === 'External'}
-            onClick={() => { setAddMenuAnchor(null); onTabChange('External'); }}
-            sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
-          >
-            Scopus / OpenAlex / Crossref (by DOI or title)
-          </MenuItem>
-          <MenuItem
-            selected={key === 'ScopusAuth'}
-            onClick={() => { setAddMenuAnchor(null); onTabChange('ScopusAuth'); }}
-            sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
-          >
-            Scopus
-          </MenuItem>
-        </Menu>
+        <Button variant="secondary" size="sm" onClick={() => setAddOpen(true)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          Add publication
+        </Button>
       </div>
 
       {/* Custom tab bar */}
@@ -432,16 +400,23 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
         })}
         <div className={styles.tabDivider} />
         <span className={styles.tabGroupLabel}>External</span>
-        {EXTERNAL_SOURCE_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            className={key === tab.value ? styles.tabActive : styles.tab}
-            onClick={() => onTabChange(tab.value)}
-            title={tab.title}
+        <button
+          className={key === 'AllSources' ? styles.tabActive : styles.tab}
+          onClick={() => onTabChange('AllSources')}
+        >
+          All sources
+          <span
+            className={extCounts.ACCEPTED ? styles.tabCountAccepted : styles.tabCountZero}
+            title={`${extCounts.ACCEPTED.toLocaleString()} accepted external works from Scopus, OpenAlex and Crossref`}
           >
-            {tab.label}
-          </button>
-        ))}
+            {fmtCount(extCounts.ACCEPTED, compact)}
+          </span>
+          {extCounts.PENDING > 0 && (
+            <span className={styles.tabPend} title={`${extCounts.PENDING} imported work${extCounts.PENDING === 1 ? '' : 's'} waiting for review`}>
+              {extCounts.PENDING} {compact ? 'new' : 'to review'}
+            </span>
+          )}
+        </button>
         <div className={styles.tabSpacer} />
         <div className={styles.tabBarActions}>
           {netChangedCount > 0 && (
@@ -474,18 +449,6 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           pubSearchFilters={pubSearchFilters}
           handleUpdateSearchFilters={handleUpdateSearchFilters}
         />
-      ) : key === 'External' ? (
-        <TabAddExternalPublication
-          personIdentifier={reciterData.reciter?.personIdentifier}
-          onAddViaPubMed={handleAddViaPubMed}
-          onAcceptPmid={handleAcceptPmid}
-          getPmidStatus={getPmidStatus}
-          findRecordPmid={findRecordPmid}
-          initialQuery={addDeepLink?.doi}
-          initialSource={addDeepLink?.source}
-          autoSearch={!!addDeepLink?.doi}
-          deepLinkInvalidDoi={!!addDeepLink?.invalidDoi}
-        />
       ) : key === 'ScopusAuth' ? (
         <TabScopusAuthorships
           personIdentifier={reciterData.reciter?.personIdentifier}
@@ -495,10 +458,11 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           getPmidStatus={getPmidStatus}
           findRecordPmid={findRecordPmid}
         />
-      ) : EXTERNAL_SOURCE_TABS.some((tab) => tab.value === key) ? (
-        <SourceArticleTab
-          uid={reciterData.reciter?.personIdentifier}
-          source={EXTERNAL_SOURCE_TABS.find((tab) => tab.value === key)!.source}
+      ) : key === 'AllSources' ? (
+        <AllSourcesTab
+          ext={ext}
+          fullName={fullName}
+          onOpenScopusAuthorships={() => onTabChange('ScopusAuth')}
         />
       ) : activeTabData ? (
         <ReciterTabContent
@@ -523,6 +487,24 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           onRefresh={handleRefresh}
         />
       ) : null}
+
+      {addOpen && (
+        <AddPublicationDialog
+          open
+          onClose={closeAdd}
+          fullName={fullName}
+          personIdentifier={reciterData.reciter?.personIdentifier}
+          initial={addDeepLink && !addDeepLink.pmid
+            ? { query: addDeepLink.doi, source: addDeepLink.source, autoSearch: !!addDeepLink.doi, invalidDoi: addDeepLink.invalidDoi }
+            : null}
+          onPubMedSearch={runPubMedSearch}
+          onAddViaPubMed={(pmid) => { closeAdd(); handleAddViaPubMed(pmid); }}
+          onAcceptPmid={handleAcceptPmid}
+          getPmidStatus={getPmidStatus}
+          findRecordPmid={findRecordPmid}
+          onOpenScopusAuthorships={() => { closeAdd(); onTabChange('ScopusAuth'); }}
+        />
+      )}
     </>
   )
 }

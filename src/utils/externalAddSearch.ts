@@ -240,3 +240,27 @@ export function decideCrossrefOutcome(args: { status: number, resultCount: numbe
 
 // Crossref's /works path takes the DOI percent-encoded but with its "/" kept.
 export const crossrefWorkPath = (doi: string): string => '/works/' + encodeURIComponent(doi).replace(/%2F/gi, '/')
+
+// Phase 3a — the curate page's single Add publication dialog. Where a query goes, given the
+// source the curator picked in the dialog:
+//   - a PMID (digits, or "PMID: 123") always goes to the scored PubMed flow;
+//   - a DOI goes to the external add path: the picked source, or Scopus (with its OpenAlex then
+//     Crossref fallback) when PubMed was picked, since PubMed is not searched by DOI here;
+//   - an ISBN goes to Crossref (the external add path sends one there from any source);
+//   - anything else (title words, author) goes to the picked source.
+export type AddDialogSource = 'PUBMED' | AddSource
+export type AddRoute =
+    | { kind: 'pubmed', query: string }
+    | { kind: 'external', source: AddSource, query: string }
+
+const PMID_QUERY = /^(?:pmid\s*:?\s*)?([1-9]\d{0,8})$/i
+
+export function routeAddQuery(raw: unknown, picked: AddDialogSource): AddRoute | null {
+    const q = typeof raw === 'string' ? raw.trim() : ''
+    if (!q) return null
+    const pmid = PMID_QUERY.exec(q)
+    if (pmid) return { kind: 'pubmed', query: pmid[1] }
+    if (normalizeDoiInput(q) !== null) return { kind: 'external', source: picked === 'PUBMED' ? 'SCOPUS' : picked, query: q }
+    if (picked === 'PUBMED' && normalizeIsbnInput(q) !== null) return { kind: 'external', source: 'CROSSREF', query: q }
+    return picked === 'PUBMED' ? { kind: 'pubmed', query: q } : { kind: 'external', source: picked, query: q }
+}
