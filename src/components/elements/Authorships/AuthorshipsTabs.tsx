@@ -2453,7 +2453,8 @@ const AuthorshipsTabs = () => {
   // narrow to fewer than 2 cards. Lane→all + classification→all matches the count; the
   // person-type/date filters are left intact (they aren't part of the sibling-count scope
   // either, but relaxing lane+classification is what makes the primary mismatch go away).
-  const narrowToPmid = useCallback((pmid: number) => {
+  const narrowToPmid = useCallback((pmid: number | string | null | undefined) => {
+    if (pmid == null || pmid === "") return;
     // One patch, so lane/classification/search land in a single filter-object update (one
     // refetch, one selection clear) instead of three.
     patchFilters({ lane: "all", classification: "all", search: String(pmid) });
@@ -3791,7 +3792,9 @@ const AuthorshipsTabs = () => {
             onAction={(action, extra) => doAction(r, action, extra)}
             onMenu={(anchor) => setMenu({ anchor, row: r })}
             onAssignOther={() => focusAssignOther(r.id, r.wcm_author)}
-            onNarrowPmid={() => narrowToPmid(r.pmid)}
+            // Scopus/OpenAlex rows have no pmid; the server keys their siblings by external_id
+            // (siblingKey), and the search box matches external_id, so narrow by that.
+            onNarrowPmid={() => narrowToPmid(isExternalSource(r) ? r.external_id : r.pmid)}
             onFindOthers={() => findOthersLikeThis(r.wcm_author)}
             // §2.6 hover card: `undefined` means "not asked yet / still in flight", which the
             // card renders as a loading line. An answered cwid always has an entry.
