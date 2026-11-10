@@ -363,16 +363,18 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
       <div className={styles.curateToolbar}>
         <div ref={setToolbarSlot} className={styles.curateToolbarSlot} />
         {(key === 'AddPub' || key === 'External' || key === 'ScopusAuth') ? (
-          <div
+          <button
+            type="button"
             className={styles.addRecordIndicator}
             onClick={(e) => setAddMenuAnchor(e.currentTarget)}
             style={{ cursor: 'pointer' }}
             title="Switch add source"
+            aria-haspopup="menu"
           >
             <span className={styles.addRecordPulse} />
             {key === 'AddPub' ? 'Adding record from PubMed' : key === 'External' ? 'Adding record from Scopus / OpenAlex / Crossref' : 'Scopus'}
             <span style={{ marginLeft: 4 }}>&#9662;</span>
-          </div>
+          </button>
         ) : (
           <Button
             variant="secondary"

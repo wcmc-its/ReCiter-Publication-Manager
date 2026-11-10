@@ -525,6 +525,7 @@
   font-weight: 600;
   color: #2563a8;
   white-space: nowrap;
+  font-family: inherit;
 }
 
 .addRecordPulse {

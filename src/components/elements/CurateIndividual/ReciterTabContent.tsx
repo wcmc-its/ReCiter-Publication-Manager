@@ -297,8 +297,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-      // An open listbox/menu (toolbar sort select, Add publication menu) owns the keyboard.
-      if ((e.target as HTMLElement).closest?.('[role="listbox"], [role="menu"]')) return;
+      // The toolbar sort select (closed or open) and the Add publication menu own the keyboard.
+      if ((e.target as HTMLElement).closest?.('[role="combobox"], [role="listbox"], [role="menu"]')) return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
       // An open Dialog/Sheet (profile, history, ...) owns the keyboard.
       if (document.querySelector('[role="dialog"]')) return;
