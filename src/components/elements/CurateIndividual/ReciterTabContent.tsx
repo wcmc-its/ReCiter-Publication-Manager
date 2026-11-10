@@ -17,6 +17,8 @@ import { showUndoToast } from "../ToastHost/ToastHost";
 import { sanitizeInlineHtml } from "../../../utils/htmlText";
 import { BANDS, groupModeFor, groupKeyOf, groupsOf, yearHistogram, spotCheckSample, scoreOf, yearOf } from "../../../utils/curateGroups";
 import type { Band } from "../../../utils/curateGroups";
+import { useNextPerson } from "../../../hooks/useNextPerson";
+import { useRouter } from "next/router";
 
 
 interface TabContentProps {
@@ -34,6 +36,8 @@ interface TabContentProps {
   totalCount:any,
   onAssertionChange?: (pmid: number, newAssertion: string) => void,
   onTabChange?: (key: string) => void,
+  acceptedCount?: number,
+  rejectedCount?: number,
 }
 
 const LIST_CHUNK = 50;
@@ -54,6 +58,11 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const { data: session, status } = useSession(); const loading = status === "loading";
   const [totalCount, setTotalCount] = useState<number>(publications.length || 0);
   const dispatch = useDispatch();
+  const router = useRouter();
+  const { next, goNext, markCaughtUp } = useNextPerson();
+  const caughtUp = props.tabType === 'NULL' && !props.publications.length;
+  // Nothing left in Suggested: drop this person out of the "Next" cycle.
+  useEffect(() => { if (caughtUp) markCaughtUp(); }, [caughtUp, markCaughtUp]);
 
   const searchTextUpdate = (searchText: string) => {
     let filteredPublications = filterPublicationsBySearchText(props.publications, searchText.trim());
@@ -405,19 +414,23 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     if (props.tabType === 'NULL') {
       return (
         <div className={styles.emptyState}>
-          <div className={styles.emptyIconGreen}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" strokeWidth="2" strokeLinecap="round" width="22" height="22"><path d="M20 6L9 17l-5-5"/></svg>
-          </div>
           <div className={styles.emptyTitle}>All caught up</div>
-          <div className={styles.emptyBody}>There are no new suggested publications to review. ReCiter will surface new suggestions the next time the system runs.</div>
+          <div className={styles.emptyBody}>
+            No suggested publications for {props.fullName?.trim().split(' ')[0] || 'this person'}. {(props.acceptedCount ?? 0).toLocaleString()} accepted, {(props.rejectedCount ?? 0).toLocaleString()} rejected.
+          </div>
           <div className={styles.emptyActions}>
-            <button className={styles.emptyActionPrimary}>
+            {next && (
+              <Button variant="primary" onClick={goNext}>
+                Next: {next.name} · {next.pending.toLocaleString()} pending
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => router.push('/search')}>
+              Back to people
+            </Button>
+            <Button variant="ghost">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M13.5 8a5.5 5.5 0 11-1.1-3.3M13.5 2v3h-3"/></svg>
               Run ReCiter now
-            </button>
-            <button className={styles.emptyActionSecondary} onClick={() => props.onTabChange?.('ACCEPTED')}>
-              View accepted publications
-            </button>
+            </Button>
           </div>
         </div>
       );
