@@ -2307,6 +2307,117 @@ export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResp
   }
 };
 
+// POST /api/db/authorships/candidate-evidence {id} — the facts behind one queue row's evidence
+// table and comparison grid (UI refresh 4d). Facts, not verdicts: src/utils/candidateEvidence.ts
+// builds the rows on the client, where already_rejected and retired_cwid already sit on each
+// candidate. The row is loaded here by id, so a caller cannot ask about arbitrary people.
+//
+// About 150 ms for a 5-candidate row on the dev DB: every query rides the
+// (personIdentifier, pmid) index or idx_pmid. The co-author query is bounded by this paper's
+// own surnames, so a prolific candidate does not pull their whole co-author history.
+//
+// ponytail: PubMed rows take this paper's author list from person_article_author through any
+// person who has the pmid. 55% of open PubMed rows have one (dev, 11-10); the rest get
+// `coauthors: null` and the table says "not available". Fetch the byline from PubMed if that
+// gap matters.
+export const authorshipCandidateEvidence = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const id = Number(req.body?.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).send("id is required");
+    const row: any = await models.AuthorshipReview.findByPk(id, {
+      attributes: ["id", "source", "pmid", "author_position", "wcm_author", "journal", "top_cwid", "candidate_cwids_json", "authors_json"],
+      raw: true,
+    });
+    if (!row) return res.status(404).send("No such row");
+
+    let parsed: any[] = [];
+    try { parsed = JSON.parse(row.candidate_cwids_json || "[]"); } catch { parsed = []; }
+    const cwids = [...new Set([...parsed.map((c: any) => String(c?.cwid || "").trim()), String(row.top_cwid || "").trim()])]
+      .filter((c) => /^[A-Za-z0-9]{1,32}$/.test(c)).slice(0, PRIOR_NAMES_CWID_CAP);
+
+    // ---- this paper's other authors ----------------------------------------------
+    const pos = Number(row.author_position) || 0;
+    const byline = String(row.wcm_author || "").trim().toLowerCase();
+    let coauthors: string[] | null = null;
+    if (row.source === "pubmed" && row.pmid) {
+      const holder: any = await models.PersonArticle.findOne({ attributes: ["personIdentifier"], where: { pmid: row.pmid }, raw: true });
+      if (holder) {
+        const authors: any[] = await models.PersonArticleAuthor.findAll({
+          attributes: ["authorFirstName", "authorLastName", "rank"],
+          where: { personIdentifier: holder.personIdentifier, pmid: row.pmid }, order: [["rank", "ASC"]], raw: true,
+        });
+        if (authors.length) coauthors = authors.filter((a) => Number(a.rank) !== pos)
+          .map((a) => `${String(a.authorFirstName || "").trim()} ${String(a.authorLastName || "").trim()}`.trim()).filter(Boolean);
+      }
+    } else if (row.authors_json) {
+      try {
+        const list = JSON.parse(row.authors_json);
+        if (Array.isArray(list) && list.length) coauthors = list
+          .map((a: any) => `${String(a?.given || "").trim()} ${String(a?.surname || "").trim()}`.trim())
+          .filter((n: string, i: number) => n && i !== pos - 1 && n.toLowerCase() !== byline);
+      } catch { coauthors = null; }
+    }
+
+    const facts: Record<string, any> = {};
+    for (const c of cwids) facts[c] = { accepted: 0, forms: [], rejectedForms: [], journalHits: 0, degreeYear: null, coauthorHits: [] };
+    if (!cwids.length) return res.send({ coauthors, facts });
+    // person_article's cwids can differ in case from the candidate list; map back.
+    const key = new Map(cwids.map((c) => [c.toLowerCase(), c]));
+    const k = (v: any) => key.get(String(v).toLowerCase()) || String(v);
+
+    // ---- bylines on accepted and rejected papers ---------------------------------
+    const nameRows: any[] = await sequelize.query(
+      "SELECT personIdentifier AS cwid, userAssertion AS a, articleAuthorNameFirstName AS f, articleAuthorNameLastName AS l, COUNT(*) AS n " +
+      "FROM person_article WHERE personIdentifier IN (:cwids) AND userAssertion IN ('ACCEPTED','REJECTED') GROUP BY 1, 2, 3, 4",
+      { replacements: { cwids }, type: QueryTypes.SELECT });
+    for (const r of nameRows) {
+      const f = facts[k(r.cwid)]; if (!f) continue;
+      const n = Number(r.n) || 0;
+      if (r.a === "ACCEPTED") f.accepted += n;
+      const first = String(r.f || "").trim(), last = String(r.l || "").trim();
+      if (first || last) (r.a === "ACCEPTED" ? f.forms : f.rejectedForms).push({ first, last, n });
+    }
+    for (const f of Object.values(facts)) {
+      f.forms.sort((a: any, b: any) => b.n - a.n); f.forms = f.forms.slice(0, PRIOR_NAMES_NAME_CAP);
+      f.rejectedForms.sort((a: any, b: any) => b.n - a.n); f.rejectedForms = f.rejectedForms.slice(0, PRIOR_NAMES_NAME_CAP);
+    }
+
+    // ---- journal, degree year -----------------------------------------------------
+    if (row.journal) {
+      const jRows: any[] = await sequelize.query(
+        "SELECT personIdentifier AS cwid, COUNT(*) AS n FROM person_article WHERE personIdentifier IN (:cwids) " +
+        "AND userAssertion = 'ACCEPTED' AND journalTitleVerbose = :journal GROUP BY 1",
+        { replacements: { cwids, journal: row.journal }, type: QueryTypes.SELECT });
+      for (const r of jRows) if (facts[k(r.cwid)]) facts[k(r.cwid)].journalHits = Number(r.n) || 0;
+    }
+    const dRows: any[] = await sequelize.query(
+      "SELECT personIdentifier AS cwid, MIN(NULLIF(identityBachelorYear, 0)) AS b, MIN(NULLIF(identityDoctoralYear, 0)) AS d " +
+      "FROM person_article WHERE personIdentifier IN (:cwids) GROUP BY 1",
+      { replacements: { cwids }, type: QueryTypes.SELECT });
+    for (const r of dRows) {
+      const ys = [r.b, r.d].map(Number).filter((y) => y > 1900);
+      if (facts[k(r.cwid)] && ys.length) facts[k(r.cwid)].degreeYear = Math.min(...ys);
+    }
+
+    // ---- this paper's co-authors on their accepted papers ------------------------
+    const lastNames = [...new Set((coauthors || []).map((n) => n.split(/\s+/).pop() || "").filter(Boolean))];
+    if (lastNames.length) {
+      const cRows: any[] = await sequelize.query(
+        "SELECT pa.personIdentifier AS cwid, paa.authorLastName AS last, LEFT(paa.authorFirstName, 1) AS initial, COUNT(DISTINCT pa.pmid) AS n " +
+        "FROM person_article pa JOIN person_article_author paa ON paa.personIdentifier = pa.personIdentifier AND paa.pmid = pa.pmid " +
+        "WHERE pa.personIdentifier IN (:cwids) AND pa.userAssertion = 'ACCEPTED' AND paa.targetAuthor = 0 " +
+        "AND pa.pmid <> :pmid AND paa.authorLastName IN (:lastNames) GROUP BY 1, 2, 3",
+        { replacements: { cwids, pmid: Number(row.pmid) || 0, lastNames }, type: QueryTypes.SELECT });
+      for (const r of cRows) if (facts[k(r.cwid)]) facts[k(r.cwid)].coauthorHits.push({ last: String(r.last || ""), initial: String(r.initial || ""), n: Number(r.n) || 0 });
+    }
+
+    res.send({ coauthors, facts });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
 // POST /api/db/authorships/recent-activity — the 15 most-recently-resolved authorships across
 // the whole queue. accept/assign/reject/dismiss all stamp resolved_at (reopen clears it back
 // to null; snooze never sets it), so filtering on resolved_at IS NOT NULL is exactly those four
