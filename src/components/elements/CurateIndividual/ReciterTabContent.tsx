@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { CoauthorIndex } from "../../../utils/identityEvidence";
 import Publication from "../Publication/Publication";
 import FilterPubSection from "./FilterPubSection";
+import DuplicatesBanner from "./DuplicatesBanner";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import sortPublications from "../../../utils/sortPublications";
 import Pagination from '../Pagination/Pagination';
@@ -471,6 +472,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         isSearchText={props.isSearchText}
         totalCount={totalCount}
       />
+
+      {props.tabType === 'ACCEPTED' && <DuplicatesBanner uid={props.personIdentifier} accepted={props.publications} />}
 
       {/* Keyboard hint bar — Suggested tab only */}
       {isArticleTab && (
