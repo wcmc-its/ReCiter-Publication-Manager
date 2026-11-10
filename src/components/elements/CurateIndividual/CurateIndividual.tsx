@@ -12,6 +12,8 @@ import InferredKeywords from "./InferredKeywords"
 import SuggestionsBanner from "./SuggestionsBanner";
 import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
 import Profile from "../Profile/Profile";
 import { useSession } from "next-auth/react";
 import { allowedPermissions, toastMessage, getCapabilities } from "../../../utils/constants";
@@ -30,6 +32,9 @@ interface PrimaryName {
   middleName?: string,
   middleInitial?: string,
 }
+
+// Keyword chips shown before "+N more" (mockup 00-landing).
+const KW_COLLAPSED_MAX = 6;
 
 const CurateIndividual = () => {
   const router = useRouter()
@@ -54,6 +59,8 @@ const CurateIndividual = () => {
   const [showRecentActivity, setShowRecentActivity] = useState(false) // collapsed by default; the Hide/Show toggle still lets a curator open it
   const [headShotLoaded, setHeadShotLoaded] = useState(false)
   const [grantProxyShow, setGrantProxyShow] = useState(false);
+  const [kwExpanded, setKwExpanded] = useState(false);
+  const [moreAnchor, setMoreAnchor] = useState<HTMLElement | null>(null);
   // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex|crossref]. Parsed here, not in
   // ReciterTabs: this component stays mounted while the tabs are swapped for the loading
   // skeleton, so a tabs instance mounted before the fetches start would be thrown away along
@@ -70,6 +77,7 @@ const CurateIndividual = () => {
       return;
     }
     setHeadShotLoaded(false);
+    setKwExpanded(false);
     // Clear the previous uid's identity/reciter state (and any error it left behind)
     // before kicking off this uid's fetches, so a previous uid's data or a stale
     // identity-404 cannot bleed into this uid's render while its own fetches are
@@ -244,7 +252,9 @@ const CurateIndividual = () => {
           {identityData &&
             <div className={styles.personHeader}>
               <div className={styles.personPhotoWrap}>
-                <svg className={styles.personPhotoPlaceholder} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="8" cy="5.5" r="3"/><path d="M2 14c0-3.31 2.69-6 6-6s6 2.69 6 6"/></svg>
+                <span className={styles.personInitials} aria-hidden="true">
+                  {`${identityData.primaryName?.firstName?.[0] || ''}${identityData.primaryName?.lastName?.[0] || ''}`.toUpperCase()}
+                </span>
                 {identityData.uid && (
                   <img
                     className={`${styles.personPhoto}${headShotLoaded ? ` ${styles.personPhotoLoaded}` : ''}`}
@@ -257,9 +267,13 @@ const CurateIndividual = () => {
                 )}
               </div>
               <div className={styles.personInfo}>
-                <h2 className={styles.personName}>{personFullName}</h2>
-                {identityData.title && <div className={styles.personRole}>{identityData.title}</div>}
-                {identityData.primaryOrganizationalUnit && <div className={styles.personDept}>{identityData.primaryOrganizationalUnit}</div>}
+                <div className={styles.personNameRow}>
+                  <h2 className={styles.personName}>{personFullName}</h2>
+                  <span className={styles.personMeta}>
+                    {[identityData.title, identityData.primaryOrganizationalUnit].filter(Boolean).map((part: string) => `${part} · `).join('')}
+                    <span className={styles.personCwid}>{identityData.uid}</span>
+                  </span>
+                </div>
                 {reciterData && reciterData.reciter && reciterData.reciter.articleKeywordsAcceptedArticles &&
                   reciterData.reciter.articleKeywordsAcceptedArticles.length > 0 && (() => {
                     const keywords = reciterData.reciter.articleKeywordsAcceptedArticles;
@@ -272,7 +286,7 @@ const CurateIndividual = () => {
                     return (
                       <div className={styles.personKeywords}>
                         <span className={styles.kwLabel}>Keywords</span>
-                        {keywords.map((kw: any, i: number) => {
+                        {(kwExpanded ? keywords : keywords.slice(0, KW_COLLAPSED_MAX)).map((kw: any, i: number) => {
                           const count = kw.count || 0;
                           const rank = sorted.indexOf(count) / n;
                           let tier = rank < 0.25 ? 'high' : rank < 0.75 ? 'medium' : 'low';
@@ -288,16 +302,42 @@ const CurateIndividual = () => {
                             </span>
                           );
                         })}
+                        {n > KW_COLLAPSED_MAX && (
+                          <button type="button" className={styles.kwMore} onClick={() => setKwExpanded(v => !v)}>
+                            {kwExpanded ? 'Show fewer' : `+${n - KW_COLLAPSED_MAX} more`}
+                          </button>
+                        )}
                       </div>
                     );
                   })()
                 }
               </div>
               <div className={styles.personActions}>
+                <button className={styles.viewProfileBtn} onClick={handleShow}>View profile</button>
+                {/* The ⋯ menu only holds Grant proxy today, so it hides with that gate. */}
                 {canManageUsers && (
-                  <button className={styles.viewProfileBtn} onClick={() => setGrantProxyShow(true)}>Grant Proxy</button>
+                  <>
+                    <button
+                      type="button"
+                      className={styles.moreBtn}
+                      aria-label="More actions"
+                      aria-haspopup="menu"
+                      aria-expanded={!!moreAnchor}
+                      onClick={(e) => setMoreAnchor(e.currentTarget)}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+                    </button>
+                    <Menu
+                      anchorEl={moreAnchor}
+                      open={!!moreAnchor}
+                      onClose={() => setMoreAnchor(null)}
+                      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                      transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                    >
+                      <MenuItem onClick={() => { setMoreAnchor(null); setGrantProxyShow(true); }} sx={{ fontSize: 13 }}>Grant proxy…</MenuItem>
+                    </Menu>
+                  </>
                 )}
-                <button className={styles.viewProfileBtn} onClick={handleShow}>View Profile</button>
               </div>
             </div>
           }
