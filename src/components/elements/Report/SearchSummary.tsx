@@ -1,4 +1,5 @@
-import { Button, Dropdown, DropdownButton, Form } from "react-bootstrap";
+import { Dropdown, DropdownButton } from "react-bootstrap";
+import Popover from "@mui/material/Popover";
 import { useEffect, useState } from "react";
 import ExportModal from "./ExportModal";
 import { sortOptions } from "../../../../config/report";
@@ -41,9 +42,14 @@ const SearchSummary = ({
   page,
   onPaginationUpdate,
   onCountUpdate,
-}: {exportArticlesRTF:any, exportArticleLabels :any, exportAuthorShipLabels:any, reportLabelsForSort? : any,articlesCount: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void, count?: number, total?: number, page?: number, onPaginationUpdate?: (page: number) => void, onCountUpdate?: (count: string) => void}) => {
-  const [openCSV, setOpenCSV] = useState(false);
-  const [openRTF, setOpenRTF] = useState(false);
+  exportType,
+  onExportClose,
+}: {exportType?: "CSV" | "RTF" | null, onExportClose?: () => void, exportArticlesRTF:any, exportArticleLabels :any, exportAuthorShipLabels:any, reportLabelsForSort? : any,articlesCount: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void, count?: number, total?: number, page?: number, onPaginationUpdate?: (page: number) => void, onCountUpdate?: (count: string) => void}) => {
+  // The Export Excel / Export Word buttons live in the page title row (Report.tsx); it opens the
+  // matching modal here through exportType.
+  const openCSV = exportType === "CSV";
+  const openRTF = exportType === "RTF";
+  const [sortAnchor, setSortAnchor] = useState<HTMLElement | null>(null);
   const [exportError, setExportError] = useState(false);
   const [exportArticleLoading, setExportArticleLoading] = useState(false);
   const [exportArticlePplLoading, setExportArticlePplLoading] = useState(false);
@@ -85,8 +91,23 @@ const SearchSummary = ({
         labelObj.isVisible && sortWithDisplayRank.push(labelObj);
       }
     })
+    // Publication date sort: admin settings may carry either spelling, or (dev) neither.
+    const hasPubDateSetting = Array.isArray(reportLabelsForSort) && reportLabelsForSort.some((l: any) =>
+      l.labelUserKey === 'publicationDateStandardized' || l.labelUserKey === 'publicationDateStandarized');
+    if (Array.isArray(reportLabelsForSort) && reportLabelsForSort.length && !hasPubDateSetting) {
+      sortWithDisplayRank.push({ labelName: 'Publication date', displayRank: 1.5, isVisible: true, keyName: 'publicationDateStandardized' });
+    }
     serFormatedSOrtOptions(sortWithDisplayRank.sort((a: any, b: any) => a.displayRank - b.displayRank))
   }, [reportLabelsForSort])
+
+  const isDateKey = (keyName?: string, labelName?: string) => /date/i.test(keyName || '') || /date/i.test(labelName || '');
+  const activeSort = formattedSortOptions.find((o: any) => o.keyName === selected?.type);
+  const sortLabel = activeSort
+    ? `${activeSort.labelName} ${isDateKey(activeSort.keyName, activeSort.labelName) ? (selected.order === 'ASC' ? '· oldest' : '· newest') : (selected.order === 'ASC' ? '↑' : '↓')}`
+    : 'Date added · newest';
+  const firstRow = total > 0 && count && page ? (page - 1) * count + 1 : 0;
+  const lastRow = total > 0 && count && page ? Math.min(page * count, total) : 0;
+  const pageCount = total > 0 && count ? Math.ceil(total / count) : 1;
 
   const handleSelect = (option) => {
     let optionInfo = option.split('_');
@@ -190,13 +211,6 @@ const SearchSummary = ({
       setExportArticlePplLoading(false);
       toast.error("Unable to export article report. Please try again. (ERR-8002)");
     })
-  }
-
-  const getReportsDatabyPubFilters = (exportType)=>{
-    if(exportType === "CSV") setOpenCSV(true)
-    else setOpenRTF(true)
-
-    onGetReportsDatabyPubFilters();
   }
 
   const exportAuthorshipCSV = () => {
@@ -409,66 +423,66 @@ const SearchSummary = ({
 
   return (
     <>
-      <div className={`d-flex justify-content-between align-items-center pt-5 ${styles.controlsRow}`}>
-        <p className="mb-0"><span className={styles.articlesCount}>{articlesCount && articlesCount > 0? formatter.format(articlesCount) : 0}</span> articles</p>
-        <div className="d-flex align-items-center gap-2">
+      <div className={styles.controlsRow} data-testid="report-results-header">
+        <div className={styles.countBlock}>
+          <span className={styles.articlesCount}>{articlesCount && articlesCount > 0 ? formatter.format(articlesCount) : 0}</span>
+          <span className={styles.countNoun}>{articlesCount === 1 ? 'publication' : 'publications'}</span>
+        </div>
+        <div className={styles.controls}>
           {total > 0 && count && page && (
-            <div className={`d-flex align-items-center ${styles.inlinePagination}`}>
-              <label className={styles.showLabel}>Show</label>
-              <DropdownButton className={styles.countDropdown} id="count-dropdown" title={count} onSelect={(eventKey) => onCountUpdate(eventKey)}>
-                <Dropdown.Item eventKey={10} className={`${styles.showItem} ${count == 10 ? styles.showItemActive : ''}`}>
-                  <span>10 per page</span>{count == 10 ? <span className={styles.showCheck}>✓</span> : <span className={styles.showHint}>faster</span>}
-                </Dropdown.Item>
-                <Dropdown.Item eventKey={20} className={`${styles.showItem} ${count == 20 ? styles.showItemActive : ''}`}>
-                  <span>20 per page</span>{count == 20 && <span className={styles.showCheck}>✓</span>}
-                </Dropdown.Item>
-                <Dropdown.Item eventKey={50} className={`${styles.showItem} ${count == 50 ? styles.showItemActive : ''}`}>
-                  <span>50 per page</span>{count == 50 && <span className={styles.showCheck}>✓</span>}
-                </Dropdown.Item>
-                <Dropdown.Item eventKey={100} className={`${styles.showItem} ${count == 100 ? styles.showItemActive : ''}`}>
-                  <span>100 per page</span>{count == 100 && <span className={styles.showCheck}>✓</span>}
-                </Dropdown.Item>
-                <Dropdown.Item eventKey={200} className={`${styles.showItem} ${count == 200 ? styles.showItemActive : ''}`}>
-                  <span>200 per page</span>{count == 200 ? <span className={styles.showCheck}>✓</span> : <span className={styles.showHint}>slower</span>}
-                </Dropdown.Item>
+            <div className={styles.inlinePagination}>
+              <span className={styles.pageInfo}>{formatter.format(firstRow)}–{formatter.format(lastRow)} of {formatter.format(total)}</span>
+              <button type="button" className={styles.pageBtn} aria-label="Previous page" disabled={page <= 1} onClick={() => page > 1 && onPaginationUpdate(page - 1)}><ArrowLeft fontSize="small" /></button>
+              <button type="button" className={styles.pageBtn} aria-label="Next page" disabled={page >= pageCount} onClick={() => page < pageCount && onPaginationUpdate(page + 1)}><ArrowRight fontSize="small" /></button>
+              <DropdownButton className={styles.countDropdown} id="count-dropdown" title={`${count} per page`} onSelect={(eventKey) => onCountUpdate(eventKey)}>
+                {[10, 20, 50, 100, 200].map((n) => (
+                  <Dropdown.Item key={n} eventKey={n} className={`${styles.showItem} ${count == n ? styles.showItemActive : ''}`}>
+                    <span>{n} per page</span>
+                    {count == n ? <span className={styles.showCheck}>✓</span> : n === 10 ? <span className={styles.showHint}>faster</span> : n === 200 ? <span className={styles.showHint}>slower</span> : null}
+                  </Dropdown.Item>
+                ))}
               </DropdownButton>
-              <ArrowLeft className={page === 1 ? "disabled" : ""} color="primary" style={{ cursor: 'pointer', fontSize: 20 }} onClick={() => page > 1 && onPaginationUpdate(page - 1)} />
-              <span className={styles.pageInfo}>{page.toLocaleString()} / {Math.ceil(total / count).toLocaleString()}</span>
-              <ArrowRight className={page === Math.ceil(total / count) ? "disabled" : ""} color="primary" style={{ cursor: 'pointer', fontSize: 20 }} onClick={() => page < Math.ceil(total / count) && onPaginationUpdate(page + 1)} />
             </div>
           )}
-          <DropdownButton className={`d-inline-block`} title="Sort by" id="dropdown-basic-button" autoClose="outside">
-          {
-            formattedSortOptions.map((sortOption, index) => {
-              const {labelName, keyName} = sortOption || {};
-              const isActive = selected.type === keyName;
-              // Date columns read oddly as "High → Low"; show newest/oldest instead.
-              const isDateSort = /date/i.test(keyName || '') || /date/i.test(labelName || '');
-              return (
-                <div key={index} className={`${styles.sortItem} ${isActive ? styles.sortItemActive : ''}`}>
-                  <span className={styles.sortLabel}>{labelName}</span>
-                  <div className={styles.sortToggle}>
-                    <button
-                      className={`${styles.sortToggleBtn} ${isActive && selected.order === 'DESC' ? styles.sortToggleBtnActive : ''}`}
-                      onClick={() => onClick(keyName, 'DESC')}
-                    >↓ {isDateSort ? 'Newest' : 'High'}</button>
-                    <button
-                      className={`${styles.sortToggleBtn} ${isActive && selected.order === 'ASC' ? styles.sortToggleBtnActive : ''}`}
-                      onClick={() => onClick(keyName, 'ASC')}
-                    >↑ {isDateSort ? 'Oldest' : 'Low'}</button>
+          <button type="button" className={styles.sortButton} aria-haspopup="menu" aria-expanded={!!sortAnchor} onClick={(e) => setSortAnchor(e.currentTarget)}>
+            <span className={styles.sortByLabel}>Sort by</span>{sortLabel}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+          </button>
+          <Popover open={!!sortAnchor} anchorEl={sortAnchor} onClose={() => setSortAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            PaperProps={{ className: styles.sortMenu }}>
+            <div role="menu" aria-label="Sort by">
+              {formattedSortOptions.map((sortOption: any, index) => {
+                const { labelName, keyName } = sortOption || {};
+                const isActive = selected.type === keyName;
+                // Date columns read oddly as "High → Low"; show newest/oldest instead.
+                const isDateSort = isDateKey(keyName, labelName);
+                const pick = (order: string) => { onClick(keyName, order); setSortAnchor(null); };
+                return (
+                  <div key={index} className={`${styles.sortItem} ${isActive ? styles.sortItemActive : ''}`}>
+                    <span className={styles.sortLabel}>{labelName}</span>
+                    <div className={styles.sortToggle}>
+                      <button
+                        type="button" role="menuitemradio" aria-checked={isActive && selected.order === 'DESC'}
+                        className={`${styles.sortToggleBtn} ${isActive && selected.order === 'DESC' ? styles.sortToggleBtnActive : ''}`}
+                        onClick={() => pick('DESC')}
+                      >{isDateSort ? 'Newest' : 'High'}</button>
+                      <button
+                        type="button" role="menuitemradio" aria-checked={isActive && selected.order === 'ASC'}
+                        className={`${styles.sortToggleBtn} ${isActive && selected.order === 'ASC' ? styles.sortToggleBtnActive : ''}`}
+                        onClick={() => pick('ASC')}
+                      >{isDateSort ? 'Oldest' : 'Low'}</button>
+                    </div>
                   </div>
-                </div>
-              )
-            })
-          }
-        </DropdownButton>
-          <Button className={`transparent-btn btn btn-primary ${styles.exportBtn}`} size="sm" disabled={articlesCount ? false : true} onClick={() => getReportsDatabyPubFilters("CSV")}>CSV</Button>
-          <Button className={`transparent-btn btn btn-primary ${styles.exportBtn}`} size="sm" disabled={articlesCount ? false : true} onClick={() => getReportsDatabyPubFilters("RTF")}>RTF</Button>
+                )
+              })}
+            </div>
+          </Popover>
         </div>
       </div>
       <ExportModal
         show={openCSV}
-        handleClose={() => setOpenCSV(false)}
+        handleClose={() => onExportClose && onExportClose()}
         title="CSV"
         loadingResults={reportsResultsIdsLoading}
         articleLimit = {articleLimit}
@@ -487,7 +501,7 @@ const SearchSummary = ({
       />
       <ExportModal
         show={openRTF}
-        handleClose={() => setOpenRTF(false)}
+        handleClose={() => onExportClose && onExportClose()}
         title="RTF"
         countInfo={`${articlesCount ? formatter.format(articlesCount) : 0} articles`}
         loadingResults={reportsResultsIdsLoading}

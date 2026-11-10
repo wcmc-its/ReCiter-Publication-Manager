@@ -6,6 +6,7 @@ import { DatePicker } from "./DatePicker";
 import { SliderFilter } from "./SliderFilter";
 import { CheckList } from "./CheckList";
 import { CheckboxSelect } from "./CheckboxSelect";
+import { PresetSelect } from "./PresetSelect";
 import * as utils from "../../../utils/reportFilters";
 import React from 'react';
 
@@ -16,22 +17,14 @@ const filterNameToState = {
   institution: "institutions",
   personType: "personTypes",
   authorPosition: "authorPosition",
+  source: "sourceTypes",
   date: ["datePublicationAddedToEntrezLowerBound", "datePublicationAddedToEntrezUpperBound"],
   type: "publicationTypeCanonical",
   journal: "journalTitleVerbose",
   journalRank: ["journalImpactScoreLowerBound", "journalImpactScoreUpperBound"],
 }
 
-const Buttons = ({ clearFilters, searchResults }) => {
-  return (
-    <div className="d-flex align-items-center">
-      <Button variant="danger" onClick={searchResults}>Search</Button>
-      <Button variant="outline-secondary" size="sm" className="ms-3" onClick={clearFilters}>Reset</Button>
-    </div>
-  )
-}
-
-const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterClear, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters, selectedFilters }) => {
+const DisplayFilter = ({onClose, reportFiltersLabes,onLoadMore, filter, index,isFilterClear, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters, selectedFilters }) => {
   let filterType = filter.filterType || undefined;
   // Don't modify filterName - it should be a string or array as passed from filterNameToState
   selectedFilters = selectedFilters || {}
@@ -50,6 +43,20 @@ const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterCle
           selectedFilters={selectedFilters}
           isFilterClear={isFilterClear}
           reportFiltersLabes={reportFiltersLabes}
+          onClose={onClose}
+        />
+      )
+    case "Preset":
+      return (
+        <PresetSelect
+          title={filter.name}
+          options={filter.options}
+          handleChange={onSetRangeFilters}
+          filterLowerName={filterName[0]}
+          filterUpperName={filterName[1]}
+          selectedLower={selectedFilters[filterName[0]]}
+          reportFiltersLabes={reportFiltersLabes}
+          onClose={onClose}
         />
       )
     case "Range":
@@ -90,6 +97,7 @@ const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterCle
           isFilterClear={isFilterClear}
           onLoadMore = {onLoadMore}
           reportFiltersLabes={reportFiltersLabes}
+          onClose={onClose}
         />
       )
     case "Checklist":
@@ -102,6 +110,7 @@ const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterCle
           selectedOptions={selectedFilters[filterName] || []}
           reportFiltersLabes={reportFiltersLabes}
           isFilterClear={isFilterClear}
+          onClose={onClose}
         />
       )
     default:
@@ -111,11 +120,11 @@ const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterCle
   }
 }
 
-const FilterRow = ({reportFiltersLabes,onLoadMore,title, filters, filterOptions,isFilterClear, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters}) => {
+const FilterRow = ({onClose, reportFiltersLabes,onLoadMore,title, filters, filterOptions,isFilterClear, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters}) => {
   return (
-    <div className="filter-row flex-grow-1">
-      <div className={`title ${styles.filterName}`}>{title}</div>
-      <div className={`filters-container ${styles.filtersContainer}`}>
+    <div className={styles.filterRow}>
+      <div className={styles.filterName}>{title}</div>
+      <div className={styles.filtersContainer}>
         {Object.keys(filters).map((filter, index) => {
           if (filters[filter].isEnabled) {
             return (
@@ -132,6 +141,7 @@ const FilterRow = ({reportFiltersLabes,onLoadMore,title, filters, filterOptions,
                 isFilterClear={isFilterClear}
                 onLoadMore={onLoadMore}
                 reportFiltersLabes={reportFiltersLabes}
+                onClose={onClose}
                 />
             )
           } else {
@@ -143,13 +153,16 @@ const FilterRow = ({reportFiltersLabes,onLoadMore,title, filters, filterOptions,
   )
 }
 
-export const FilterSection = ({reportFiltersLabes, onLoadMore, filterOptions,isFilterClear, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters, clearFilters, searchResults }) => {
+// Two rows of filter chips (People, Publications). A filter applies when its menu closes, so
+// there's no Search button; "Clear all" replaces Reset.
+export const FilterSection = ({reportFiltersLabes, onLoadMore, filterOptions,isFilterClear, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters, clearFilters, searchResults, hasActiveFilters }) => {
 
   return (
-    <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
+    <div className={styles.filterContainer} data-testid="report-filters">
       {Object.keys(reportConfig).map((config, index) => {
         return (
           <React.Fragment key={config}>
+            {index > 0 && <div className={styles.rowDivider} />}
             <FilterRow 
               title={reportConfig[config].name}
               filters={reportConfig[config].list}
@@ -161,15 +174,14 @@ export const FilterSection = ({reportFiltersLabes, onLoadMore, filterOptions,isF
               isFilterClear={isFilterClear}
               onLoadMore={onLoadMore}
               reportFiltersLabes={reportFiltersLabes}
+              onClose={searchResults}
               />
-              {index < Object.keys(reportConfig).length - 1 && <div className="break"></div>}
          </React.Fragment>
         )
       })}
-      <Buttons 
-        clearFilters={clearFilters}
-        searchResults={searchResults}
-      />
+      {hasActiveFilters && (
+        <button type="button" className={styles.clearAll} onClick={clearFilters}>Clear all</button>
+      )}
     </div>
   )
 }

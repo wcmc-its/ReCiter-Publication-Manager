@@ -18,11 +18,11 @@ const AuthorComponent = ({author, index, count, onClick} : {
 
   if (parseInt(author.highlightAuthor)) {
     return (
-      <li key={"author" + index}><span className={styles.highlightedAuthor} onClick={() => onClick(author.personIdentifier)}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
+      <li key={"author" + index}><span className={`${styles.wcmAuthor} ${styles.highlightedAuthor}`} title={`View ${authorFullName.trim()}'s profile`} onClick={() => onClick(author.personIdentifier)}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
     )
   } else if (author.personIdentifier && author.personIdentifier !== "") {
     return (
-      <li key={"author" + index}><span className="text-decoration-underline-dotted" onClick={() => onClick(author.personIdentifier)}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
+      <li key={"author" + index}><span className={styles.wcmAuthor} title={`View ${authorFullName.trim()}'s profile`} onClick={() => onClick(author.personIdentifier)}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
     )
   }
 

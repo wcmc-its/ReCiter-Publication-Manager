@@ -1,10 +1,33 @@
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 16px;
+}
+
 .header {
-  font-weight: 500;
-  color: var(--gray-900);
-  font-size: 28px;
-  font-family: var(--font-serif);
-  padding-bottom: 10px;
-  letter-spacing: -0.025em;
+  margin: 0;
+  font-weight: 600;
+  color: var(--pm-foreground);
+  font-size: 30px;
+  font-family: var(--font-display-serif);
+  letter-spacing: -0.01em;
+}
+
+.exportButtons {
+  display: flex;
+  gap: 8px;
+}
+
+/* Result rows sit in one card, divided by hairlines. */
+.resultsCard {
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 /* ── Loading / skeleton ── */
@@ -77,4 +100,10 @@
   composes: skLine;
   width: 42%;
   margin-bottom: 0;
+}
+
+.emptyRow {
+  padding: 56px 24px;
+  text-align: center;
+  color: var(--pm-muted-foreground);
 }

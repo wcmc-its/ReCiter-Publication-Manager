@@ -5,6 +5,8 @@ import { PublicationSearchFilter} from '../../../types/publication.report.search
 import { Op, Sequelize } from "sequelize";
 import {metrics } from "../../../config/report";
 import { buildReportSort } from "./reportSort";
+import { authorPositionSql, sourceSql } from "./reportFilterSql";
+import { articleColumns } from "./reportColumns";
 		
 						 
 					 
@@ -103,6 +105,10 @@ export const generatePubsPeopleOnlyRtf = async (
   ) => {
     try {
       let apiBody: PublicationSearchFilter = req.body;
+      const hasSourceColumn = (await articleColumns()).sourceType;
+      if (apiBody.filters) {
+        apiBody.filters.authorPosition = (apiBody.filters.authorPosition || []).filter((p) => !!authorPositionSql("x", [p]));
+      }
       const where = {};
       const joinOrgWhere ={};
 								   
@@ -139,11 +145,7 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.authorPosition.length > 0
         ) {
 								 
-          where[Op.and].push({
-            "$AnalysisSummaryAuthor.authorPosition$": {
-              [Op.in]: apiBody.filters.authorPosition,
-            },
-          });
+          where[Op.and].push(Sequelize.literal(authorPositionSql("AnalysisSummaryAuthor", apiBody.filters.authorPosition)));
         }
         if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
 								 
@@ -190,6 +192,8 @@ export const generatePubsPeopleOnlyRtf = async (
             },
           });
         }
+        const sourceClause = sourceSql("AnalysisSummaryArticle", apiBody.filters.sourceTypes, hasSourceColumn);
+        if (sourceClause) where[Op.and].push(Sequelize.literal(sourceClause));
         if (
           apiBody.filters.publicationTypeCanonical &&
           apiBody.filters.publicationTypeCanonical.length > 0
@@ -207,7 +211,7 @@ export const generatePubsPeopleOnlyRtf = async (
 								  
           where[Op.and].push({
             "$AnalysisSummaryArticle.journalImpactScore1$": {
-              [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+              [Op.gte]: apiBody.filters.journalImpactScoreLowerBound,
             },
           });
         }
@@ -324,6 +328,10 @@ export const generatePubsPeopleOnlyRtf = async (
   ) => {
     try {
       let apiBody: PublicationSearchFilter = req.body;
+      const hasSourceColumn = (await articleColumns()).sourceType;
+      if (apiBody.filters) {
+        apiBody.filters.authorPosition = (apiBody.filters.authorPosition || []).filter((p) => !!authorPositionSql("x", [p]));
+      }
       const where = {};
       const joinOrgWhere ={};
       let isPersonFilterOn = false;
@@ -355,11 +363,7 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.authorPosition &&
           apiBody.filters.authorPosition.length > 0
         ) {
-          where[Op.and].push({
-            "$AnalysisSummaryAuthor.authorPosition$": {
-              [Op.in]: apiBody.filters.authorPosition,
-            },
-          });
+          where[Op.and].push(Sequelize.literal(authorPositionSql("AnalysisSummaryAuthor", apiBody.filters.authorPosition)));
         }
         if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
           joinOrgWhere[Op.or].push({
@@ -417,6 +421,8 @@ export const generatePubsPeopleOnlyRtf = async (
             });
           }  
 
+        const sourceClause = sourceSql("AnalysisSummaryArticle", apiBody.filters.sourceTypes, hasSourceColumn);
+        if (sourceClause) where[Op.and].push(Sequelize.literal(sourceClause));
         if (
           apiBody.filters.publicationTypeCanonical &&
           apiBody.filters.publicationTypeCanonical.length > 0
@@ -433,7 +439,7 @@ export const generatePubsPeopleOnlyRtf = async (
         ) {
           where[Op.and].push({
             "$AnalysisSummaryArticle.journalImpactScore1$": {
-              [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+              [Op.gte]: apiBody.filters.journalImpactScoreLowerBound,
             },
           });
           where[Op.and].push({

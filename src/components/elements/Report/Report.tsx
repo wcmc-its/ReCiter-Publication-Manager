@@ -1,4 +1,5 @@
-import React, { useState } from "react"; 
+import React, { useRef, useState } from "react";
+import { Button } from "../../ui";
 import appStyles from '../App/App.module.css';
 import styles from './Report.module.css';
 import QuickReport from './QuickReport';
@@ -8,7 +9,7 @@ import { useDispatch , useSelector } from 'react-redux';
 import { RootStateOrAny } from "../../../types/redux";
 import { useEffect } from 'react';
 import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults, getReportsResultsInitial, fetchReportsResultsIds, showEvidenceByDefault } from '../../../redux/actions/actions';
-import { ReportsResultPane } from "./ReportsResultPane";
+import { initialStatePubSearchFilter } from "../../../redux/reducers/reducers";
 import { usePagination } from "../../../hooks/usePagination";
 import Pagination from "../Pagination/Pagination";
 import { getOffset } from "../../../utils/pagination";
@@ -72,6 +73,10 @@ const Report = () => {
   const [reportingWebDisplay, setReportingWebDisplay] = useState([])
   const [isOnlyAuthorFilters, setIsOnlyAuthorFilters] = useState<boolean>(false)
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
+  // Which export modal is open; the buttons sit in the title row, the modals in SearchSummary.
+  const [exportType, setExportType] = useState<"CSV" | "RTF" | null>(null)
+  // Filters as of the last search, so closing a filter menu without a change doesn't re-search.
+  const lastAppliedFilters = useRef<string>(JSON.stringify(pubSearchFilter.filters))
 
 
 
@@ -260,12 +265,36 @@ const Report = () => {
   }
 
   const searchResults = () => {
-
+    lastAppliedFilters.current = JSON.stringify(pubSearchFilter.filters);
     dispatch(getReportsResults(pubSearchFilter));
     handlePaginationUpdate(1);
     if (isInitialLoad) {
       setIsInitialLoad(false);
     }
+  }
+
+  // A filter applies when its menu closes, and only if the selection changed.
+  const applyFilters = () => {
+    if (JSON.stringify(pubSearchFilter.filters) === lastAppliedFilters.current) return;
+    searchResults();
+  }
+
+  const isSet = (v: any) => Array.isArray(v) ? v.length > 0 : v !== undefined && v !== null && v !== "";
+  const hasActiveFilters = Object.values(pubSearchFilter.filters || {}).some(isSet);
+
+  const clearAndSearch = () => {
+    clearFilters();
+    lastAppliedFilters.current = JSON.stringify(initialStatePubSearchFilter.filters);
+    // back to the unfiltered first page (same as a fresh load)
+    setIsInitialLoad(true);
+    setIsFiltersOn(false);
+    handlePaginationUpdate(1);
+    dispatch(getReportsResultsInitial(count, 0));
+  }
+
+  const openExport = (type: "CSV" | "RTF") => {
+    setExportType(type);
+    onGetReportsDatabyPubFilters();
   }
 
   const updateSort = (sort: string, order: string) => {
@@ -324,21 +353,40 @@ const Report = () => {
 
   const onGetReportsDatabyPubFilters =()=>{
     const {personIdentifers,personTypes,institutions,orgUnits ,datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound,journalTitleVerbose,publicationTypeCanonical, authorPosition, journalImpactScoreLowerBound,journalImpactScoreUpperBound } = pubSearchFilter.filters;
+    const sourceTypes = pubSearchFilter.filters.sourceTypes || [];
     let journalImpactScoreLowerBound1 = journalImpactScoreLowerBound;
     let journalImpactScoreUpperBound2 = journalImpactScoreUpperBound;
     
     if((personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0) 
-    && (datePublicationAddedToEntrezLowerBound != "" || datePublicationAddedToEntrezUpperBound != "" || journalTitleVerbose.length > 0 || publicationTypeCanonical.length > 0 || journalImpactScoreLowerBound || journalImpactScoreUpperBound )) {
+    && (datePublicationAddedToEntrezLowerBound != "" || datePublicationAddedToEntrezUpperBound != "" || journalTitleVerbose.length > 0 || publicationTypeCanonical.length > 0 || sourceTypes.length > 0 || journalImpactScoreLowerBound || journalImpactScoreUpperBound )) {
       dispatch(fetchReportsResultsIds(pubSearchFilter)) 
-  }else if(personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0 && datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length == 0 && publicationTypeCanonical.length == 0 && journalImpactScoreLowerBound1 == undefined && journalImpactScoreUpperBound2 == undefined){
+  }else if(personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0 && datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length == 0 && publicationTypeCanonical.length == 0 && sourceTypes.length == 0 && !journalImpactScoreLowerBound1 && !journalImpactScoreUpperBound2){
     dispatch(fetchReportsResultsIds(pubSearchFilter))
   }
   }
 
+  const canExport = !!(reportsSearchResults && reportsSearchResults.articlesCount);
+
+  // Title row: page name on the left, the two exports on the right ("Excel" / "Word" per the 1e
+  // rename; Word still produces the RTF until .docx ships).
+  const titleRow = (
+    <div className={styles.titleRow}>
+      <h1 className={styles.header}>Reports</h1>
+      <div className={styles.exportButtons}>
+        <Button variant="primary" disabled={!canExport} onClick={() => openExport("CSV")} data-testid="export-excel" sx={EXCEL_SX}>
+          <ExportIcon /> Export Excel
+        </Button>
+        <Button variant="secondary" disabled={!canExport} onClick={() => openExport("RTF")} data-testid="export-word" sx={WORD_SX}>
+          <ExportIcon /> Export Word
+        </Button>
+      </div>
+    </div>
+  );
+
   if (reportingFiltersLoading) {
     return (
       <div className={appStyles.mainContainer}>
-        <h1 className={styles.header}>Create Reports</h1>
+        {titleRow}
         <div>
           <div className={styles.loadingRow}>
             <div className={styles.spinner} />
@@ -353,28 +401,29 @@ const Report = () => {
   } else return (
     <div>
       <div className={appStyles.mainContainer}>
-        <h1 className={styles.header}>Create Reports</h1>
+        {titleRow}
         <FilterSection 
           filterOptions={filters}
           filterUpdateOptions={filterUpdateOptions}
           onSetSearchFilters={onSetSearchFilters}
           onSetRangeFilters={onSetRangeFilters}
           selectedFilters={pubSearchFilter.filters}
-          clearFilters={clearFilters}
-          searchResults={searchResults}
+          clearFilters={clearAndSearch}
+          searchResults={applyFilters}
+          hasActiveFilters={hasActiveFilters}
           isFilterClear={isFilterClear}
           onLoadMore = {onLoadMore}
           reportFiltersLabes = {reportFiltersLabes}
           />
         {reportsSearchResultsLoading &&
           <div>
-            <div className={styles.loadingRow}>
-              <div className={styles.spinner} />
-              <span>Searching…</span>
-            </div>
-            <div className={styles.skeletonCard}><div className={styles.skTitle} /><div className={styles.skAuthors} /><div className={styles.skMeta} /></div>
-            <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '60%' }} /><div className={styles.skAuthors} style={{ width: '50%' }} /><div className={styles.skMeta} style={{ width: '38%' }} /></div>
-            <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '74%' }} /><div className={styles.skAuthors} style={{ width: '44%' }} /><div className={styles.skMeta} style={{ width: '32%' }} /></div>
+          <div className={styles.loadingRow}>
+            <div className={styles.spinner} />
+            <span>Searching…</span>
+          </div>
+          <div className={styles.skeletonCard}><div className={styles.skTitle} /><div className={styles.skAuthors} /><div className={styles.skMeta} /></div>
+          <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '60%' }} /><div className={styles.skAuthors} style={{ width: '50%' }} /><div className={styles.skMeta} style={{ width: '38%' }} /></div>
+          <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '74%' }} /><div className={styles.skAuthors} style={{ width: '44%' }} /><div className={styles.skMeta} style={{ width: '32%' }} /></div>
           </div>
         }
         {!reportsSearchResultsLoading && 
@@ -394,6 +443,8 @@ const Report = () => {
             page={page}
             onPaginationUpdate={onPaginationUpdate}
             onCountUpdate={onCountUpdate}
+            exportType={exportType}
+            onExportClose={() => setExportType(null)}
             />
             }
           <ReportResults
@@ -417,5 +468,23 @@ const Report = () => {
     </div>
   )
 }
+
+// Mockup: Excel is the filled Slate button, Word the Slate-tint one.
+const EXCEL_SX = {
+  bgcolor: 'var(--pm-slate)', borderColor: 'var(--pm-slate)',
+  '&:hover': { bgcolor: '#2a4159', borderColor: '#2a4159' },
+  '&.Mui-disabled': { color: '#fff', bgcolor: 'var(--pm-slate)', borderColor: 'var(--pm-slate)' },
+};
+const WORD_SX = {
+  color: 'var(--pm-slate)', bgcolor: 'var(--pm-slate-tint)', borderColor: 'var(--pm-slate-tint-border)',
+  '&:hover': { bgcolor: '#e0e8f1', borderColor: 'var(--pm-slate-tint-border)' },
+  '&.Mui-disabled': { color: 'var(--pm-slate)', bgcolor: 'var(--pm-slate-tint)', borderColor: 'var(--pm-slate-tint-border)' },
+};
+
+const ExportIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6" /><path d="M9 11h2" />
+  </svg>
+);
 
 export default Report;

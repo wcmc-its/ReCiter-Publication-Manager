@@ -728,6 +728,7 @@ export const initialStatePubSearchFilter = {
     datePublicationAddedToEntrezUpperBound: "",
     publicationTypeCanonical: [],
     authorPosition :[],
+    sourceTypes: [],
     journalTitleVerbose: [],
     // journalImpactScoreLowerBound: 2,
     // journalImpactScoreUpperBound: 42
