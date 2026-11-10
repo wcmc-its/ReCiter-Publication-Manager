@@ -560,23 +560,6 @@
   50%      { opacity: 0.5; }
 }
 
-.addRecordBtn {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--gray-600);
-  background: #eeeae4;
-  border: 1px solid #ddd7ce;
-  border-radius: 6px;
-  padding: 5px 14px;
-  cursor: pointer;
-  align-self: center;
-  white-space: nowrap;
-}
-
-.addRecordBtn:hover {
-  background: #e5e0d9;
-}
-
 .addRecordIndicator {
   display: flex;
   align-items: center;
@@ -590,6 +573,7 @@
   font-weight: 600;
   color: #2563a8;
   white-space: nowrap;
+  font-family: inherit;
 }
 
 .addRecordPulse {
@@ -609,154 +593,6 @@
   composes: tabCount;
   background: #eeeae4;
   color: var(--gray-400);
-}
-
-/* ── Controls bar ── */
-
-.controlsBar {
-  background: #faf8f5;
-  border-bottom: 1px solid #e8e2d9;
-  padding: 10px 24px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.btnBulk {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.15s, color 0.15s;
-}
-
-.btnBulkAccept {
-  composes: btnBulk;
-  background: #edf7f2;
-  color: #1a7a4a;
-  border-color: #b7dfc9;
-}
-
-.btnBulkAccept:hover {
-  background: #d1f0df;
-}
-
-.btnBulkReject {
-  composes: btnBulk;
-  background: #fff;
-  color: var(--gray-600);
-  border-color: var(--gray-300);
-}
-
-.btnBulkReject:hover {
-  background: #fdf0ee;
-  color: #c0392b;
-  border-color: #f0b8b0;
-}
-
-.btnBulkUndo {
-  composes: btnBulk;
-  background: #fff;
-  color: var(--gray-600);
-  border-color: var(--gray-300);
-}
-
-.btnBulkUndo:hover {
-  background: #eeeae4;
-}
-
-.controlsSpacer {
-  flex: 1;
-}
-
-.searchInput {
-  font-size: 12.5px;
-  padding: 6px 10px 6px 30px;
-  border: 1px solid var(--gray-300);
-  border-radius: 6px;
-  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%239ca3af' viewBox='0 0 24 24'%3E%3Cpath d='M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'/%3E%3C/svg%3E") 10px center no-repeat;
-  width: 180px;
-  outline: none;
-}
-
-.searchInput:focus {
-  border-color: #2563a8;
-  box-shadow: 0 0 0 2px rgba(37, 99, 168, 0.1);
-}
-
-/* ── Sort by dropdown ── */
-.sortDropdown button {
-  font-size: 12px !important;
-  padding: 4px 10px !important;
-  background-color: #eeeae4 !important;
-  border: 1px solid #ddd7ce !important;
-  color: #5a6478 !important;
-  border-radius: var(--radius-pill) !important;
-}
-
-.sortDropdown button:hover,
-.sortDropdown button:focus,
-.sortDropdown button:active {
-  background-color: #e4e0d8 !important;
-  border-color: #ccc6bc !important;
-  color: #1a2133 !important;
-}
-
-.sortItem {
-  display: flex !important;
-  align-items: center;
-  padding: 8px 16px !important;
-  font-size: 12.5px !important;
-  color: #5a6478 !important;
-  border-left: 2px solid transparent;
-  transition: background 0.1s;
-}
-
-.sortItem:hover {
-  background: #eeeae4 !important;
-  color: #1a2133 !important;
-  border-left-color: #2563a8;
-}
-
-.sortItem:active,
-.sortItem.active {
-  background: #eef3fb !important;
-  color: #1a2133 !important;
-  border-left-color: #2563a8;
-  font-weight: 600;
-}
-
-/* ── Keyboard hint bar ── */
-
-.kbdHint {
-  background: #f0f5fc;
-  border: 1px solid #c5d7f0;
-  border-left: none;
-  border-right: none;
-  padding: 7px 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  font-size: 11.5px;
-  color: #3b6fb5;
-}
-
-.kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 18px;
-  padding: 0 5px;
-  background: #fff;
-  border: 1px solid #a8c4e0;
-  border-radius: 3px;
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #3b6fb5;
-  margin-right: 4px;
 }
 
 /* ── Article list ── */
@@ -1116,27 +952,6 @@
 }
 
 /* Phase 2f: Detail (split) view */
-.viewSwitch {
-  margin-left: auto;
-  display: inline-flex;
-  border: 1px solid #a8c4e0;
-  border-radius: 6px;
-  overflow: hidden;
-}
-.viewSwitch button {
-  border: 0;
-  background: #fff;
-  color: #3b6fb5;
-  font: inherit;
-  font-size: 11.5px;
-  padding: 2px 10px;
-  cursor: pointer;
-}
-.viewSwitch button[aria-pressed="true"] {
-  background: #3b6fb5;
-  color: #fff;
-}
-.viewSwitch button:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: -2px; }
 .split {
   display: grid;
   grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
@@ -1253,3 +1068,51 @@
 .dupId { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .dupMeta { font-size: 12px; color: var(--pm-muted-foreground); }
 .dupActions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* Curate toolbar (#1101): one row above the tab strip (filter, sort, view, add) and a list
+   header (count + bulk actions) inside the content. */
+.curateToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: var(--pm-surface);
+}
+.curateToolbarSlot { display: contents; }
+.toolbarFilter { flex: 0 1 360px; min-width: 240px; }
+.viewSeg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--pm-surface-2);
+  border: 1px solid var(--pm-border);
+}
+.viewSeg button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--pm-foreground);
+  cursor: pointer;
+}
+.viewSeg button[aria-pressed="true"] { background: var(--pm-surface); box-shadow: 0 1px 2px rgba(34, 30, 28, 0.12); }
+.viewSeg button:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: -2px; }
+.listHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 32px 0;
+  font-size: 12.5px;
+  color: var(--pm-muted-foreground);
+}
+.listHeaderActions { display: flex; align-items: center; gap: 2px; }

@@ -36,6 +36,7 @@ interface TabContentProps {
   totalCount:any,
   onAssertionChange?: (pmid: number, newAssertion: string) => void,
   onTabChange?: (key: string) => void,
+  toolbarSlot?: HTMLElement | null,
   acceptedCount?: number,
   rejectedCount?: number,
   onRefresh?: () => void,
@@ -306,6 +307,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      // The toolbar sort select (closed or open) and the Add publication menu own the keyboard.
+      if ((e.target as HTMLElement).closest?.('[role="combobox"], [role="listbox"], [role="menu"]')) return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
       // An open Dialog/Sheet (profile, history, ...) owns the keyboard.
       if (document.querySelector('[role="dialog"]')) return;
@@ -485,24 +488,13 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         tabType={props.tabType}
         isSearchText={props.isSearchText}
         totalCount={totalCount}
+        sort={sort}
+        toolbarSlot={props.toolbarSlot}
+        view={view}
+        onViewChange={isArticleTab ? chooseView : undefined}
       />
 
       {props.tabType === 'ACCEPTED' && <DuplicatesBanner uid={props.personIdentifier} accepted={props.publications} />}
-
-      {/* Keyboard hint bar — Suggested tab only */}
-      {isArticleTab && (
-        <div className={styles.kbdHint}>
-          <span><span className={styles.kbd}>A</span> Accept</span>
-          <span><span className={styles.kbd}>R</span> Reject</span>
-          <span><span className={styles.kbd}>U</span> Undo last</span>
-          <span><span className={styles.kbd}>E</span> Toggle Evidence</span>
-          <span><span className={styles.kbd}>&uarr;</span><span className={styles.kbd}>&darr;</span> Navigate</span>
-          <div className={styles.viewSwitch} role="group" aria-label="View">
-            <button type="button" aria-pressed={view === 'cards'} onClick={() => chooseView('cards')}>Cards</button>
-            <button type="button" aria-pressed={view === 'detail'} onClick={() => chooseView('detail')}>Detail</button>
-          </div>
-        </div>
-      )}
 
       {hist.length > 1 && (
         <div className={styles.yearHist} role="group" aria-label="Publications by year">
