@@ -20,7 +20,7 @@ import {
 import type { CandidateLite, TypedCwidLookupState } from "../../../lib/bulkAssign";
 import { externalSourceLabel, isExternalSource, openalexRecordUrl } from "../../../lib/externalSource";
 import type { AuthorshipSource } from "../../../lib/externalSource";
-import { EvidenceTable, useCandidateEvidence } from "./CandidateEvidence";
+import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } from "./CandidateEvidence";
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 
 // ---- types ---------------------------------------------------------------
@@ -5075,6 +5075,45 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
   // badge off the one candidate the curator most needs it on.
   const acceptedByCwids = new Set((r.accepted_by || []).map((a) => String(a.cwid || "").toLowerCase()));
 
+  // 4d-4: the comparison grid. Fetched on expand like SingleEvidence's table, keyed on the
+  // candidate set. With 2 or 3 visible candidates it REPLACES the radio list (a column header
+  // click is the pick); with 4+ the list stays and the grid pages under it. Until the evidence
+  // arrives, or if it fails, the list is shown, so picking never waits on this fetch.
+  const ev = useCandidateEvidence(r.id, candidates.map((c) => c.cwid).sort().join(","));
+  const rowInput = { byline: r.wcm_author, affiliation: r.author_affiliation, journal: r.journal,
+    year: Number((r.entrez_date || "").slice(0, 4)) || null, source: r.source,
+    coauthors: ev.status === "ok" ? ev.data.coauthors : null };
+  const cols = ev.status === "ok" && visible.length >= 2
+    ? orderByEvidence(visible, (c) => buildCandidateEvidence(rowInput, c, ev.data.facts[c.cwid])) : null;
+  const gridPicks = !!cols && visible.length <= 3;
+  // Name, badges, cwid link and hover card: shared by the list rows and the grid headers.
+  const nameLine = (c: Candidate) => (
+    <span onMouseEnter={() => c.cwid && openHover(c.cwid)} onMouseLeave={closeHover}
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 13.5, fontWeight: 600, color: "#0f172a", minWidth: 0 }}>
+      {c.name}{" "}
+      {nameSourceBadge(c)}
+      {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
+      {hoverCwid === c.cwid && (
+        <IdentityHoverCard subject={{ name: c.name, cwid: c.cwid, dept: c.dept, name_source: c.name_source, name_n: c.name_n }}
+          priorNames={c.cwid ? priorNamesByCwid[c.cwid] : undefined} byline={r.wcm_author} />
+      )}
+    </span>
+  );
+  const gridHead = (c: Candidate) => {
+    const elsewhere = acceptedByCwids.has(String(c.cwid || "").toLowerCase());
+    return (
+      <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+        {nameLine(c)}
+        {(c.already_rejected || elsewhere) && (
+          <span style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+            {c.already_rejected && <Chip kind="warn">Already rejected</Chip>}
+            {elsewhere && <Chip kind="warn">Accepted this article</Chip>}
+          </span>
+        )}
+      </span>
+    );
+  };
+
   return (
     <>
       {/* see SingleEvidence — the PMID now sits on the card's meta line, not in here. */}
@@ -5087,7 +5126,8 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
         </div>
       )}
       <div>
-        {visible.map((c, i) => {
+        {gridPicks && cols && <CompareGrid cols={cols} pickedCwid={pickedCwid} onPick={onPick} paged={false} renderHead={gridHead} />}
+        {!gridPicks && visible.map((c, i) => {
           const isLead = c.cwid === lead?.cwid;
           const checked = c.cwid === selectedCwid;
           const rejected = c.already_rejected === true;
@@ -5112,16 +5152,7 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
                 onClick={(e) => e.stopPropagation()}
                 style={{ accentColor: "#2563eb", flex: "none" }} />
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span onMouseEnter={() => c.cwid && openHover(c.cwid)} onMouseLeave={closeHover}
-                  style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 13.5, fontWeight: 600, color: "#0f172a" }}>
-                  {c.name}{" "}
-                  {nameSourceBadge(c)}
-                  {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
-                  {hoverCwid === c.cwid && (
-                    <IdentityHoverCard subject={{ name: c.name, cwid: c.cwid, dept: c.dept, name_source: c.name_source, name_n: c.name_n }}
-                      priorNames={c.cwid ? priorNamesByCwid[c.cwid] : undefined} byline={r.wcm_author} />
-                  )}
-                </span>
+                {nameLine(c)}
                 <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>
                   {c.person_type}{c.dept ? ` · ${c.dept}` : ""}{!hasWcm(r.author_affiliation) ? " · ⚠ no WCM string" : ""}
                 </span>
@@ -5156,6 +5187,8 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
             </label>
           );
         })}
+        {cols && !gridPicks && <CompareGrid cols={cols} pickedCwid={pickedCwid} onPick={onPick} paged renderHead={gridHead} />}
+        {visible.length >= 2 && ev.status === "loading" && <div style={{ fontSize: 12, color: "#6b7484", margin: "0 0 8px" }}>Loading the comparison…</div>}
         {!showAll && unfolded.length > 0 && folded.length > 0 && (
           <button onClick={(e) => { e.stopPropagation(); setShowAll(true); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: 12, cursor: "pointer", padding: "2px 0", marginBottom: 8 }}>
             Show all {ranked.length} ({folded.length} never retrieved, IO unavailable)
