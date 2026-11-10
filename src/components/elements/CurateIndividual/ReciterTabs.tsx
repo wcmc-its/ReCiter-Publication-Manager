@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
+import { fmtCount } from "../../../utils/curateGroups";
 import filterPublications from "../../../utils/filterPublications";
 import { Tab, Tabs, Badge } from "react-bootstrap";
 import ReciterTabContent from "./ReciterTabContent";
@@ -330,10 +331,34 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
 
   const activeTabData = filteredData.find((t: any) => t.value === key);
 
+  // 2g: when the full-size strip doesn't fit on one line, compact it (short counts, tighter
+  // tabs, short action labels) before falling back to wrapping. The full width is measured
+  // while not compact; the spacer is left out because it only absorbs free space.
+  const barRef = useRef<HTMLDivElement>(null);
+  const fullW = useRef(0);
+  const [compact, setCompact] = useState(false);
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const fit = () => {
+      if (!compact) {
+        const cs = getComputedStyle(bar);
+        fullW.current = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) +
+          Array.from(bar.children).reduce((w, c) => w + (c.className === styles.tabSpacer ? 0 : (c as HTMLElement).offsetWidth), 0);
+      }
+      const next = fullW.current > bar.clientWidth;
+      if (next !== compact) setCompact(next);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  });
+
   return (
     <>
       {/* Custom tab bar */}
-      <div className={styles.tabsBar}>
+      <div className={styles.tabsBar} ref={barRef} data-compact={compact || undefined}>
         <span className={styles.tabGroupLabel}>PubMed</span>
         {['NULL', 'ACCEPTED', 'REJECTED'].map((value) => {
           const label = value === 'NULL' ? 'Suggested' : value === 'ACCEPTED' ? 'Accepted' : 'Rejected';
@@ -344,7 +369,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
               onClick={() => onTabChange(value)}
             >
               {label}
-              <span className={countBadgeClass(value)}>{getCount(value)}</span>
+              <span className={countBadgeClass(value)} title={compact ? `${getCount(value).toLocaleString()} ${label.toLowerCase()}` : undefined}>{fmtCount(getCount(value), compact)}</span>
             </button>
           );
         })}
@@ -374,7 +399,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
               >
                 <path d="M13.5 8a5.5 5.5 0 11-1.1-3.3M13.5 2v3h-3" />
               </svg>
-              <span>Refresh Suggestions</span>
+              <span>{compact ? 'Refresh' : 'Refresh Suggestions'}</span>
               <span className={styles.unsavedBadge} title={`${netChangedCount} change(s) saved — refresh to regenerate suggestions`}>
                 {netChangedCount}
               </span>
@@ -396,7 +421,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
               className={styles.addRecordBtn}
               onClick={(e) => setAddMenuAnchor(e.currentTarget)}
             >
-              + Add publication &#9662;
+              {compact ? '+ Add' : '+ Add publication'} &#9662;
             </button>
           )}
           <Menu

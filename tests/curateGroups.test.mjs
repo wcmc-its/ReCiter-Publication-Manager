@@ -1,7 +1,7 @@
 // Unit tests for src/utils/curateGroups.ts. Run with `npm test`.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { bandOf, yearOf, groupModeFor, groupsOf, yearHistogram, spotCheckSample, GROUP_MIN } from '../src/utils/curateGroups.ts'
+import { bandOf, yearOf, groupModeFor, groupsOf, yearHistogram, spotCheckSample, GROUP_MIN, fmtCount } from '../src/utils/curateGroups.ts'
 
 const p = (score, date) => ({ authorshipLikelihoodScore: score, publicationDateStandardized: date })
 
@@ -46,4 +46,12 @@ test('spotCheckSample: riskiest first', () => {
     const l = [p(99), p(71), p(85), p(70)]
     assert.deepEqual(spotCheckSample(l, 'ACCEPTED', 2).map(x => x.authorshipLikelihoodScore), [70, 71])
     assert.deepEqual(spotCheckSample([p(5), p(39), p(20)], 'REJECTED', 2).map(x => x.authorshipLikelihoodScore), [39, 20])
+})
+
+test('fmtCount: full unless compact, then 1.2k / 12k', () => {
+    assert.equal(fmtCount(1234), '1,234')
+    assert.equal(fmtCount(999, true), '999')
+    assert.equal(fmtCount(1234, true), '1.2k')
+    assert.equal(fmtCount(2000, true), '2k')
+    assert.equal(fmtCount(12345, true), '12k')
 })

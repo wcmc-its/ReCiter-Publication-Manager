@@ -1157,3 +1157,9 @@
   .split { grid-template-columns: 1fr; }
   .splitList { position: static; max-height: 40vh; }
 }
+
+/* Phase 2g: compact tab strip when the full one doesn't fit */
+.tabsBar[data-compact] { padding: 0 12px; }
+.tabsBar[data-compact] .tab,
+.tabsBar[data-compact] .tabActive { padding: 12px 10px; }
+.tabsBar[data-compact] .tabGroupLabel { padding: 0 4px 0 8px; }
