@@ -19,6 +19,7 @@ import { clearPubMedData, showEvidenceByDefault, reciterFetchData, pubmedFetchDa
 import { reciterConfig } from "../../../../config/local";
 import { toReciterArticle } from "../../../utils/toReciterArticle";
 import { AddDeepLink } from "../../../utils/externalAddSearch";
+import { Button } from "../../ui";
 
 
 const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: incomingDeepLink = null, onAddDeepLinkConsumed }: { reciterData: any, fullName: string, fetchOriginalData: any, addDeepLink?: AddDeepLink | null, onAddDeepLinkConsumed?: () => void }) => {
@@ -39,6 +40,8 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
   // Single "+ Add publication" dropdown (PubMed / OpenAlex / …) — keeps the tab-bar
   // compact as more external sources (Scopus, WoS) are added.
   const [addMenuAnchor, setAddMenuAnchor] = useState<null | HTMLElement>(null);
+  // Toolbar row above the tab strip: the active tab's filter/sort/view portal into this slot.
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
   // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex|crossref]: opens the Add tab with
   // the DOI filled in and searched. Copied in on mount; cleared when the curator changes tab.
   const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(incomingDeepLink);
@@ -357,6 +360,58 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
 
   return (
     <>
+      <div className={styles.curateToolbar}>
+        <div ref={setToolbarSlot} className={styles.curateToolbarSlot} />
+        {(key === 'AddPub' || key === 'External' || key === 'ScopusAuth') ? (
+          <div
+            className={styles.addRecordIndicator}
+            onClick={(e) => setAddMenuAnchor(e.currentTarget)}
+            style={{ cursor: 'pointer' }}
+            title="Switch add source"
+          >
+            <span className={styles.addRecordPulse} />
+            {key === 'AddPub' ? 'Adding record from PubMed' : key === 'External' ? 'Adding record from Scopus / OpenAlex / Crossref' : 'Scopus'}
+            <span style={{ marginLeft: 4 }}>&#9662;</span>
+          </div>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => setAddMenuAnchor(e.currentTarget)}
+          >
+            + Add publication &#9662;
+          </Button>
+        )}
+        <Menu
+          anchorEl={addMenuAnchor}
+          open={Boolean(addMenuAnchor)}
+          onClose={() => setAddMenuAnchor(null)}
+          MenuListProps={{ dense: true }}
+        >
+          <MenuItem
+            selected={key === 'AddPub'}
+            onClick={() => { setAddMenuAnchor(null); onTabChange('AddPub'); }}
+            sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
+          >
+            PubMed
+          </MenuItem>
+          <MenuItem
+            selected={key === 'External'}
+            onClick={() => { setAddMenuAnchor(null); onTabChange('External'); }}
+            sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
+          >
+            Scopus / OpenAlex / Crossref (by DOI or title)
+          </MenuItem>
+          <MenuItem
+            selected={key === 'ScopusAuth'}
+            onClick={() => { setAddMenuAnchor(null); onTabChange('ScopusAuth'); }}
+            sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
+          >
+            Scopus
+          </MenuItem>
+        </Menu>
+      </div>
+
       {/* Custom tab bar */}
       <div className={styles.tabsBar} ref={barRef} data-compact={compact || undefined}>
         <span className={styles.tabGroupLabel}>PubMed</span>
@@ -405,53 +460,6 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
               </span>
             </button>
           )}
-          {(key === 'AddPub' || key === 'External' || key === 'ScopusAuth') ? (
-            <div
-              className={styles.addRecordIndicator}
-              onClick={(e) => setAddMenuAnchor(e.currentTarget)}
-              style={{ cursor: 'pointer' }}
-              title="Switch add source"
-            >
-              <span className={styles.addRecordPulse} />
-              {key === 'AddPub' ? 'Adding record from PubMed' : key === 'External' ? 'Adding record from Scopus / OpenAlex / Crossref' : 'Scopus'}
-              <span style={{ marginLeft: 4 }}>&#9662;</span>
-            </div>
-          ) : (
-            <button
-              className={styles.addRecordBtn}
-              onClick={(e) => setAddMenuAnchor(e.currentTarget)}
-            >
-              {compact ? '+ Add' : '+ Add publication'} &#9662;
-            </button>
-          )}
-          <Menu
-            anchorEl={addMenuAnchor}
-            open={Boolean(addMenuAnchor)}
-            onClose={() => setAddMenuAnchor(null)}
-            MenuListProps={{ dense: true }}
-          >
-            <MenuItem
-              selected={key === 'AddPub'}
-              onClick={() => { setAddMenuAnchor(null); onTabChange('AddPub'); }}
-              sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
-            >
-              PubMed
-            </MenuItem>
-            <MenuItem
-              selected={key === 'External'}
-              onClick={() => { setAddMenuAnchor(null); onTabChange('External'); }}
-              sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
-            >
-              Scopus / OpenAlex / Crossref (by DOI or title)
-            </MenuItem>
-            <MenuItem
-              selected={key === 'ScopusAuth'}
-              onClick={() => { setAddMenuAnchor(null); onTabChange('ScopusAuth'); }}
-              sx={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
-            >
-              Scopus
-            </MenuItem>
-          </Menu>
         </div>
       </div>
 
@@ -507,6 +515,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           totalCount={activeTabData.count}
           onAssertionChange={handleAssertionChange}
           onTabChange={onTabChange}
+          toolbarSlot={toolbarSlot}
         />
       ) : null}
     </>

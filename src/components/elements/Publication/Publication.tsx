@@ -279,7 +279,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               <button
                 className={styles.btnReject}
                 onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(evDefault)); }}
-              ><ClearIcon style={{fontSize:16}}/> Reject
+              ><ClearIcon style={{fontSize:16}}/> Reject <span className={styles.keyHint}>R</span>
               </button>
             </div>
           );
@@ -302,7 +302,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               <button
                 className={styles.btnAccept}
                 onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(evDefault)); }}
-              ><CheckIcon style={{fontSize:16}}/> Accept
+              ><CheckIcon style={{fontSize:16}}/> Accept <span className={styles.keyHint}>A</span>
               </button>
               <button
                 className={styles.btnUndo}

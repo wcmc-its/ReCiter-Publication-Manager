@@ -1,8 +1,8 @@
 import React, { useState, FormEvent, useEffect } from "react";
-import { Dropdown, DropdownButton } from "react-bootstrap";
+import { createPortal } from "react-dom";
 import { Publication } from "../../../../types/publication";
 import styles from "./CurateIndividual.module.css";
-import { Dialog, Button } from '../../ui';
+import { Dialog, Button, Input, Select } from '../../ui';
 
 interface FilterPubSectionProps {
   searchTextUpdate: (searchText: string) => void
@@ -12,7 +12,20 @@ interface FilterPubSectionProps {
   tabType: string
   isSearchText: any
   totalCount?: number
+  sort: string
+  // Toolbar row above the tab strip (owned by ReciterTabs); filter, sort and view render there.
+  toolbarSlot?: HTMLElement | null
+  view?: 'cards' | 'detail'
+  onViewChange?: (view: 'cards' | 'detail') => void
 }
+
+const SORT_OPTIONS = [
+  { value: '1', label: 'Highest score' },
+  { value: '3', label: 'Lowest score' },
+  { value: '2', label: 'Newest' },
+  { value: '4', label: 'Oldest' },
+];
+const LIST_NOUN: Record<string, string> = { NULL: 'suggested', ACCEPTED: 'accepted', REJECTED: 'rejected' };
 
 const BULK_CONFIRM = 20;
 
@@ -28,11 +41,11 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
 
   // A one-line input drops pasted newlines, which would glue a pasted PMID/DOI list into one
   // token; turn them into spaces instead.
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const text = e.clipboardData.getData('text');
     if (!/[\r\n]/.test(text)) return;
     e.preventDefault();
-    const el = e.currentTarget;
+    const el = e.currentTarget as HTMLInputElement;
     const next = el.value.slice(0, el.selectionStart ?? el.value.length) + text.trim().replace(/\s*[\r\n]+\s*/g, ' ') + el.value.slice(el.selectionEnd ?? el.value.length);
     handleInputChange({ target: { value: next } });
   }
@@ -64,11 +77,58 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
   }
 
 
+  const toolbar = (
+    <>
+      <form onSubmit={handleFormSubmit} className={styles.toolbarFilter}>
+        <Input
+          fullWidth
+          placeholder="Filter by title, author, journal, DOI, or PMID(s)"
+          value={searchText}
+          onChange={handleInputChange}
+          inputProps={{ onPaste: handlePaste, 'aria-label': 'Filter, or paste PMIDs and DOIs', title: 'Filter by text, or paste a list of PMIDs, DOIs or their URLs' }}
+          sx={{ fontSize: 13, height: 32 }}
+        />
+      </form>
+      <Select
+        value={props.sort === '0' ? '1' : props.sort}
+        onChange={handleSortChange}
+        options={SORT_OPTIONS}
+        inputProps={{ 'aria-label': 'Sort' }}
+        sx={{ fontSize: 13, height: 32, width: 144 }}
+      />
+      {props.onViewChange && (
+        <div className={styles.viewSeg} role="group" aria-label="View">
+          <button type="button" aria-pressed={props.view === 'detail'} onClick={() => props.onViewChange('detail')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5" /><path d="M9 4v16" /></svg>
+            Detail
+          </button>
+          <button type="button" aria-pressed={props.view === 'cards'} onClick={() => props.onViewChange('cards')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="1.5" /><rect x="3" y="14" width="18" height="6" rx="1.5" /></svg>
+            Cards
+          </button>
+        </div>
+      )}
+    </>
+  );
+
+  const bulkSx = { height: 26, fontSize: 12.5 };
+
   return (
-    <div className={styles.controlsBar}>
-      {props.tabType !== 'ACCEPTED' && <button className={styles.btnBulkAccept} onClick={() => updateAll('ACCEPTED')}>Accept all {n}</button>}
-      {props.tabType !== 'REJECTED' && <button className={styles.btnBulkReject} onClick={() => updateAll('REJECTED')}>Reject all {n}</button>}
-      {props.tabType !== 'NULL' && <button className={styles.btnBulkUndo} onClick={() => updateAll('NULL')}>Undo all {n}</button>}
+    <>
+      {props.toolbarSlot && createPortal(toolbar, props.toolbarSlot)}
+      <div className={styles.listHeader}>
+        <span
+          aria-live="polite"
+          title={'Keyboard: A accept, R reject, U undo last, E supporting evidence, \u2191 \u2193 move between records'}
+        >
+          {(props.totalCount ?? n).toLocaleString()} {LIST_NOUN[props.tabType] ?? `publication${props.totalCount === 1 ? '' : 's'}`}
+        </span>
+        <div className={styles.listHeaderActions}>
+          {props.tabType !== 'ACCEPTED' && <Button variant="ghost" size="sm" sx={bulkSx} onClick={() => updateAll('ACCEPTED')}>Accept all</Button>}
+          {props.tabType !== 'REJECTED' && <Button variant="ghost" size="sm" sx={bulkSx} onClick={() => updateAll('REJECTED')}>Reject all</Button>}
+          {props.tabType !== 'NULL' && <Button variant="ghost" size="sm" sx={bulkSx} onClick={() => updateAll('NULL')}>Undo all</Button>}
+        </div>
+      </div>
       <Dialog
         open={!!confirm}
         onClose={() => setConfirm(null)}
@@ -79,27 +139,7 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
           <Button variant={confirm === 'REJECTED' ? 'danger' : 'primary'} onClick={() => { const a = confirm!; setConfirm(null); props.updateAll(a); }}>{verb(confirm)} all {n}</Button>
         </>}
       />
-      <div className={styles.controlsSpacer} />
-      <form onSubmit={handleFormSubmit} style={{display:'flex', gap: 8, alignItems:'center'}}>
-        <input
-          className={styles.searchInput}
-          type="text"
-          placeholder="Filter..."
-          value={searchText}
-          onChange={handleInputChange}
-          onPaste={handlePaste}
-          aria-label="Filter, or paste PMIDs and DOIs"
-          title="Filter by text, or paste a list of PMIDs, DOIs or their URLs"
-        />
-      </form>
-      <DropdownButton className={styles.sortDropdown} title="Sort by" id="curate-sort" onSelect={(eventKey) => handleSortChange(eventKey)}>
-        <Dropdown.Item eventKey="1" className={styles.sortItem}>Score ↓</Dropdown.Item>
-        <Dropdown.Item eventKey="3" className={styles.sortItem}>Score ↑</Dropdown.Item>
-        <Dropdown.Item eventKey="2" className={styles.sortItem}>Date ↓</Dropdown.Item>
-        <Dropdown.Item eventKey="4" className={styles.sortItem}>Date ↑</Dropdown.Item>
-      </DropdownButton>
-      <span className={styles.listCount} aria-live="polite">{props.totalCount} publication{props.totalCount === 1 ? '' : 's'}</span>
-    </div>
+    </>
   )
 }
 
