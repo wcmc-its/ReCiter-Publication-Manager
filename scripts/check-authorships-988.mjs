@@ -135,8 +135,8 @@ assert(/const groupCountAttr = hasInstitutions \? fn\("COUNT", fn\("DISTINCT", c
 // countOpts/whereOpts, i.e. none of them pass a bare `{ where }`-shaped literal for those fields.
 const promiseAllBlock = slice(summaryFn, "await Promise.all([", "\n    ]);");
 assert(promiseAllBlock.length > 0, "the Promise.all block is present");
-assert((promiseAllBlock.match(/countOpts\(/g) || []).length === 5,
-  "all 5 count() calls (total, single, fullname, duplicates, conflicts) go through countOpts()");
+assert((promiseAllBlock.match(/countOpts\(/g) || []).length === 7,
+  "all 7 count() calls (total, single, fullname, duplicates, conflicts, hidden noSuggestion/noIdentity) go through countOpts()");
 assert((promiseAllBlock.match(/whereOpts\(/g) || []).length === 5,
   "all 5 findAll() calls that can carry institutions (classes, personTypes, bySource, pubTypes, authorInstitutions) go through whereOpts()");
 

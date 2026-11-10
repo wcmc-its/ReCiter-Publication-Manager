@@ -300,9 +300,9 @@ else {
     fail("summaryBody names filters by hand instead of calling buildSummaryBody(filters)");
   }
   const deps = /\[([^\]]*)\],$/.exec(memo.trim());
-  chk("summaryBody's deps are the filter object plus the opt-in latch only",
+  chk("summaryBody's deps are the filter object plus the two opt-in latches only",
     deps ? deps[1].split(",").map((s) => s.trim()).filter(Boolean) : null,
-    ["filters", "affilFacetKey", "baseSummaryBody"]);
+    ["filters", "affilFacetKey", "hideCountsKey", "baseSummaryBody"]);
 }
 dep("fetchSummary depends on that derived value alone, not on a list of filter names",
   /\n\s*\}, \[summaryBody\]\);/);
@@ -501,7 +501,7 @@ chk(`${FLAG} is not baked into buildSummaryBody either — the fetch site adds i
 dep(`the client sends ${FLAG} only under the affiliation-popover latch`,
   new RegExp(`affilFacetKey === baseSummaryBody\\s*\\n?[\\s\\S]{0,120}?${FLAG}: true`));
 dep("the popover latch is armed by the affiliation anchor, not left permanently on",
-  /if \(affilAnchor\) setAffilFacetKey\(baseSummaryBody\);/);
+  /if \(affilAnchor\?\.which === "article"\) setAffilFacetKey\(baseSummaryBody\);/);
 // Server side, read out of the controller source §6 already loaded.
 if (new RegExp(`const wantAuthorInstitutions = \\(req\\.body \\|\\| \\{\\}\\)\\.${FLAG} === true;`).test(summaryFn)) {
   pass(`authorshipSummary reads ${FLAG} off req.body, outside the honoured-filters body`);
@@ -524,10 +524,12 @@ if (/const institutions = bucketCounts\(\(\(byInstitution as any\[\]\)\[0\]\) \|
 // And the client must render the absence as a loading state rather than as zeros.
 dep("the client gates the Article counts on a freshness test, not on truthiness",
   /const authorFacetsReady = summaryFor === summaryBody && Array\.isArray\(summary\?\.authorInstitutions\);/);
+dep("the popover's readiness is the Article freshness test whenever it shows the Article list",
+  /const ready = !isArticle \|\| authorFacetsReady;/);
 dep("an unready Article facet renders a placeholder, never a 0",
-  /\{!authorFacetsReady && <div style=\{emptyOptStyle\}>Counting…<\/div>\}/);
+  /\{!ready && <div style=\{emptyOptStyle\}>Counting…<\/div>\}/);
 dep("an unready Article facet blanks the count column too",
-  /\{authorFacetsReady \? inst\.n\.toLocaleString\(\) : "—"\}/);
+  /\{ready \? inst\.n\.toLocaleString\(\) : "—"\}/);
 
 // ---- #1011: the count and the filtered list must ask the same question -------------------
 // The bug: "Show N others like this" counted over open + name key alone, while the list it
