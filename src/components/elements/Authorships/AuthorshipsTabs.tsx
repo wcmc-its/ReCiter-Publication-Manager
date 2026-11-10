@@ -199,6 +199,12 @@ interface PriorNames {
   // rank one person against another. Optional for the same reason `papers` is: the handler's
   // early return for an empty cwid list sends `{ names, accepted }` alone.
   topics?: Array<{ keyword: string; n: number }>;
+  // UI refresh 4d-2. The shape of their whole record (accepted years span the accepted papers
+  // only), their top journals, and the bylines on papers they REJECTED that never appear on an
+  // accepted one: the namesakes they have already been confused with.
+  counts?: { accepted: number; rejected: number; pending: number; firstYear?: number; lastYear?: number };
+  journals?: Array<{ journal: string; n: number }>;
+  namesakes?: Array<{ first: string; last: string; n: number }>;
 }
 
 interface Candidate {
@@ -1149,13 +1155,21 @@ const OpenAlexLinks = ({ row: r }: { row: AuthorshipRow }) => {
 //                               rows exist WITH userAssertion='ACCEPTED', the only state this
 //                               card counts; 5,662 is the all-states figure and is not the
 //                               claim. Calling this "no accepted papers" is a lie)
-const IdentityHoverCard = ({ subject, priorNames }: {
+// "115 accepted · 40 rejected · 3 pending · 1983–2024" (years span the accepted papers).
+const recordLine = (c: NonNullable<PriorNames["counts"]>): string => {
+  const years = c.firstYear && c.lastYear ? (c.firstYear === c.lastYear ? `${c.firstYear}` : `${c.firstYear}–${c.lastYear}`) : "";
+  return [`${c.accepted.toLocaleString()} accepted`, `${c.rejected.toLocaleString()} rejected`, `${c.pending.toLocaleString()} pending`, years].filter(Boolean).join(" · ");
+};
+
+const IdentityHoverCard = ({ subject, priorNames, byline }: {
   // Takes a plain identity rather than an AuthorshipRow so the multi-candidate list can show
   // the same card per CANDIDATE. It was row-shaped and therefore single-candidate-only, which
   // is precisely backwards: the row that needs an identity dossier most is the homonym row
   // asking a curator to choose among five people with the same surname.
   subject: { name?: string; cwid?: string; dept?: string; division?: string; institution?: string; name_source?: string; name_n?: number };
   priorNames?: PriorNames;
+  // The row's byline, so the card can say when it is not one of their accepted names.
+  byline?: string;
 }) => {
   const r = subject;
   const id = priorNames?.identity;
@@ -1165,6 +1179,14 @@ const IdentityHoverCard = ({ subject, priorNames }: {
   const showLegal = !!id?.legalName && norm(id.legalName) !== norm(id.publishingName) && norm(id.legalName) !== norm(r.name);
   const showPublishing = !!id?.publishingName && norm(id.publishingName) !== norm(r.name);
   const hasDetail = !!(r.dept || r.division || r.institution || id?.title);
+  // Only when the list is complete (`more` absent): a capped list can't prove a form is missing.
+  // Accents and periods are ignored ("Nicolás" = "Nicolas", "Y. S." = "Y S").
+  const formKey = (x: string) => norm(x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\./g, " "));
+  const bylineMiss = !!byline && !!priorNames?.names.length && !priorNames.more &&
+    !priorNames.names.some((p) => formKey(`${p.first} ${p.last}`) === formKey(byline));
+  // A namesake needs an accepted baseline: with no accepted papers every rejected byline,
+  // their own name included, would be listed as someone else's.
+  const showNamesakes = !!priorNames?.namesakes?.length && priorNames.accepted > 0;
   // Which way the card opens, measured rather than assumed. It was hard-coded to open DOWN and
   // LEFT-ALIGNED, which is right for a row near the top of a long scrolling queue and wrong for
   // every row near the bottom of the window: the card ran off the bottom edge and the ACCEPTED
@@ -1282,6 +1304,12 @@ const IdentityHoverCard = ({ subject, priorNames }: {
           </span>
         )}
         <span style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
+          {!!priorNames?.counts && (priorNames.counts.accepted + priorNames.counts.rejected + priorNames.counts.pending) > 0 && (
+            <span style={{ fontSize: 12.5, color: "#4a5262", fontVariantNumeric: "tabular-nums", marginBottom: 3 }}>{recordLine(priorNames.counts)}</span>
+          )}
+          {bylineMiss && (
+            <span style={{ fontSize: 12.5, color: "#b45309", marginBottom: 3 }}>This byline (“{byline}”) isn't one of the names on their accepted papers.</span>
+          )}
           {!priorNames ? (
             <span style={{ fontSize: 13, color: "#6f7889" }}>Loading…</span>
           ) : priorNames.accepted === 0 ? (
@@ -1331,6 +1359,19 @@ const IdentityHoverCard = ({ subject, priorNames }: {
                 </Chip>
               ))}
             </span>
+          </span>
+        )}
+        {(!!priorNames?.journals?.length || showNamesakes) && (
+          <span style={{ display: "flex", flexDirection: "column", gap: 5, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9, fontSize: 12.5, lineHeight: 1.4 }}>
+            {!!priorNames?.journals?.length && (
+              <span><span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>JOURNALS </span>
+                {priorNames.journals.map((j) => `${j.journal} (${j.n.toLocaleString()})`).join(" · ")}</span>
+            )}
+            {showNamesakes && (
+              <span title="Bylines on papers they rejected that never appear on an accepted paper">
+                <span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>REJECTED AS </span>
+                {priorNames.namesakes.map((x) => `${`${x.first} ${x.last}`.trim()} (${x.n.toLocaleString()})`).join(" · ")}</span>
+            )}
           </span>
         )}
         {!!priorNames?.papers?.length && (
@@ -1976,6 +2017,7 @@ const AuthorshipsTabs = () => {
           names: d?.names?.[cwid] || [], accepted: d?.accepted?.[cwid] ?? 0, more: d?.more?.[cwid],
           papers: d?.papers?.[cwid] || [], identity: d?.identity?.[cwid],
           topics: d?.topics?.[cwid] || [],
+          counts: d?.counts?.[cwid], journals: d?.journals?.[cwid] || [], namesakes: d?.namesakes?.[cwid] || [],
         },
       })))
       .catch(() => { priorNamesAsked.current.delete(cwid); });
@@ -4459,7 +4501,7 @@ const AuthorshipCard = ({
                       subject={{ name: r.top_name, cwid: r.top_cwid, dept: r.top_dept,
                                  division: r.top_division, institution: r.top_institution,
                                  name_source: topCand?.name_source, name_n: topCand?.name_n }}
-                      priorNames={r.top_cwid ? priorNamesByCwid[r.top_cwid] : undefined} />
+                      priorNames={r.top_cwid ? priorNamesByCwid[r.top_cwid] : undefined} byline={r.wcm_author} />
                   )}
                 </span>
                 <span style={{ color: "#94a3b8" }}>· {r.top_person_type}{r.top_dept ? `, ${r.top_dept}` : ""}</span>
@@ -5077,7 +5119,7 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
                   {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
                   {hoverCwid === c.cwid && (
                     <IdentityHoverCard subject={{ name: c.name, cwid: c.cwid, dept: c.dept, name_source: c.name_source, name_n: c.name_n }}
-                      priorNames={c.cwid ? priorNamesByCwid[c.cwid] : undefined} />
+                      priorNames={c.cwid ? priorNamesByCwid[c.cwid] : undefined} byline={r.wcm_author} />
                   )}
                 </span>
                 <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>

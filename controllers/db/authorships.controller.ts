@@ -2121,6 +2121,8 @@ const PRIOR_NAMES_CWID_CAP = 50;
 const PRIOR_NAMES_NAME_CAP = 8;
 const PRIOR_NAMES_PAPER_CAP = 5;
 const PRIOR_NAMES_TOPIC_CAP = 6;
+const PRIOR_NAMES_JOURNAL_CAP = 3;
+const PRIOR_NAMES_NAMESAKE_CAP = 3;
 
 export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
@@ -2297,10 +2299,51 @@ export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResp
       };
     }
 
+    // ---- record shape: counts, years, journals, rejected bylines (UI refresh 4d-2) --------
+    // Three grouped reads on the (personIdentifier, …) index. `pending` is every assertion that
+    // is neither ACCEPTED nor REJECTED (person_article stores pending as '').
+    const countRows: any[] = await sequelize.query(
+      "SELECT personIdentifier AS cwid, userAssertion AS a, COUNT(*) AS n, MIN(NULLIF(articleYear, 0)) AS y0, MAX(NULLIF(articleYear, 0)) AS y1 " +
+      "FROM person_article WHERE personIdentifier IN (:cwids) GROUP BY 1, 2",
+      { replacements: { cwids }, type: QueryTypes.SELECT });
+    const counts: Record<string, { accepted: number; rejected: number; pending: number; firstYear?: number; lastYear?: number }> = {};
+    for (const r of countRows) {
+      const cw = String(r.cwid), n = Number(r.n) || 0;
+      const t = (counts[cw] ||= { accepted: 0, rejected: 0, pending: 0 });
+      if (r.a === "ACCEPTED") { t.accepted += n; t.firstYear = Number(r.y0) || undefined; t.lastYear = Number(r.y1) || undefined; }
+      else if (r.a === "REJECTED") t.rejected += n;
+      else t.pending += n;
+    }
+    const journalRows: any[] = await sequelize.query(
+      "SELECT personIdentifier AS cwid, journalTitleVerbose AS j, COUNT(*) AS n FROM person_article " +
+      "WHERE personIdentifier IN (:cwids) AND userAssertion = 'ACCEPTED' AND journalTitleVerbose <> '' GROUP BY 1, 2",
+      { replacements: { cwids }, type: QueryTypes.SELECT });
+    const journals: Record<string, Array<{ journal: string; n: number }>> = {};
+    for (const r of journalRows) (journals[String(r.cwid)] ||= []).push({ journal: String(r.j), n: Number(r.n) || 0 });
+    for (const cw of Object.keys(journals)) journals[cw] = journals[cw].sort((a, b) => b.n - a.n || a.journal.localeCompare(b.journal)).slice(0, PRIOR_NAMES_JOURNAL_CAP);
+    // Bylines on REJECTED papers that never appear on an accepted one: the namesakes this person
+    // has already been confused with. A form on both lists is theirs, so it is not shown.
+    const rejRows: any[] = await sequelize.query(
+      "SELECT personIdentifier AS cwid, articleAuthorNameFirstName AS f, articleAuthorNameLastName AS l, COUNT(*) AS n FROM person_article " +
+      "WHERE personIdentifier IN (:cwids) AND userAssertion = 'REJECTED' GROUP BY 1, 2, 3",
+      { replacements: { cwids }, type: QueryTypes.SELECT });
+    const norm = (f: any, l: any) => `${String(f || "").trim()} ${String(l || "").trim()}`.trim().toLowerCase();
+    const acceptedForms = new Set(rows.map((r) => `${r.personIdentifier}|${norm(r.articleAuthorNameFirstName, r.articleAuthorNameLastName)}`));
+    const namesakes: Record<string, Array<{ first: string; last: string; n: number }>> = {};
+    for (const r of rejRows) {
+      const key = norm(r.f, r.l);
+      if (!key || acceptedForms.has(`${r.cwid}|${key}`)) continue;
+      (namesakes[String(r.cwid)] ||= []).push({ first: String(r.f || "").trim(), last: String(r.l || "").trim(), n: Number(r.n) || 0 });
+    }
+    for (const cw of Object.keys(namesakes)) namesakes[cw] = namesakes[cw].sort((a, b) => b.n - a.n).slice(0, PRIOR_NAMES_NAMESAKE_CAP);
+
     // Every requested cwid gets an entry, so the client can tell "asked and has none" from
     // "never asked" without tracking its own request bookkeeping.
-    for (const c of cwids) { names[c] ||= []; accepted[c] ||= 0; papers[c] ||= []; topics[c] ||= []; }
-    res.send({ names, accepted, more: dropped, papers, identity, topics });
+    for (const c of cwids) {
+      names[c] ||= []; accepted[c] ||= 0; papers[c] ||= []; topics[c] ||= [];
+      counts[c] ||= { accepted: 0, rejected: 0, pending: 0 }; journals[c] ||= []; namesakes[c] ||= [];
+    }
+    res.send({ names, accepted, more: dropped, papers, identity, topics, counts, journals, namesakes });
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));
