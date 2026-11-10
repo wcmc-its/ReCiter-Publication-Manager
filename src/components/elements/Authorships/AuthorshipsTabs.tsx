@@ -2329,6 +2329,12 @@ const AuthorshipsTabs = () => {
   // render off selectedRows; bulk-assign is a same-page/handful-of-rows tool (unlike
   // select-all-matching's thousands), so this is cheap.
   const assignCandidateUnion = unionCandidates(selectedRows.map(rowCandidateLites));
+  // 4c: each candidate's IO on every selected row that proposes them, for the picker's range
+  // and band counts (the card's F2 bands, ioColor). unionCandidates keeps only the max.
+  const assignScoresOf = (cwid: string) => selectedRows.flatMap((r) => {
+    const c = rowCandidateLites(r).find((x) => x.cwid === cwid);
+    return c?.score != null ? [c.score] : [];
+  });
 
   const openAssignPicker = useCallback((anchor: HTMLElement) => {
     setAssignOtherCwid("");
@@ -3211,6 +3217,10 @@ const AuthorshipsTabs = () => {
           )}
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+            {/* 4c: the like view's explicit way back — same exit as the "Like: …" chip. */}
+            {likeAuthor.trim() && (
+              <button type="button" onClick={clearLikeAuthor} style={{ ...linkBtn, fontSize: 13 }}>← Back to previous filters</button>
+            )}
             <span style={{ fontSize: 13, color: CTRL.soft, fontVariantNumeric: "tabular-nums" }}>
               Showing {rows.length.toLocaleString()} of {count.toLocaleString()}
             </span>
@@ -3550,6 +3560,24 @@ const AuthorshipsTabs = () => {
             {(c.person_type || c.dept) && (
               <div style={{ fontSize: 11.5, color: "#64748b" }}>{[c.person_type, c.dept].filter(Boolean).join(" · ")}</div>
             )}
+            {(() => {
+              const sc = assignScoresOf(c.cwid);
+              if (!sc.length) return <div style={{ fontSize: 11.5, color: "#94a3b8" }}>No IO score</div>;
+              const lo = Math.min(...sc), hi = Math.max(...sc);
+              const bands = ([["high", 90, Infinity], ["medium", 50, 90], ["low", -Infinity, 50]] as const)
+                .map(([label, min, max]) => ({ label, min, n: sc.filter((v) => v >= min && v < max).length }))
+                .filter((b) => b.n);
+              const miss = selectedRows.length - c.matches;
+              return (
+                <div style={{ fontSize: 11.5, color: "#64748b", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: 2 }}>
+                  <span>IO {lo === hi ? fmtScore(lo) : `${fmtScore(lo)}–${fmtScore(hi)}`}</span>
+                  {bands.map((b) => (
+                    <span key={b.label} style={{ color: ioColor(b.min === -Infinity ? 0 : b.min), fontWeight: 600 }}>{b.n} {b.label}</span>
+                  ))}
+                  {miss > 0 && <span style={{ color: "#b45309" }}>· not a candidate on {miss}</span>}
+                </div>
+              );
+            })()}
           </MenuItem>
         ))}
         <div onClick={(e) => e.stopPropagation()} style={{
@@ -4716,10 +4744,10 @@ const AuthorshipCard = ({
               directory lookup on the byline name straight away (the prefill path, `auto` so the
               server applies the WCM-first / Cornell-fallback rule). 93% of open pubmed rows are
               in one of those two states (2026-09-20), which is why this is routine rather than a
-              button. A full given-name match stays blank on expand as before. */}
+              button. Since UI refresh 4c a full given-name match runs it too: every expand. */}
           <AssignOther rowId={r.id} acting={acting} onAction={onAction} authorName={r.wcm_author}
             affiliation={r.author_affiliation}
-            prefill={assignPrefill ?? (nothingToPick || r.top_given_match !== "full" ? r.wcm_author : undefined)}
+            prefill={assignPrefill ?? r.wcm_author}
             autoPrefill={!assignPrefill} />
           {/* One note for both buttons above. `listed` is candidates-minus-one and does not
               move with the radio: whichever one is picked, the same number of others are
