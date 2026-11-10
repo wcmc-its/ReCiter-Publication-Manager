@@ -96,8 +96,8 @@ assert(/attributes: \["top_person_type", \[groupCountAttr, "n"\]\], \.\.\.whereO
   "personTypes (byType) is grouped against personTypesWhere");
 assert(/attributes: \["source", \[groupCountAttr, "n"\]\], \.\.\.whereOpts\(bySourceWhere\)/.test(summaryFn),
   "bySource (bySrc) is grouped against bySourceWhere");
-assert(/attributes: \["pub_type", \[groupCountAttr, "n"\]\], \.\.\.whereOpts\(\{ \[Op\.and\]: \[pubTypesWhere, \{ source: "scopus" \}\] \}\)/.test(summaryFn),
-  "pubTypes (byPub) is grouped against pubTypesWhere AND source:\"scopus\" (forced source kept)");
+assert(/body\.source === "scopus" \|\| body\.source === "openalex"\s*\? models\.AuthorshipReview\.findAll\(\{ attributes: \["pub_type", \[groupCountAttr, "n"\]\], \.\.\.whereOpts\(\{ \[Op\.and\]: \[pubTypesWhere, \{ source: body\.source \}\] \}\)/.test(summaryFn),
+  "pubTypes (byPub) is grouped against pubTypesWhere AND the selected external lane (scopus or openalex only)");
 assert(/where: institutionsWhere, raw: true,/.test(summaryFn),
   "the institutions facet query reads institutionsWhere");
 assert(/attributes: institutionFacetAttributes\("byline"\),\s*\n\s*\.\.\.whereOpts\(authorInstWhere\),/.test(summaryFn),

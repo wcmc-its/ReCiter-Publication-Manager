@@ -29,7 +29,7 @@ interface AuthorshipRow {
   // Scopus lane (source='scopus'): not-in-PubMed docs from the AF-ID sweep. pmid is null,
   // top_fg_score/top_io_score are null (production never scored a non-PubMed doc), and the
   // record is keyed by external_id (numeric Scopus id). OpenAlex lane (source='openalex'):
-  // conference abstracts and preprints, same shape, external_id = OpenAlex W id and pub_type =
+  // conference abstracts, conference papers and preprints, same shape, external_id = OpenAlex W id and pub_type =
   // the OpenAlex work type. PubMed rows leave these undefined.
   source?: AuthorshipSource;
   external_id?: string;
@@ -238,7 +238,7 @@ interface Summary {
   conflicts?: number;
   personTypes?: Array<{ type: string; n: number }>;
   bySource?: Record<string, number>;                 // { pubmed: n, scopus: n } — source-segment counts
-  pubTypes?: Array<{ type: string; n: number }>;      // scopus pub_type facet
+  pubTypes?: Array<{ type: string; n: number }>;      // pub_type facet of the selected external lane (Scopus or OpenAlex)
   // Two institution facets over the SAME bucket keys, one per basis (see INSTITUTION_LABELS):
   // `institutions` is the person/HR basis behind IDENTITY AFFILIATION, `authorInstitutions` the
   // byline basis behind ARTICLE AFFILIATION. They are independent lists, ANDed by the server.
@@ -694,7 +694,8 @@ const buildFilterBody = (f: AuthorshipFilters) => ({
   institutionBasis: "person",
   authorAffiliations: f.selectedAuthorAffiliations,
   source: f.source,
-  pubTypes: f.source === "scopus" ? f.selectedPubTypes : [],   // pub-type facet only meaningful for scopus
+  // Same test as hasPubTypeFacet, inlined: check-authorships-filter-body runs this function on its own.
+  pubTypes: f.source === "scopus" || f.source === "openalex" ? f.selectedPubTypes : [],   // pub-type facet only on an external lane
   dateFrom: f.dateFrom,
   dateTo: f.dateTo,
   sort: f.sort,
@@ -838,6 +839,16 @@ const Tip = ({ children, ...rest }: any) => (
 // ---- pure helpers --------------------------------------------------------
 const hasWcm = (aff?: string) => !!aff && WCM_RE.test(aff);
 
+// The pub-type facet exists on an external lane only. Not isExternalSource: that reads the
+// "all" segment as external too.
+const hasPubTypeFacet = (source?: string) => source === "scopus" || source === "openalex";
+// OpenAlex stores its work types as slugs; Scopus types are already readable.
+const PUB_TYPE_LABELS: Record<string, string> = {
+  "conference-abstract": "Conference abstract",
+  "conference-paper": "Conference paper",
+  "preprint": "Preprint",
+};
+
 // Wrap the WCM institution token in <mark>. Returns React nodes (one match).
 const highlightAffiliation = (text?: string): ReactNode => {
   if (!text) return null;
@@ -955,13 +966,13 @@ const scopusNote = (r: AuthorshipRow): string => {
   return `Not in PubMed — found via the Scopus AF-ID sweep, so production never scored it (no IO/Authorship Score exists). ${who}; ranked by identity-match confidence (${confBand(r.top_confidence)}). Accepting adds it as an ExternalArticle (no PMID → not gold standard).`;
 };
 
-// openalex lane note — conference abstracts and preprints OpenAlex has and PubMed does not.
+// openalex lane note — conference abstracts, conference papers and preprints OpenAlex has and PubMed does not.
 const openalexNote = (r: AuthorshipRow): string => {
   const cohort = r.top_cohort_size ?? 1;
   const who = hasWcm(r.author_affiliation)
     ? "The affiliation names Weill Cornell"
     : `The surname matches ${cohort} WCM identit${cohort === 1 ? "y" : "ies"}`;
-  return `Not in PubMed — found via the OpenAlex conference-abstract/preprint sweep, so production never scored it (no IO/Authorship Score exists). ${who}; ranked by identity-match confidence (${confBand(r.top_confidence)}). Accepting adds it as an ExternalArticle (no PMID → not gold standard).`;
+  return `Not in PubMed — found via the OpenAlex conference-abstract/conference-paper/preprint sweep, so production never scored it (no IO/Authorship Score exists). ${who}; ranked by identity-match confidence (${confBand(r.top_confidence)}). Accepting adds it as an ExternalArticle (no PMID → not gold standard).`;
 };
 
 const btn = (variant: "accept" | "reject" | "soft" | "ghost", disabled?: boolean): CSSProperties => {
@@ -1480,7 +1491,13 @@ const AuthorshipsTabs = () => {
   // choosing an article affiliation never disturbs the identity list beside it (the two are
   // ANDed, not alternatives), nor sort / dates / class.
   const setSelectedAuthorAffiliations: SetFilter<"selectedAuthorAffiliations"> = useCallback((v) => setFilter("selectedAuthorAffiliations", v), [setFilter]);
-  const setSource: SetFilter<"source"> = useCallback((v) => setFilter("source", v), [setFilter]);
+  // A lane change empties the pub-type selection IN THE SAME PATCH: Scopus and OpenAlex use
+  // different type vocabularies, and clearing it in an effect afterwards let one list request go
+  // out with the new lane and the old lane's types. Only a lane CHANGE clears it (patchFilters
+  // drops an unchanged source), and a saved view restored on mount never comes through here.
+  const setSource = useCallback((v: AuthorshipFilters["source"]) => {
+    patchFilters((prev) => (prev.source === v ? {} : { source: v, selectedPubTypes: [] }));
+  }, [patchFilters]);
   const setSelectedPubTypes: SetFilter<"selectedPubTypes"> = useCallback((v) => setFilter("selectedPubTypes", v), [setFilter]);
   const setDateFrom: SetFilter<"dateFrom"> = useCallback((v) => setFilter("dateFrom", v), [setFilter]);
   const setDateTo: SetFilter<"dateTo"> = useCallback((v) => setFilter("dateTo", v), [setFilter]);
@@ -2044,10 +2061,6 @@ const AuthorshipsTabs = () => {
   // institutions all survive a change to any other control.
   useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
     [filters, page]);
-  // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
-  // (setSelectedPubTypes is stable, and patchFilters no-ops when the list is already empty, so
-  // this cannot fire a second refetch of its own.)
-  useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source, setSelectedPubTypes]);
 
   // perform a curator action: optimistically drop the row, POST, then offer Undo (or revert on failure).
   // `extra` carries the assign cwid; the returned promise lets bulk loops await settlement.
@@ -2979,7 +2992,7 @@ const AuthorshipsTabs = () => {
                 // OpenAlex is always shown (UI refresh 4a), even with 0 rows: an empty lane reads
                 // as "nothing found there", a missing one as "never searched".
                 const what = key === "scopus" ? "WCM authorships found in Scopus but NOT in PubMed (no production score)"
-                  : key === "openalex" ? "WCM conference abstracts and preprints found in OpenAlex but NOT in PubMed (no production score)"
+                  : key === "openalex" ? "WCM conference abstracts, conference papers and preprints found in OpenAlex but NOT in PubMed (no production score)"
                   : key === "pubmed" ? "Authorships from PubMed" : "All sources";
                 return (
                   <Tip key={key} title={n != null ? `${what} — ${n.toLocaleString()} in this queue` : what} placement="top" arrow>
@@ -3085,7 +3098,7 @@ const AuthorshipsTabs = () => {
             of the segment being hidden — the selection survives, so a curator who was on the
             Scopus segment would otherwise see a live-looking facet strip under a source control
             that is no longer there. */}
-        {!reportView && source === "scopus" && (summary?.pubTypes?.length ?? 0) > 0 && (
+        {!reportView && hasPubTypeFacet(source) && (summary?.pubTypes?.length ?? 0) > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderBottom: `1px solid ${CTRL.rule}`, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, color: CTRL.soft, letterSpacing: ".06em" }}>PUBLICATION TYPE</span>
             <button onClick={() => setSelectedPubTypes([])} style={pubChipStyle(selectedPubTypes.length === 0)}>All</button>
@@ -3094,7 +3107,7 @@ const AuthorshipsTabs = () => {
               return (
                 <button key={pt.type} style={pubChipStyle(on)}
                   onClick={() => setSelectedPubTypes((s) => toggleInList(s, pt.type))}>
-                  {pt.type} ({pt.n.toLocaleString()})
+                  {PUB_TYPE_LABELS[pt.type] || pt.type} ({pt.n.toLocaleString()})
                 </button>
               );
             })}
