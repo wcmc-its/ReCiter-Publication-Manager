@@ -17,13 +17,7 @@ models.AnalysisSummaryAuthor.hasOne(models.Person, { constraints: false });
 models.AnalysisSummaryAuthor.hasMany(models.PersonPersonType, {
   constraints: false,
 });
-models.AnalysisSummaryAuthor.hasOne(models.AnalysisSummaryArticle, {
-  constraints: false,
-});
-models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
-  constraints: false,
-  
-});
+import "./reportAssociations";
 
 // ponytail: callers send `exportArticlesRTF[0].maxLimit`, which admin_settings stores as a
 // STRING ("1000") and which is `false` when the setting is missing. The procs end in

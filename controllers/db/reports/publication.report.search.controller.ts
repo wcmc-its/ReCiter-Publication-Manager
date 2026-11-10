@@ -17,16 +17,7 @@ import { QueryConstants } from "../../../src/utils/namedQueryConstants";
 import { buildReportSort } from "./reportSort";
 
 
-models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'AnalysisSummaryArticleId' });
-models.AnalysisSummaryArticle.hasMany(models.PersonPersonType, {
-  constraints: false,
-  foreignKey: 'AnalysisSummaryArticleId'  
-});
-models.PersonPersonType.belongsToMany(models.AnalysisSummaryArticle,{through: models.AnalysisSummaryAuthor})
-models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
-  constraints: false,
-  foreignKey: 'AnalysisSummaryArticleId'
-});
+import "./reportAssociations";
 //models.AnalysisSummaryAuthor.belongsTo(models.AnalysisSummaryArticle);
 
 //const fs = require("fs")
