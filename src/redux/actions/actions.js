@@ -1821,8 +1821,28 @@ export const updatePubFiltersFromSearch = () => {
   }
 }
 
+// /report fires a search each time a filter menu closes (and Clear all fires the unfiltered one), so
+// several can be in flight at once and a slow, older one could land last and overwrite the newer
+// results. Each search takes a sequence number; only the latest one may update the store.
+// A stale search still clears its own loading flag when the newer search uses the other flag
+// (paginated vs full), so neither spinner is left on.
+let reportsSearchSeq = 0;
+let reportsSearchLatestPaginated = false;
+const reportsSearchTicket = (dispatch, paginated) => {
+    const seq = ++reportsSearchSeq;
+    reportsSearchLatestPaginated = paginated;
+    return () => {
+        if (seq === reportsSearchSeq) return false;
+        if (reportsSearchLatestPaginated !== paginated) {
+            dispatch({ type: paginated ? methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING : methods.REPORTS_SEARCH_CANCEL_FETCHING });
+        }
+        return true;
+    };
+};
+
 // Search Results for Create Reports Page
 export const getReportsResults = (requestBody, paginationUpdate = false) => dispatch => {
+    const isStale = reportsSearchTicket(dispatch, !!paginationUpdate);
     // check if fetching different page of the same results and update loading state accordingly
 
     if (paginationUpdate) {
@@ -1858,6 +1878,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
             }
         })
         .then(data => {
+            if (isStale()) return;
             if (data.articlesCount == 0 || Object.keys(data).length == 0) {
                 dispatch({
                     type: methods.REPORTS_SEARCH_UPDATE,
@@ -1886,6 +1907,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
 
                     let pmids = data.rows ? data?.rows?.map(row => row.pmid) : [];
                     getReportsAuthors({ pmids: [...pmids] }).then(authorsData => {
+                    if (isStale()) return;
                         // given authors data merge it with the rest of the results
                         let results = data?.rows?.map((row) => {
                             let authorsList = [];
@@ -1930,6 +1952,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
             }
         })
         .catch(error => {
+            if (isStale()) return;
             console.log(error)
             toast.error("Reports Search Api failed - " + error.title);
             dispatch(
@@ -1950,6 +1973,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
 
 // Default Data for Create Reports Page
 export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => {
+    const isStale = reportsSearchTicket(dispatch, false);
     dispatch({
         type: methods.REPORTS_SEARCH_FETCHING
     })
@@ -1981,6 +2005,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
             }
         })
         .then(data => {
+            if (isStale()) return;
 
             if (data.articlesCount === 0) {
                 dispatch({
@@ -2004,6 +2029,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
                 })
 
                 getReportsAuthors({ pmids: [...pmids] }).then(authorsData => {
+                    if (isStale()) return;
                     // given authors data merge it with the rest of the results
                     let results = data?.rows?.map((row) => {
                         let authorsList = [];
@@ -2031,6 +2057,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
             }
         })
         .catch(error => {
+            if (isStale()) return;
             console.log(error)
             toast.error("Reports Search Api failed - " + error.title);
             dispatch(
