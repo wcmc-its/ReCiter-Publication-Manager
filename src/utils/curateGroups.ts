@@ -63,3 +63,29 @@ export const spotCheckSample = (items: any[], verb: 'ACCEPTED' | 'REJECTED', n =
 export const fmtCount = (n: number, compact = false): string =>
   !compact || n < 1000 ? n.toLocaleString('en-US')
     : (n < 10000 ? (Math.round(n / 100) / 10).toFixed(1).replace(/\.0$/, '') : String(Math.round(n / 1000))) + 'k'
+
+// Detail-view list row: the byline split around the target author so the row can bold it. Long
+// bylines keep the two first authors and the last on each side, so the target survives the
+// one-line ellipsis (#1102). No target flagged → the whole (shortened) byline sits in `pre`.
+export const authorLine = (p: any): { pre: string; tgt: string; post: string } => {
+  const names: string[] = []
+  let t = -1
+  for (const a of p?.reCiterArticleAuthorFeatures || []) {
+    const n = [a?.firstName, a?.lastName].filter(Boolean).join(' ')
+    if (!n) continue
+    if (t < 0 && a?.targetAuthor) t = names.length
+    names.push(n)
+  }
+  const short = (xs: string[], head: number) => xs.length > head + 1 ? [...xs.slice(0, head), '…', xs[xs.length - 1]] : xs
+  if (t < 0) return { pre: short(names, 2).join(', '), tgt: '', post: '' }
+  const pre = short(names.slice(0, t), 2)
+  const post = short(names.slice(t + 1), 1)
+  return { pre: pre.length ? pre.join(', ') + ', ' : '', tgt: names[t], post: post.length ? ', ' + post.join(', ') : '' }
+}
+
+// Plain-language verdict under the big score in the Detail pane, per band.
+export const BAND_NOTES: Record<Band, string> = {
+  strong: 'Most identity evidence agrees with the profile.',
+  moderate: 'Mixed evidence. Check affiliation and co-authors.',
+  weak: 'Little evidence links this article to the profile.',
+}
