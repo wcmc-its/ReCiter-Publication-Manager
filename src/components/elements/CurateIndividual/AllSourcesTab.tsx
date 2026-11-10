@@ -82,6 +82,10 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
     const act = (w: ExtWork, action: Done['action']) => {
         const target: 'ACCEPTED' | 'REJECTED' = action === 'accepted' ? 'ACCEPTED' : 'REJECTED'
         const ids = w.rows.filter((r) => extStatusOf(r) !== target).map((r) => r.articleId)
+        // Pin the current view: the default view follows the pending count, so acting on the last
+        // pending work would flip it to Accepted on refetch, where the work (kept in its Pending
+        // done row) is hidden from both views.
+        setViewPicked(view)
         setBusy((b) => ({ ...b, [w.key]: true }))
         const write = action === 'deleted'
             ? Promise.all(w.rows.map((r) => ext.remove(r.articleId))).then((oks) => oks.every(Boolean))
