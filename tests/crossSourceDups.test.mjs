@@ -1,7 +1,7 @@
 // Unit tests for crossSourceDuplicates in src/lib/pubTypes.ts. Run with `npm test`.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { crossSourceDuplicates, extSourceLabel } from '../src/lib/pubTypes.ts'
+import { crossSourceDuplicates, extSourceLabel, isMarkedDifferent, notDupNote, reopenDupNote } from '../src/lib/pubTypes.ts'
 
 const pub = (pmid, title, date, doi) => ({ pmid, articleTitle: title, publicationDateStandardized: date, doi })
 const ext = (articleId, title, pubDate, doi, extra = {}) => ({ articleId, sourceType: articleId.split(':')[0], title, pubDate, doi, ...extra })
@@ -39,4 +39,13 @@ test('definite wins over an earlier possible match', () => {
 test('extSourceLabel', () => {
   assert.equal(extSourceLabel({ sourceType: 'OPENALEX' }), 'OpenAlex')
   assert.equal(extSourceLabel({ sourceType: '' }), 'Manual')
+})
+
+test('isMarkedDifferent: newest marker for that PMID wins', () => {
+  const e = (note, t) => ({ feedback: 'PENDING', note, createTimestamp: t })
+  assert.equal(isMarkedDifferent(undefined, 5), false)
+  assert.equal(isMarkedDifferent([e(notDupNote(5), 10)], 5), true)
+  assert.equal(isMarkedDifferent([e(notDupNote(5), 10)], 6), false)
+  assert.equal(isMarkedDifferent([e(notDupNote(5), 10), e(reopenDupNote(5), 20)], 5), false)
+  assert.equal(isMarkedDifferent([e(reopenDupNote(5), 10), e(notDupNote(5), 20), e('other', 30)], 5), true)
 })
