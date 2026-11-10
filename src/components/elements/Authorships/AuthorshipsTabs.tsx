@@ -1308,7 +1308,7 @@ const IdentityHoverCard = ({ subject, priorNames, byline }: {
             <span style={{ fontSize: 12.5, color: "#4a5262", fontVariantNumeric: "tabular-nums", marginBottom: 3 }}>{recordLine(priorNames.counts)}</span>
           )}
           {bylineMiss && (
-            <span style={{ fontSize: 12.5, color: "#b45309", marginBottom: 3 }}>This byline (“{byline}”) isn't one of the names on their accepted papers.</span>
+            <span style={{ fontSize: 12.5, color: "#b45309", marginBottom: 3 }}>This byline (“{byline}”) isn’t one of the names on their accepted papers.</span>
           )}
           {!priorNames ? (
             <span style={{ fontSize: 13, color: "#6f7889" }}>Loading…</span>
@@ -4954,7 +4954,7 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
 const SingleEvidenceTable = ({ row: r }: { row: AuthorshipRow }) => {
   const ev = useCandidateEvidence(r.id, r.top_cwid || "");
   if (ev.status === "loading") return <div style={{ marginTop: 10, fontSize: 12.5, color: "#6b7484" }}>Loading evidence…</div>;
-  if (ev.status === "error") return <div style={{ marginTop: 10, fontSize: 12.5, color: "#b45309" }}>Couldn't load the evidence table. Collapse and reopen the row to retry.</div>;
+  if (ev.status === "error") return <div style={{ marginTop: 10, fontSize: 12.5, color: "#b45309" }}>Couldn’t load the evidence table. Collapse and reopen the row to retry.</div>;
   const year = Number((r.entrez_date || "").slice(0, 4)) || null;
   const rows = buildCandidateEvidence(
     { byline: r.wcm_author, affiliation: r.author_affiliation, journal: r.journal, year, source: r.source, coauthors: ev.data.coauthors },
