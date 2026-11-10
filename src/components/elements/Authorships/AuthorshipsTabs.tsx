@@ -519,7 +519,7 @@ const FILTER_DEFAULTS: AuthorshipFilters = {
   selectedPubTypes: [],
   dateFrom: "", dateTo: "",                              // the real default window is computed
                                                          // by applyDatePreset(DEFAULT_DATE_PRESET)
-  sort: "date",                                          // never reset — see RESET_EXEMPT
+  sort: "io",                                            // never reset — see RESET_EXEMPT
   statusView: "open",
   hideNoSuggestion: false, hideNoIdentity: false,
   likeAuthor: "",
@@ -1478,7 +1478,8 @@ const AuthorshipsTabs = () => {
   const setSelectedPubTypes: SetFilter<"selectedPubTypes"> = useCallback((v) => setFilter("selectedPubTypes", v), [setFilter]);
   const setDateFrom: SetFilter<"dateFrom"> = useCallback((v) => setFilter("dateFrom", v), [setFilter]);
   const setDateTo: SetFilter<"dateTo"> = useCallback((v) => setFilter("dateTo", v), [setFilter]);
-  // default sort = date desc (Newest, 2026-09-15); IO desc before that. top_confidence
+  // default sort = IO desc (Highest Identity-Only Score, UI refresh 4a, 2026-11-09); Newest
+  // from 2026-09-15 to then, IO desc before that. top_confidence
   // (the matcher's identity-match heuristic, not an authorship-likelihood score) was the
   // prior default, but it's near-constant across the queue — most rows land on the same
   // base value for a given given-name-match/affiliation-match combo — so it silently fell
@@ -2958,8 +2959,8 @@ const AuthorshipsTabs = () => {
                 const n = key === "all"
                   ? (summary?.bySource ? Object.values(summary.bySource).reduce((a, b) => a + b, 0) : undefined)
                   : summary?.bySource?.[key];
-                // OpenAlex lane ships off by default: no segment until it has produced a row.
-                if (key === "openalex" && !n && source !== "openalex") return null;
+                // OpenAlex is always shown (UI refresh 4a), even with 0 rows: an empty lane reads
+                // as "nothing found there", a missing one as "never searched".
                 const what = key === "scopus" ? "WCM authorships found in Scopus but NOT in PubMed (no production score)"
                   : key === "openalex" ? "WCM conference abstracts and preprints found in OpenAlex but NOT in PubMed (no production score)"
                   : key === "pubmed" ? "Authorships from PubMed" : "All sources";
@@ -3005,8 +3006,8 @@ const AuthorshipsTabs = () => {
             {/* §2.2 uses the mockup's wording where it maps onto a sort the server actually
                 supports (SORTS in authorships.controller.ts: precision/confidence/io/fg/date).
                 Its "Oldest" and "Most candidates" have no server order and are NOT invented here;
-                the three sorts it omits are kept rather than dropped. Default is `date` (Newest,
-                owner request 2026-09-15; was `io`) — sort is never a chip and never reset. */}
+                the three sorts it omits are kept rather than dropped. Default is `io` (UI refresh 4a,
+                2026-11-09; was `date` from 2026-09-15) — sort is never a chip and never reset. */}
             {/* A <select> is as wide as its widest option, so a long label here is what pushes
                 the whole right group onto a second line. The nuance the old "Match confidence
                 (name/affiliation, not IO)" label carried moves into the title instead of costing
@@ -3022,7 +3023,7 @@ const AuthorshipsTabs = () => {
             <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort"
               title={"Sort order — kept when any other control changes.\n“Match confidence” is the matcher's name/affiliation heuristic, not IO."}
               style={{ font: "inherit", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 9px", fontSize: 13.5, background: "#fff", color: CTRL.ink, cursor: "pointer" }}>
-              <option value="io">Highest IO</option>
+              <option value="io">Highest Identity-Only Score</option>
               <option value="date">Newest</option>
               <option value="date_asc">Oldest</option>
               <option value="precision">Best match</option>
