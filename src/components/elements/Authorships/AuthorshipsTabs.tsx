@@ -249,6 +249,9 @@ interface Summary {
   // different, legitimate answer ("computed, no bucket matched") and the server never conflates
   // the two.
   authorInstitutions?: Array<{ key: string; n: number }>;
+  // How many rows each Hide box hides (4b). ABSENT unless the request carried
+  // `includeHideCounts: true`, same contract as authorInstitutions.
+  hidden?: { noSuggestion: number; noIdentity: number };
   // The canned reports' row counts — the ONE field POST /api/db/authorships/summary gained for
   // them, and the only thing they need from this endpoint. Undefined until the first summary
   // response lands, which is why the reports menu reserves the width of its count column
@@ -1381,7 +1384,10 @@ const AuthorshipsTabs = () => {
   // it is handed, so the two affiliation lists share ONE anchor only because they share one
   // popover; a nested level would need its own.
   const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
-  const [affilAnchor, setAffilAnchor] = useState<HTMLElement | null>(null);
+  // 4b: one popover, two buttons — `which` says whose list it shows.
+  const [affilAnchor, setAffilAnchor] = useState<{ el: HTMLElement; which: "identity" | "article" } | null>(null);
+  const [affilQuery, setAffilQuery] = useState("");
+  const affilSearchRef = useRef<HTMLInputElement>(null);
   const [filtersAnchor, setFiltersAnchor] = useState<HTMLElement | null>(null);
   const [keysAnchor, setKeysAnchor] = useState<HTMLElement | null>(null);
   // §2.5: the bulk bar's round "i" — toggles today's always-on two-line caveat into a strip
@@ -1773,13 +1779,21 @@ const AuthorshipsTabs = () => {
   //     LIKEs for the rest of the session.
   const [affilFacetKey, setAffilFacetKey] = useState<string | null>(null);
   useEffect(() => {
-    if (affilAnchor) setAffilFacetKey(baseSummaryBody);
+    if (affilAnchor?.which === "article") setAffilFacetKey(baseSummaryBody);
   }, [affilAnchor, baseSummaryBody]);
+  // Hide counts (4b) need absentCwidSet(), a DynamoDB sweep when its cache is cold, so they ride
+  // the same latch pattern, armed by the Filters popover where the Hide boxes live.
+  const [hideCountsKey, setHideCountsKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (filtersAnchor) setHideCountsKey(baseSummaryBody);
+  }, [filtersAnchor, baseSummaryBody]);
   const summaryBody = useMemo(
-    () => JSON.stringify(affilFacetKey === baseSummaryBody
-      ? { ...buildSummaryBody(filters), includeAuthorInstitutions: true }
-      : buildSummaryBody(filters)),
-    [filters, affilFacetKey, baseSummaryBody],
+    () => JSON.stringify({
+      ...buildSummaryBody(filters),
+      ...(affilFacetKey === baseSummaryBody ? { includeAuthorInstitutions: true } : {}),
+      ...(hideCountsKey === baseSummaryBody ? { includeHideCounts: true } : {}),
+    }),
+    [filters, affilFacetKey, hideCountsKey, baseSummaryBody],
   );
 
   // `summaryFor` records the exact body that produced `summary`, so the popover can tell
@@ -2727,17 +2741,13 @@ const AuthorshipsTabs = () => {
   // §2.2's affiliation button, transcribed from the mockup (mockup:636, :692-694): the identity
   // list AT ITS DEFAULT contributes nothing, so "Affiliation" with no badge is the resting
   // state; one value across both lists names that value; more than one shows the count badge.
-  const affilNames = [
-    ...(selectedInstitutions.length === 1 && selectedInstitutions[0] === FILTER_DEFAULTS.selectedInstitutions[0]
-      ? [] : selectedInstitutions),
-    // The article list is hidden inside this popover while a report is up (see the hide site
-    // there), so it must not go on counting towards the button's label and badge either — the
-    // button would otherwise name or count a filter with no control behind it and no effect on
-    // what is on screen. The selection itself survives untouched.
-    ...(reportView || (selectedAuthorAffiliations.length === 1 && selectedAuthorAffiliations[0] === FILTER_DEFAULTS.selectedAuthorAffiliations[0])
-      ? [] : selectedAuthorAffiliations),
-  ].map((k) => INSTITUTION_LABELS[k] || k);
-  const affilCount = affilNames.length;
+  // 4b splits it into one button per list, each with the same rule: at its default the list
+  // contributes nothing (plain label), one value names it, more shows the count badge.
+  const affilNamesOf = (sel: string[], dflt: string[]) =>
+    (sel.length === 1 && sel[0] === dflt[0] ? [] : sel).map((k) => INSTITUTION_LABELS[k] || k);
+  const identityNames = affilNamesOf(selectedInstitutions, FILTER_DEFAULTS.selectedInstitutions);
+  const articleNames = affilNamesOf(selectedAuthorAffiliations, FILTER_DEFAULTS.selectedAuthorAffiliations);
+  const hideCountsReady = summaryFor === summaryBody && !!summary?.hidden;
   // Identity affiliation reads `institutions`, which the server computes on EVERY summary call
   // whether or not the popover is open — unchanged by the on-demand Article facet, and it must
   // stay that way: this list is the one with a non-empty default, so it is on screen (as a chip
@@ -2986,12 +2996,19 @@ const AuthorshipsTabs = () => {
             {/* 3. affiliation — two independent lists, ANDed (mockup:141-183). Replaces #982's
                    `match: either/person/byline` select: the identity list IS the person basis
                    and the article list IS the byline basis, so the basis is no longer a choice. */}
-            <button type="button" onClick={(e) => setAffilAnchor(e.currentTarget)}
-              style={dropBtn(affilCount > 0, !!affilAnchor)}>
-              {affilCount === 1 ? affilNames[0] : "Affiliation"}
-              {affilCount > 1 && <span style={countBadgeStyle}>{affilCount}</span>}
-              <Caret />
-            </button>
+            {/* 4b: one button per list. The article one is hidden while a canned report is up
+                (the report cannot honour a byline affiliation); its selection survives. */}
+            {/* Short labels (the chip row's wording): the full ones wrap the row at 1280px. */}
+            {([["identity", "Identity affil.", "Identity affiliation", identityNames], ["article", "Article affil.", "Article affiliation", articleNames]] as const)
+              .filter(([which]) => which === "identity" || !reportView)
+              .map(([which, label, full, names]) => (
+                <button key={which} type="button" title={full} aria-label={full} onClick={(e) => { setAffilQuery(""); setAffilAnchor({ el: e.currentTarget, which }); }}
+                  style={dropBtn(names.length > 0, affilAnchor?.which === which)}>
+                  {names.length === 1 ? names[0] : label}
+                  {names.length > 1 && <span style={countBadgeStyle}>{names.length}</span>}
+                  <Caret />
+                </button>
+              ))}
           </div>
 
           {/* right group (mockup:186-198) */}
@@ -3001,7 +3018,7 @@ const AuthorshipsTabs = () => {
                   binding it to the filter would fight the debounce on every keystroke. */}
               <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Name, CWID, PMID, or affiliation" aria-label="Filter by name, CWID, PMID, or affiliation"
-                style={{ font: "inherit", width: 196, border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 11px", fontSize: 13.5, color: CTRL.ink, background: "#fff" }} />
+                style={{ font: "inherit", width: 160, border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 11px", fontSize: 13.5, color: CTRL.ink, background: "#fff" }} />
             </form>
             {/* §2.2 uses the mockup's wording where it maps onto a sort the server actually
                 supports (SORTS in authorships.controller.ts: precision/confidence/io/fg/date).
@@ -3258,84 +3275,63 @@ const AuthorshipsTabs = () => {
           AuthorshipReview.author_affiliation (its `byline` basis). Both selected = both must
           match; the server ANDs them. Each list has its own facet counts, so the same bucket
           key shows different numbers on the two sides — that is the point, not a bug. */}
-      <Popover open={!!affilAnchor} anchorEl={affilAnchor} onClose={() => setAffilAnchor(null)}
+      {/* Focus the search box once the popover has entered; an autoFocus fires mid-transition and is lost. */}
+      <Popover open={!!affilAnchor} anchorEl={affilAnchor?.el} onClose={() => setAffilAnchor(null)}
+        TransitionProps={{ onEntered: () => affilSearchRef.current?.focus() }}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }} transformOrigin={{ vertical: "top", horizontal: "left" }}
         PaperProps={{ style: { ...popPaper(320), display: "flex", flexDirection: "column", gap: 14 } }}>
-        <div>
-          <div style={popHeadRow}>
-            <div style={popHead}>IDENTITY AFFILIATION <span style={popHeadCount}>{selectedInstitutions.length} of {identityOptions.length}</span></div>
-            <button type="button" onClick={() => setSelectedInstitutions([])} style={linkBtn}>Any</button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {identityOptions.length === 0 && <div style={emptyOptStyle}>No institutions</div>}
-            {identityOptions.map((inst) => {
-              const on = selectedInstitutions.includes(inst.key);
-              return (
-                <label key={inst.key} style={optRow(on)}>
-                  <Checkbox size="small" checked={on} style={{ padding: 0 }}
-                    onChange={() => setSelectedInstitutions((s) => toggleInList(s, inst.key))} />
-                  <span style={{ flex: 1, minWidth: 0 }}>{INSTITUTION_LABELS[inst.key] || inst.key}</span>
-                  <span style={optCountStyle}>{inst.n.toLocaleString()}</span>
-                </label>
-              );
-            })}
-          </div>
-          <div style={helperStyle}>Where the proposed WCM person sits in the directory.</div>
-        </div>
-        {/* ARTICLE AFFILIATION is hidden while a canned report is up — hiding beats disabling,
-            because a greyed list still reads as "this exists and is off". It matches
-            authorship_review.author_affiliation, the affiliation printed on the byline, which
-            person_article does not carry; the report can only honour the IDENTITY list above.
-            The selection is left alone and the list returns intact with the feed. */}
-        {!reportView && (
-        <div>
-          <div style={popHeadRow}>
-            {/* "N of M" needs the facet to know M, so M is withheld until it arrives rather
-                than briefly reading "1 of 1". */}
-            <div style={popHead}>ARTICLE AFFILIATION <span style={popHeadCount}>{selectedAuthorAffiliations.length} of {authorFacetsReady ? authorOptions.length : "…"}</span></div>
-            <button type="button" onClick={() => setSelectedAuthorAffiliations([])} style={linkBtn}>Any</button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {/* These counts are fetched on demand (see affilFacetKey), so this list has a third
-                state the identity list above does not: not-yet-known. Distinguish it from
-                genuinely empty — "No institutions" would be a false statement while the request
-                is still out, and a 0 beside a checkbox is worse, because it reads as fact.
-                Already-ticked boxes keep rendering throughout (withSelected puts them back) and
-                stay tickable; only their count column is blanked. So a selection is never
-                hidden, and never mislabelled, by its own facet being in flight. */}
-            {!authorFacetsReady && <div style={emptyOptStyle}>Counting…</div>}
-            {authorFacetsReady && authorOptions.length === 0 && <div style={emptyOptStyle}>No institutions</div>}
-            {authorOptions.map((inst) => {
-              const on = selectedAuthorAffiliations.includes(inst.key);
-              return (
-                <label key={inst.key} style={optRow(on)}>
-                  <Checkbox size="small" checked={on} style={{ padding: 0 }}
-                    onChange={() => setSelectedAuthorAffiliations((s) => toggleInList(s, inst.key))} />
-                  <span style={{ flex: 1, minWidth: 0 }}>{INSTITUTION_LABELS[inst.key] || inst.key}</span>
-                  <span style={optCountStyle}>{authorFacetsReady ? inst.n.toLocaleString() : "—"}</span>
-                </label>
-              );
-            })}
-          </div>
-          <div style={helperStyle}>As printed on the article. Several may be selected.</div>
-        </div>
-        )}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${CTRL.rule}`, paddingTop: 11 }}>
-          {/* Reset here restores only THIS control's two lists (mockup:697), not every filter —
-              that is the Filters popover's "Reset all". */}
-          <button type="button" onClick={() => patchFilters({
-            selectedInstitutions: FILTER_DEFAULTS.selectedInstitutions.slice(),
-            // …and only the lists actually on screen. While a canned report is up the ARTICLE
-            // list above is hidden (the report cannot honour a byline affiliation), so a control
-            // the curator cannot see is not one they can have meant to reset: clearing it would
-            // silently discard a selection the feed is owed back, and — because
-            // authorAffiliations rides in the posted report body — would refetch the report and
-            // collapse every open person group for an identical result. "Reset all" is still the
-            // one place that reaches the hidden filters, and its title says so.
-            ...(reportView ? {} : { selectedAuthorAffiliations: FILTER_DEFAULTS.selectedAuthorAffiliations.slice() }),
-          })} style={{ ...linkBtn, color: CTRL.muted }}>Reset</button>
-          <button type="button" onClick={() => setAffilAnchor(null)} style={doneBtn}>Done</button>
-        </div>
+        {affilAnchor && (() => {
+          // 4b: the popover shows ONE list, the one whose button opened it. Identity filters
+          // Person.primaryInstitution, Article filters AuthorshipReview.author_affiliation; both
+          // set = both must match (server ANDs them). The two sides count the same bucket keys
+          // over different bases, so their numbers differ — that is the point, not a bug.
+          const isArticle = affilAnchor.which === "article";
+          const selected = isArticle ? selectedAuthorAffiliations : selectedInstitutions;
+          const setSelected = isArticle ? setSelectedAuthorAffiliations : setSelectedInstitutions;
+          const ready = !isArticle || authorFacetsReady;
+          const q = affilQuery.trim().toLowerCase();
+          const options = (isArticle ? authorOptions : identityOptions)
+            .filter((inst) => !q || (INSTITUTION_LABELS[inst.key] || inst.key).toLowerCase().includes(q));
+          const total = isArticle ? (authorFacetsReady ? authorOptions.length : "…") : identityOptions.length;
+          return (
+            <div>
+              <div style={popHeadRow}>
+                <div style={popHead}>{isArticle ? "ARTICLE" : "IDENTITY"} AFFILIATION <span style={popHeadCount}>{selected.length} of {total}</span></div>
+                <button type="button" onClick={() => setSelected([])} style={linkBtn}>Any</button>
+              </div>
+              <input type="search" ref={affilSearchRef} value={affilQuery} onChange={(e) => setAffilQuery(e.target.value)}
+                placeholder="Find an institution" aria-label="Find an institution"
+                style={{ font: "inherit", fontSize: 13, width: "100%", boxSizing: "border-box", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "6px 9px", margin: "4px 0 8px" }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                {/* The Article counts are fetched on demand (see affilFacetKey), so that list has a
+                    not-yet-known state. Never render it as "No institutions" or as 0s; ticked
+                    boxes keep rendering (withSelected) with a blank count. */}
+                {!ready && <div style={emptyOptStyle}>Counting…</div>}
+                {ready && options.length === 0 && <div style={emptyOptStyle}>{q ? "No match" : "No institutions"}</div>}
+                {options.map((inst) => {
+                  const on = selected.includes(inst.key);
+                  return (
+                    <label key={inst.key} style={optRow(on)}>
+                      <Checkbox size="small" checked={on} style={{ padding: 0 }}
+                        onChange={() => setSelected((s) => toggleInList(s, inst.key))} />
+                      <span style={{ flex: 1, minWidth: 0 }}>{INSTITUTION_LABELS[inst.key] || inst.key}</span>
+                      <span style={optCountStyle}>{ready ? inst.n.toLocaleString() : "—"}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div style={helperStyle}>{isArticle ? "As printed on the article. Several may be selected." : "Where the proposed WCM person sits in the directory."}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${CTRL.rule}`, marginTop: 11, paddingTop: 11 }}>
+                {/* Reset restores only THIS list, not every filter — that is "Reset all". */}
+                <button type="button" onClick={() => patchFilters(isArticle
+                  ? { selectedAuthorAffiliations: FILTER_DEFAULTS.selectedAuthorAffiliations.slice() }
+                  : { selectedInstitutions: FILTER_DEFAULTS.selectedInstitutions.slice() })}
+                  style={{ ...linkBtn, color: CTRL.muted }}>Reset</button>
+                <button type="button" onClick={() => setAffilAnchor(null)} style={doneBtn}>Done</button>
+              </div>
+            </div>
+          );
+        })()}
       </Popover>
 
       {/* ---- Filters popover (§2.3, mockup:212-270): QUEUE / MATCH CLASS / DATE / HIDE ---- */}
@@ -3438,14 +3434,16 @@ const AuthorshipsTabs = () => {
               <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13.5, color: CTRL.ink, padding: "4px 0", cursor: "pointer" }}>
                 <Checkbox size="small" checked={hideNoSuggestion}
                   onChange={(e) => setHideNoSuggestion(e.target.checked)} style={{ padding: 0 }} />
-                Rows with no suggested identity
+                <span style={{ flex: 1 }}>Rows with no suggested identity</span>
+                <span style={optCountStyle}>{hideCountsReady ? summary!.hidden!["noSuggestion"].toLocaleString() : "—"}</span>
               </label>
             </Tip>
             <Tip title={"Hides rows proposing a person who has no ReCiter identity yet (the “No ReCiter identity” pill) — there is a proposal, just nothing in ReCiter to accept it into. The totals above reflect this filter when it's on."} placement="left" arrow>
               <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13.5, color: CTRL.ink, padding: "4px 0", cursor: "pointer" }}>
                 <Checkbox size="small" checked={hideNoIdentity}
                   onChange={(e) => setHideNoIdentity(e.target.checked)} style={{ padding: 0 }} />
-                Rows with no ReCiter identity
+                <span style={{ flex: 1 }}>Rows with no ReCiter identity</span>
+                <span style={optCountStyle}>{hideCountsReady ? summary!.hidden!["noIdentity"].toLocaleString() : "—"}</span>
               </label>
             </Tip>
           </div>

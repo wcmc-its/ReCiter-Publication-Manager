@@ -1936,7 +1936,12 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     // this flag exists to prevent. The UI pins "person" (buildFilterBody), so the default
     // screen never takes that path; a caller that wants the cheap basis must say so.
     const basis = normaliseBasis(body.institutionBasis);
-    const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
+    // Hide counts (4b): how many rows each Hide box hides, each blind to its own box. Opt-in like
+    // authorInstitutions, because the noIdentity count needs absentCwidSet() even when the box is
+    // off — a DynamoDB sweep whenever its 5-minute cache is cold.
+    const wantHideCounts = (req.body || {}).includeHideCounts === true;
+    const absentCwids = (body.hideNoIdentity || wantHideCounts) ? await absentCwidSet() : undefined;
+    const absentList = absentCwids ? [...absentCwids] : [];
 
     // Exclusion map (#988) — the key(s) each response field's OWN where must be blind to; every
     // other filter in the body is honoured exactly like the list.
@@ -1981,7 +1986,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     const whereOpts = (w: any) => (hasInstitutions ? { where: w, include: instInclude } : { where: w });
     const groupCountAttr = hasInstitutions ? fn("COUNT", fn("DISTINCT", col("AuthorshipReview.id"))) : fn("COUNT", col("id"));
 
-    const [total, single, fullname, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution, byAuthorInstitution, lowScoringAccepts, highScoringRejects] = await Promise.all([
+    const [total, single, fullname, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution, byAuthorInstitution, lowScoringAccepts, highScoringRejects, hiddenNoSuggestion, hiddenNoIdentity] = await Promise.all([
       models.AuthorshipReview.count(countOpts(where)),
       models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true }] })),
       models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true, top_given_match: "full" }] })),
@@ -2037,6 +2042,12 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       // facet of itself, so there is nothing else to exclude.
       reportCount("lowScoringAccepts", REPORT_COUNT_BODY(body)),
       reportCount("highScoringRejects", REPORT_COUNT_BODY(body)),
+      wantHideCounts
+        ? models.AuthorshipReview.count(countOpts({ [Op.and]: [buildWhere({ ...body, hideNoSuggestion: false }, absentCwids), { top_cwid: null }] }))
+        : Promise.resolve(undefined),
+      wantHideCounts && absentList.length
+        ? models.AuthorshipReview.count(countOpts({ [Op.and]: [buildWhere({ ...body, hideNoIdentity: false }, absentCwids), { top_cwid: { [Op.in]: absentList } }] }))
+        : Promise.resolve(wantHideCounts ? 0 : undefined),
     ]);
     const classes: Record<string, number> = {};
     (byClass as any[]).forEach((r) => { classes[r.classification] = Number(r.n); });
@@ -2068,6 +2079,8 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       // unconditionally once the index exists, and the dropdown needs both labels populated the
       // moment it can be opened.
       reports: { lowScoringAccepts, highScoringRejects },
+      // Absent (undefined drops from JSON) unless asked for — the client shows "—", never a stale 0.
+      hidden: wantHideCounts ? { noSuggestion: hiddenNoSuggestion, noIdentity: hiddenNoIdentity } : undefined,
     });
   } catch (e) {
     console.log(e);
