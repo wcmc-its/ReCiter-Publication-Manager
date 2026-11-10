@@ -58,3 +58,8 @@ export const yearHistogram = (list: any[]): { year: number; count: number }[] =>
 // its lowest scores; rejecting → its highest.
 export const spotCheckSample = (items: any[], verb: 'ACCEPTED' | 'REJECTED', n = 10): any[] =>
   [...items].sort((a, b) => verb === 'ACCEPTED' ? scoreOf(a) - scoreOf(b) : scoreOf(b) - scoreOf(a)).slice(0, n)
+
+// Tab-strip counts: full when there's room, "1.2k" / "12k" when the strip is tight (2g).
+export const fmtCount = (n: number, compact = false): string =>
+  !compact || n < 1000 ? n.toLocaleString('en-US')
+    : (n < 10000 ? (Math.round(n / 100) / 10).toFixed(1).replace(/\.0$/, '') : String(Math.round(n / 1000))) + 'k'
