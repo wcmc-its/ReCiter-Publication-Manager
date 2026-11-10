@@ -428,3 +428,15 @@ export const crossSourceDuplicates = (accepted: any[], external: any[]): DupPair
   }
   return out
 }
+
+// "Different papers" verdicts live in FeedbackLog as PENDING entries (PENDING changes no
+// state) whose note carries a marker. The newest marker for a PMID wins, so Undo is just
+// another entry. Entries are the feedbacklog slice for one external articleId.
+export const notDupNote = (pmid: string | number): string => `Not a duplicate of PMID ${pmid}`
+export const reopenDupNote = (pmid: string | number): string => `Duplicate check reopened for PMID ${pmid}`
+export const isMarkedDifferent = (entries: any[] | undefined, pmid: string | number): boolean => {
+  const newest = [...(entries || [])]
+    .filter((e) => e?.note === notDupNote(pmid) || e?.note === reopenDupNote(pmid))
+    .sort((a, b) => (Number(b.createTimestamp) || 0) - (Number(a.createTimestamp) || 0))[0]
+  return newest?.note === notDupNote(pmid)
+}
