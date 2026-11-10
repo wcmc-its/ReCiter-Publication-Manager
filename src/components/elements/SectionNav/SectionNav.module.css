@@ -46,6 +46,59 @@ a.item:focus-visible {
   cursor: not-allowed;
 }
 
+/* "Next <person> <pending> >" at the right end of the row (Curate only). */
+.nextPill {
+  align-self: center;
+  margin-left: auto;
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--pm-border-strong);
+  border-radius: 999px;
+  background: var(--pm-surface);
+  color: var(--pm-foreground);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.nextPill:hover {
+  background: var(--pm-surface-2);
+}
+
+.nextPill:focus-visible {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: 2px;
+}
+
+.nextLabel {
+  color: var(--pm-muted-foreground);
+}
+
+.nextName {
+  font-weight: 600;
+}
+
+.nextCount {
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--pm-amber-tint);
+  border: 1px solid var(--pm-amber-tint-border);
+  color: var(--pm-amber);
+  font-size: 10.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (max-width: 700px) {
   .sectionNav {
     padding: 0 8px;
