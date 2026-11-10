@@ -201,3 +201,9 @@ export const tallyOf = (rows: EvidenceRow[]): Tally =>
 export const evidenceStrength = (rows: EvidenceRow[]): number =>
     (rows.some((r) => r.label === 'Email' && r.kind === 'match') ? 100 : 0) +
     rows.reduce((s, r) => s + ({ match: 1, partial: 0.4, mismatch: -1, nodata: 0 })[r.kind], 0)
+
+// Comparison-grid column order: already-rejected candidates last (never the lead), then the
+// evidence balance, then IO.
+export const orderByEvidence = <C extends EvidenceCandidate>(cands: C[], rowsOf: (c: C) => EvidenceRow[]) =>
+    cands.map((c) => { const rows = rowsOf(c); return { c, rows, s: evidenceStrength(rows) } })
+        .sort((a, b) => Number(!!a.c.already_rejected) - Number(!!b.c.already_rejected) || b.s - a.s || (b.c.io_score ?? -1) - (a.c.io_score ?? -1))

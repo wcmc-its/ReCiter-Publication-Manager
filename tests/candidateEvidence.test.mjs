@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-    buildCandidateEvidence, cornellEmailIds, evidenceStrength, tallyOf, authorKey, normName,
+    buildCandidateEvidence, cornellEmailIds, evidenceStrength, tallyOf, authorKey, normName, orderByEvidence,
 } from '../src/utils/candidateEvidence.ts'
 
 const row = {
@@ -91,4 +91,16 @@ test('mine: the article side of each row, and an empty co-author list is no data
     assert.equal(get(rows, 'Career window').mine, '2024')
     const lone = get(buildCandidateEvidence({ ...row, coauthors: [] }, { cwid: 'yiz2020' }, facts), 'Co-authors')
     assert.equal(lone.kind, 'nodata')
+})
+
+test('orderByEvidence: email match first, rejected last even when strongest, IO breaks ties', () => {
+    const r = { ...row, affiliation: row.affiliation + ' Electronic address: zzz9999@med.cornell.edu.' }
+    const cands = [
+        { cwid: 'rej1', name: 'Yiran Zhu', given_match: 'full', io_score: 99, already_rejected: true },
+        { cwid: 'aaa1', name: 'Yiran Zhu', given_match: 'full', io_score: 40 },
+        { cwid: 'zzz9999', name: 'Yan Zhu', given_match: 'initial', io_score: 10 },
+        { cwid: 'bbb1', name: 'Yiran Zhu', given_match: 'full', io_score: 60 },
+    ]
+    const order = orderByEvidence(cands, (c) => buildCandidateEvidence(r, c, facts)).map((x) => x.c.cwid)
+    assert.deepEqual(order, ['zzz9999', 'bbb1', 'aaa1', 'rej1'])
 })
