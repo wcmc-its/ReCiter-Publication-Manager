@@ -1066,3 +1066,94 @@
   font-size: 12.5px;
   color: var(--pm-muted-foreground);
 }
+
+/* Phase 2f: Detail (split) view */
+.viewSwitch {
+  margin-left: auto;
+  display: inline-flex;
+  border: 1px solid #a8c4e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.viewSwitch button {
+  border: 0;
+  background: #fff;
+  color: #3b6fb5;
+  font: inherit;
+  font-size: 11.5px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.viewSwitch button[aria-pressed="true"] {
+  background: #3b6fb5;
+  color: #fff;
+}
+.viewSwitch button:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: -2px; }
+.split {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 12px 32px;
+}
+.splitList {
+  position: sticky;
+  top: 60px; /* clears the 52px sticky top bar */
+  max-height: calc(100vh - 68px);
+  overflow-y: auto;
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
+  background: var(--pm-surface);
+  padding: 0 6px 6px;
+}
+.splitRow {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 4px;
+  background: none;
+  padding: 7px 8px;
+  font: inherit;
+  color: var(--pm-foreground);
+  cursor: pointer;
+}
+.splitRow:hover { background: var(--pm-surface-2); }
+.splitRow[aria-current="true"] { background: var(--pm-slate-tint); border-left-color: var(--pm-slate); }
+.splitRow:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: -2px; }
+.splitRow[data-state="ACCEPTED"] .splitScore { color: var(--pm-green); }
+.splitRow[data-state="REJECTED"] .splitScore { color: var(--pm-red); }
+.splitScore {
+  flex: 0 0 26px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--pm-muted-foreground);
+}
+.splitText { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.splitTitle {
+  font-size: 13px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.splitMeta {
+  font-size: 11.5px;
+  color: var(--pm-muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.splitDetail { min-width: 0; }
+.split .groupHead { margin: 8px 0 4px; flex-wrap: wrap; gap: 4px 8px; }
+.split .groupToggle { white-space: nowrap; }
+.split .groupBulkAccept,
+.split .groupBulkReject { white-space: nowrap; }
+@media (max-width: 900px) {
+  .split { grid-template-columns: 1fr; }
+  .splitList { position: static; max-height: 40vh; }
+}
