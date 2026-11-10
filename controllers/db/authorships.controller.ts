@@ -1661,12 +1661,12 @@ function reportBaseSql(spec: (typeof REPORT_SPECS)[ReportKey], filterSql: string
  *   - hideNoSuggestion / hideNoIdentity — the report INNER JOINs identity, so "has a ReCiter
  *     identity" is structurally true of every row it can return, and there is no PROPOSED identity
  *     here to be absent: the curator already decided.
- *   - pubTypes — the feed's vocabulary is Scopus subtypeDescription ("Book Chapter", "Conference
- *     Paper", "Note", "Short Survey") while person_article.publicationTypeCanonical is PubMed
- *     canonical ("Academic Article", "Case Report", "Editorial Article", "Preprint"). Only
- *     Review / Letter / Erratum overlap literally, so any mapping between them would be a guess
- *     rendered as a filter. It is also only ever non-empty when source === "scopus", and source is
- *     itself hidden.
+ *   - pubTypes — the feed's vocabularies are Scopus subtypeDescription ("Book Chapter", "Conference
+ *     Paper", "Note", "Short Survey") and OpenAlex work types ("conference-abstract", "preprint"),
+ *     while person_article.publicationTypeCanonical is PubMed canonical ("Academic Article",
+ *     "Case Report", "Editorial Article", "Preprint"). Any mapping between them would be a guess
+ *     rendered as a filter. It is also only ever non-empty on an external lane (source "scopus" or
+ *     "openalex"), and source is itself hidden.
  *   - statusView / sort — a report is not a queue: there is no status to view, and the row order is
  *     the report's own (see REPORT_SPECS).
  */
@@ -1948,7 +1948,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     const where = summaryWhere(body, [], absentCwids);                                   // total: nothing excluded
     const matchClassWhere = summaryWhere(body, ["precision", "classification"], absentCwids); // single_candidate/fullname/classes
     const bySourceWhere = summaryWhere(body, ["source", "pubTypes"], absentCwids);        // bySource
-    const pubTypesWhere = summaryWhere(body, ["pubTypes"], absentCwids);                  // pubTypes (source:"scopus" AND kept below)
+    const pubTypesWhere = summaryWhere(body, ["pubTypes"], absentCwids);                  // pubTypes (ANDed with the selected external lane below)
     const personTypesWhere = summaryWhere(body, ["personTypes"], absentCwids);            // personTypes
     const institutionsWhere = summaryWhere(body, ["institutions"], absentCwids);          // institutions (identity-affiliation) facet
     const authorInstWhere = summaryWhere(body, ["authorAffiliations"], absentCwids);      // authorInstitutions facet (opt-in)
@@ -1995,7 +1995,11 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       models.AuthorshipReview.findAll({ attributes: ["classification", [groupCountAttr, "n"]], ...whereOpts(matchClassWhere), group: ["classification"], raw: true }),
       models.AuthorshipReview.findAll({ attributes: ["top_person_type", [groupCountAttr, "n"]], ...whereOpts(personTypesWhere), group: ["top_person_type"], raw: true }),
       models.AuthorshipReview.findAll({ attributes: ["source", [groupCountAttr, "n"]], ...whereOpts(bySourceWhere), group: ["source"], raw: true }),
-      models.AuthorshipReview.findAll({ attributes: ["pub_type", [groupCountAttr, "n"]], ...whereOpts({ [Op.and]: [pubTypesWhere, { source: "scopus" }] }), group: ["pub_type"], raw: true }),
+      // Per external lane: Scopus and OpenAlex types are different vocabularies, so count only the
+      // selected lane's. The All and PubMed segments show no facet.
+      body.source === "scopus" || body.source === "openalex"
+        ? models.AuthorshipReview.findAll({ attributes: ["pub_type", [groupCountAttr, "n"]], ...whereOpts({ [Op.and]: [pubTypesWhere, { source: body.source }] }), group: ["pub_type"], raw: true })
+        : Promise.resolve([]),
       // Institution facet (IDENTITY AFFILIATION list): unconditionally joined, exactly as
       // before — institutionsWhere never carries $Person.primaryInstitution$ (institutions is
       // excluded from this field's own where by definition, so the popover always shows every

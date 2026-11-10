@@ -1,6 +1,6 @@
 // authorship_review.source lanes. 'pubmed' is the only lane with a PMID behind it (gold
 // standard, FeedbackLog, production scores). Every other lane — the Scopus AF-ID sweep and the
-// OpenAlex conference-abstract/preprint sweep — is a not-in-PubMed record keyed by external_id
+// OpenAlex conference-abstract/conference-paper/preprint sweep — is a not-in-PubMed record keyed by external_id
 // that a curator accepts as an ExternalArticle. Ask "is this external?" here rather than
 // comparing against one lane's name, so a new lane does not fall into the PubMed branches.
 // Dependency-free so the client card, the controller and the node check scripts can all import it.
