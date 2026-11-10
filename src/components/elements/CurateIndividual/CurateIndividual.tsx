@@ -303,7 +303,7 @@ const CurateIndividual = () => {
                           );
                         })}
                         {n > KW_COLLAPSED_MAX && (
-                          <button type="button" className={styles.kwMore} onClick={() => setKwExpanded(v => !v)}>
+                          <button type="button" className={styles.kwMore} aria-expanded={kwExpanded} onClick={() => setKwExpanded(v => !v)}>
                             {kwExpanded ? 'Show fewer' : `+${n - KW_COLLAPSED_MAX} more`}
                           </button>
                         )}
