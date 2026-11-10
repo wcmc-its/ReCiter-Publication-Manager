@@ -182,7 +182,10 @@ export const authOptions = {
         });
         token.proxyPersonIds = JSON.stringify(parseJsonColumn(dbUser.proxy_person_ids) || []);
 
-        token.name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || token.username;;
+        // SAML logins return the admin_users row (nameFirst/nameLast), not firstName/lastName,
+        // so fall back to the row already in hand -- no extra query. CWID last.
+        token.name = [user.firstName || dbUser.nameFirst || user.nameFirst, user.lastName || dbUser.nameLast || user.nameLast]
+          .filter(Boolean).join(' ').trim() || token.username;
         token.picture = user.image || user.databaseUser?.profilePicture;
 
         // The real human, immutable for the token's life -- the "View as" overlay below only
