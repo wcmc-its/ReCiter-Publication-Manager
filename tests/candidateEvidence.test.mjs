@@ -81,3 +81,14 @@ test('no facts at all still yields a full, honest table', () => {
     assert.equal(t.match + t.partial + t.mismatch + t.nodata, rows.length)
     assert.equal(get(rows, 'Co-authors').kind, 'nodata')
 })
+
+test('mine: the article side of each row, and an empty co-author list is no data, not a mismatch', () => {
+    const rows = buildCandidateEvidence(row, { cwid: 'yiz2020', name: 'Yiran Zhu', io_score: 95 }, facts)
+    assert.equal(get(rows, 'Name').mine, 'Yiran Zhu')
+    assert.equal(get(rows, 'Given name').mine, 'Yiran')
+    assert.equal(get(rows, 'Co-authors').mine, '3 co-authors')
+    assert.equal(get(rows, 'Journal').mine, 'Clinical and translational medicine')
+    assert.equal(get(rows, 'Career window').mine, '2024')
+    const lone = get(buildCandidateEvidence({ ...row, coauthors: [] }, { cwid: 'yiz2020' }, facts), 'Co-authors')
+    assert.equal(lone.kind, 'nodata')
+})
