@@ -4,7 +4,7 @@ import { Button, Dialog } from "../../ui"
 import { ExternalArticles } from "./useExternalArticles"
 import {
     EXT_SOURCE_NAMES, ExtSourceName, ExtStatus, ExtWork, countWorks, extStatusOf, groupExternalWorks,
-    workHasSource, workMatches,
+    workHasSource, workMatches, storeTargetOf, storeStatusText, StoreIntent,
 } from "../../../utils/allSources"
 
 // Phase 3a — Curate's single "All sources" tab (replaces the Scopus / OpenAlex / Crossref tabs).
@@ -12,6 +12,10 @@ import {
 // rows acted on this session stay in place with Undo. Reads and writes are the ones the
 // per-source tabs made (useExternalArticles): reversible accept / reject via the feedback route,
 // and a permanent delete. Layout follows the UI refresh prototype's External tab body.
+// With the external record store (EXTERNAL_STORE=mysql, plan 3b-3e) the actions are lifecycle
+// steps instead: Reject -> REJECTED, Remove -> REMOVED (both remember the work so an import or
+// add of it again is flagged), Accept puts a rejected or removed work back, Undo is the store's
+// one-step Undo, and there is no hard delete.
 
 interface FuncProps {
     ext: ExternalArticles,
@@ -24,6 +28,8 @@ type Done = {
     prev: ExtStatus,
     action: 'accepted' | 'removed' | 'rejected' | 'deleted',
     ids: string[],
+    // Store mode: the external_record ids the step changed, for Undo.
+    recordIds?: number[],
     // Snapshot, so a deleted work still renders its done row.
     work: ExtWork,
 }
@@ -79,7 +85,23 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
     const srcOpts = (['all', ...EXT_SOURCE_NAMES] as (ExtSourceName | 'all')[])
         .filter((k) => k !== 'Manual' || works.some((w) => w.sources.includes('Manual')))
 
+    const mysql = ext.store === 'mysql'
+
+    const actStore = (w: ExtWork, action: Done['action']) => {
+        const intent: StoreIntent = action === 'accepted' ? 'accept' : action === 'rejected' ? 'reject' : 'remove'
+        const to = action === 'accepted' ? 'ACCEPTED' : action === 'rejected' ? 'REJECTED' : 'REMOVED'
+        const rows = w.rows.filter((r) => storeTargetOf(r.status, intent) === to)
+        const recordIds = rows.map((r) => Number(r.id))
+        if (!recordIds.length) return
+        setViewPicked(view)
+        setBusy((b) => ({ ...b, [w.key]: true }))
+        ext.transition(recordIds, to).then((ok) => {
+            if (ok) setHere((h) => ({ ...h, [w.key]: { view, prev: w.status, action, ids: rows.map((r) => r.articleId), recordIds, work: w } }))
+        }).finally(() => setBusy((b) => ({ ...b, [w.key]: false })))
+    }
+
     const act = (w: ExtWork, action: Done['action']) => {
+        if (mysql) return actStore(w, action)
         const target: 'ACCEPTED' | 'REJECTED' = action === 'accepted' ? 'ACCEPTED' : 'REJECTED'
         const ids = w.rows.filter((r) => extStatusOf(r) !== target).map((r) => r.articleId)
         // Pin the current view: the default view follows the pending count, so acting on the last
@@ -96,6 +118,13 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
     }
 
     const undo = (d: Done) => {
+        if (mysql && d.recordIds) {
+            setBusy((b) => ({ ...b, [d.work.key]: true }))
+            ext.undo(d.recordIds).then((ok) => {
+                if (ok) setHere((h) => { const next = { ...h }; delete next[d.work.key]; return next })
+            }).finally(() => setBusy((b) => ({ ...b, [d.work.key]: false })))
+            return
+        }
         if (d.prev === 'PENDING') return
         setBusy((b) => ({ ...b, [d.work.key]: true }))
         ext.setFeedback(d.ids, d.prev).then((ok) => {
@@ -205,7 +234,7 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
                             {d ? (
                                 <>
                                     <span className={styles.exDoneText} data-action={d.action}>{doneText(d)}</span>
-                                    {d.action !== 'deleted' && d.prev !== 'PENDING' && (
+                                    {d.action !== 'deleted' && (mysql ? !!d.recordIds : d.prev !== 'PENDING') && (
                                         <button type="button" className={styles.exUndo} onClick={() => undo(d)} disabled={isBusy}>Undo</button>
                                     )}
                                 </>
@@ -221,6 +250,15 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
                                             title={`Takes this work out of ${short}'s record. Reversible: it moves to Rejected.`}>Remove</Button>
                                     </div>
                                     {r.addedBy && <span className={styles.exBy}>Added by {r.addedBy}</span>}
+                                </>
+                            ) : mysql ? (
+                                <>
+                                    {w.rows.some((x) => storeTargetOf(x.status, 'accept')) && (
+                                        <div className={styles.exBtns}>
+                                            <Button size="sm" onClick={() => act(w, 'accepted')} disabled={isBusy}>Accept</Button>
+                                        </div>
+                                    )}
+                                    <span className={styles.exBy}>{storeStatusText(w.lead)}</span>
                                 </>
                             ) : (
                                 <>

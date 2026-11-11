@@ -12,13 +12,13 @@
 import { Op, QueryTypes, Transaction, UniqueConstraintError } from 'sequelize'
 import sequelize from '../db/db'
 import models from '../db/sequelize'
-import { getKnownPmidsByCwid, getRejectedPmidsByCwid } from './goldStandardRejections'
+import { getKnownPmidsByCwid, getRejectedPmidsByCwid, getKnownPmidsStrict } from './goldStandardRejections'
 import {
-  planTransition, planUndo, planReAdd, SYSTEM_ACTOR,
+  planTransition, planUndo, planReAdd, SYSTEM_ACTOR, MEMORY_STATUSES, LIVE_STATUSES,
   type ExternalStatus, type LifecycleActor, type LifecyclePlan,
 } from './externalLifecycle'
 import { checkExternalDup, conflictBody, orderedPair, type DupContext, type DupResult } from './externalDupCheck'
-import { recordFromInput, apiRecordOf, rejectionKeysOf, ShapeError } from './externalRecordShape'
+import { recordFromInput, apiRecordOf, rejectionKeysOf, ShapeError, normDoi } from './externalRecordShape'
 import { isPubType, PUB_ROLES } from './pubTypes'
 
 export type ExternalStoreMode = 'reciter' | 'mysql'
@@ -306,12 +306,19 @@ export async function transitionRecords(r: TransitionRequest) {
     const rows = await lockRows(t, r.ids, r.canCurate)
     if (r.mergedIntoId != null && r.ids.map(Number).includes(Number(r.mergedIntoId))) throw new StoreError(400, 'A record cannot be merged into itself')
     for (const rec of rows) {
-      const plan = planTransition(plain(rec), r.to, {
-        actor: actorKind(r.actor),
-        mergedIntoId: r.mergedIntoId, mergedIntoPmid: r.mergedIntoPmid,
-        supersededByPmid: r.supersededByPmid, withoutMemory: r.withoutMemory,
-      })
-      if (!plan.ok) throw new StoreError(409, `Record ${rec.id}: ${plan.error}`)
+      // Accept on a REJECTED / REMOVED record (All sources' Rejected view) puts it back: the same
+      // step as "Add anyway" on it (planReAdd), so it clears the memory and keeps prev_status for
+      // Undo. The map has no REJECTED/REMOVED -> ACCEPTED row because a create meets it there.
+      const reAccept = r.to === 'ACCEPTED' && MEMORY_STATUSES.includes(rec.status) && actorKind(r.actor) === 'curator'
+      const planned = reAccept
+        ? planReAdd(plain(rec), { actor: 'curator' })
+        : planTransition(plain(rec), r.to, {
+          actor: actorKind(r.actor),
+          mergedIntoId: r.mergedIntoId, mergedIntoPmid: r.mergedIntoPmid,
+          supersededByPmid: r.supersededByPmid, withoutMemory: r.withoutMemory,
+        })
+      if (!planned.ok) throw new StoreError(409, `Record ${rec.id}: ${planned.error}`)
+      const plan = reAccept ? { ...planned, action: 'TRANSITION' as const } : planned
       // "Not the same" detaches an AUTOMERGED child; keep the parent in the event so Undo can restore it.
       const diff = plan.action === 'UNMERGE'
         ? { merged_into_id: [rec.merged_into_id ?? null, null], merged_into_pmid: [rec.merged_into_pmid ?? null, null] }
@@ -321,6 +328,98 @@ export async function transitionRecords(r: TransitionRequest) {
     for (const rec of rows) await rec.reload({ transaction: t })
     return rows.map(apiRecordOf)
   })
+}
+
+// "Same work: keep the other record" (plan 3c `POST /api/db/external/merge`): every drop row
+// becomes MERGED into one kept external record or one PubMed record, all or nothing. A kept
+// record must belong to the same person and still be live, so a merge never points at a row
+// that is itself gone.
+export async function mergeRecords(r: {
+  dropIds: number[]; keepId?: number | null; keepPmid?: number | null; actor: Actor; note?: string | null
+  canCurate?: CanCurate; transaction?: Transaction
+}) {
+  const keepId = r.keepId == null ? null : Number(r.keepId)
+  const keepPmid = r.keepPmid == null ? null : Number(r.keepPmid)
+  if ((keepId == null) === (keepPmid == null)) throw new StoreError(400, 'Give exactly one of keepId or keepPmid')
+  return withTx(r.transaction, async (t) => {
+    const drops = await lockRows(t, r.dropIds, r.canCurate)
+    const uids = new Set(drops.map((d: any) => d.uid))
+    if (uids.size !== 1) throw new StoreError(400, 'Merged records must belong to one person')
+    if (keepId != null) {
+      const keep: any = await models.ExternalRecord.findByPk(keepId, { transaction: t, lock: t.LOCK.UPDATE })
+      if (!keep) throw new StoreError(404, `No external record ${keepId}`)
+      if (!uids.has(keep.uid)) throw new StoreError(400, 'The kept record belongs to another person')
+      if (!LIVE_STATUSES.includes(keep.status)) throw new StoreError(409, `The kept record is ${keep.status}`)
+    }
+    return transitionRecords({
+      ids: drops.map((d: any) => Number(d.id)), to: 'MERGED', actor: r.actor, note: r.note,
+      mergedIntoId: keepId, mergedIntoPmid: keepPmid, transaction: t,
+    })
+  })
+}
+
+// The person's records for some article ids (the legacy routes address rows by article id).
+export async function recordsByArticleIds(uid: string, articleIds: string[], opts: { transaction?: Transaction } = {}) {
+  if (!articleIds.length) return []
+  const rows = await models.ExternalRecord.findAll({
+    where: { uid, article_id: { [Op.in]: articleIds } }, transaction: opts.transaction,
+  })
+  return rows.map(plain)
+}
+
+// Supersede (plan decision 3): PM's port of Java's reconcileWithGoldStandard, run after every
+// successful gold-standard write while EXTERNAL_STORE=mysql.
+//   - SUPERSEDED rows whose twin is no longer in knownpmids go back to ACCEPTED;
+//   - then ACCEPTED rows whose PMID is accepted, or whose DOI is the DOI of an accepted PMID
+//     (person_article, as of the last nightly), become SUPERSEDED by that PMID.
+// Both are system steps (Undo refuses them). knownpmids is read strongly consistent and an AWS
+// error throws, so the caller skips the reconcile instead of reviving every superseded row; the
+// gold-standard write itself never fails on this (the callers catch and log).
+export async function reconcileSupersede(uid: string, opts: { knownPmids?: Iterable<number>; transaction?: Transaction } = {}) {
+  const known = new Set<number>([...(opts.knownPmids ?? await getKnownPmidsStrict(uid))].map(Number))
+  const system: Actor = { cwid: SYSTEM_ACTOR, kind: 'system' }
+  return withTx(opts.transaction, async (t) => {
+    const rows: any[] = await models.ExternalRecord.findAll({
+      where: { uid, status: { [Op.in]: ['ACCEPTED', 'SUPERSEDED'] } }, transaction: t, lock: t.LOCK.UPDATE,
+    })
+    const revive = rows.filter((r) => r.status === 'SUPERSEDED' && !known.has(Number(r.superseded_by_pmid)))
+    if (revive.length) await transitionRecords({ ids: revive.map((r) => Number(r.id)), to: 'ACCEPTED', actor: system, note: 'PubMed twin no longer accepted', transaction: t })
+    const active = rows.filter((r) => r.status === 'ACCEPTED' || revive.includes(r))
+    let doiToPmid = new Map<string, number>()
+    if (known.size && active.some((r) => r.doi_norm || r.doi)) {
+      const arts = await sequelize.query(
+        'SELECT pmid, doi FROM person_article WHERE personIdentifier = :uid AND pmid IN (:pmids) AND doi IS NOT NULL',
+        { replacements: { uid, pmids: [...known] }, type: QueryTypes.SELECT, transaction: t },
+      ) as any[]
+      doiToPmid = new Map(arts.map((a) => [normDoi(a.doi), Number(a.pmid)] as [string | null, number]).filter((e): e is [string, number] => !!e[0]))
+    }
+    const byPmid = new Map<number, number[]>()
+    for (const r of active) {
+      const pmid = r.pmid != null && known.has(Number(r.pmid)) ? Number(r.pmid) : doiToPmid.get(r.doi_norm || normDoi(r.doi) || '')
+      if (pmid) byPmid.set(pmid, [...(byPmid.get(pmid) || []), Number(r.id)])
+    }
+    let superseded = 0
+    for (const [pmid, ids] of byPmid) {
+      await transitionRecords({ ids, to: 'SUPERSEDED', supersededByPmid: pmid, actor: system, note: `PubMed record ${pmid} accepted`, transaction: t })
+      superseded += ids.length
+    }
+    return { revived: revive.length, superseded }
+  })
+}
+
+// What the gold-standard writers call (Curate's goldstandard route, Authorships' writeGoldStandard):
+// a no-op unless EXTERNAL_STORE=mysql, and never throws, so a gold-standard write never fails on
+// this sidecar (Java's rule too).
+export async function reconcileSupersedeAfterGoldStandard(uid: string) {
+  if (externalStoreMode() !== 'mysql' || !uid) return null
+  try {
+    const r = await reconcileSupersede(uid)
+    if (r.revived || r.superseded) console.log(`[external] supersede reconcile ${uid}: ${r.superseded} superseded, ${r.revived} revived`)
+    return r
+  } catch (e) {
+    console.warn(`[external] supersede reconcile skipped for ${uid}:`, e)
+    return null
+  }
 }
 
 // One-step Undo for a batch, all or nothing.
