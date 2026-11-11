@@ -5,6 +5,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
     extStatusOf, extSourceOf, normDoi, groupExternalWorks, workMatches, workHasSource, countWorks,
+    storeTargetOf, storeStatusText,
 } from '../src/utils/allSources.ts'
 import { routeAddQuery } from '../src/utils/externalAddSearch.ts'
 
@@ -87,4 +88,25 @@ test('routeAddQuery: an ISBN with PubMed picked goes to Crossref; keywords follo
     assert.deepEqual(routeAddQuery('nail melanoma', 'OPENALEX'), { kind: 'external', source: 'OPENALEX', query: 'nail melanoma' })
     assert.equal(routeAddQuery('   ', 'PUBMED'), null)
     assert.equal(routeAddQuery(undefined, 'PUBMED'), null)
+})
+
+test('storeTargetOf: the All sources actions as lifecycle targets (EXTERNAL_STORE=mysql)', () => {
+    const all = ['PENDING', 'ACCEPTED', 'REJECTED', 'REMOVED', 'MERGED', 'AUTOMERGED', 'SUPERSEDED']
+    const table = (intent) => Object.fromEntries(all.map((s) => [s, storeTargetOf(s, intent)]))
+    assert.deepEqual(table('accept'), { PENDING: 'ACCEPTED', ACCEPTED: null, REJECTED: 'ACCEPTED', REMOVED: 'ACCEPTED', MERGED: null, AUTOMERGED: null, SUPERSEDED: null })
+    assert.deepEqual(table('reject'), { PENDING: 'REJECTED', ACCEPTED: null, REJECTED: null, REMOVED: null, MERGED: null, AUTOMERGED: null, SUPERSEDED: null })
+    assert.deepEqual(table('remove'), { PENDING: null, ACCEPTED: 'REMOVED', REJECTED: null, REMOVED: null, MERGED: null, AUTOMERGED: null, SUPERSEDED: null })
+    assert.equal(storeTargetOf('accepted', 'remove'), 'REMOVED')
+    assert.equal(storeTargetOf(undefined, 'accept'), null)
+})
+
+test('storeStatusText: why a store row sits in the Rejected view', () => {
+    assert.equal(storeStatusText({ status: 'SUPERSEDED', supersededByPmid: 123 }), 'Superseded by PMID 123')
+    assert.equal(storeStatusText({ status: 'MERGED', mergedIntoPmid: 9 }), 'Same work as PMID 9')
+    assert.equal(storeStatusText({ status: 'MERGED', mergedIntoId: 4 }), 'Same work as another record')
+    assert.equal(storeStatusText({ status: 'REMOVED', statusBy: 'abc1234' }), 'Removed by abc1234')
+    assert.equal(storeStatusText({ status: 'REJECTED' }), 'Rejected')
+    // A store row out of ACCEPTED is suppressed, so the 3a grouping already puts it in Rejected.
+    assert.equal(extStatusOf({ status: 'REMOVED', suppressed: true }), 'REJECTED')
+    assert.equal(extStatusOf({ status: 'SUPERSEDED', suppressed: true }), 'REJECTED')
 })

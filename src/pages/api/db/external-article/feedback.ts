@@ -4,6 +4,8 @@ import { recordExternalArticleFeedback } from '../../../../../controllers/extern
 import { canCurate } from '../../../../../controllers/db/authorization.controller'
 import { reciterConfig } from '../../../../../config/local'
 import { effectiveToken } from '../../../../../src/utils/viewAs'
+import { externalStoreMode } from '../../../../../src/lib/externalStore'
+import { send, sessionOf, feedbackExternal } from '../../../../../controllers/db/external.controller'
 
 // POST /api/db/external-article/feedback — curate per-source tabs (Option C, Phase 1):
 // Accept / Reject / un-reject an already-added external (non-PubMed) publication. Same
@@ -33,6 +35,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (action !== 'ACCEPTED' && action !== 'REJECTED' && action !== 'PENDING') {
         return res.status(400).send({ statusCode: 400, message: 'action must be ACCEPTED, REJECTED, or PENDING' })
+    }
+
+    // EXTERNAL_STORE=mysql (plan 3b-3e): the same step through the store (Accept -> ACCEPTED,
+    // Reject -> REJECTED or REMOVED, PENDING -> no state change), never Java/DynamoDB.
+    if (externalStoreMode() === 'mysql') {
+        try {
+            return send(res, await feedbackExternal(uid, articleId, action, await sessionOf(req), note))
+        } catch (err) {
+            console.error('[external-article/feedback] Unhandled error:', err)
+            return res.status(500).send({ statusCode: 500, message: 'Internal server error' })
+        }
     }
 
     // Resolve the curating user's CWID from the JWT — never trust a client-supplied actor.

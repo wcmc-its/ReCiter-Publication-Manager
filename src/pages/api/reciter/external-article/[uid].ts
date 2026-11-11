@@ -8,6 +8,8 @@ import {
 import { canCurate } from '../../../../../controllers/db/authorization.controller'
 import { reciterConfig } from '../../../../../config/local'
 import { effectiveToken } from '../../../../../src/utils/viewAs'
+import { externalStoreMode } from '../../../../../src/lib/externalStore'
+import { send, sessionOf, listExternal, addExternal, removeExternal } from '../../../../../controllers/db/external.controller'
 
 // PM#771 — external-source (OpenAlex) manual-add publications for a person.
 //   GET    ?uid=<uid>                       -> all external rows (incl suppressed)
@@ -54,6 +56,21 @@ export default async function handler(
     }
 
     try {
+        // EXTERNAL_STORE=mysql (plan 3b-3e): the same reads and writes as /api/db/external/<uid>,
+        // so a caller still on this route never reaches DynamoDB after the cutover. DELETE is the
+        // soft Remove there. The reciter path below is unchanged.
+        if (externalStoreMode() === 'mysql') {
+            if (method === 'GET') return send(res, await listExternal(uid))
+            const s = await sessionOf(req)
+            if (method === 'DELETE') {
+                const articleIdParam = req.query.articleId
+                const articleId = Array.isArray(articleIdParam) ? articleIdParam[0] : articleIdParam
+                if (!articleId) return res.status(400).send({ statusCode: 400, message: 'articleId is required for delete' })
+                return send(res, await removeExternal(uid, articleId, s))
+            }
+            return send(res, await addExternal(uid, req.body, s, String(req.query.force) === 'true'))
+        }
+
         let token: any = null
         if (method !== 'GET') {
             try {

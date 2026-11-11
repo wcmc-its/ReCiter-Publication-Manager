@@ -8,6 +8,9 @@ import sequelize from "../../src/db/db";
 import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
+import {
+  externalStoreMode, createRecord, transitionRecords, recordsByArticleIds, reconcileSupersedeAfterGoldStandard,
+} from "../../src/lib/externalStore";
 import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldStandardRejections";
 import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
 import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
@@ -2534,7 +2537,13 @@ async function writeGoldStandard(
         body: JSON.stringify(body),
       },
     );
-    if (resp.status === 200) scheduleAnalysisRefresh(uid);
+    if (resp.status === 200) {
+      scheduleAnalysisRefresh(uid);
+      // EXTERNAL_STORE=mysql: a knownpmids change can supersede (or revive) an external record
+      // with the same PMID or DOI (plan 3b-3e decision 3). Both kinds: Java's UPDATE of
+      // rejectedPmids also drops that PMID from knownpmids. No-op otherwise; never throws.
+      await reconcileSupersedeAfterGoldStandard(uid);
+    }
     return resp.status;
   } catch (e) {
     console.log("[authorships] gold-standard write failed:", e);
@@ -2702,6 +2711,32 @@ function openalexExternalPayload(row: any) {
 const externalArticlePayload = (row: any) =>
   row.source === "openalex" ? openalexExternalPayload(row) : scopusExternalPayload(row);
 
+// EXTERNAL_STORE=mysql (plan 3b-3e, 3c): the Authorships accept / assign of an external row as an
+// external_record, written in ONE transaction with the authorship_review update (the Java path is
+// two non-atomic calls). Same outcomes as the Java add: "ok" when the record was added or the
+// check said BLOCKED (already in the person's record: the row resolves anyway, as today), and
+// "warning" for a WARNING the curator has not forced, which writes nothing. The byline comes from
+// authors_json and the person's position from author_position; provenance is AUTHORSHIPS.
+async function storeExternalAccept(
+  uid: string, row: any, reviewer: string, force: boolean, review: Record<string, any>,
+): Promise<{ kind: "ok" } | { kind: "warning"; dup: ReturnType<typeof dupConflict> }> {
+  const payload: any = { ...externalArticlePayload(row) };
+  try {
+    const parsed = typeof row.authors_json === "string" ? JSON.parse(row.authors_json || "null") : row.authors_json;
+    if (Array.isArray(parsed) && parsed.length) { delete payload.authors; payload.authorsJson = parsed; }
+  } catch { /* keep the display names from the payload */ }
+  if (Number.isInteger(row.author_position) && row.author_position > 0) payload.targetAuthorIndex = row.author_position;
+  return sequelize.transaction(async (t) => {
+    const r = await createRecord({ uid, body: payload, actor: { cwid: reviewer }, force, provenance: "AUTHORSHIPS", transaction: t });
+    if (r.status === 409) {
+      const dup = dupConflict(r.body);
+      if (!dup.blocked) return { kind: "warning" as const, dup };
+    }
+    await models.AuthorshipReview.update(review, { where: { id: row.id }, transaction: t });
+    return { kind: "ok" as const };
+  });
+}
+
 // POST /api/db/authorships/authors — batched authors_json lookup by Scopus external_id,
 // for the Curate per-source "Scopus" tab (SourceArticleTab) to backfill a display byline
 // on rows accepted before scopusExternalPayload() started sending `authors` natively
@@ -2860,6 +2895,15 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // Mirrors the same guard `assign` already applies (getKnownPmidsByCwid, below).
         if (sameWork && (await getKnownPmidsByCwid([cwid]))[cwid]?.has(acceptPmid)) {
           return res.status(422).send(`${row.top_name || cwid} has already accepted PMID ${acceptPmid} — nothing to accept. Use "Same paper — dismiss" to close this ${externalSourceLabel(row)} row as a duplicate.`);
+        }
+        if (isExternal && !sameWork && externalStoreMode() === "mysql") {
+          const out = await storeExternalAccept(cwid, row, reviewer, force, { status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() });
+          if (out.kind === "warning") {
+            // As the Java path below: the WARNING leaves the open queue for "Possible duplicates".
+            await models.AuthorshipReview.update({ accept_conflict: String(out.dup.message).slice(0, 500) }, { where: { id } });
+            return res.status(409).json({ message: out.dup.message, matches: out.dup.matches });
+          }
+          break;
         }
         if (isExternal && !sameWork) {
           const resp = await addExternalArticle(cwid, externalArticlePayload(row), reviewer, force);
@@ -3147,6 +3191,11 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // feedback log — which is also what keeps `reopen` sound: it has an identity, so
         // reopen's "no identity == it was local-only" inference still holds and the
         // gold-standard DELETE it does is exactly the write this made.
+        if (isExternal && externalStoreMode() === "mysql") {
+          const out = await storeExternalAccept(target, row, reviewer, force, { status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() });
+          if (out.kind === "warning") return res.status(409).json({ message: out.dup.message, matches: out.dup.matches });
+          break;
+        }
         if (isExternal) {
           const resp = await addExternalArticle(target, externalArticlePayload(row), reviewer, force);
           if (resp.statusCode === 409) {
@@ -3245,6 +3294,26 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         const wasSameWork = isExternal && row.matched_pmid_verdict === "same";
         // row.pmid is NULL on scopus rows; the gold standard entry to delete is the twin's PMID.
         const undoPmid = wasSameWork ? Number(row.matched_pmid) : (pmid as number);
+        if (isExternal && !wasSameWork && externalStoreMode() === "mysql") {
+          // EXTERNAL_STORE=mysql: undo of an accept/assign = REMOVED with NO rejection memory, so
+          // the work can come back (plan decision 8; it replaces the hard DELETE), in one
+          // transaction with the row reopen. A record that is no longer ACCEPTED (superseded by
+          // its PubMed twin, or removed in Curate since) is left as it is.
+          await sequelize.transaction(async (t) => {
+            if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
+              const [rec] = await recordsByArticleIds(reverseCwid, [externalArticlePayload(row).articleId], { transaction: t });
+              if (rec && rec.status === "ACCEPTED") {
+                await transitionRecords({
+                  ids: [Number(rec.id)], to: "REMOVED", withoutMemory: true, actor: { cwid: reviewer },
+                  note: `Authorships reopen (review ${id})`, transaction: t,
+                });
+              }
+            }
+            await models.AuthorshipReview.update(
+              { status: "open", snooze_until: null, resolved_at: null, resolution_cwid: null, reviewer }, { where: { id }, transaction: t });
+          });
+          break;
+        }
         if (isExternal && !wasSameWork) {
           // undo a scopus accept/assign = revoke the ExternalArticle (reject/dismiss wrote none).
           if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {

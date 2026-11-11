@@ -9,6 +9,14 @@ import { AuthorshipReview } from "./AuthorshipReview";
 import type { AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes } from "./AuthorshipReview";
 import { PersonAuthorId } from "./PersonAuthorId";
 import type { PersonAuthorIdAttributes, PersonAuthorIdCreationAttributes } from "./PersonAuthorId";
+import { ExternalRecord } from "./ExternalRecord";
+import type { ExternalRecordAttributes, ExternalRecordCreationAttributes } from "./ExternalRecord";
+import { ExternalRecordEvent } from "./ExternalRecordEvent";
+import type { ExternalRecordEventAttributes, ExternalRecordEventCreationAttributes } from "./ExternalRecordEvent";
+import { ExternalRejection } from "./ExternalRejection";
+import type { ExternalRejectionAttributes, ExternalRejectionCreationAttributes } from "./ExternalRejection";
+import { ExternalDupVerdict } from "./ExternalDupVerdict";
+import type { ExternalDupVerdictAttributes, ExternalDupVerdictCreationAttributes } from "./ExternalDupVerdict";
 import { AdminNotificationLog } from "./AdminNotificationLog";
 import type { AdminNotificationLogAttributes, AdminNotificationLogCreationAttributes } from "./AdminNotificationLog";
 import { AdminNotificationPreference } from "./AdminNotificationPreference";
@@ -89,6 +97,10 @@ import type {AdminOrcidAttributes,
 
 export {
   Nlm,
+  ExternalRecord,
+  ExternalRecordEvent,
+  ExternalRejection,
+  ExternalDupVerdict,
   AdminDepartment,
   AdminFeedbackLog,
   AuthorshipReview,
@@ -135,6 +147,14 @@ export {
 export type {
   NlmAttributes,
   NlmCreationAttributes,
+  ExternalRecordAttributes,
+  ExternalRecordCreationAttributes,
+  ExternalRecordEventAttributes,
+  ExternalRecordEventCreationAttributes,
+  ExternalRejectionAttributes,
+  ExternalRejectionCreationAttributes,
+  ExternalDupVerdictAttributes,
+  ExternalDupVerdictCreationAttributes,
   AdminDepartmentAttributes,
   AdminDepartmentCreationAttributes,
   AdminFeedbackLogAttributes,
@@ -263,6 +283,10 @@ export function initModels(sequelize: Sequelize) {
   AdminSettings.initModel(sequelize);
   AuthorshipReview.initModel(sequelize);
   PersonAuthorId.initModel(sequelize);
+  ExternalRecord.initModel(sequelize);
+  ExternalRecordEvent.initModel(sequelize);
+  ExternalRejection.initModel(sequelize);
+  ExternalDupVerdict.initModel(sequelize);
 
   AdminUsersDepartment.belongsTo(AdminDepartment, { as: "department", foreignKey: "departmentID"});
   AdminDepartment.hasMany(AdminUsersDepartment, { as: "adminUsersDepartments", foreignKey: "departmentID"});
@@ -324,6 +348,10 @@ export function initModels(sequelize: Sequelize) {
     ScienceMetrix: ScienceMetrix,
     AdminSettings:AdminSettings,
     AuthorshipReview: AuthorshipReview,
-    PersonAuthorId: PersonAuthorId
+    PersonAuthorId: PersonAuthorId,
+    ExternalRecord: ExternalRecord,
+    ExternalRecordEvent: ExternalRecordEvent,
+    ExternalRejection: ExternalRejection,
+    ExternalDupVerdict: ExternalDupVerdict
   };
 }
