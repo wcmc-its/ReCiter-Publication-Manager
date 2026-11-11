@@ -53,20 +53,26 @@ const present = (v: unknown): boolean => v !== null && v !== undefined && String
 
 // True when the request narrows the result set at all. An unfiltered export is refused: the
 // unfiltered CSV path is what OOM-killed prod on 10-01.
+// When the caller passes `fragments.dateType` (the built Date added / Publication date / grouped Type
+// clauses), only those count for the three: a bound that isn't a date, or a type the search drops
+// (no pubType column, or not one of the 18), yields no clause and so must not unlock the export.
 export const hasAnyFilter = (f?: ReportExportFilters | null, fragments?: ReportExportFragments): boolean => {
   if (!f) return false;
+  const dateTypeBuilt = !!(fragments && fragments.dateType);
   return (
     list(f.personIdentifers).length > 0 ||
     list(f.orgUnits).length > 0 ||
     list(f.institutions).length > 0 ||
     list(f.personTypes).length > 0 ||
     list(f.publicationTypeCanonical).length > 0 ||
-    list(f.pubTypes).length > 0 ||
     list(f.journalTitleVerbose).length > 0 ||
-    present(f.pubDateLowerBound) ||
-    present(f.pubDateUpperBound) ||
-    present(f.datePublicationAddedToEntrezLowerBound) ||
-    present(f.datePublicationAddedToEntrezUpperBound) ||
+    (!dateTypeBuilt && (
+      list(f.pubTypes).length > 0 ||
+      present(f.pubDateLowerBound) ||
+      present(f.pubDateUpperBound) ||
+      present(f.datePublicationAddedToEntrezLowerBound) ||
+      present(f.datePublicationAddedToEntrezUpperBound)
+    )) ||
     (present(f.journalImpactScoreLowerBound) && present(f.journalImpactScoreUpperBound)) ||
     !!(fragments && (fragments.authorPosition || fragments.source || (fragments.dateType && fragments.dateType.length)))
   );

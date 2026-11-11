@@ -230,7 +230,7 @@ export const generatePubsPeopleOnlyRtf = async (
         });
 
       }
-      const sort = buildReportSort(apiBody && apiBody.sort, cols);
+      const sort = buildReportSort(apiBody && apiBody.sort, cols, "AnalysisSummaryArticle");
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
       let searchOutput: any[] = [];
 
@@ -424,7 +424,7 @@ export const generatePubsPeopleOnlyRtf = async (
           isPersonFilterOn = true;
         }
       }
-      const sort = buildReportSort(apiBody && apiBody.sort, cols);
+      const sort = buildReportSort(apiBody && apiBody.sort, cols, "AnalysisSummaryArticle");
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
 										 
       let searchOutput: any[] = [];

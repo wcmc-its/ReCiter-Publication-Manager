@@ -82,6 +82,11 @@ for (const key of ["publicationDateStandardized", "publicationDateStandarized", 
   assert.equal(buildReportSort({ type: key, order: "DESC" }, {})[0][0].val, "isnull(publicationDateStandardized), publicationDateStandardized DESC", key);
 }
 assert.equal(buildReportSort({ type: "dateAdded" }, {})[0][0].val, "isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez DESC");
+// The exports join person (which has its own dateAdded), so they qualify every column.
+const Q = "COALESCE(AnalysisSummaryArticle.dateAdded, AnalysisSummaryArticle.pubDate, NULLIF(AnalysisSummaryArticle.datePublicationAddedToEntrez, ''))";
+assert.equal(buildReportSort({ type: "datePublicationAddedToEntrez", order: "DESC" }, ALL, "AnalysisSummaryArticle")[0][0].val, `isnull(${Q}), ${Q} DESC`);
+assert.equal(buildReportSort({ type: "citationCountNIH" }, {}, "AnalysisSummaryArticle")[0][0].val, "isnull(AnalysisSummaryArticle.citationCountNIH), AnalysisSummaryArticle.citationCountNIH DESC");
+assert.match(read("controllers/db/reports/publication.report.controller.ts"), /buildReportSort\(apiBody && apiBody\.sort, cols, "AnalysisSummaryArticle"\)/, "the exports must qualify sort columns (person.dateAdded)");
 assert.equal(buildReportSort({ type: "citationCountNIH" }, ALL)[0][0].val, "isnull(citationCountNIH), citationCountNIH DESC");
 assert.equal(reportSortExpr("citationCountNIH", "asa", ALL), "asa.citationCountNIH");
 assert.equal(reportSortExpr("dateAdded", "asa", ALL), "COALESCE(asa.dateAdded, asa.pubDate, NULLIF(asa.datePublicationAddedToEntrez, ''))");
@@ -98,7 +103,7 @@ const paths = {
 for (const [file, count] of Object.entries(paths)) {
   const src = read(file);
   assert.match(src, /import \{ buildReportSort(, DEFAULT_REPORT_SORT)? \} from "\.\/reportSort";/, `${file} must import buildReportSort`);
-  const uses = src.match(/const sort = buildReportSort\(\(?apiBody && apiBody\.sort\)?( \|\| DEFAULT_REPORT_SORT)?, cols\);/g) || [];
+  const uses = src.match(/const sort = buildReportSort\(\(?apiBody && apiBody\.sort\)?( \|\| DEFAULT_REPORT_SORT)?, cols(, "AnalysisSummaryArticle")?\);/g) || [];
   assert.equal(uses.length, count, `${file}: expected ${count} buildReportSort call(s), got ${uses.length}`);
   assert.doesNotMatch(src, /Sequelize\.literal\('isnull\(/, `${file} still builds sort literals inline`);
 }

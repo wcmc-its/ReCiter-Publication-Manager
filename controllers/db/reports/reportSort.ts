@@ -49,10 +49,12 @@ export const reportSortExpr = (key: string | undefined, alias: string, cols: Rep
 // What the page sorts by when the request names no sort: newest added first.
 export const DEFAULT_REPORT_SORT = { type: "datePublicationAddedToEntrez", order: "DESC" };
 
-// Nulls last in either direction, as before. Unknown sort types add no ordering.
-export const buildReportSort = (apiSort?: { type?: string; order?: string }, cols: ReportDateTypeColumns = {}): any[] => {
+// Nulls last in either direction, as before. Unknown sort types add no ordering. `alias` qualifies
+// the columns: the exports in publication.report.controller.ts join `person`, which has its own
+// `dateAdded`, so there a bare name is ambiguous and they pass "AnalysisSummaryArticle".
+export const buildReportSort = (apiSort?: { type?: string; order?: string }, cols: ReportDateTypeColumns = {}, alias = ""): any[] => {
   const sort = [];
-  const expr = apiSort ? reportSortExpr(apiSort.type, "", cols) : undefined;
+  const expr = apiSort ? reportSortExpr(apiSort.type, alias, cols) : undefined;
   if (expr) {
     const sortOrder = apiSort.order && apiSort.order.toUpperCase() === "ASC" ? "ASC" : "DESC";
     sort.push([Sequelize.literal(`isnull(${expr}), ${expr} ${sortOrder}`)]);

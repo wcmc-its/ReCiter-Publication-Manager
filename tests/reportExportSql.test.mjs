@@ -112,6 +112,9 @@ test('5c: date / type fragments replace the legacy date comparison', () => {
     assert.equal(hasAnyFilter({ pubDateLowerBound: '2020-01-01' }, frag({})), true)
     assert.equal(hasAnyFilter({}, { ...frag({}), dateType: ["(asa.pubType IN ('Review'))"] }), true)
     assert.equal(hasAnyFilter({}, { ...frag({}), dateType: [] }), false)
+    // with the clauses built, a filter that produced none doesn't unlock an unfiltered export
+    assert.equal(hasAnyFilter({ pubTypes: ['Not A Type'] }, { ...frag({}), dateType: [] }), false)
+    assert.equal(hasAnyFilter({ pubDateLowerBound: 'soon', datePublicationAddedToEntrezUpperBound: 'x' }, { ...frag({}), dateType: [] }), false)
 })
 
 test('5c: pmid list sorts on a reportSortExpr expression', () => {
