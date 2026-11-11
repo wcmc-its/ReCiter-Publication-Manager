@@ -1,5 +1,6 @@
 import React from "react";
 import { Dropdown } from "react-bootstrap";
+import { useClosableDropdown } from "./useClosableDropdown";
 
 interface DropdownWrapperProps {
   title: any,
@@ -10,9 +11,10 @@ interface DropdownWrapperProps {
 }
 
 export const DropdownWrapper: React.FC<DropdownWrapperProps> = ({ title, children, variant = "primary", onClose }) => {
+    const { show, onToggle, toggleRef } = useClosableDropdown(onClose);
     return (
-      <Dropdown className="d-inline-block" onToggle={(nextShow) => { if (!nextShow && onClose) onClose(); }}>
-        <Dropdown.Toggle variant={variant} id="dropdown-basic">
+      <Dropdown className="d-inline-block" show={show} onToggle={onToggle}>
+        <Dropdown.Toggle ref={toggleRef} variant={variant} id="dropdown-basic">
           {title}
         </Dropdown.Toggle>
   

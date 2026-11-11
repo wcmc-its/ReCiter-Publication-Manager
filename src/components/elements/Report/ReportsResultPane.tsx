@@ -71,9 +71,13 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
       <div className={styles.articleMain}>
         <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(title) }} />
 
-        <div className={styles.articleAuthors}>
-          <AuthorsComponent authors={authors} onClick={onClickAuthor} />
-        </div>
+        {/* An external row (negative pmid) with no stored byline has no authors anywhere in
+            reciterdb, so show nothing rather than "No authors listed". */}
+        {(Number(pmid) > 0 || (authors && authors.length > 0)) && (
+          <div className={styles.articleAuthors}>
+            <AuthorsComponent authors={authors} onClick={onClickAuthor} />
+          </div>
+        )}
 
         <div className={styles.articleMeta}>
           {publicationTypeCanonical && <span className={styles.typeBadge}>{publicationTypeCanonical}</span>}
