@@ -294,7 +294,8 @@ const Report = () => {
 
   const openExport = (type: "CSV" | "RTF") => {
     setExportType(type);
-    onGetReportsDatabyPubFilters();
+    // Word builds its selection server-side from the filters; only the CSV modal needs the ids.
+    if (type === "CSV") onGetReportsDatabyPubFilters();
   }
 
   const updateSort = (sort: string, order: string) => {
@@ -368,7 +369,7 @@ const Report = () => {
   const canExport = !!(reportsSearchResults && reportsSearchResults.articlesCount);
 
   // Title row: page name on the left, the two exports on the right ("Excel" / "Word" per the 1e
-  // rename; Word still produces the RTF until .docx ships).
+  // rename; Word downloads a .docx bibliography, 5g).
   const titleRow = (
     <div className={styles.titleRow}>
       <h1 className={styles.header}>Reports</h1>

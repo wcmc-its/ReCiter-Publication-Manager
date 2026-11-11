@@ -2,6 +2,7 @@ import { Dropdown, DropdownButton } from "react-bootstrap";
 import Popover from "@mui/material/Popover";
 import { useEffect, useState } from "react";
 import ExportModal from "./ExportModal";
+import WordExportModal from "./WordExportModal";
 import { sortOptions } from "../../../../config/report";
 import { AiOutlineCheck } from "react-icons/ai";
 import styles from "./SearchSummary.module.css";
@@ -121,100 +122,6 @@ const SearchSummary = ({
       let optionOrder = optionInfo[1];
       onClick(optionType, optionOrder);
     }
-  }
-
-  const exportArticle = () => {
-    
-    if (Object.keys(reportsResultsIds)) {
-      generateExportArticle (reportsResultsIds);
-    } else {
-      // TODO: fetch data if it hasn't been on the page load
-     
-      }
-  }
-
-  const generateExportArticle = (requestBody: ReporstResultId) => {
-    let articleMaxLimit = exportArticleLabels && exportArticleLabels.length > 0  && exportArticleLabels.find(obj => obj.maxLimit)
-    setExportArticleLoading(true);
-    let personIdentifiers = pubSearchFilter?.filters?.personIdentifers?.length > 0 ? [...pubSearchFilter.filters.personIdentifers] : [];
-    let articlesData = {
-      personIdentifiers,
-      pmids: [...requestBody.pmids],
-      limit: exportArticlesRTF && exportArticlesRTF.length > 0 && exportArticlesRTF[0].maxLimit
-    }
-   
-    fetch(`/api/db/reports/publication`, {
-      credentials: "same-origin",
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Authorization': reciterConfig.backendApiKey
-      },
-      body: JSON.stringify(articlesData)
-    }).then(response => {
-      return response.blob();
-    })
-    .then(fileBlob => {
-      let date = new Date().toISOString().slice(0, 10);
-      let fileName = 'ArticleReport-ReCiter-' + date + ".rtf";
-      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
-      link.href = window.URL.createObjectURL(fileBlob)
-      link.download = fileName;
-      document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM; detached anchors save as a blob UUID.
-      link.click()
-      link.remove();
-      setExportArticleLoading(false);
-    })
-    .catch(error => {
-      console.error("[ERR-8001]", error);
-      reportError("ERR-8001", "Unable to export article report", error);
-      setExportError(true);
-      setExportArticleLoading(false);
-      toast.error("Unable to export article report. Please try again. (ERR-8001)");
-    })
-  }
-
-  const exportArticlePeopleOnly = () => {
-
-    if (Object.keys(reportsResultsIds)) {
-      generateRTFPeopleOnly(reportsResultsIds);
-    } else {
-      // TODO: fetch data if it hasn't been on the page load
-     
-      }
-  }
-
-  const generateRTFPeopleOnly = (requestBody: ReporstResultId) => {
-    setExportArticlePplLoading(true);
-    fetch(`/api/db/reports/publication/people-only`, {
-      credentials: "same-origin",
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Authorization': reciterConfig.backendApiKey
-      },
-      body: JSON.stringify({ personIdentifiers: requestBody.personIdentifiers })
-    }).then(response => {
-      return response.blob();
-    })
-    .then(fileBlob => {
-      let date = new Date().toISOString().slice(0, 10);
-      let fileName = 'ArticleReport-ReCiter-' + date + ".rtf";
-      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
-      link.href = window.URL.createObjectURL(fileBlob)
-      link.download = fileName;
-      document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM; detached anchors save as a blob UUID.
-      link.click()
-      link.remove();
-      setExportArticlePplLoading(false);
-    })
-    .catch(error => {
-      console.error("[ERR-8002]", error);
-      reportError("ERR-8002", "Unable to export article report", error);
-      setExportError(true);
-      setExportArticlePplLoading(false);
-      toast.error("Unable to export article report. Please try again. (ERR-8002)");
-    })
   }
 
   // 5f: server-built .xlsx (Publications / Authorships / About) from the same filters as the page.
@@ -518,19 +425,10 @@ const SearchSummary = ({
         exportAuthorshipCsvLoading = {exportAuthorshipCsvLoading}
         exportArticleCsvLoading = {exportArticleCsvLoading}
       />
-      <ExportModal
+      <WordExportModal
         show={openRTF}
-        handleClose={() => onExportClose && onExportClose()}
-        title="RTF"
-        countInfo={`${articlesCount ? formatter.format(articlesCount) : 0} articles`}
-        loadingResults={reportsResultsIdsLoading}
-        error={exportError}
-        buttonsList={[
-          { title: 'Export article report', loading: exportArticleLoading, onClick: exportArticle}
-        ]}
-        articlesCount = {articlesCount}
-        exportArticleCsvLoading = {exportArticleLoading}
-        articleLimit = {articleLimitForRTF}
+        onClose={() => onExportClose && onExportClose()}
+        articlesCount={articlesCount}
       />
     </>
   )
