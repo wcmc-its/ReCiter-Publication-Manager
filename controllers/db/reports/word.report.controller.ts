@@ -63,7 +63,7 @@ const exportLimit = async (): Promise<number> => {
   }
 };
 
-const loadArticles = async (pmids: number[]): Promise<WordArticle[]> => {
+export const loadArticles = async (pmids: number[]): Promise<WordArticle[]> => {
   if (!pmids.length) return [];
   const rows = await q(
     "SELECT pmid, pmcid, doi, articleTitle, journalTitleVerbose, articleYear, publicationDateDisplay, " +
