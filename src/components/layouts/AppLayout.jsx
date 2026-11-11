@@ -57,7 +57,7 @@ export const AppLayout = ({ children }) => {
       <ViewAsBanner />
       <SectionNav />
       <div className={styles.content}>
-        {children}
+        <div className={styles.main}>{children}</div>
         <Footer />
       </div>
     </>

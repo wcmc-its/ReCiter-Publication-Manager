@@ -204,13 +204,19 @@ a:hover {
   box-sizing: border-box;
 }
 
+/* The document is the only scroller. #__next used to be a 100vh scroll box, which nested a
+   second scroller under the page's: long lists (e.g. /curate with 900+ papers) clipped their
+   bottom and the infinite-scroll sentinel stopped firing. html keeps a permanent scrollbar so
+   the width doesn't jump between short and long pages. */
+html {
+  overflow-y: scroll;
+}
+
 #__next {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
-  overflow-x: hidden;
-  overflow-y: scroll;
+  overflow-x: clip;
 }
 
 .row-content {
