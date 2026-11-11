@@ -4,6 +4,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { authorPositionSql, sourceSql } from '../controllers/db/reports/reportFilterSql.ts'
 import { sourceOf, externalIdOf, pmcidHref, wcmPositionText, citationBlock } from '../src/utils/reportRow.ts'
+import { bylineAuthors } from '../src/utils/externalByline.ts'
 
 test('authorPositionSql: middle is NULL, values are allowlisted', () => {
     assert.equal(authorPositionSql('asu', ['first', 'last']), "(asu.authorPosition IN ('first', 'last'))")
@@ -82,4 +83,26 @@ test('citationBlock: iCite 0 / 0 (too new to benchmark) shows no pill', () => {
     assert.equal(b.pill, '')
     assert.match(b.tip, /not computed/)
     assert.equal(citationBlock({ citationCountNIH: 2, relativeCitationRatioNIH: 0.4, percentileNIH: 0, pmid: 1 }).pill, 'RCR 0.40 · NIH 0th pct')
+})
+
+test('bylineAuthors: external byline rows become ranked authors with WCM people attached', () => {
+    assert.deepEqual(bylineAuthors([]), [])
+    assert.deepEqual(bylineAuthors([{ personIdentifier: 'abc1001', authors: null }]), [])
+    const one = bylineAuthors([{ personIdentifier: 'gak2008', authors: 'Smith J, ((Koretzky GA)), Lee B' }])
+    assert.deepEqual(one, [
+        { firstName: '', lastName: 'Smith J', rank: 1 },
+        { firstName: '', lastName: 'Koretzky GA', rank: 2, personIdentifier: 'gak2008' },
+        { firstName: '', lastName: 'Lee B', rank: 3 },
+    ])
+    // two WCM authors, each row marking only themselves
+    const two = bylineAuthors([
+        { personIdentifier: 'bbb2002', authors: 'Smith J, Koretzky GA, ((Lee B))' },
+        { personIdentifier: 'aaa1001', authors: '((Smith J)), Koretzky GA, Lee B' },
+    ])
+    assert.deepEqual(two.map((a) => a.personIdentifier), ['aaa1001', undefined, 'bbb2002'])
+    assert.equal(wcmPositionText(two), 'WCM first & last author')
+    // truncated byline keeps its "et al." marker as plain text
+    const cut = bylineAuthors([{ personIdentifier: 'x', authors: 'A B, ..., ((C D)), et al.' }])
+    assert.deepEqual(cut.map((a) => a.lastName), ['A B', '...', 'C D', 'et al.'])
+    assert.equal(cut[2].personIdentifier, 'x')
 })
