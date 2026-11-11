@@ -19,6 +19,7 @@ import {
 } from './externalLifecycle'
 import { checkExternalDup, conflictBody, orderedPair, type DupContext, type DupResult } from './externalDupCheck'
 import { recordFromInput, apiRecordOf, rejectionKeysOf, ShapeError } from './externalRecordShape'
+import { isPubType, PUB_ROLES } from './pubTypes'
 
 export type ExternalStoreMode = 'reciter' | 'mysql'
 
@@ -376,6 +377,12 @@ export async function editRecord(r: { id: number; patch: any; actor: Actor; canC
   const bad = keys.filter((k) => !EDITABLE[k])
   if (!keys.length) throw new StoreError(400, 'Nothing to change')
   if (bad.length) throw new StoreError(400, `Not editable: ${bad.join(', ')}`)
+  // recordFromInput drops values it does not recognise (pubType falls back to the source map,
+  // role and peerReviewed to NULL), which on an edit would silently change the row. Refuse them.
+  const p = r.patch
+  if ('pubType' in p && !isPubType(p.pubType)) throw new StoreError(400, `Unknown pubType ${p.pubType}`)
+  if ('role' in p && p.role != null && !(PUB_ROLES as readonly string[]).includes(p.role)) throw new StoreError(400, `Unknown role ${p.role}`)
+  if ('peerReviewed' in p && p.peerReviewed != null && typeof p.peerReviewed !== 'boolean') throw new StoreError(400, 'peerReviewed must be true, false or null')
   return withTx(r.transaction, async (t) => {
     const [rec] = await lockRows(t, [r.id], r.canCurate)
     const cur = apiRecordOf(rec)

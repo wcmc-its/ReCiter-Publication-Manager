@@ -165,6 +165,11 @@ try {
   check(ed.title === 'Hepatic outcomes, revised' && ed.peerReviewed === true && ed.status === 'ACCEPTED', 'edit changes fields, never status')
   check(evE.action === 'EDIT' && 'title' in diff && 'title_year_key' in diff && 'peer_reviewed_by_hand' in diff, 'EDIT event carries the column diff', JSON.stringify(evE.diff_json))
   check(!!(await rejects(store.editRecord({ id: B, patch: { status: 'REJECTED' }, actor: me }), /Not editable: status/)), 'status is not editable')
+  const evCount = (await events(B)).length
+  check(!!(await rejects(store.editRecord({ id: B, patch: { pubType: 'Bogus' }, actor: me }), /Unknown pubType/))
+    && !!(await rejects(store.editRecord({ id: B, patch: { role: 'Ghost' }, actor: me }), /Unknown role/))
+    && !!(await rejects(store.editRecord({ id: B, patch: { peerReviewed: 'yes' }, actor: me }), /peerReviewed/))
+    && (await events(B)).length === evCount, 'unknown pubType / role / peerReviewed refused, nothing written')
 
   console.log('\n7. verdicts')
   const v = await store.addDupVerdict({ uid: UID, a: 'EXT:CROSSREF:10.1/a_b', b: 'EXT:CROSSREF:10.1/a1b', scopeCwid: 'zzcurator', actor: me })
