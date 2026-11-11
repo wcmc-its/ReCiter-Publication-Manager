@@ -12,6 +12,7 @@ import {
   type Actor,
 } from '../../src/lib/externalStore'
 import { isExternalStatus } from '../../src/lib/externalLifecycle'
+import { ShapeError } from '../../src/lib/externalRecordShape'
 import { storeTargetOf } from '../../src/utils/allSources'
 
 // The 3c API (plan 3b-3e, "PM API"): /api/db/external/**, plus the legacy external-article routes
@@ -60,12 +61,14 @@ export const storeOff = (): Reply => ({
   body: { statusCode: 409, store: 'reciter', message: 'The external record store is not enabled (EXTERNAL_STORE=reciter).' },
 })
 
-// A StoreError is the store's answer (400/403/404/409); anything else is a 500.
+// A StoreError is the store's answer (400/403/404/409), a ShapeError a bad record body (400,
+// e.g. dupcheck with no record); anything else is a 500.
 async function guarded(fn: () => Promise<Reply>, label: string): Promise<Reply> {
   try {
     return await fn()
   } catch (e) {
     if (e instanceof StoreError) return fail(e.status, e.body ?? e.message)
+    if (e instanceof ShapeError) return fail(400, e.message)
     console.error(`[external] ${label} failed:`, e)
     return fail(500, 'Internal server error')
   }

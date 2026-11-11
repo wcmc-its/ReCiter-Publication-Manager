@@ -2540,8 +2540,9 @@ async function writeGoldStandard(
     if (resp.status === 200) {
       scheduleAnalysisRefresh(uid);
       // EXTERNAL_STORE=mysql: a knownpmids change can supersede (or revive) an external record
-      // with the same PMID or DOI (plan 3b-3e decision 3). No-op otherwise; never throws.
-      if (kind === "known") await reconcileSupersedeAfterGoldStandard(uid);
+      // with the same PMID or DOI (plan 3b-3e decision 3). Both kinds: Java's UPDATE of
+      // rejectedPmids also drops that PMID from knownpmids. No-op otherwise; never throws.
+      await reconcileSupersedeAfterGoldStandard(uid);
     }
     return resp.status;
   } catch (e) {
