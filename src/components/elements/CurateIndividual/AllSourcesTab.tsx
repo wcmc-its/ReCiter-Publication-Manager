@@ -3,8 +3,8 @@ import styles from "./CurateIndividual.module.css"
 import { Button, Dialog } from "../../ui"
 import { ExternalArticles } from "./useExternalArticles"
 import {
-    EXT_SOURCE_NAMES, ExtSourceName, ExtStatus, ExtWork, countWorks, extStatusOf, groupExternalWorks,
-    workHasSource, workMatches, storeTargetOf, storeStatusText, StoreIntent,
+    EXT_SOURCE_NAMES, EXT_SOURCES_IF_PRESENT, ExtSourceName, ExtStatus, ExtWork, countWorks, extStatusOf,
+    groupExternalWorks, workHasSource, workHidden, workMatches, storeTargetOf, storeStatusText, StoreIntent,
 } from "../../../utils/allSources"
 
 // Phase 3a — Curate's single "All sources" tab (replaces the Scopus / OpenAlex / Crossref tabs).
@@ -64,7 +64,9 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
     const surname = (nameParts[nameParts.length - 1] || '').replace(/[.,]/g, '')
 
     const works = useMemo(() => groupExternalWorks(ext.rows), [ext.rows])
-    const n = countWorks(works)
+    // Pending leaves out works the type map hides (talks, posters, out of scope), as the tab
+    // strip's "N to review" pill does.
+    const n = countWorks(works, workHidden)
     const [viewPicked, setViewPicked] = useState<ExtStatus | null>(null)
     const view: ExtStatus = viewPicked || (n.PENDING ? 'PENDING' : 'ACCEPTED')
     const [src, setSrc] = useState<ExtSourceName | 'all'>('all')
@@ -83,7 +85,7 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
     const shown = pool.filter((w) => workHasSource(w, src) && workMatches(w, q))
     const multi = pool.filter((w) => w.sources.length > 1).length
     const srcOpts = (['all', ...EXT_SOURCE_NAMES] as (ExtSourceName | 'all')[])
-        .filter((k) => k !== 'Manual' || works.some((w) => w.sources.includes('Manual')))
+        .filter((k) => !EXT_SOURCES_IF_PRESENT.includes(k as ExtSourceName) || works.some((w) => w.sources.includes(k as ExtSourceName)))
 
     const mysql = ext.store === 'mysql'
 
