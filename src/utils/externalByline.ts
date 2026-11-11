@@ -27,9 +27,13 @@ export const bylineAuthors = (rows: BylineRow[]): BylineAuthor[] => {
   const out: BylineAuthor[] = splitByline(base.authors!).map((t, i) => ({ firstName: "", lastName: t.name, rank: i + 1 }));
   for (const r of withText) {
     if (!r.personIdentifier) continue;
-    const marked = splitByline(r.authors!).find((t) => t.marked);
-    if (!marked) continue;
-    const slot = out.find((a) => !a.personIdentifier && a.lastName.toLowerCase() === marked.name.toLowerCase());
+    const tokens = splitByline(r.authors!);
+    const at = tokens.findIndex((t) => t.marked);
+    if (at < 0) continue;
+    const name = tokens[at].name.toLowerCase();
+    const free = (a?: BylineAuthor) => !!a && !a.personIdentifier && a.lastName.toLowerCase() === name;
+    // Same position first, so two co-authors who share a name ("Wang Y") land on the right one.
+    const slot = free(out[at]) ? out[at] : out.find(free);
     if (slot) slot.personIdentifier = r.personIdentifier;
   }
   return out;

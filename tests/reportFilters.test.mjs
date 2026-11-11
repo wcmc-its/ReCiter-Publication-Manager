@@ -101,6 +101,10 @@ test('bylineAuthors: external byline rows become ranked authors with WCM people 
     ])
     assert.deepEqual(two.map((a) => a.personIdentifier), ['aaa1001', undefined, 'bbb2002'])
     assert.equal(wcmPositionText(two), 'WCM first & last author')
+    // co-authors who share a name: the marked position wins, not the first name match
+    const dup = bylineAuthors([{ personIdentifier: 'wy3003', authors: 'Wang Y, Li X, ((Wang Y))' }])
+    assert.deepEqual(dup.map((a) => a.personIdentifier), [undefined, undefined, 'wy3003'])
+    assert.equal(wcmPositionText(dup), 'WCM last author')
     // truncated byline keeps its "et al." marker as plain text
     const cut = bylineAuthors([{ personIdentifier: 'x', authors: 'A B, ..., ((C D)), et al.' }])
     assert.deepEqual(cut.map((a) => a.lastName), ['A B', '...', 'C D', 'et al.'])
