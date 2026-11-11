@@ -178,16 +178,23 @@ export const generateBibliometricDocx = async (
 export type BibliometricAvailability = { show: boolean; works: number; name: string | null };
 
 /**
- * Cheap check behind the Profile drawer button and the Reports dialog (5h B3): anyone with an
- * accepted publication in analysis_summary_author can run the analysis (the old RTF needed an
- * analysis_summary_person row, ranked full-time faculty only). `works` is that row count, which
- * includes the few errata the document itself leaves out.
+ * Cheap check behind the Profile drawer button and the Reports dialog (5h B3): anyone with a
+ * counted accepted publication can run the analysis (the old RTF needed an analysis_summary_person
+ * row, ranked full-time faculty only). `works` counts what the document's "Publications" line
+ * counts: analysis_summary_author x analysis_summary_article, one per pmid, minus
+ * pubTypeCounted = 0 (errata, retractions) when that column exists. So a person whose only rows
+ * are errata gets no button instead of a 404 from the download.
  */
 export const bibliometricAvailability = async (rawUid: unknown): Promise<BibliometricAvailability> => {
   const uid = typeof rawUid === "string" ? rawUid.trim() : "";
   if (!UID_PATTERN.test(uid)) throw new BibliometricExportError(400, "Choose one person to run a bibliometric analysis.");
+  const cols = await optionalColumns();
+  const countSql =
+    "SELECT COUNT(DISTINCT asu.pmid) AS n FROM analysis_summary_author asu " +
+    "JOIN analysis_summary_article asa ON asa.pmid = asu.pmid WHERE asu.personIdentifier = :uid" +
+    (cols.has("pubTypeCounted") ? " AND (asa.pubTypeCounted IS NULL OR asa.pubTypeCounted <> 0)" : "");
   const [countRows, personRows] = await Promise.all([
-    q("SELECT COUNT(*) AS n FROM analysis_summary_author WHERE personIdentifier = :uid", { uid }),
+    q(countSql, { uid }),
     q("SELECT firstName, lastName FROM person WHERE personIdentifier = :uid LIMIT 1", { uid }),
   ]);
   const works = Number(countRows[0]?.n || 0);
