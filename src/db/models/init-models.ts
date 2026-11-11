@@ -7,6 +7,8 @@ import { AdminFeedbackLog } from "./AdminFeedbackLog";
 import type { AdminFeedbackLogAttributes, AdminFeedbackLogCreationAttributes } from "./AdminFeedbackLog";
 import { AuthorshipReview } from "./AuthorshipReview";
 import type { AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes } from "./AuthorshipReview";
+import { PersonAuthorId } from "./PersonAuthorId";
+import type { PersonAuthorIdAttributes, PersonAuthorIdCreationAttributes } from "./PersonAuthorId";
 import { ExternalRecord } from "./ExternalRecord";
 import type { ExternalRecordAttributes, ExternalRecordCreationAttributes } from "./ExternalRecord";
 import { ExternalRecordEvent } from "./ExternalRecordEvent";
@@ -102,6 +104,7 @@ export {
   AdminDepartment,
   AdminFeedbackLog,
   AuthorshipReview,
+  PersonAuthorId,
   AdminNotificationLog,
   AdminNotificationPreference,
   AdminRole,
@@ -158,6 +161,8 @@ export type {
   AdminFeedbackLogCreationAttributes,
   AuthorshipReviewAttributes,
   AuthorshipReviewCreationAttributes,
+  PersonAuthorIdAttributes,
+  PersonAuthorIdCreationAttributes,
   AdminNotificationLogAttributes,
   AdminNotificationLogCreationAttributes,
   AdminNotificationPreferenceAttributes,
@@ -277,6 +282,7 @@ export function initModels(sequelize: Sequelize) {
   ScienceMetrix.initModel(sequelize);
   AdminSettings.initModel(sequelize);
   AuthorshipReview.initModel(sequelize);
+  PersonAuthorId.initModel(sequelize);
   ExternalRecord.initModel(sequelize);
   ExternalRecordEvent.initModel(sequelize);
   ExternalRejection.initModel(sequelize);
@@ -342,6 +348,7 @@ export function initModels(sequelize: Sequelize) {
     ScienceMetrix: ScienceMetrix,
     AdminSettings:AdminSettings,
     AuthorshipReview: AuthorshipReview,
+    PersonAuthorId: PersonAuthorId,
     ExternalRecord: ExternalRecord,
     ExternalRecordEvent: ExternalRecordEvent,
     ExternalRejection: ExternalRejection,

@@ -9,6 +9,7 @@ import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import { allowedPermissions } from "../../../utils/constants";
 import Loader from "../Common/Loader";
+import AuthorIdsCard from "./AuthorIdsCard";
 
 const ManageProfle = () => {
     const dispatch = useDispatch()
@@ -404,6 +405,9 @@ const ManageProfle = () => {
                         </div>
                     </div>
                     </>)}
+
+                    {/* ── Author profiles (Scopus / OpenAlex author ids) ── */}
+                    <AuthorIdsCard uid={String(router.query.userId || session.data.username || '')} />
                 </>
             ) : (!isCuratorSelf || !isReporterAll) ? (
                 <div className={styles.noAccess}>

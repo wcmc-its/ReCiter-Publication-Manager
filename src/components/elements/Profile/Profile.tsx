@@ -18,6 +18,7 @@ import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import { stripHtml } from "../../../utils/htmlText";
 import { degreeLines } from "../../../utils/degreeLines";
+import { AUTHOR_ID_TYPES, AUTHOR_ID_TYPE_LABEL, AuthorIdRow, authorIdUrl } from "../../../utils/authorIds";
 
 // Title/journal fields can carry PubMed inline markup (<i>, <sub>, …); strip to
 // plain text for spreadsheet cells, which can't render HTML.
@@ -66,6 +67,7 @@ const Profile = ({
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
   const [showAllRels, setShowAllRels] = useState(false);
+  const [confirmedIds, setConfirmedIds] = useState<AuthorIdRow[]>([]);
   const relsDefaultCount = 5;
 
   // Convert slugs: CO_INVESTIGATOR → Co-investigator, CTSC_PROTOCOL_ASSOCIATE → CTSC protocol associate, HR → HR
@@ -98,6 +100,7 @@ const Profile = ({
     if (modalShow) {
       setIsLoading(true);
       setShowAllRels(false);
+      fetchConfirmedIds();
       const fetchIdentityPromise = fetchIdentity();
       const showBiblioAnalysisPromise = showBiblioAnalysis();
       Promise.all([fetchIdentityPromise, showBiblioAnalysisPromise]).then(() => { setIsLoading(false); })
@@ -119,6 +122,20 @@ const Profile = ({
   }, [])
 
   // ── Data fetching ──
+
+  // Confirmed Scopus / OpenAlex author ids (person_author_id). Optional: never blocks the sheet,
+  // and an absent table or failed read just leaves the line out.
+  const fetchConfirmedIds = () => {
+    setConfirmedIds([]);
+    fetch('/api/db/author-ids/' + encodeURIComponent(uid), {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: { Accept: 'application/json', 'Authorization': reciterConfig.backendApiKey }
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setConfirmedIds((d?.ids || []).filter((r: AuthorIdRow) => r.status === 'CONFIRMED')))
+      .catch(() => setConfirmedIds([]));
+  };
 
   const fetchIdentity = async () => {
     return await fetch('/api/reciter/getidentity/' + uid, {
@@ -472,6 +489,29 @@ const Profile = ({
                 </Row>
               )}
             </Section>
+
+            {/* ── Author profiles: confirmed Scopus / OpenAlex ids, managed on Manage Profile ── */}
+            {confirmedIds.length > 0 && (
+              <Section title="Author profiles">
+                {AUTHOR_ID_TYPES.map((t) => {
+                  const rows = confirmedIds.filter((r) => r.idType === t);
+                  if (rows.length === 0) return null;
+                  return (
+                    <Row key={t} label={AUTHOR_ID_TYPE_LABEL[t]}>
+                      {rows.map((r) => (
+                        <Box component="a" key={r.idValue} href={authorIdUrl(r.idType, r.idValue)} target="_blank" rel="noreferrer"
+                          sx={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--pm-slate)' }}>{r.idValue}</Box>
+                      ))}
+                    </Row>
+                  );
+                })}
+                {canCurateThisPerson && (
+                  <Box sx={{ fontSize: 12 }}>
+                    <Link href={`/manageprofile/${uid}`} onClick={handleClose}>Manage author profiles</Link>
+                  </Box>
+                )}
+              </Section>
+            )}
 
             {/* ── Known relationships ── */}
             {(() => {
