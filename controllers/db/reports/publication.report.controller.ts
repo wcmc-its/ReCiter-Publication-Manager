@@ -7,6 +7,7 @@ import {metrics } from "../../../config/report";
 import { buildReportSort } from "./reportSort";
 import { authorPositionSql, sourceSql } from "./reportFilterSql";
 import { articleColumns } from "./reportColumns";
+import { entrezDateBoundClauses } from "./reportDateBounds";
 		
 						 
 					 
@@ -174,24 +175,10 @@ export const generatePubsPeopleOnlyRtf = async (
             },
           });
         }
-        if (apiBody.filters.datePublicationAddedToEntrezLowerBound) 
-         {
-								  
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-            },
-          });
-        }
-        if (apiBody.filters.datePublicationAddedToEntrezUpperBound)
-         {
-								  
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-            },
-          });
-        }
+        where[Op.and].push(...entrezDateBoundClauses(
+          apiBody.filters.datePublicationAddedToEntrezLowerBound,
+          apiBody.filters.datePublicationAddedToEntrezUpperBound,
+        ));
         const sourceClause = sourceSql("AnalysisSummaryArticle", apiBody.filters.sourceTypes, hasSourceColumn);
         if (sourceClause) where[Op.and].push(Sequelize.literal(sourceClause));
         if (
@@ -389,37 +376,10 @@ export const generatePubsPeopleOnlyRtf = async (
             },
           });
         }
-        if (
-          apiBody.filters.datePublicationAddedToEntrezLowerBound &&
-          apiBody.filters.datePublicationAddedToEntrezUpperBound
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-            },
-          });
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-            },
-          });
-        }
-        else if(apiBody.filters.datePublicationAddedToEntrezLowerBound )
-          {
-            where[Op.and].push({
-              "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-                [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-              },
-            });
-          }
-          else if(apiBody.filters.datePublicationAddedToEntrezUpperBound )
-          {
-            where[Op.and].push({
-              "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-                [Op.gt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-              },
-            });
-          }  
+        where[Op.and].push(...entrezDateBoundClauses(
+          apiBody.filters.datePublicationAddedToEntrezLowerBound,
+          apiBody.filters.datePublicationAddedToEntrezUpperBound,
+        ));
 
         const sourceClause = sourceSql("AnalysisSummaryArticle", apiBody.filters.sourceTypes, hasSourceColumn);
         if (sourceClause) where[Op.and].push(Sequelize.literal(sourceClause));
