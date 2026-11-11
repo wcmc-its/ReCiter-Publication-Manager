@@ -174,3 +174,24 @@ export const generateBibliometricDocx = async (
   console.log(`[bibliometric] uid=${uid} works=${works.length} counted=${out.counted} ms=${Date.now() - started} bytes=${out.buffer.length}`);
   return { buffer: out.buffer, fileName: docxFileName(uid, runDate), counted: out.counted, external: out.external, peerShown: out.peerShown };
 };
+
+export type BibliometricAvailability = { show: boolean; works: number; name: string | null };
+
+/**
+ * Cheap check behind the Profile drawer button and the Reports dialog (5h B3): anyone with an
+ * accepted publication in analysis_summary_author can run the analysis (the old RTF needed an
+ * analysis_summary_person row, ranked full-time faculty only). `works` is that row count, which
+ * includes the few errata the document itself leaves out.
+ */
+export const bibliometricAvailability = async (rawUid: unknown): Promise<BibliometricAvailability> => {
+  const uid = typeof rawUid === "string" ? rawUid.trim() : "";
+  if (!UID_PATTERN.test(uid)) throw new BibliometricExportError(400, "Choose one person to run a bibliometric analysis.");
+  const [countRows, personRows] = await Promise.all([
+    q("SELECT COUNT(*) AS n FROM analysis_summary_author WHERE personIdentifier = :uid", { uid }),
+    q("SELECT firstName, lastName FROM person WHERE personIdentifier = :uid LIMIT 1", { uid }),
+  ]);
+  const works = Number(countRows[0]?.n || 0);
+  const p = personRows[0];
+  const name = p ? [p.firstName, p.lastName].filter(Boolean).join(" ").trim() || null : null;
+  return { show: works > 0, works, name };
+};

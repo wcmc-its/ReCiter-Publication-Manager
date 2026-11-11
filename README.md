@@ -365,18 +365,25 @@ The following filters are available for articles:
 
 ### Generating a bibliometric report
 
-Here's how to generate a narrative bibliometric summary (see sample) of a full-time faculty at Weill Cornell Medicine. The summary includes h-index, h5-index, NIH-provided article-level bibliometrics, a ranking of an individual's most impactful publications, and a summary statement.
+The bibliometric analysis is a Word document (.docx) for one person, with headings, tables and native Word charts. It can be edited in Word (the charts' "Edit Data" opens their numbers) or attached to a promotion packet as is. It works for anyone with at least one accepted publication. The peer comparison section appears only for ranked full-time faculty at Weill Cornell Medicine.
 
-1. Go to "Create reports"
-1. Search for an author (e.g., "Lyden, David)
-1. In the results, click on the author's name.
-1. A modal window appears.
-1. Click on the "Generate bibliometric report" button.
-1. This will download a bibliometric summary (see below) which you can open up in Word. 
-    
-![Bibliometric report](/files/BibliometricReport.gif)
+There are two ways to run it:
 
+1. **From a profile.** Open a person's profile (for example, click their name in Reports) and click "Bibliometric analysis". The file downloads straight away.
+1. **From Reports.** Put exactly one person in the Author filter, with no person type, institution or organization filter, and click "Bibliometric analysis" next to Export Excel and Export Word. A dialog lists what the document contains; click Download. The analysis always covers all of the person's accepted publications, whatever other filters are set.
 
+The file is saved as `BibliometricAnalysis-<cwid>-<date>.docx`. It contains:
+
+- **Summary:** publications and year span (PubMed and other sources shown separately), peer reviewed, first, middle and last author counts, NIH citations, h-index and h5-index with the Scopus variant, and RCR.
+- **Peer comparison** (ranked full-time faculty only): the average NIH percentile of the person's top 5 and top 10 research articles, and their rank among faculty at the same rank.
+- **Publications by year and type** and **Authorship roles:** a chart and a table for each.
+- **Citation impact:** NIH percentile distribution of research articles.
+- **Most cited** (top 10) and the most influential first- or last-author research articles.
+- **Journals** (top 15) with Scimago Journal Rank.
+- **Recent and older articles** that don't have an NIH percentile yet, and a count of works from other sources.
+- **Methods and sources:** where each metric comes from, and the run date.
+
+Citation metrics (citations, h-index, RCR, NIH percentile) use NIH iCite on PubMed records only. Works from Scopus, OpenAlex, Crossref and manual entry are counted and listed but never used in a citation metric. For a full bibliography, use Export Word.
 
 ### Manage notifications
 
