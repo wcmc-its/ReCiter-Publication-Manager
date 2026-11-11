@@ -256,7 +256,9 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
                         <div className={styles.exNote}>
                             <div className={styles.exNoteHead}>
                                 <span>
-                                    {automerged.length} import{automerged.length === 1 ? '' : 's'} matched works already in the record and {automerged.length === 1 ? 'was' : 'were'} merged
+                                    {/* Count the listed items, which keep this session's "Not the same" steps (with Undo), so the
+                                        head never reads "0 imports" over a list that still shows one. */}
+                                    {mergedList.length} import{mergedList.length === 1 ? '' : 's'} matched works already in the record and {mergedList.length === 1 ? 'was' : 'were'} merged
                                 </span>
                                 <button type="button" className={styles.exLink} aria-expanded={showMerged} onClick={() => setShowMerged((v) => !v)}>
                                     {showMerged ? 'Hide' : 'Show'}
