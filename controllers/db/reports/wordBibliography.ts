@@ -136,10 +136,13 @@ export const buildSelection = (
 
 // ── Authors ──
 
-export type AuthorName = { name: string; wcm: boolean };
+// `gapBefore`: the stored list was already shortened and " ... " stands before this author.
+export type AuthorName = { name: string; wcm: boolean; gapBefore?: boolean };
 
-// analysis_summary_author has one row per WCM author of a paper, each carrying the full author
-// list with that author wrapped in ((…)). Merge the rows: one list, every WCM author marked.
+// analysis_summary_author has one row per WCM author of a paper, each carrying the author list
+// with that author wrapped in ((…)). Merge the rows: one list, every WCM author marked. ReCiterDB
+// stores long lists already shortened ("A, B, C, D, E, F ... Z"), so " ... " is a separator too;
+// splitting on commas alone would glue "F ... Z" into one name and drop the bold from both.
 export const mergeAuthors = (rows: Array<string | null | undefined>): AuthorName[] => {
   const strings = rows.filter((s): s is string => typeof s === "string" && s.trim() !== "");
   if (!strings.length) return [];
@@ -147,18 +150,26 @@ export const mergeAuthors = (rows: Array<string | null | undefined>): AuthorName
   for (const s of strings) {
     for (const m of s.matchAll(/\(\(([^()]*)\)\)/g)) wcm.add(m[1].trim());
   }
-  return strings[0]
+  const out: AuthorName[] = [];
+  strings[0]
     .replace(/\(\(|\)\)/g, "")
-    .split(",")
-    .map((n) => n.trim())
-    .filter(Boolean)
-    .map((name) => ({ name, wcm: wcm.has(name) }));
+    .split(/\s*\.\.\.\s*/)
+    .forEach((part, k) => {
+      const names = part.split(",").map((n) => n.trim()).filter(Boolean);
+      names.forEach((name, i) => out.push(k > 0 && i === 0 ? { name, wcm: wcm.has(name), gapBefore: true } : { name, wcm: wcm.has(name) }));
+    });
+  return out;
 };
 
-// The RTF rule: eight or more authors print as the first six, " ...", then the last.
+// The RTF rule: eight or more authors print as the first six, " ...", then the last. A list
+// ReCiterDB already shortened keeps its own " ... ".
 export const AUTHOR_TRUNCATE_AT = 8;
-export const truncateAuthors = (authors: AuthorName[]): Array<AuthorName | "ellipsis"> =>
-  authors.length < AUTHOR_TRUNCATE_AT ? authors : [...authors.slice(0, 6), "ellipsis", authors[authors.length - 1]];
+export const truncateAuthors = (authors: AuthorName[]): Array<AuthorName | "ellipsis"> => {
+  if (authors.some((a) => a.gapBefore)) {
+    return authors.flatMap((a): Array<AuthorName | "ellipsis"> => (a.gapBefore ? ["ellipsis", a] : [a]));
+  }
+  return authors.length < AUTHOR_TRUNCATE_AT ? authors : [...authors.slice(0, 6), "ellipsis", authors[authors.length - 1]];
+};
 
 // ── Inline title markup ──
 

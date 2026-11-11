@@ -73,6 +73,20 @@ test('truncateAuthors: the RTF rule (8+ -> first six, ..., last)', () => {
     assert.equal(t[7].name, 'A8')
 })
 
+test('mergeAuthors: a list ReCiterDB already shortened keeps its " ... " and the bold on both sides', () => {
+    const merged = mergeAuthors([
+        'Coleman M, Lightdale CJ, Vinciguerra VP, Degnan TJ, Goldstein M, ((Horwitz T)) ... Silver RT',
+        'Coleman M, Lightdale CJ, Vinciguerra VP, Degnan TJ, Goldstein M, Horwitz T ... ((Silver RT))',
+    ])
+    assert.equal(merged.length, 7)
+    assert.deepEqual(merged[5], { name: 'Horwitz T', wcm: true })
+    assert.deepEqual(merged[6], { name: 'Silver RT', wcm: true, gapBefore: true })
+    const segs = citationSegments({ pmid: 136525, articleTitle: 'T', authors: merged })
+    assert.equal(text(segs), 'Coleman M, Lightdale CJ, Vinciguerra VP, Degnan TJ, Goldstein M, Horwitz T ... Silver RT. T. PMID: 136525.')
+    assert.equal(segs.find((s) => s.text === 'Horwitz T').bold, true)
+    assert.equal(segs.find((s) => s.text === 'Silver RT').bold, true)
+})
+
 test('inlineSegments: keeps italics/sub/sup, drops other tags, decodes entities', () => {
     const segs = inlineSegments('Role of <i>KIAA0319L</i> in CO<sub>2</sub> &amp; <a href="x">more</a>')
     assert.equal(text(segs), 'Role of KIAA0319L in CO2 & more')
