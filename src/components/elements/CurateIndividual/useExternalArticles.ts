@@ -2,12 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "react-toastify"
 import { reciterConfig } from "../../../../config/local"
 
-// The person's ExternalArticle rows (all sources, incl. suppressed) for Curate's All sources
-// tab, with the same reads and writes the former per-source tabs (SourceArticleTab) made:
-//   GET    /api/reciter/external-article/{uid}              list
-//   POST   /api/db/external-article/feedback                reversible accept / reject (suppress)
-//   DELETE /api/reciter/external-article/{uid}?articleId=   permanent delete
-//   POST   /api/db/authorships/authors                      byline backfill for older Scopus rows
+// The person's external rows (all sources, incl. suppressed) for Curate's All sources tab.
+//   GET    /api/db/external/{uid}                   list; `store` says which store answered
+//                                                   (EXTERNAL_STORE, plan 3b-3e)
+//   POST   /api/db/authorships/authors              byline backfill for older Scopus rows
+// With store 'reciter' (default) the writes are the ones the former per-source tabs made:
+//   POST   /api/db/external-article/feedback        reversible accept / reject (suppress)
+//   DELETE /api/db/external/{uid}?articleId=        permanent delete
+// With store 'mysql' they are lifecycle steps on record ids:
+//   POST   /api/db/external/transition              {ids, to}: Accept / Reject / Remove
+//   POST   /api/db/external/undo                    {ids}: one-step Undo
 
 const apiHeaders = {
     Accept: "application/json",
@@ -50,31 +54,42 @@ const readJson = async (r: Response) => {
     return body
 }
 
+export type ExternalStore = 'reciter' | 'mysql'
+
 export type ExternalArticles = {
     rows: any[],
     loading: boolean,
     loaded: boolean,
+    // Which store answered the list (null until it has); the write path follows it.
+    store: ExternalStore | null,
     refetch: () => void,
-    // Accept or reject (suppress) each article; resolves true when every write succeeded.
+    // reciter: accept or reject (suppress) each article; resolves true when every write succeeded.
     setFeedback: (articleIds: string[], action: 'ACCEPTED' | 'REJECTED') => Promise<boolean>,
     remove: (articleId: string) => Promise<boolean>,
+    // mysql: one lifecycle step for a batch of record ids (all or nothing), and its Undo.
+    transition: (ids: number[], to: 'ACCEPTED' | 'REJECTED' | 'REMOVED') => Promise<boolean>,
+    undo: (ids: number[]) => Promise<boolean>,
 }
 
 export function useExternalArticles(uid: string | undefined): ExternalArticles {
     const [list, setList] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
     const [loaded, setLoaded] = useState(false)
+    const [store, setStore] = useState<ExternalStore | null>(null)
     // external_id -> display names for Scopus rows hydrated via the authors lookup.
     const [authorsCache, setAuthorsCache] = useState<Record<string, string[]>>({})
 
     const refetch = useCallback(() => {
         if (!uid) return
         setLoading(true)
-        fetch(`/api/reciter/external-article/${encodeURIComponent(uid)}`, {
+        fetch(`/api/db/external/${encodeURIComponent(uid)}`, {
             credentials: "same-origin", method: "GET", headers: apiHeaders,
         })
             .then(readJson)
-            .then((body) => setList(Array.isArray(body.external) ? body.external : []))
+            .then((body) => {
+                setStore(body.store === 'mysql' ? 'mysql' : 'reciter')
+                setList(Array.isArray(body.external) ? body.external : [])
+            })
             .catch(() => setList([]))
             .finally(() => { setLoading(false); setLoaded(true) })
     }, [uid])
@@ -135,7 +150,7 @@ export function useExternalArticles(uid: string | undefined): ExternalArticles {
     }, [uid, refetch])
 
     const remove = useCallback((articleId: string): Promise<boolean> => (
-        fetch(`/api/reciter/external-article/${encodeURIComponent(uid || '')}?articleId=${encodeURIComponent(articleId)}`, {
+        fetch(`/api/db/external/${encodeURIComponent(uid || '')}?articleId=${encodeURIComponent(articleId)}`, {
             credentials: "same-origin", method: "DELETE", headers: apiHeaders,
         })
             .then(readJson)
@@ -144,5 +159,21 @@ export function useExternalArticles(uid: string | undefined): ExternalArticles {
             .finally(() => refetch())
     ), [uid, refetch])
 
-    return { rows, loading, loaded, refetch, setFeedback, remove }
+    // Store steps: no optimistic flip (the rows carry status, prevStatus and who), so the list is
+    // refetched after each write; a refused step (409) or any error toasts and resolves false.
+    const storeWrite = useCallback((path: 'transition' | 'undo', body: any, verb: string): Promise<boolean> => (
+        fetch(`/api/db/external/${path}`, {
+            credentials: "same-origin", method: "POST", headers: apiHeaders, body: JSON.stringify(body),
+        })
+            .then(readJson)
+            .then(() => true)
+            .catch((err) => { toast.error(`Could not ${verb}: ` + (err.message || err)); return false })
+            .finally(() => refetch())
+    ), [refetch])
+
+    const transition = useCallback((ids: number[], to: 'ACCEPTED' | 'REJECTED' | 'REMOVED') =>
+        storeWrite('transition', { ids, to }, 'update'), [storeWrite])
+    const undo = useCallback((ids: number[]) => storeWrite('undo', { ids }, 'undo'), [storeWrite])
+
+    return { rows, loading, loaded, store, refetch, setFeedback, remove, transition, undo }
 }

@@ -4,6 +4,7 @@ import { updateGoldStandard } from "../../../../../controllers/goldstandard.cont
 import { canCurate } from "../../../../../controllers/db/authorization.controller"
 import { reciterConfig } from '../../../../../config/local'
 import { effectiveToken } from '../../../../../src/utils/viewAs'
+import { reconcileSupersedeAfterGoldStandard } from '../../../../../src/lib/externalStore'
 
 type Error = {
     statusCode: number,
@@ -52,6 +53,9 @@ export default async function handler(
 
         const apiResponse = await updateGoldStandard(req, curatedBy);
         if(apiResponse.statusCode === 200) {
+            // EXTERNAL_STORE=mysql: supersede / revive the person's external records against the
+            // new knownpmids (plan 3b-3e decision 3). No-op otherwise; never fails the write.
+            await reconcileSupersedeAfterGoldStandard(targetUid)
             res.status(apiResponse.statusCode).send({
                 statusCode: apiResponse.statusCode,
                 goldStandard: apiResponse.statusText

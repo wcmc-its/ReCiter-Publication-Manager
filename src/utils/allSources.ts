@@ -82,3 +82,26 @@ export function countWorks(works: ExtWork[]): Record<ExtStatus, number> {
     for (const w of works) n[w.status]++
     return n
 }
+
+// EXTERNAL_STORE=mysql (plan 3b-3e, 3c): the curator's three actions as lifecycle targets, per
+// row status. null = the action does not apply to a row in that status (it is left alone, or the
+// button is not offered). Accept on a REJECTED / REMOVED row puts the work back (the store's
+// re-accept, which clears its rejection memory); a SUPERSEDED or MERGED row follows its PubMed
+// twin or kept record and is not the curator's to accept here.
+export type StoreIntent = 'accept' | 'reject' | 'remove'
+export type StoreTarget = 'ACCEPTED' | 'REJECTED' | 'REMOVED'
+export function storeTargetOf(status: unknown, intent: StoreIntent): StoreTarget | null {
+    const s = String(status || '').toUpperCase()
+    if (intent === 'accept') return s === 'PENDING' || s === 'REJECTED' || s === 'REMOVED' ? 'ACCEPTED' : null
+    if (intent === 'reject') return s === 'PENDING' ? 'REJECTED' : null
+    return s === 'ACCEPTED' ? 'REMOVED' : null
+}
+
+// Why a store row sits in the Rejected view, for the row's status line.
+export function storeStatusText(row: any): string {
+    const s = String(row?.status || '').toUpperCase()
+    if (s === 'SUPERSEDED') return row?.supersededByPmid ? `Superseded by PMID ${row.supersededByPmid}` : 'Superseded by a PubMed record'
+    if (s === 'MERGED' || s === 'AUTOMERGED') return row?.mergedIntoPmid ? `Same work as PMID ${row.mergedIntoPmid}` : 'Same work as another record'
+    if (s === 'REMOVED') return row?.statusBy ? `Removed by ${row.statusBy}` : 'Removed'
+    return row?.statusBy ? `Rejected by ${row.statusBy}` : 'Rejected'
+}
