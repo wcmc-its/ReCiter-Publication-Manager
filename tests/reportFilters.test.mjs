@@ -2,8 +2,13 @@
 // helpers (source badge, ids, WCM first/last author, citation block). Run with `npm test`.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { authorPositionSql, sourceSql } from '../controllers/db/reports/reportFilterSql.ts'
-import { sourceOf, externalIdOf, pmcidHref, wcmPositionText, citationBlock } from '../src/utils/reportRow.ts'
+import {
+    authorPositionSql, sourceSql, isoDateOf, dateAddedExpr, pubDateExpr, dateRangeSql, pubTypeSql, dateTypeSql,
+} from '../controllers/db/reports/reportFilterSql.ts'
+import {
+    sourceOf, externalIdOf, pmcidHref, wcmPositionText, citationBlock, venueRecordOf, groupedTypeOptions, isGroupedTypeOptions,
+} from '../src/utils/reportRow.ts'
+import { PUB_TYPES, PUB_TYPE_GROUPS, venueOf } from '../src/lib/pubTypes.ts'
 import { bylineAuthors } from '../src/utils/externalByline.ts'
 
 test('authorPositionSql: middle is NULL, values are allowlisted', () => {
@@ -109,4 +114,100 @@ test('bylineAuthors: external byline rows become ranked authors with WCM people 
     const cut = bylineAuthors([{ personIdentifier: 'x', authors: 'A B, ..., ((C D)), et al.' }])
     assert.deepEqual(cut.map((a) => a.lastName), ['A B', '...', 'C D', 'et al.'])
     assert.equal(cut[2].personIdentifier, 'x')
+})
+
+// 5c: Date added / Publication date / grouped Type
+
+const ALL = { pubType: true, pubDate: true, dateAdded: true }
+
+test('isoDateOf: only calendar dates survive (and so are safe to inline)', () => {
+    assert.equal(isoDateOf('2025-01-31'), '2025-01-31')
+    assert.equal(isoDateOf('2025-01-31T04:00:00.000Z'), '2025-01-31')
+    assert.equal(isoDateOf("2025-01-31' OR 1=1 --"), '2025-01-31')
+    assert.equal(isoDateOf("' OR 1=1 --"), null)
+    assert.equal(isoDateOf('2025'), null)
+    assert.equal(isoDateOf(''), null)
+    assert.equal(isoDateOf(undefined), null)
+})
+
+test('dateAddedExpr: date added, else publication date, else the legacy column', () => {
+    assert.equal(dateAddedExpr('asa', ALL), "COALESCE(asa.dateAdded, asa.pubDate, NULLIF(asa.datePublicationAddedToEntrez, ''))")
+    assert.equal(dateAddedExpr('', ALL), "COALESCE(dateAdded, pubDate, NULLIF(datePublicationAddedToEntrez, ''))")
+    // before the v3.7 DDL: exactly the old column
+    assert.equal(dateAddedExpr('asa', {}), 'asa.datePublicationAddedToEntrez')
+    assert.equal(pubDateExpr('asa', ALL), "COALESCE(asa.pubDate, NULLIF(asa.publicationDateStandardized, ''))")
+    assert.equal(pubDateExpr('asa', {}), "NULLIF(asa.publicationDateStandardized, '')")
+})
+
+test('dateRangeSql: inclusive bounds, invalid bounds dropped', () => {
+    assert.equal(dateRangeSql('x', '2024-01-01', '2024-12-31'), "(x >= '2024-01-01' AND x <= '2024-12-31')")
+    assert.equal(dateRangeSql('x', '', '2024-12-31'), "(x <= '2024-12-31')")
+    assert.equal(dateRangeSql('x', '2024-01-01', null), "(x >= '2024-01-01')")
+    assert.equal(dateRangeSql('x', 'junk', ''), null)
+})
+
+test('pubTypeSql: allowlisted against PUB_TYPES, needs the column', () => {
+    assert.equal(pubTypeSql('asa', ['Review', 'Book Chapter'], true, PUB_TYPES), "(asa.pubType IN ('Review', 'Book Chapter'))")
+    assert.equal(pubTypeSql('asa', ['Review', 'Review'], true, PUB_TYPES), "(asa.pubType IN ('Review'))")
+    assert.equal(pubTypeSql('asa', ["Review') OR ('1'='1", 'Case Report'], true, PUB_TYPES), null)
+    assert.equal(pubTypeSql('asa', ['Review'], false, PUB_TYPES), null)
+    assert.equal(pubTypeSql('asa', [], true, PUB_TYPES), null)
+    assert.equal(pubTypeSql('asa', 'Review', true, PUB_TYPES), null)
+})
+
+test('dateTypeSql: one fragment per active 5c filter', () => {
+    const f = {
+        datePublicationAddedToEntrezLowerBound: '2025-07-01', datePublicationAddedToEntrezUpperBound: '',
+        pubDateLowerBound: '2020-01-01', pubDateUpperBound: '2020-12-31', pubTypes: ['Conference Paper'],
+    }
+    assert.deepEqual(dateTypeSql('asa', f, ALL, PUB_TYPES), [
+        "(COALESCE(asa.dateAdded, asa.pubDate, NULLIF(asa.datePublicationAddedToEntrez, '')) >= '2025-07-01')",
+        "(COALESCE(asa.pubDate, NULLIF(asa.publicationDateStandardized, '')) >= '2020-01-01' AND COALESCE(asa.pubDate, NULLIF(asa.publicationDateStandardized, '')) <= '2020-12-31')",
+        "(asa.pubType IN ('Conference Paper'))",
+    ])
+    // an unpatched DB: legacy date column, publicationDateStandardized, no type filter
+    assert.deepEqual(dateTypeSql('AnalysisSummaryArticle', f, {}, PUB_TYPES), [
+        "(AnalysisSummaryArticle.datePublicationAddedToEntrez >= '2025-07-01')",
+        "(NULLIF(AnalysisSummaryArticle.publicationDateStandardized, '') >= '2020-01-01' AND NULLIF(AnalysisSummaryArticle.publicationDateStandardized, '') <= '2020-12-31')",
+    ])
+    assert.deepEqual(dateTypeSql('asa', {}, ALL, PUB_TYPES), [])
+    assert.deepEqual(dateTypeSql('asa', undefined, ALL, PUB_TYPES), [])
+})
+
+test('venueRecordOf + venueOf: one venue line per type', () => {
+    // journal article (PubMed row, or no pubType yet)
+    assert.equal(venueOf(venueRecordOf({ journalTitleVerbose: 'Cell', volume: '12', issue: '3', pages: '45-67' })), 'Cell. 12(3):45-67')
+    assert.equal(venueOf(venueRecordOf({ pubType: 'Academic Article', journalTitleVerbose: 'Cell' })), 'Cell')
+    // book chapter with editors (JSON array, as ReCiterDB v3.5 stores it)
+    assert.equal(
+        venueOf(venueRecordOf({ pubType: 'Book Chapter', journalTitleVerbose: 'Hepatology', publisher: 'Elsevier', editors: '["Ada Lovelace","Charles Babbage"]', pages: '1-10' })),
+        'In: Ada Lovelace, Charles Babbage, editors. Hepatology. Elsevier; p. 1-10',
+    )
+    assert.equal(venueOf(venueRecordOf({ pubType: 'Book Chapter', journalTitleVerbose: 'Hepatology', editors: 'not json' })), 'In: Hepatology.')
+    assert.equal(venueOf(venueRecordOf({ pubType: 'Conference Paper', journalTitleVerbose: 'Proc. ASCO', publisher: 'ASCO' })), 'Proc. ASCO. ASCO')
+    assert.equal(venueOf(venueRecordOf({ pubType: 'Book', journalTitleVerbose: 'X', publisher: 'Springer' })), 'Springer')
+    assert.equal(venueOf(venueRecordOf({ pubType: 'Preprint', journalTitleVerbose: 'medRxiv' })), 'medRxiv (preprint, not peer reviewed)')
+    // fields 5c can't fill read as empty, never "undefined" / "null"
+    const r = venueRecordOf({ pubType: null, journalTitleVerbose: null, volume: null })
+    assert.equal(r.type, '')
+    assert.equal(venueOf(r), '')
+    assert.deepEqual(venueRecordOf({ volume: 7, issue: '' }), { type: '', journal: null, publisher: null, eds: [], volume: '7', issue: null, pages: null })
+})
+
+test('groupedTypeOptions: taxonomy order, unknown types and wrong groups dropped', () => {
+    const opts = groupedTypeOptions([
+        { pubTypeGroup: 'book', pubType: 'Book Chapter', count: '5718' },
+        { pubTypeGroup: 'journal', pubType: 'Review', count: 51165 },
+        { pubTypeGroup: 'journal', pubType: 'Academic Article', count: 300000 },
+        { pubTypeGroup: 'journal', pubType: 'Case Report', count: 9 },
+        { pubTypeGroup: 'other', pubType: 'Review', count: 4 },
+        { pubTypeGroup: 'conf', pubType: 'Conference Paper', count: 0 },
+    ], PUB_TYPE_GROUPS)
+    assert.deepEqual(opts.map((o) => [o.group, o.type, o.count]), [
+        ['journal', 'Academic Article', 300000], ['journal', 'Review', 51165], ['book', 'Book Chapter', 5718],
+    ])
+    assert.equal(opts[0].groupLabel, 'Journal articles')
+    assert.equal(isGroupedTypeOptions(opts), true)
+    assert.equal(isGroupedTypeOptions([{ publicationTypeCanonical: 'Review' }]), false)
+    assert.equal(isGroupedTypeOptions([]), false)
 })

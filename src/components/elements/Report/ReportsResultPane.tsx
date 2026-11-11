@@ -4,7 +4,8 @@ import { AuthorsComponent } from "../Common/AuthorsComponent";
 import { Author } from "../../../../types/Author";
 import { setReportFilterLabels, setIsVisible } from "../../../utils/constants";
 import { sanitizeInlineHtml } from "../../../utils/htmlText";
-import { citationBlock, externalIdOf, pmcidHref, sourceOf, wcmPositionText } from "../../../utils/reportRow";
+import { citationBlock, externalIdOf, pmcidHref, sourceOf, venueRecordOf, wcmPositionText } from "../../../utils/reportRow";
+import { venueOf } from "../../../lib/pubTypes";
 
 interface ReportsResultPaneProps {
   title: string
@@ -23,6 +24,13 @@ interface ReportsResultPaneProps {
   journalTitleVerbose: string
   publicationDateDisplay: string
   publicationTypeCanonical: string
+  // 5c (ReCiterDB v3.7), present only when the columns exist
+  pubType?: string | null
+  publisher?: string | null
+  editors?: string | null
+  volume?: string | null
+  issue?: string | null
+  pages?: string | null
   onClickAuthor?: (personalIdentifier: string) => void,
   reportingWebDisplay: any,
 }
@@ -47,6 +55,12 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   journalTitleVerbose,
   publicationDateDisplay,
   publicationTypeCanonical,
+  pubType,
+  publisher,
+  editors,
+  volume,
+  issue,
+  pages,
   onClickAuthor,
   reportingWebDisplay
 }) => {
@@ -64,6 +78,9 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
     { citationCountNIH: citationCount, citationCountScopus, relativeCitationRatioNIH: relativeCitationRatio, percentileNIH: percentileRank, pmid },
     { showRcr: visible("Relative Citation Ratio (NIH)"), showPct: visible("Percentile Rank") },
   );
+  // The venue line by type (pubTypes.ts venueOf), shared with the exports through venueRecordOf.
+  const venue = venueOf(venueRecordOf({ pubType, journalTitleVerbose, publisher, editors, volume, issue, pages }));
+  const typeLabel = pubType || publicationTypeCanonical;
   const jm2 = journalImpactScore2 != null && visible("Journal impact") ? ` · ${labelOf("Journal impact", "Journal metric")} ${journalImpactScore2}` : "";
 
   return (
@@ -80,11 +97,11 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
         )}
 
         <div className={styles.articleMeta}>
-          {publicationTypeCanonical && <span className={styles.typeBadge}>{publicationTypeCanonical}</span>}
+          {typeLabel && <span className={styles.typeBadge}>{typeLabel}</span>}
           <span className={`${styles.sourceBadge} ${styles[`tone_${source.tone}`]}`} title={source.tip} data-testid="source-badge">{source.label}</span>
           <span>
-            {journalTitleVerbose && <em dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(journalTitleVerbose) }} />}
-            {journalTitleVerbose && publicationDateDisplay && " · "}
+            {venue && <em data-testid="venue" dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(venue) }} />}
+            {venue && publicationDateDisplay && " · "}
             {publicationDateDisplay}
           </span>
           {pmid > 0 && (

@@ -1,5 +1,8 @@
-// Pure helpers for a /report result row (5a/5b): source badge, alternate ids, WCM first/last
-// author and the citation block. No imports so the node tests can load it directly.
+// Pure helpers for a /report result row (5a/5b/5c): source badge, alternate ids, WCM first/last
+// author, the citation block, the venue record and the grouped Type options. Type-only imports,
+// so the node tests can load it directly.
+
+import type { VenueRecord } from "../lib/pubTypes";
 
 export type SourceInfo = { key: string; label: string; tip: string; tone: "slate" | "amber" | "plain" };
 
@@ -90,3 +93,66 @@ export const citationBlock = (row: {
   else tip += " · no NIH metrics outside PubMed";
   return { count, label, pill, pillStrong: rcr != null && rcr >= 2, tip };
 };
+
+// analysis_summary_article.editors is a JSON array of "Given Surname" strings (ReCiterDB v3.5);
+// tolerate a plain string or junk rather than throw while rendering a row.
+const editorsOf = (v: unknown): string[] => {
+  if (Array.isArray(v)) return v.map(String).filter(Boolean);
+  if (typeof v !== "string" || !v.trim()) return [];
+  try {
+    const parsed = JSON.parse(v);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+};
+
+const text = (v: unknown): string | null => {
+  const s = v === null || v === undefined ? "" : String(v).trim();
+  return s ? s : null;
+};
+
+// Map a report row onto pubTypes.ts's VenueRecord, so the page and the exports (5f/5g/5h) share
+// one venue line (venueOf). Rows without a pubType (no 5c columns yet, errata, unmapped types)
+// take venueOf's journal branch: journal. volume(issue):pages. Fields 5c can't fill yet (place,
+// conf, kind, audience, degree) stay empty; venueOf skips empty fields.
+export const venueRecordOf = (row: {
+  pubType?: string | null; journalTitleVerbose?: string | null; publisher?: string | null;
+  editors?: unknown; volume?: string | number | null; issue?: string | number | null; pages?: string | null;
+}): VenueRecord => ({
+  type: text(row.pubType) || "",
+  journal: text(row.journalTitleVerbose),
+  publisher: text(row.publisher),
+  eds: editorsOf(row.editors),
+  volume: text(row.volume),
+  issue: text(row.issue),
+  pages: text(row.pages),
+});
+
+export type TypeOption = { group: string; groupLabel: string; type: string; count: number };
+
+// Rows from the Type filter endpoint (pubTypeGroup, pubType, count), put in taxonomy order. A type
+// outside the taxonomy, or filed under the wrong group, is dropped: the filter can only send
+// values the search accepts. `groups` is PUB_TYPE_GROUPS (src/lib/pubTypes.ts).
+export const groupedTypeOptions = (
+  rows: Array<{ pubTypeGroup?: string | null; pubType?: string | null; count?: number | string | null }>,
+  groups: ReadonlyArray<{ key: string; label: string; types: readonly string[] }>
+): TypeOption[] => {
+  const counts = new Map<string, number>();
+  for (const r of rows || []) {
+    const key = `${r.pubTypeGroup}|${r.pubType}`;
+    counts.set(key, (counts.get(key) || 0) + (Number(r.count) || 0));
+  }
+  const out: TypeOption[] = [];
+  for (const g of groups) {
+    for (const t of g.types) {
+      const n = counts.get(`${g.key}|${t}`);
+      if (n) out.push({ group: g.key, groupLabel: g.label, type: t, count: n });
+    }
+  }
+  return out;
+};
+
+// True when the Type filter options are the grouped kind (vs. the old publicationTypeCanonical list).
+export const isGroupedTypeOptions = (options: unknown): options is TypeOption[] =>
+  Array.isArray(options) && options.length > 0 && options.every((o: any) => o && typeof o.type === "string" && typeof o.group === "string");

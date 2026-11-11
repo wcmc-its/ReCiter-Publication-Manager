@@ -7,6 +7,8 @@ import { SliderFilter } from "./SliderFilter";
 import { CheckList } from "./CheckList";
 import { CheckboxSelect } from "./CheckboxSelect";
 import { PresetSelect } from "./PresetSelect";
+import { GroupedChecklist } from "./GroupedChecklist";
+import { isGroupedTypeOptions } from "../../../utils/reportRow";
 import * as utils from "../../../utils/reportFilters";
 import React from 'react';
 
@@ -19,6 +21,7 @@ const filterNameToState = {
   authorPosition: "authorPosition",
   source: "sourceTypes",
   date: ["datePublicationAddedToEntrezLowerBound", "datePublicationAddedToEntrezUpperBound"],
+  pubDate: ["pubDateLowerBound", "pubDateUpperBound"],
   type: "publicationTypeCanonical",
   journal: "journalTitleVerbose",
   journalRank: ["journalImpactScoreLowerBound", "journalImpactScoreUpperBound"],
@@ -100,6 +103,43 @@ const DisplayFilter = ({onClose, reportFiltersLabes,onLoadMore, filter, index,is
           onClose={onClose}
         />
       )
+    case "GroupedChecklist": {
+      // Grouped when the endpoint sent (group, type, count) rows; otherwise the old flat list.
+      const options = filterOptions[filter.options];
+      if (isGroupedTypeOptions(options)) {
+        return (
+          <GroupedChecklist
+            title={filter.name}
+            options={options}
+            onUpdateFilter={onSetSearchFilters}
+            filterName={filter.groupedValue}
+            selectedOptions={selectedFilters[filter.groupedValue] || []}
+            reportFiltersLabes={reportFiltersLabes}
+            onClose={onClose}
+          />
+        )
+      }
+      return (
+        <CheckboxSelect
+          title={filter.name}
+          options={options}
+          formatOptionTitle={null}
+          optionLabel={filter.optionLabel}
+          filterUpdateOptions={filterUpdateOptions}
+          isDynamicFetch={filter.dynamicFetchOptions}
+          value={filter.options}
+          optionValue={filter.value}
+          filterName={filterName}
+          onUpdateFilter={onSetSearchFilters}
+          selectedOptions={selectedFilters[filterName] || []}
+          authorsFilteredData = {filterOptions.authorFilterData}
+          isFilterClear={isFilterClear}
+          onLoadMore = {onLoadMore}
+          reportFiltersLabes={reportFiltersLabes}
+          onClose={onClose}
+        />
+      )
+    }
     case "Checklist":
       return (
         <CheckList

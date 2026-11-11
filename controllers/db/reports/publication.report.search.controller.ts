@@ -14,8 +14,9 @@ import {
 //import {useSession} from 'next-auth/react'									   
 import sequelize from "../../../src/db/db";
 import { QueryConstants } from "../../../src/utils/namedQueryConstants";
-import { buildReportSort } from "./reportSort";
-import { authorPositionSql, sourceSql } from "./reportFilterSql";
+import { buildReportSort, DEFAULT_REPORT_SORT } from "./reportSort";
+import { authorPositionSql, sourceSql, dateTypeSql } from "./reportFilterSql";
+import { PUB_TYPES } from "../../../src/lib/pubTypes";
 import { bylineAuthors } from "../../../src/utils/externalByline";
 import { articleColumns, articleExtraAttributes } from "./reportColumns";
 
@@ -31,7 +32,8 @@ export const publicationSearchWithFilter = async (
 ) => {
   try {
     let apiBody: PublicationSearchFilter = req.body;
-    const hasSourceColumn = (await articleColumns()).sourceType;
+    const cols = await articleColumns();
+    const hasSourceColumn = cols.sourceType;
     const extraAttrs = await articleExtraAttributes();
     if (apiBody.filters) {
       apiBody.filters.authorPosition = (apiBody.filters.authorPosition || []).filter((p) => !!authorPositionSql("x", [p]));
@@ -180,37 +182,13 @@ export const publicationSearchWithFilter = async (
         });
         isAuthorFilter = true;
       }
-      if (apiBody.filters.datePublicationAddedToEntrezLowerBound)
-       {
-        where[Op.and].push({
-          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-            [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-          },
-        });
-
-        whereForOnlyArticles[Op.and].push({
-          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-            [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-          },
-        });
-        isArticleFilter = true;
+      // Date added, Publication date and grouped Type (5c): shared fragments, see reportFilterSql.ts.
+      const dateTypeClauses = dateTypeSql("AnalysisSummaryArticle", apiBody.filters, cols, PUB_TYPES);
+      for (const clause of dateTypeClauses) {
+        where[Op.and].push(Sequelize.literal(clause));
+        whereForOnlyArticles[Op.and].push(Sequelize.literal(clause));
       }
-      if (apiBody.filters.datePublicationAddedToEntrezUpperBound)
-       { 
-        where[Op.and].push({
-          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-            [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-          },
-        });
-
-        whereForOnlyArticles[Op.and].push({
-          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-            [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-          },
-        });
-
-        isArticleFilter = true;
-      }
+      if (dateTypeClauses.length) isArticleFilter = true;
       if (
         apiBody.filters.publicationTypeCanonical &&
         apiBody.filters.publicationTypeCanonical.length > 0
@@ -292,11 +270,7 @@ export const publicationSearchWithFilter = async (
       }
     }
 
-    const sort = buildReportSort(apiBody && apiBody.sort);
-    if (!(apiBody && apiBody.sort))
-    {
-      sort.push(["datePublicationAddedToEntrez","DESC"]);
-    }
+    const sort = buildReportSort((apiBody && apiBody.sort) || DEFAULT_REPORT_SORT, cols);
 	
     let searchOutput: { count?: number; rows?: AnalysisSummaryArticle[] } = {};
     let articleResults:any  =[];
@@ -642,19 +616,7 @@ export const publicationSearchWithFilter = async (
                       replaceOfAuthPos = {"authorPosition": [authorPosition]};
               
             }
-            if(apiBody.filters.datePublicationAddedToEntrezLowerBound && apiBody.filters.datePublicationAddedToEntrezLowerBound.length > 0)
-            {
-               whereArticlesSql.push(" asa.datePublicationAddedToEntrez > :datePubEntrezLower");
-               let datePubEntrizLower = apiBody.filters.datePublicationAddedToEntrezLowerBound;
-               replaceDatePubEntrizeLower = {"datePubEntrezLower" : [datePubEntrizLower]}
-            }
-            if(apiBody.filters.datePublicationAddedToEntrezUpperBound && apiBody.filters.datePublicationAddedToEntrezUpperBound.length > 0)
-            {
-               whereArticlesSql.push(" asa.datePublicationAddedToEntrez < :datePubEntrezUpper");
-               let datePubEntrizUpper = apiBody.filters.datePublicationAddedToEntrezUpperBound;
-               replaceDatePubEntrizeUpper = {"datePubEntrezUpper" : [datePubEntrizUpper]}
-               
-            }
+            for (const clause of dateTypeSql("asa", apiBody.filters, cols, PUB_TYPES)) whereArticlesSql.push(" " + clause);
             if(apiBody.filters.publicationTypeCanonical && apiBody.filters.publicationTypeCanonical.length > 0)
             {
                whereArticlesSql.push(" asa.publicationTypeCanonical IN :publicationTypeCanonical");
@@ -799,19 +761,7 @@ export const publicationSearchWithFilter = async (
                      replaceOfPersonTypes = {"personTypes": [personTypes]};
                  }
 
-               if(apiBody.filters.datePublicationAddedToEntrezLowerBound && apiBody.filters.datePublicationAddedToEntrezLowerBound.length > 0)
-                 {
-					          whereArticlesSql.push(" asa.datePublicationAddedToEntrez > :datePubEntrezLower");
-                    let datePubEntrizLower = apiBody.filters.datePublicationAddedToEntrezLowerBound;
-                    replaceDatePubEntrizeLower = {"datePubEntrezLower" : [datePubEntrizLower]}
-                 }
-                 if(apiBody.filters.datePublicationAddedToEntrezUpperBound && apiBody.filters.datePublicationAddedToEntrezUpperBound.length > 0)
-                 {
-                    whereArticlesSql.push(" asa.datePublicationAddedToEntrez < :datePubEntrezUpper");
-                    let datePubEntrizUpper = apiBody.filters.datePublicationAddedToEntrezUpperBound;
-                    replaceDatePubEntrizeUpper = {"datePubEntrezUpper" : [datePubEntrizUpper]}
-                    
-                 }
+               for (const clause of dateTypeSql("asa", apiBody.filters, cols, PUB_TYPES)) whereArticlesSql.push(" " + clause);
                  if(apiBody.filters.publicationTypeCanonical && apiBody.filters.publicationTypeCanonical.length > 0)
                  {
                     whereArticlesSql.push(" asa.publicationTypeCanonical IN :publicationTypeCanonical");
@@ -938,19 +888,7 @@ export const publicationSearchWithFilter = async (
                       replaceOfAuthPos = {"authorPosition": [authorPosition]};
            }
 
-           if(apiBody.filters.datePublicationAddedToEntrezLowerBound && apiBody.filters.datePublicationAddedToEntrezLowerBound.length > 0)
-            {
-            whereArticlesSql.push(" asa.datePublicationAddedToEntrez > :datePubEntrezLower");
-              let datePubEntrizLower = apiBody.filters.datePublicationAddedToEntrezLowerBound;
-              replaceDatePubEntrizeLower = {"datePubEntrezLower" : [datePubEntrizLower]}
-              
-            }
-            if(apiBody.filters.datePublicationAddedToEntrezUpperBound && apiBody.filters.datePublicationAddedToEntrezUpperBound.length > 0)
-            {
-            whereArticlesSql.push(" asa.datePublicationAddedToEntrez < :datePubEntrezUpper");
-              let datePubEntrizUpper = apiBody.filters.datePublicationAddedToEntrezUpperBound;
-              replaceDatePubEntrizeUpper = {"datePubEntrezUpper" : [datePubEntrizUpper]}
-            }
+           for (const clause of dateTypeSql("asa", apiBody.filters, cols, PUB_TYPES)) whereArticlesSql.push(" " + clause);
             if(apiBody.filters.publicationTypeCanonical && apiBody.filters.publicationTypeCanonical.length > 0)
             {
             whereArticlesSql.push(" asa.publicationTypeCanonical IN :publicationTypeCanonical");
@@ -1180,7 +1118,8 @@ export const publicationSearchWithFilterPmids = async (
 ) => {
   try {
     let apiBody: PublicationSearchFilter = req.body;
-    const hasSourceColumn = (await articleColumns()).sourceType;
+    const cols = await articleColumns();
+    const hasSourceColumn = cols.sourceType;
     if (apiBody.filters) {
       apiBody.filters.authorPosition = (apiBody.filters.authorPosition || []).filter((p) => !!authorPositionSql("x", [p]));
     }
@@ -1336,37 +1275,13 @@ export const publicationSearchWithFilterPmids = async (
         });
         isAuthorFilter = true;
       }
-      if (apiBody.filters.datePublicationAddedToEntrezLowerBound)
-       {
-        where[Op.and].push({
-          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-            [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-          },
-        });
-
-        whereForOnlyArticles[Op.and].push({
-          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-            [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-          },
-        });
-        isArticleFilter = true;
+      // Date added, Publication date and grouped Type (5c): shared fragments, see reportFilterSql.ts.
+      const dateTypeClauses = dateTypeSql("AnalysisSummaryArticle", apiBody.filters, cols, PUB_TYPES);
+      for (const clause of dateTypeClauses) {
+        where[Op.and].push(Sequelize.literal(clause));
+        whereForOnlyArticles[Op.and].push(Sequelize.literal(clause));
       }
-      if (apiBody.filters.datePublicationAddedToEntrezUpperBound)
-       { 
-        where[Op.and].push({
-          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-            [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-          },
-        });
-
-        whereForOnlyArticles[Op.and].push({
-          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-            [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-          },
-        });
-
-        isArticleFilter = true;
-      }
+      if (dateTypeClauses.length) isArticleFilter = true;
       if (
         apiBody.filters.publicationTypeCanonical &&
         apiBody.filters.publicationTypeCanonical.length > 0
@@ -1448,11 +1363,7 @@ export const publicationSearchWithFilterPmids = async (
       }
     }
 	
-    const sort = buildReportSort(apiBody && apiBody.sort);
-    if (!(apiBody && apiBody.sort))
-    {
-      sort.push(["datePublicationAddedToEntrez","DESC"]);
-    }
+    const sort = buildReportSort((apiBody && apiBody.sort) || DEFAULT_REPORT_SORT, cols);
 	
     let results:any  =[];
     let resultsCount;
@@ -1460,20 +1371,7 @@ export const publicationSearchWithFilterPmids = async (
     if (isAuthorFilter || isArticleFilter) {
     
       if(!isAuthorFilter && isArticleFilter){   // Filter Only with Articles and not Authors
-        if(apiBody.filters.datePublicationAddedToEntrezLowerBound && apiBody.filters.datePublicationAddedToEntrezLowerBound.length > 0)
-        {
-             whereArticlesSql.push(" asa.datePublicationAddedToEntrez > :datePubEntrezLower");
-             let datePubEntrizLower = apiBody.filters.datePublicationAddedToEntrezLowerBound;
-             replaceDatePubEntrizeLower = {"datePubEntrezLower" : [datePubEntrizLower]}
-    
-        }
-        if(apiBody.filters.datePublicationAddedToEntrezUpperBound && apiBody.filters.datePublicationAddedToEntrezUpperBound.length > 0)
-        {
-             whereArticlesSql.push(" asa.datePublicationAddedToEntrez < :datePubEntrezUpper");
-             let datePubEntrizUpper = apiBody.filters.datePublicationAddedToEntrezUpperBound;
-             replaceDatePubEntrizeUpper = {"datePubEntrezUpper" : [datePubEntrizUpper]}
-         
-        }
+        for (const clause of dateTypeSql("asa", apiBody.filters, cols, PUB_TYPES)) whereArticlesSql.push(" " + clause);
         if(apiBody.filters.publicationTypeCanonical && apiBody.filters.publicationTypeCanonical.length > 0)
         {
            whereArticlesSql.push(" asa.publicationTypeCanonical IN :publicationTypeCanonical");

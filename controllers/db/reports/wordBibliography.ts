@@ -22,6 +22,10 @@ export type ReportFilters = {
   journalTitleVerbose?: string[];
   journalImpactScoreLowerBound?: number | string;
   journalImpactScoreUpperBound?: number | string;
+  // 5c
+  pubDateLowerBound?: string;
+  pubDateUpperBound?: string;
+  pubTypes?: string[];
 };
 
 const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => x !== null && x !== undefined && String(x) !== "").map(String) : []);
@@ -44,6 +48,9 @@ export const hasReportFilter = (f: ReportFilters | null | undefined): boolean =>
     hasAuthorFilter(f) ||
     list(f.sourceTypes).length > 0 ||
     list(f.publicationTypeCanonical).length > 0 ||
+    list(f.pubTypes).length > 0 ||
+    !!str(f.pubDateLowerBound) ||
+    !!str(f.pubDateUpperBound) ||
     list(f.journalTitleVerbose).length > 0 ||
     !!str(f.datePublicationAddedToEntrezLowerBound) ||
     !!str(f.datePublicationAddedToEntrezUpperBound) ||
@@ -56,12 +63,14 @@ export type Selection = { from: string; where: string; replacements: Record<stri
 
 // FROM/WHERE for the rows the /report page lists, with the page's raw-SQL semantics: an author
 // filter joins person (and person_person_type for person types); article filters apply to `asa`.
-// `authorClause` and `sourceClause` come from reportFilterSql (authorPositionSql("asu", …),
-// sourceSql("asa", …)) so Middle and Source match the page exactly. Every value is a replacement
-// except those two allowlisted fragments.
+// `authorClause`, `sourceClause` and `dateTypeClauses` come from reportFilterSql
+// (authorPositionSql("asu", …), sourceSql("asa", …), dateTypeSql("asa", …)) so Middle, Source,
+// the date ranges and the grouped Type match the page exactly. Every value is a replacement except
+// those allowlisted fragments. Without `dateTypeClauses` the Date added range falls back to the
+// legacy column comparison.
 export const buildSelection = (
   f: ReportFilters,
-  opts: { authorClause?: string | null; sourceClause?: string | null; includeExternal?: boolean } = {}
+  opts: { authorClause?: string | null; sourceClause?: string | null; dateTypeClauses?: string[]; includeExternal?: boolean } = {}
 ): Selection => {
   const where: string[] = [];
   const r: Record<string, unknown> = {};
@@ -97,15 +106,19 @@ export const buildSelection = (
   }
   if (opts.authorClause) where.push(opts.authorClause);
 
-  const lower = str(f.datePublicationAddedToEntrezLowerBound);
-  if (lower) {
-    where.push("asa.datePublicationAddedToEntrez > :dateLower");
-    r.dateLower = lower;
-  }
-  const upper = str(f.datePublicationAddedToEntrezUpperBound);
-  if (upper) {
-    where.push("asa.datePublicationAddedToEntrez < :dateUpper");
-    r.dateUpper = upper;
+  if (opts.dateTypeClauses) {
+    where.push(...opts.dateTypeClauses);
+  } else {
+    const lower = str(f.datePublicationAddedToEntrezLowerBound);
+    if (lower) {
+      where.push("asa.datePublicationAddedToEntrez > :dateLower");
+      r.dateLower = lower;
+    }
+    const upper = str(f.datePublicationAddedToEntrezUpperBound);
+    if (upper) {
+      where.push("asa.datePublicationAddedToEntrez < :dateUpper");
+      r.dateUpper = upper;
+    }
   }
   const types = list(f.publicationTypeCanonical);
   if (types.length) {

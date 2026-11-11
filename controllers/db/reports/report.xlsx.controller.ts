@@ -7,8 +7,9 @@ import Excel from "exceljs";
 import sequelize from "../../../src/db/db";
 import { metrics, labels } from "../../../config/report";
 import { stripHtml } from "../../../src/utils/htmlText";
-import { authorPositionSql, sourceSql } from "./reportFilterSql";
-import { REPORT_SORT_COLUMNS } from "./reportSort";
+import { authorPositionSql, sourceSql, dateTypeSql } from "./reportFilterSql";
+import { PUB_TYPES } from "../../../src/lib/pubTypes";
+import { reportSortExpr, DEFAULT_REPORT_SORT } from "./reportSort";
 import { articleColumns } from "./reportColumns";
 import {
   ReportExportFilters,
@@ -35,7 +36,8 @@ export type XlsxExportBody = {
 export type XlsxExportPlan = {
   where: ReportExportWhere;
   filters: ReportExportFilters;
-  sortColumn: string | null;
+  sortColumn: string | null; // SQL expression from reportSortExpr (inlined)
+  sortKey: string | null; // the sort key the page sent, for the About sheet
   sortOrder?: string;
   articleCount: number;
   authorshipCount: number;
@@ -127,22 +129,25 @@ const countOf = async (sql: string, replacements: Record<string, unknown>): Prom
 // Validates the body and counts both sheets. Throws ExportRequestError (-> 400) when unfiltered.
 export const planXlsxExport = async (body: XlsxExportBody): Promise<XlsxExportPlan> => {
   const filters: ReportExportFilters = (body && body.filters) || {};
-  const hasSourceColumn = (await articleColumns()).sourceType;
+  const cols = await articleColumns();
   const fragments = {
     authorPosition: authorPositionSql("asu", filters.authorPosition),
-    source: sourceSql("asa", filters.sourceTypes, hasSourceColumn),
+    source: sourceSql("asa", filters.sourceTypes, cols.sourceType),
+    dateType: dateTypeSql("asa", filters, cols, PUB_TYPES),
   };
   if (!hasAnyFilter(filters, fragments)) {
     throw new ExportRequestError("Add at least one filter before exporting. An export of every publication is too large to generate.");
   }
   const where = buildReportExportWhere(filters, fragments);
   const sort = body && body.sort;
-  const sortColumn = sort && Object.prototype.hasOwnProperty.call(REPORT_SORT_COLUMNS, sort.type) ? REPORT_SORT_COLUMNS[sort.type] : null;
+  // No (or an unknown) sort: newest added first, the same default as the page.
+  const requested = (sort && reportSortExpr(sort.type, "asa", cols)) || null;
+  const sortColumn = requested || reportSortExpr(DEFAULT_REPORT_SORT.type, "asa", cols) || null;
   const [articleCount, authorshipCount] = await Promise.all([
     countOf(articleCountSql(where), where.replacements),
     countOf(authorshipCountSql(where), where.replacements),
   ]);
-  return { where, filters, sortColumn, sortOrder: sort && sort.order, articleCount, authorshipCount };
+  return { where, filters, sortColumn, sortKey: requested ? String(sort.type) : null, sortOrder: requested ? sort.order : DEFAULT_REPORT_SORT.order, articleCount, authorshipCount };
 };
 
 const articleSelect = async (): Promise<string> => {
@@ -299,7 +304,7 @@ export const streamXlsxExport = async (plan: XlsxExportPlan, res: NextApiRespons
   line("Authorships in this file", authRows);
   line("Row limit", `At most ${XLSX_MAX_ARTICLES.toLocaleString("en-US")} publications and ${XLSX_MAX_AUTHORSHIPS.toLocaleString("en-US")} authorships per file.` +
     (plan.articleCount > pubRows || plan.authorshipCount > authRows ? " This file hit the limit: narrow the filters to get the rest." : ""));
-  line("Sort", plan.sortColumn ? `${plan.sortColumn} ${String(plan.sortOrder || "").toUpperCase() === "ASC" ? "ascending" : "descending"}` : "Date added, newest first");
+  line("Sort", plan.sortKey ? `${plan.sortKey} ${String(plan.sortOrder || "").toUpperCase() === "ASC" ? "ascending" : "descending"}` : "Date added, newest first");
   line("", "");
   line("Filters applied", "");
   describeFilters(plan.filters).forEach(([k, v]) => line(`  ${k}`, v));

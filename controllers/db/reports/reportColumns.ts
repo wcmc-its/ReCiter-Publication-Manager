@@ -1,9 +1,38 @@
 import sequelize from "../../../src/db/db";
 
-// analysis_summary_article.source_type / article_id arrived with ReCiterDB v1.6 / v1.7. The PM
-// model doesn't declare them, and a database that predates them (the dev DB) must keep working,
-// so look once per process and only select or filter on the columns that exist.
-type ArticleColumns = { sourceType: boolean; articleId: boolean };
+// Optional analysis_summary_article columns: source_type / article_id (ReCiterDB v1.6 / v1.7) and
+// the 5c columns (v3.7: pubType, pubTypeGroup, pubDate, dateAdded, publisher, isbn, editors, ...).
+// The PM model declares none of them, and a database that predates them (the dev DB, or prod
+// before the DDL) must keep working, so look once per process and only select, filter or sort on
+// the columns that exist.
+export type ArticleColumns = {
+  sourceType: boolean;
+  articleId: boolean;
+  pubType: boolean;
+  pubTypeGroup: boolean;
+  pubDate: boolean;
+  pubDatePrecision: boolean;
+  dateAdded: boolean;
+  publisher: boolean;
+  isbn: boolean;
+  editors: boolean;
+};
+
+// [column name, ArticleColumns key = result-row attribute name]
+const PROBED: Array<[string, keyof ArticleColumns]> = [
+  ["source_type", "sourceType"],
+  ["article_id", "articleId"],
+  ["pubType", "pubType"],
+  ["pubTypeGroup", "pubTypeGroup"],
+  ["pubDate", "pubDate"],
+  ["pubDatePrecision", "pubDatePrecision"],
+  ["dateAdded", "dateAdded"],
+  ["publisher", "publisher"],
+  ["isbn", "isbn"],
+  ["editors", "editors"],
+];
+
+const none = (): ArticleColumns => Object.fromEntries(PROBED.map(([, key]) => [key, false])) as ArticleColumns;
 
 let cached: Promise<ArticleColumns> | null = null;
 
@@ -13,27 +42,27 @@ export const articleColumns = (): Promise<ArticleColumns> => {
       .query(
         "SELECT column_name AS name FROM information_schema.columns " +
           "WHERE table_schema = DATABASE() AND table_name = 'analysis_summary_article' " +
-          "AND column_name IN ('source_type', 'article_id')",
+          `AND column_name IN (${PROBED.map(([col]) => `'${col}'`).join(", ")})`,
         { raw: true, plain: false }
       )
       .then(([rows]: any) => {
         const names = new Set((rows || []).map((r: any) => String(r.name || r.NAME || r.COLUMN_NAME).toLowerCase()));
-        return { sourceType: names.has("source_type"), articleId: names.has("article_id") };
+        const out = none();
+        for (const [col, key] of PROBED) out[key] = names.has(col.toLowerCase());
+        return out;
       })
       .catch((e) => {
         cached = null; // retry on the next request
         console.log("[reports] column probe failed", e?.message);
-        return { sourceType: false, articleId: false };
+        return none();
       });
   }
   return cached;
 };
 
-// Extra AnalysisSummaryArticle attributes for result rows: the Source badge and the external id.
+// Extra AnalysisSummaryArticle attributes for result rows: the Source badge, the external id and
+// the 5c type / date / venue fields.
 export const articleExtraAttributes = async (): Promise<[string, string][]> => {
   const cols = await articleColumns();
-  const out: [string, string][] = [];
-  if (cols.sourceType) out.push(["source_type", "sourceType"]);
-  if (cols.articleId) out.push(["article_id", "articleId"]);
-  return out;
+  return PROBED.filter(([, key]) => cols[key]).map(([col, key]) => [col, key] as [string, string]);
 };

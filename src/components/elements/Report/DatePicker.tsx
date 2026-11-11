@@ -64,7 +64,7 @@ export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, sel
 
   return (
     <Dropdown className="d-inline-block" autoClose="outside" show={show} onToggle={onToggle}>
-      <Dropdown.Toggle ref={toggleRef} variant={(startDate || endDate) ? "primary" : "white"} id="dropdown-date">
+      <Dropdown.Toggle ref={toggleRef} variant={(startDate || endDate) ? "primary" : "white"} id={`dropdown-date-${String(name).toLowerCase().replace(/\W+/g, "-")}`}>
         {(() => {
           const l = setReportFilterLabels(reportFiltersLabes, name) || name;
           if (activePreset) return `${l}: ${activePreset}`;
@@ -77,7 +77,7 @@ export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, sel
       <Dropdown.Menu style={{ padding: 0, minWidth: 280 }}>
         {/* Header */}
         <div className={styles.ddHeader}>
-          <span className={styles.ddHeaderLabel}>Date range</span>
+          <span className={styles.ddHeaderLabel}>{name || "Date range"}</span>
           <button className={styles.ddClear} onClick={handleClear}>Clear</button>
         </div>
 

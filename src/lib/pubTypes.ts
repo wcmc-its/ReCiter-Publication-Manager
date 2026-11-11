@@ -223,6 +223,13 @@ export const mapSourceType = (source: PubSource | string, sourceType: string | r
   return (table && Object.prototype.hasOwnProperty.call(table, key) && table[key]) || UNMAPPED;
 };
 
+// Every normalized key one source's map knows. scripts/check-pub-type-map.mjs compares these with
+// ReCiterDB's pub_type_map seed (setup/seed_pub_type_map.sql), which is generated from this file.
+export const sourceTypeKeys = (source: "crossref" | "openalex" | "scopus" | "orcid"): string[] => {
+  const table = source === "crossref" ? CROSSREF : source === "openalex" ? OPENALEX : source === "scopus" ? SCOPUS : ORCID;
+  return Object.keys(table);
+};
+
 // Venue line
 
 export interface VenueRecord {
