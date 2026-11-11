@@ -76,6 +76,10 @@ export function countedWorks(works: BiblioWork[]): BiblioWork[] {
 
 const isPeerReviewed = (w: BiblioWork): boolean => w.peerReviewed === true || num(w.peerReviewed) === 1;
 const isResearchArticle = (w: BiblioWork): boolean => !isExternal(w) && w.publicationTypeNIH === "Research Article";
+/** iCite computed an NIH percentile. reciterdb stores "not computed" as 0, never NULL (dev
+ *  2026-11-11: 19,283 research-article rows at 0, none NULL, 4,188 of them pre-1980), and the
+ *  RTF's recent list already reads 0 as "no percentile yet", so 0 and NULL both mean none. */
+export const hasPercentile = (w: BiblioWork): boolean => (num(w.percentileNIH) ?? 0) > 0;
 
 // ---------------------------------------------------------------------------------------------
 // h-index
@@ -341,8 +345,8 @@ export function percentileBins(works: BiblioWork[]): { labels: string[]; counts:
   let total = 0;
   for (const w of countedWorks(works)) {
     if (!isResearchArticle(w)) continue;
-    const p = num(w.percentileNIH);
-    if (p === null) continue;
+    if (!hasPercentile(w)) continue;
+    const p = num(w.percentileNIH)!;
     counts[Math.max(0, Math.min(9, Math.floor(p / 10)))]++;
     total++;
   }
@@ -410,7 +414,7 @@ export function recentArticles(works: BiblioWork[], asOf: string, n = 25): Bibli
 export function olderArticles(works: BiblioWork[], n = 25): BiblioWork[] {
   return countedWorks(works)
     .filter(isResearchArticle)
-    .filter((w) => num(w.percentileNIH) === null && (num(w.articleYear) ?? 9999) < 1980)
+    .filter((w) => !hasPercentile(w) && (num(w.articleYear) ?? 9999) < 1980)
     .sort((a, b) => positionRank(a) - positionRank(b)
       || desc(num(a.citationCountNIH), num(b.citationCountNIH))
       || num(b.pmid)! - num(a.pmid)!)
@@ -482,7 +486,7 @@ export function summaryStats(works: BiblioWork[], opts: { hasPeerReviewed: boole
   const externalBySource: Record<string, number> = {};
   for (const w of counted) if (isExternal(w)) externalBySource[sourceOf(w)] = (externalBySource[sourceOf(w)] ?? 0) + 1;
   const years = counted.map(workYear).filter((y): y is number => y !== null);
-  const research = pubmed.filter(isResearchArticle).filter((w) => num(w.percentileNIH) !== null);
+  const research = pubmed.filter(isResearchArticle).filter(hasPercentile);
   const rcr = research.map((w) => num(w.relativeCitationRatioNIH)).filter((v): v is number => v !== null);
   return {
     counted: counted.length,

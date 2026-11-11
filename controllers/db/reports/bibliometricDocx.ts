@@ -109,7 +109,8 @@ const round2 = (v: unknown): string => {
   const n = numOrNull(v);
   return n === null ? "n/a" : (Math.round(Math.fround(n) * 100) / 100).toFixed(2);
 };
-const pctText = (v: unknown): string => (numOrNull(v) === null ? "n/a" : round1(v));
+/** 0 is reciterdb's "no percentile yet" (see hasPercentile), not the 0th percentile. */
+const pctText = (v: unknown): string => ((numOrNull(v) ?? 0) > 0 ? round1(v) : "n/a");
 
 const text = (t: string, opts: { bold?: boolean; italics?: boolean } = {}) => new TextRun({ text: t, ...opts });
 const link = (label: string, url: string) =>

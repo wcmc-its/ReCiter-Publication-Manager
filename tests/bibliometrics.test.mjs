@@ -183,15 +183,15 @@ test('positions: NULL on PubMed is middle, NULL on external is "not set" (own se
     assert.deepEqual(positionCounts(mixed), { first: 1, middle: 1, last: 0, notSet: 1 })
 })
 
-test('percentileBins: research articles with a percentile, 100 in the top bin, externals skipped', () => {
+test('percentileBins: research articles with a percentile, 100 in the top bin, 0 (not computed) and externals skipped', () => {
     const ra = (p) => w({ publicationTypeNIH: 'Research Article', percentileNIH: p })
     const works = [ra(0), ra(9.99), ra(10), ra(50), ra(89.9), ra(90), ra(100), ra(null),
         w({ publicationTypeNIH: 'Other', percentileNIH: 70 }),
         ext({ publicationTypeNIH: 'Research Article', percentileNIH: 95 })]
     const b = percentileBins(works)
     assert.equal(b.labels.length, 10)
-    assert.deepEqual(b.counts, [2, 1, 0, 0, 0, 1, 0, 0, 1, 2])
-    assert.equal(b.total, 7)
+    assert.deepEqual(b.counts, [1, 1, 0, 0, 0, 1, 0, 0, 1, 2])
+    assert.equal(b.total, 6)
 })
 
 test('mostCited: PubMed only, citations desc, RCR breaks ties, capped', () => {
@@ -237,7 +237,9 @@ test('olderArticles: before 1980, no percentile, by position then citations', ()
     const o3 = ra({ articleYear: 1979, authorPosition: 'first', citationCountNIH: 1 })
     const late = ra({ articleYear: 1980 })
     const pct = ra({ articleYear: 1975, percentileNIH: 50 })
-    assert.deepEqual(olderArticles([o1, o2, o3, late, pct]).map((x) => x.pmid), [o3.pmid, o2.pmid, o1.pmid])
+    // reciterdb stores a missing percentile as 0, never NULL
+    const zero = ra({ articleYear: 1977, percentileNIH: 0, relativeCitationRatioNIH: 0, citationCountNIH: 20 })
+    assert.deepEqual(olderArticles([o1, o2, o3, late, pct, zero]).map((x) => x.pmid), [o3.pmid, o2.pmid, zero.pmid, o1.pmid])
 })
 
 test('journals: case-insensitive grouping, publisher fallback, newest SJR, top N', () => {
@@ -261,7 +263,7 @@ test('summaryStats: counts, external by source, citations PubMed-only, RCR and t
     const works = [
         ra({ articleYear: 2001, authorPosition: 'first', citationCountNIH: 10, percentileNIH: 95, relativeCitationRatioNIH: 3, peerReviewed: 1 }),
         ra({ articleYear: 2010, authorPosition: 'last', citationCountNIH: 5, percentileNIH: 50, relativeCitationRatioNIH: 1, peerReviewed: 1 }),
-        ra({ articleYear: 2012, citationCountNIH: 2, percentileNIH: null, peerReviewed: 1 }),
+        ra({ articleYear: 2012, citationCountNIH: 2, percentileNIH: 0, relativeCitationRatioNIH: 0, peerReviewed: 1 }), // 0 = not computed
         w({ articleYear: 2013, citationCountNIH: 100, pubTypeCounted: 0 }),
         ext({ sourceType: 'OPENALEX', pubDate: '2024-03-01', citationCountNIH: 77, peerReviewed: 0 }),
         ext({ sourceType: 'SCOPUS', articleYear: 2020, peerReviewed: 1 }),
