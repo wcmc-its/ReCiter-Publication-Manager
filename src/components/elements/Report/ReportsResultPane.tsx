@@ -4,7 +4,7 @@ import { AuthorsComponent } from "../Common/AuthorsComponent";
 import { Author } from "../../../../types/Author";
 import { setReportFilterLabels, setIsVisible } from "../../../utils/constants";
 import { sanitizeInlineHtml } from "../../../utils/htmlText";
-import { citationBlock, externalIdOf, pmcidHref, sourceOf, venueRecordOf, wcmPositionText } from "../../../utils/reportRow";
+import { authorRoleNote, bylineRoleSuffix, citationBlock, externalIdOf, notPeerReviewedChip, pmcidHref, sourceOf, venueRecordOf, wcmPositionText } from "../../../utils/reportRow";
 import { venueOf } from "../../../lib/pubTypes";
 
 interface ReportsResultPaneProps {
@@ -31,6 +31,9 @@ interface ReportsResultPaneProps {
   volume?: string | null
   issue?: string | null
   pages?: string | null
+  // 5d-1 (ReCiterDB v3.10), present only when the columns exist
+  peerReviewed?: number | string | null
+  peerReviewedSource?: string | null
   onClickAuthor?: (personalIdentifier: string) => void,
   reportingWebDisplay: any,
 }
@@ -61,6 +64,8 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   volume,
   issue,
   pages,
+  peerReviewed,
+  peerReviewedSource,
   onClickAuthor,
   reportingWebDisplay
 }) => {
@@ -81,6 +86,13 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   // The venue line by type (pubTypes.ts venueOf), shared with the exports through venueRecordOf.
   const venue = venueOf(venueRecordOf({ pubType, journalTitleVerbose, publisher, editors, volume, issue, pages }));
   const typeLabel = pubType || publicationTypeCanonical;
+  const notPr = notPeerReviewedChip({ peerReviewed, peerReviewedSource, pubType });
+  // Roles after names: "(translator)" after a person, or ", editors" after an edited book's byline.
+  const byline = (authors || []).map((a) => {
+    const note = authorRoleNote(pubType, a?.role);
+    return note ? { ...a, roleNote: note } : a;
+  });
+  const bylineSuffix = bylineRoleSuffix(pubType, byline.length);
   const jm2 = journalImpactScore2 != null && visible("Journal impact") ? ` · ${labelOf("Journal impact", "Journal metric")} ${journalImpactScore2}` : "";
 
   return (
@@ -92,12 +104,13 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
             reciterdb, so show nothing rather than "No authors listed". */}
         {(Number(pmid) > 0 || (authors && authors.length > 0)) && (
           <div className={styles.articleAuthors}>
-            <AuthorsComponent authors={authors} onClick={onClickAuthor} />
+            <AuthorsComponent authors={byline} onClick={onClickAuthor} suffix={bylineSuffix} />
           </div>
         )}
 
         <div className={styles.articleMeta}>
           {typeLabel && <span className={styles.typeBadge}>{typeLabel}</span>}
+          {notPr && <span className={styles.notPeerReviewed} title={notPr.tip} data-testid="not-peer-reviewed">Not peer-reviewed</span>}
           <span className={`${styles.sourceBadge} ${styles[`tone_${source.tone}`]}`} title={source.tip} data-testid="source-badge">{source.label}</span>
           <span>
             {venue && <em data-testid="venue" dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(venue) }} />}

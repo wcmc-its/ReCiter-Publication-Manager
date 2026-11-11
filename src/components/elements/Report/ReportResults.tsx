@@ -59,6 +59,8 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ reportingWebDispla
           volume={row.volume}
           issue={row.issue}
           pages={row.pages}
+          peerReviewed={row.peerReviewed}
+          peerReviewedSource={row.peerReviewedSource}
           onClickAuthor={onClickAuthor}
           reportingWebDisplay={reportingWebDisplay}
         />

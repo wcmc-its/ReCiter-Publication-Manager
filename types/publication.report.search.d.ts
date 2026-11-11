@@ -16,6 +16,8 @@ export type PublicationSearchFilter = {
         pubDateUpperBound?: string, // format: YYYY-MM-DD
         // grouped Type filter (one of the 18 PUB_TYPES), 5c; needs analysis_summary_article.pubType
         pubTypes?: Array<string>,
+        // Peer review, 5d-1: ["yes"] or ["no"] (empty = Any); needs analysis_summary_article.peerReviewed
+        peerReview?: Array<string>,
         // the old flat Type list; still honored for saved settings and links
         publicationTypeCanonical?: Array<string>,
         journalTitleVerbose?: Array<string>,

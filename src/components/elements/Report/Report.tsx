@@ -48,6 +48,7 @@ const Report = () => {
   const articleTypeFilterData = useSelector((state: RootStateOrAny) => state.articleTypeFilterData)
   const authorFilterData = useSelector((state: RootStateOrAny) => state.authorFilterData)
   const dateFilterData = useSelector((state: RootStateOrAny) => state.dateFilterData)
+  const peerReviewFilterData = useSelector((state: RootStateOrAny) => state.peerReviewFilterData)
   const journalFilterData = useSelector((state: RootStateOrAny) => state.journalFilterData)
   const journalRankFilterData = useSelector((state: RootStateOrAny) => state.journalRankFilterData)
   const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
@@ -211,6 +212,7 @@ const Report = () => {
     pubDateFilterData: dateFilterData
       .filter((r: any) => r && (r.minPubDate || r.maxPubDate))
       .map((r: any) => ({ minDate: r.minPubDate, maxDate: r.maxPubDate })),
+    peerReviewFilterData: [...(peerReviewFilterData || [])],
     journalFilterData: [...journalFilterData],
     journalRankFilterData: [...journalRankFilterData],
     orgUnitsData: [...orgUnitsData],
@@ -362,7 +364,9 @@ const Report = () => {
     // 5c: Publication date range and the grouped Type filter count as article filters too.
     const { pubDateLowerBound, pubDateUpperBound } = pubSearchFilter.filters;
     const pubTypes = pubSearchFilter.filters.pubTypes || [];
-    const has5c = !!pubDateLowerBound || !!pubDateUpperBound || pubTypes.length > 0;
+    // 5d-1: Peer review is an article filter too.
+    const peerReview = pubSearchFilter.filters.peerReview || [];
+    const has5c = !!pubDateLowerBound || !!pubDateUpperBound || pubTypes.length > 0 || peerReview.length > 0;
     let journalImpactScoreLowerBound1 = journalImpactScoreLowerBound;
     let journalImpactScoreUpperBound2 = journalImpactScoreUpperBound;
     

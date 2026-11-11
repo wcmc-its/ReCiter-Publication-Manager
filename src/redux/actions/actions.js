@@ -1327,6 +1327,33 @@ const getDateFilter = () => async (dispatch) => {
     })
 }
 
+// Peer Review Filter (5d-1). A failure only hides the filter, so no toast.
+const getPeerReviewFilter = () => async (dispatch) => {
+    return fetch('/api/db/reports/filter/peerreview', {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        }
+    })
+        .then(response => (response.status === 200 ? response.json() : []))
+        .then(data => {
+            dispatch({
+                type: methods.PEER_REVIEW_FILTER_CHANGE_ALL_DATA,
+                payload: data
+            })
+        })
+        .catch(error => {
+            console.log(error)
+            dispatch({
+                type: methods.PEER_REVIEW_FILTER_CHANGE_ALL_DATA,
+                payload: []
+            })
+        })
+}
+
 // Article Type Filter
 const getArticleTypeFilter = () => async (dispatch) => {
     return fetch('/api/db/reports/filter/articletype', {
@@ -1716,6 +1743,7 @@ export const reportsFilters = (authorFilter, journalFilter) => dispatch => {
         // dispatch(getAuthorsFilter(authorFilter)),
         dispatch(getDateFilter()),
         dispatch(getArticleTypeFilter()),
+        dispatch(getPeerReviewFilter()),
         dispatch(getJournalFilter(journalFilter)),
         dispatch(getJournalRank()),
         dispatch(getOrgUnits()),
@@ -1760,6 +1788,7 @@ export const clearPubSearchFilters = ()  => {
             reportsSearchFilters.filters.pubDateLowerBound = "";
             reportsSearchFilters.filters.pubDateUpperBound = "";
             reportsSearchFilters.filters.pubTypes = [];
+            reportsSearchFilters.filters.peerReview = [];
         dispatch({
             type: methods.PUB_FILTER_CLEAR,
             payload: reportsSearchFilters
