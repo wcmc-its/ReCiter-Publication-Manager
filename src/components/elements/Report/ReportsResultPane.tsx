@@ -20,6 +20,8 @@ interface ReportsResultPaneProps {
   journalImpactScore1?: number,
   journalImpactScore2?: number,
   citationCountScopus: number,
+  // 5e (ReCiterDB v3.9), present only when the column exists
+  citationCountOpenAlex?: number | null,
   authors: Author[]
   journalTitleVerbose: string
   publicationDateDisplay: string
@@ -51,6 +53,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   journalImpactScore1,
   journalImpactScore2,
   citationCountScopus,
+  citationCountOpenAlex,
   authors,
   journalTitleVerbose,
   publicationDateDisplay,
@@ -75,7 +78,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   const position = wcmPositionText(authors);
   const showSjr = journalImpactScore1 != null && visible("Journal Rank");
   const cites = citationBlock(
-    { citationCountNIH: citationCount, citationCountScopus, relativeCitationRatioNIH: relativeCitationRatio, percentileNIH: percentileRank, pmid },
+    { citationCountNIH: citationCount, citationCountScopus, citationCountOpenAlex, relativeCitationRatioNIH: relativeCitationRatio, percentileNIH: percentileRank, pmid },
     { showRcr: visible("Relative Citation Ratio (NIH)"), showPct: visible("Percentile Rank") },
   );
   // The venue line by type (pubTypes.ts venueOf), shared with the exports through venueRecordOf.

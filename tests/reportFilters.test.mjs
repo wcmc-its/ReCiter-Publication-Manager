@@ -83,6 +83,25 @@ test('citationBlock: NIH, else Scopus; RCR / percentile pill', () => {
     assert.equal(citationBlock({ percentileNIH: 1, pmid: 1, relativeCitationRatioNIH: null }).pill, 'NIH 1st pct')
 })
 
+test('citationBlock: OpenAlex only when NIH and Scopus are both missing; tooltip lists all three', () => {
+    const oa = citationBlock({ citationCountNIH: null, citationCountScopus: null, citationCountOpenAlex: 17, pmid: -5 })
+    assert.equal(oa.count, 17)
+    assert.equal(oa.label, 'citations (OpenAlex)')
+    assert.match(oa.tip, /^Citations: 17 \(OpenAlex\) · no NIH metrics outside PubMed$/)
+    const all = citationBlock({ citationCountNIH: 31, citationCountScopus: 40, citationCountOpenAlex: 38, pmid: 1 })
+    assert.equal(all.count, 31)
+    assert.equal(all.label, 'citations (NIH)')
+    assert.match(all.tip, /^Citations: 31 \(NIH\) · 40 \(Scopus\) · 38 \(OpenAlex\)/)
+    const scopus = citationBlock({ citationCountScopus: 0, citationCountOpenAlex: 9, pmid: -2 })
+    assert.equal(scopus.count, 0, 'a Scopus 0 is a count, not missing')
+    assert.equal(scopus.label, 'citations (Scopus)')
+    assert.match(scopus.tip, /0 \(Scopus\) · 9 \(OpenAlex\)/)
+    // A DB without the v3.9 column never sends it: same as before.
+    const none = citationBlock({ citationCountNIH: null, citationCountScopus: null, pmid: -3 })
+    assert.equal(none.count, null)
+    assert.equal(none.label, 'citations')
+})
+
 test('citationBlock: iCite 0 / 0 (too new to benchmark) shows no pill', () => {
     const b = citationBlock({ citationCountNIH: 0, relativeCitationRatioNIH: 0, percentileNIH: 0, pmid: 41578435 })
     assert.equal(b.pill, '')

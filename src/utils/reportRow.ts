@@ -67,16 +67,19 @@ const ordinal = (n: number) => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th
 
 export type CitationBlock = { count: number | null; label: string; pill: string; pillStrong: boolean; tip: string };
 
-// The right-hand citation block: NIH count, else Scopus; an "RCR x · NIH nth pct" pill when either
-// metric exists (Slate when RCR >= 2). OpenAlex counts arrive with 5e.
+// The right-hand citation block: NIH count, else Scopus, else OpenAlex (ReCiterDB v3.9 fills
+// citationCountOpenAlex for external rows; a DB without the column just never sends it); an
+// "RCR x · NIH nth pct" pill when either metric exists (Slate when RCR >= 2). The tooltip lists
+// every count the row has, whichever one is shown.
 export const citationBlock = (row: {
-  citationCountNIH?: number | null; citationCountScopus?: number | null;
+  citationCountNIH?: number | null; citationCountScopus?: number | null; citationCountOpenAlex?: number | null;
   relativeCitationRatioNIH?: number | null; percentileNIH?: number | null; pmid?: number | string | null;
 }, opts: { showRcr?: boolean; showPct?: boolean } = {}): CitationBlock => {
   const nih = row.citationCountNIH ?? null;
   const scopus = row.citationCountScopus ?? null;
-  const count = nih != null ? nih : scopus;
-  const label = nih != null ? "citations (NIH)" : scopus != null ? "citations (Scopus)" : "citations";
+  const openalex = row.citationCountOpenAlex ?? null;
+  const count = nih != null ? nih : scopus != null ? scopus : openalex;
+  const label = nih != null ? "citations (NIH)" : scopus != null ? "citations (Scopus)" : openalex != null ? "citations (OpenAlex)" : "citations";
   let rcr = opts.showRcr === false || row.relativeCitationRatioNIH == null ? null : Number(row.relativeCitationRatioNIH);
   let pct = opts.showPct === false || row.percentileNIH == null ? null : Number(row.percentileNIH);
   // iCite reports 0 / 0 for papers too new to benchmark; that's "not computed", not a 0th percentile.
@@ -85,6 +88,7 @@ export const citationBlock = (row: {
   const tipParts = [
     nih != null ? `${nih} (NIH)` : "",
     scopus != null ? `${scopus} (Scopus)` : "",
+    openalex != null ? `${openalex} (OpenAlex)` : "",
   ].filter(Boolean);
   let tip = tipParts.length ? `Citations: ${tipParts.join(" · ")}` : "No citation count yet";
   if (rcr != null) tip += ` · Relative Citation Ratio ${rcr.toFixed(2)}`;

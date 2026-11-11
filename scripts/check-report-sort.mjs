@@ -47,10 +47,11 @@ const stubRequire = (id) => {
   assert.equal(id, "sequelize");
   return { Sequelize: { literal: (val) => ({ val }) } };
 };
-const { REPORT_SORT_COLUMNS, REPORT_DATE_SORTS, DEFAULT_REPORT_SORT, buildReportSort, reportSortExpr, isReportSortKey } =
+const { REPORT_SORT_COLUMNS, REPORT_DATE_SORTS, DEFAULT_REPORT_SORT, CITATIONS_SORT_KEY, buildReportSort, reportSortExpr, isReportSortKey } =
   load("controllers/db/reports/reportSort.ts", stubRequire);
 
 for (const key of sortKeys) {
+  if (key === CITATIONS_SORT_KEY) continue; // an expression, not a column; checked below
   const column = REPORT_SORT_COLUMNS[key];
   assert.ok(column, `sort option "${key}" has no entry in REPORT_SORT_COLUMNS`);
   assert.ok(columns.has(column), `sort option "${key}" maps to "${column}", not an AnalysisSummaryArticle column`);
@@ -94,6 +95,20 @@ assert.equal(reportSortExpr("toString", "asa", ALL), undefined);
 assert.ok(isReportSortKey("pubDate") && isReportSortKey("citationCountNIH") && !isReportSortKey("constructor"));
 assert.ok(isReportSortKey(DEFAULT_REPORT_SORT.type));
 for (const key of Object.keys(REPORT_DATE_SORTS)) assert.ok(reportSortExpr(key, "", {}), key);
+
+// 3b. 5e citations sort: NIH, else Scopus, else OpenAlex once the v3.9 column exists; the NIH key
+// keeps its meaning. The xlsx path inlines the expression, so it must pass articlePmidsSql's guard.
+assert.equal(CITATIONS_SORT_KEY, "citations");
+assert.ok(sortKeys.includes(CITATIONS_SORT_KEY), "config/report.js sortOptions must list citations");
+assert.ok(isReportSortKey("citations"));
+assert.equal(reportSortExpr("citations", "", {}), "COALESCE(citationCountNIH, citationCountScopus)");
+assert.equal(reportSortExpr("citations", "asa", { citationCountOpenAlex: true }), "COALESCE(asa.citationCountNIH, asa.citationCountScopus, asa.citationCountOpenAlex)");
+assert.equal(buildReportSort({ type: "citations", order: "ASC" }, { citationCountOpenAlex: true })[0][0].val,
+  "isnull(COALESCE(citationCountNIH, citationCountScopus, citationCountOpenAlex)), COALESCE(citationCountNIH, citationCountScopus, citationCountOpenAlex) ASC");
+assert.equal(buildReportSort({ type: "citations" }, { citationCountOpenAlex: true }, "AnalysisSummaryArticle")[0][0].val,
+  "isnull(COALESCE(AnalysisSummaryArticle.citationCountNIH, AnalysisSummaryArticle.citationCountScopus, AnalysisSummaryArticle.citationCountOpenAlex)), COALESCE(AnalysisSummaryArticle.citationCountNIH, AnalysisSummaryArticle.citationCountScopus, AnalysisSummaryArticle.citationCountOpenAlex) DESC");
+assert.equal(reportSortExpr("citationCountNIH", "asa", { citationCountOpenAlex: true }), "asa.citationCountNIH", "the NIH-only key must stay NIH-only");
+assert.match(read("controllers/db/reports/reportColumns.ts"), /\["citationCountOpenAlex", "citationCountOpenAlex"\]/, "the column probe must look for citationCountOpenAlex");
 
 // 4. Both paths use the helper; no inline sort literals or misspelling left
 const paths = {

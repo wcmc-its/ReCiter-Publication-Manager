@@ -102,6 +102,13 @@ const SearchSummary = ({
     if (Array.isArray(reportLabelsForSort) && reportLabelsForSort.length && !hasPubDateSetting) {
       sortWithDisplayRank.push({ labelName: 'Publication date', displayRank: 1.5, isVisible: true, keyName: 'publicationDateStandardized' });
     }
+    // 5e citations sort (NIH, else Scopus, else OpenAlex): no admin setting row yet, so add it
+    // next to the NIH count. An admin row for `citations` takes over once someone adds one.
+    const hasCitationsSetting = Array.isArray(reportLabelsForSort) && reportLabelsForSort.some((l: any) => l.labelUserKey === 'citations');
+    if (Array.isArray(reportLabelsForSort) && reportLabelsForSort.length && !hasCitationsSetting) {
+      const nihRank = Number(setReportFilterDisplayRank(reportLabelsForSort, 'citationCountNIH')) || 2;
+      sortWithDisplayRank.push({ labelName: 'Citations (any source)', displayRank: nihRank + 0.5, isVisible: true, keyName: 'citations' });
+    }
     serFormatedSOrtOptions(sortWithDisplayRank.sort((a: any, b: any) => a.displayRank - b.displayRank))
   }, [reportLabelsForSort])
 

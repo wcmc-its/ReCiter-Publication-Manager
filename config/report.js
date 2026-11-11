@@ -134,7 +134,10 @@ export const sortOptions = {
   // legacy admin_settings key spelling; kept so the option stays visible until the setting is renamed
   publicationDateStandarized: true,
   relativeCitationRatioNIH:true,
-  citationCountScopus:true
+  citationCountScopus:true,
+  // 5e: NIH, else Scopus, else OpenAlex (reportSort.ts citationsExpr). Shown even when the
+  // reportingWebViewSort admin setting has no row for it (SearchSummary.tsx).
+  citations: true
 }
 
 export const infoBubblesConfig = {

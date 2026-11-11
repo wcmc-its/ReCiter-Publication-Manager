@@ -29,15 +29,29 @@ export const REPORT_DATE_SORTS: Record<string, "dateAdded" | "pubDate"> = {
   pubDate: "pubDate",
 };
 
+// 5e: "Citations" sorts by the count the row shows (citationBlock in src/utils/reportRow.ts): NIH,
+// else Scopus, else OpenAlex. citationCountNIH stays NIH-only. Without the v3.9 column (prod
+// before the DDL) it is NIH, else Scopus.
+export const CITATIONS_SORT_KEY = "citations";
+
+export type ReportSortColumns = ReportDateTypeColumns & { citationCountOpenAlex?: boolean };
+
+export const citationsExpr = (alias: string, cols: ReportSortColumns): string => {
+  const a = alias ? `${alias}.` : "";
+  return `COALESCE(${a}citationCountNIH, ${a}citationCountScopus${cols.citationCountOpenAlex ? `, ${a}citationCountOpenAlex` : ""})`;
+};
+
 const isKey = (map: Record<string, unknown>, key?: string): boolean =>
   !!key && Object.prototype.hasOwnProperty.call(map, key);
 
-export const isReportSortKey = (key?: string): boolean => isKey(REPORT_SORT_COLUMNS, key) || isKey(REPORT_DATE_SORTS, key);
+export const isReportSortKey = (key?: string): boolean =>
+  key === CITATIONS_SORT_KEY || isKey(REPORT_SORT_COLUMNS, key) || isKey(REPORT_DATE_SORTS, key);
 
 // The SQL expression a sort key orders by. `alias` qualifies the columns ("" = bare names, as in
 // the Sequelize queries; "asa" in raw SQL). Undefined for an unknown key.
-export const reportSortExpr = (key: string | undefined, alias: string, cols: ReportDateTypeColumns = {}): string | undefined => {
+export const reportSortExpr = (key: string | undefined, alias: string, cols: ReportSortColumns = {}): string | undefined => {
   const a = alias ? `${alias}.` : "";
+  if (key === CITATIONS_SORT_KEY) return citationsExpr(alias, cols);
   if (isKey(REPORT_DATE_SORTS, key)) {
     if (REPORT_DATE_SORTS[key] === "dateAdded") return dateAddedExpr(alias, cols);
     return cols.pubDate ? pubDateExpr(alias, cols) : `${a}publicationDateStandardized`;
@@ -52,7 +66,7 @@ export const DEFAULT_REPORT_SORT = { type: "datePublicationAddedToEntrez", order
 // Nulls last in either direction, as before. Unknown sort types add no ordering. `alias` qualifies
 // the columns: the exports in publication.report.controller.ts join `person`, which has its own
 // `dateAdded`, so there a bare name is ambiguous and they pass "AnalysisSummaryArticle".
-export const buildReportSort = (apiSort?: { type?: string; order?: string }, cols: ReportDateTypeColumns = {}, alias = ""): any[] => {
+export const buildReportSort = (apiSort?: { type?: string; order?: string }, cols: ReportSortColumns = {}, alias = ""): any[] => {
   const sort = [];
   const expr = apiSort ? reportSortExpr(apiSort.type, alias, cols) : undefined;
   if (expr) {

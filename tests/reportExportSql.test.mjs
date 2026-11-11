@@ -123,3 +123,9 @@ test('5c: pmid list sorts on a reportSortExpr expression', () => {
     assert.match(articlePmidsSql(w, expr, 'desc', 10), /ORDER BY isnull\(COALESCE\(asa\.dateAdded, asa\.pubDate, NULLIF\(asa\.datePublicationAddedToEntrez, ''\)\)\), COALESCE\(.*\) DESC, asa\.pmid DESC LIMIT 10$/)
     assert.match(articlePmidsSql(w, "asa.x) -- ", 'asc', 10), /isnull\(asa\.datePublicationAddedToEntrez\)/)
 })
+
+test('5e: pmid list sorts on the citations fallback expression', () => {
+    const w = buildReportExportWhere({ personIdentifers: ['abc1234'] }, frag({}))
+    const expr = 'COALESCE(asa.citationCountNIH, asa.citationCountScopus, asa.citationCountOpenAlex)'
+    assert.equal(articlePmidsSql(w, expr, 'asc', 5).endsWith(`ORDER BY isnull(${expr}), ${expr} ASC, asa.pmid DESC LIMIT 5`), true)
+})
