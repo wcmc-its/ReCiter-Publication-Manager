@@ -7,6 +7,8 @@ import { AdminFeedbackLog } from "./AdminFeedbackLog";
 import type { AdminFeedbackLogAttributes, AdminFeedbackLogCreationAttributes } from "./AdminFeedbackLog";
 import { AuthorshipReview } from "./AuthorshipReview";
 import type { AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes } from "./AuthorshipReview";
+import { PersonAuthorId } from "./PersonAuthorId";
+import type { PersonAuthorIdAttributes, PersonAuthorIdCreationAttributes } from "./PersonAuthorId";
 import { AdminNotificationLog } from "./AdminNotificationLog";
 import type { AdminNotificationLogAttributes, AdminNotificationLogCreationAttributes } from "./AdminNotificationLog";
 import { AdminNotificationPreference } from "./AdminNotificationPreference";
@@ -90,6 +92,7 @@ export {
   AdminDepartment,
   AdminFeedbackLog,
   AuthorshipReview,
+  PersonAuthorId,
   AdminNotificationLog,
   AdminNotificationPreference,
   AdminRole,
@@ -138,6 +141,8 @@ export type {
   AdminFeedbackLogCreationAttributes,
   AuthorshipReviewAttributes,
   AuthorshipReviewCreationAttributes,
+  PersonAuthorIdAttributes,
+  PersonAuthorIdCreationAttributes,
   AdminNotificationLogAttributes,
   AdminNotificationLogCreationAttributes,
   AdminNotificationPreferenceAttributes,
@@ -257,6 +262,7 @@ export function initModels(sequelize: Sequelize) {
   ScienceMetrix.initModel(sequelize);
   AdminSettings.initModel(sequelize);
   AuthorshipReview.initModel(sequelize);
+  PersonAuthorId.initModel(sequelize);
 
   AdminUsersDepartment.belongsTo(AdminDepartment, { as: "department", foreignKey: "departmentID"});
   AdminDepartment.hasMany(AdminUsersDepartment, { as: "adminUsersDepartments", foreignKey: "departmentID"});
@@ -317,6 +323,7 @@ export function initModels(sequelize: Sequelize) {
     PersonPersonType: PersonPersonType,
     ScienceMetrix: ScienceMetrix,
     AdminSettings:AdminSettings,
-    AuthorshipReview: AuthorshipReview
+    AuthorshipReview: AuthorshipReview,
+    PersonAuthorId: PersonAuthorId
   };
 }
