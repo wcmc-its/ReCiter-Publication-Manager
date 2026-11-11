@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import moment from 'moment';
 import { Dropdown } from "react-bootstrap";
+import { useClosableDropdown } from "../Common/useClosableDropdown";
 import { setReportFilterLabels } from "../../../utils/constants";
 import styles from './DatePicker.module.css';
 
@@ -18,6 +19,7 @@ export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, sel
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  const { show, onToggle, toggleRef } = useClosableDropdown(onClose);
 
   const applyDates = (start: string, end: string) => {
     setStartDate(start);
@@ -61,8 +63,8 @@ export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, sel
   const displayEnd = endDate ? moment(endDate).format("MM/DD/YYYY") : "";
 
   return (
-    <Dropdown className="d-inline-block" autoClose="outside" onToggle={(nextShow) => { if (!nextShow && onClose) onClose(); }}>
-      <Dropdown.Toggle variant={(startDate || endDate) ? "primary" : "white"} id="dropdown-date">
+    <Dropdown className="d-inline-block" autoClose="outside" show={show} onToggle={onToggle}>
+      <Dropdown.Toggle ref={toggleRef} variant={(startDate || endDate) ? "primary" : "white"} id="dropdown-date">
         {(() => {
           const l = setReportFilterLabels(reportFiltersLabes, name) || name;
           if (activePreset) return `${l}: ${activePreset}`;

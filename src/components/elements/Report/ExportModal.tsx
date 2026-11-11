@@ -16,17 +16,23 @@ interface ExportModalProps {
   articleLimit?: any,
   authorLimit?: any,
   reportsResultsIds?: any,
-  articlesCount?: any
+  articlesCount?: any,
+  // 5f Excel modal: a specific message (e.g. "add a filter") and the per-file publication cap
+  errorMessage?: string | null,
+  xlsxArticleLimit?: number
 }
 
 const DownloadIcon = () => (
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 2v9M4 8l4 4 4-4"/><path d="M2 14h12"/></svg>
 );
 
-const ExportModal = ({ articlesCount, reportsResultsIds, articleLimit, authorLimit, exportArticleCsvLoading, exportAuthorshipCsvLoading, show, handleClose, title, countInfo, error, loadingResults, buttonsList }: ExportModalProps) => {
+const ExportModal = ({ errorMessage, xlsxArticleLimit, articlesCount, reportsResultsIds, articleLimit, authorLimit, exportArticleCsvLoading, exportAuthorshipCsvLoading, show, handleClose, title, countInfo, error, loadingResults, buttonsList }: ExportModalProps) => {
   const formatter = new Intl.NumberFormat('en-US');
   const isRTF = title === "RTF";
-  const isCsv = title === "CSV";
+  // The Excel modal ("Excel": .xlsx first, CSV as a fallback) keeps the CSV modal's layout.
+  const isCsv = title === "CSV" || title === "Excel";
+  const isExcel = title === "Excel";
+  const overXlsxLimit = isExcel && xlsxArticleLimit && articlesCount > xlsxArticleLimit;
   const isDownloading = (exportAuthorshipCsvLoading && reportsResultsIds?.authorshipsCount > authorLimit?.maxLimit) || (exportArticleCsvLoading && articlesCount > articleLimit?.maxLimit);
 
   return (
@@ -52,7 +58,7 @@ const ExportModal = ({ articlesCount, reportsResultsIds, articleLimit, authorLim
             // RTF: single dark button; CSV: first blue, second blue-light
             let btnClass = styles.btnExport;
             if (isCsv && index === 0) btnClass += ` ${styles.btnBlue}`;
-            if (isCsv && index === 1) btnClass += ` ${styles.btnBlueLight}`;
+            if (isCsv && index >= 1) btnClass += ` ${styles.btnBlueLight}`;
 
             return (
               <button
@@ -108,14 +114,25 @@ const ExportModal = ({ articlesCount, reportsResultsIds, articleLimit, authorLim
             </div>
           )}
 
+          {overXlsxLimit && (
+            <div className={styles.limitAlert} data-testid="xlsx-limit-alert">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1L1 14h14L8 1z"/><path d="M8 6v4M8 12v.5"/></svg>
+              The Excel file holds the first {formatter.format(xlsxArticleLimit)} publications. Narrow the filters to get the rest.
+            </div>
+          )}
+
           {/* description */}
           <p className={styles.desc}>
-            {isRTF
+            {isExcel
+              ? 'The Excel workbook has three sheets: Publications (one row per article), Authorships (one row per WCM author\u2013article pair) and About (filters, counts and column notes). The CSV files are the older one-sheet exports.'
+              : isRTF
               ? 'Exports a formatted bibliography document based on your current author and article filters. Opens in Word, Google Docs, or any RTF-compatible editor.'
               : 'Choose your export type. The authorship report includes one row per author\u2013article pair. The article report includes one row per article with aggregated authorship data.'}
           </p>
 
-          {error && (
+          {errorMessage ? (
+            <div className={styles.errorAlert} role="alert" data-testid="export-error">{errorMessage}</div>
+          ) : error && (
             <div className={styles.errorAlert}>Unable to generate the export file. Please try again.</div>
           )}
         </>

@@ -16,6 +16,7 @@ import sequelize from "../../../src/db/db";
 import { QueryConstants } from "../../../src/utils/namedQueryConstants";
 import { buildReportSort } from "./reportSort";
 import { authorPositionSql, sourceSql } from "./reportFilterSql";
+import { bylineAuthors } from "../../../src/utils/externalByline";
 import { articleColumns, articleExtraAttributes } from "./reportColumns";
 
 
@@ -1149,6 +1150,23 @@ export const publicationAuthorSearchWithFilter = async (
       })
       return result;
     });
+    // External rows (synthetic negative pmids) have no author_list rows; their byline lives in
+    // analysis_summary_author.authors. Fill in any external pmid the author_list query missed.
+    const found = new Set(searchOutput.map((r) => Number(r.pmid)));
+    const externalPmids = (apiBody?.pmids || []).map(Number).filter((p) => p < 0 && !found.has(p));
+    if (externalPmids.length) {
+      const bylineRows: any[] = await models.AnalysisSummaryAuthor.findAll({
+        attributes: ["pmid", "personIdentifier", "authors"],
+        where: { pmid: { [Op.in]: externalPmids }, authors: { [Op.ne]: null } },
+        raw: true,
+      });
+      const byPmid: Record<string, any[]> = {};
+      bylineRows.forEach((r) => { (byPmid[r.pmid] = byPmid[r.pmid] || []).push(r); });
+      Object.keys(byPmid).forEach((pmid) => {
+        const authors = bylineAuthors(byPmid[pmid]);
+        if (authors.length) searchOutput.push({ pmid, authors });
+      });
+    }
     return searchOutput;
   } catch (e) {
     console.log(e);

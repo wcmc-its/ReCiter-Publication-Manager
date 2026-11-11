@@ -19,6 +19,8 @@ import { setReportFilterDisplayRank, setReportFilterLabels,setIsVisible, setRepo
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import { stripHtml } from "../../../utils/htmlText";
+import { downloadReportXlsx } from "../../../utils/reportXlsxDownload";
+import { XLSX_MAX_ARTICLES } from "../../../../controllers/db/reports/reportExportSql";
 
 // Title/journal fields can carry PubMed inline markup (<i>, <sub>, …); strip to
 // plain text for spreadsheet cells, which can't render HTML.
@@ -56,6 +58,8 @@ const SearchSummary = ({
   const [exportArticlePplLoading, setExportArticlePplLoading] = useState(false);
   const [exportAuthorshipCsvLoading, setExportAuthorshipCsvLoading] = useState(false);
   const [exportArticleCsvLoading, setExportArticleCsvLoading] = useState(false);
+  const [exportXlsxLoading, setExportXlsxLoading] = useState(false);
+  const [exportXlsxError, setExportXlsxError] = useState<string | null>(null);
   const formatter = new Intl.NumberFormat('en-US')
   const [formattedSortOptions, serFormatedSOrtOptions] = useState([]);
 
@@ -117,6 +121,18 @@ const SearchSummary = ({
       let optionType = optionInfo[0];
       let optionOrder = optionInfo[1];
       onClick(optionType, optionOrder);
+    }
+  }
+
+  // 5f: server-built .xlsx (Publications / Authorships / About) from the same filters as the page.
+  const exportXlsx = async () => {
+    setExportXlsxError(null);
+    setExportXlsxLoading(true);
+    const message = await downloadReportXlsx(pubSearchFilter || {}, reciterConfig.backendApiKey);
+    setExportXlsxLoading(false);
+    if (message) {
+      setExportXlsxError(message);
+      reportError("ERR-8005", "Unable to export Excel workbook", message);
     }
   }
 
@@ -389,8 +405,10 @@ const SearchSummary = ({
       </div>
       <ExportModal
         show={openCSV}
-        handleClose={() => onExportClose && onExportClose()}
-        title="CSV"
+        handleClose={() => { setExportXlsxError(null); onExportClose && onExportClose(); }}
+        title="Excel"
+        errorMessage={exportXlsxError}
+        xlsxArticleLimit={XLSX_MAX_ARTICLES}
         loadingResults={reportsResultsIdsLoading}
         articleLimit = {articleLimit}
         authorLimit= {authorLimit}
@@ -399,8 +417,9 @@ const SearchSummary = ({
         countInfo={ `${formatter.format(reportsResultsIds?.authorshipsCount || 0)} known authorships and ${articlesCount ? formatter.format(articlesCount) : 0} articles`}
         buttonsList={
           [
-            {title: 'Authorship report', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
-            {title: 'Article report', loading: exportArticleCsvLoading, onClick: exportArticleCSV}
+            {title: 'Excel workbook (.xlsx)', loading: exportXlsxLoading, onClick: exportXlsx},
+            {title: 'Authorship CSV', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
+            {title: 'Article CSV', loading: exportArticleCsvLoading, onClick: exportArticleCSV}
           ]
         }
         exportAuthorshipCsvLoading = {exportAuthorshipCsvLoading}
