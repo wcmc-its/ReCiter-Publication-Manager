@@ -66,8 +66,9 @@ export type ExternalArticles = {
     // reciter: accept or reject (suppress) each article; resolves true when every write succeeded.
     setFeedback: (articleIds: string[], action: 'ACCEPTED' | 'REJECTED') => Promise<boolean>,
     remove: (articleId: string) => Promise<boolean>,
-    // mysql: one lifecycle step for a batch of record ids (all or nothing), and its Undo.
-    transition: (ids: number[], to: 'ACCEPTED' | 'REJECTED' | 'REMOVED') => Promise<boolean>,
+    // mysql: one lifecycle step for a batch of record ids (all or nothing), and its Undo. PENDING is
+    // "Not the same" on an AUTOMERGED row (plan 3f-3h).
+    transition: (ids: number[], to: 'ACCEPTED' | 'REJECTED' | 'REMOVED' | 'PENDING') => Promise<boolean>,
     undo: (ids: number[]) => Promise<boolean>,
 }
 
@@ -171,7 +172,7 @@ export function useExternalArticles(uid: string | undefined): ExternalArticles {
             .finally(() => refetch())
     ), [refetch])
 
-    const transition = useCallback((ids: number[], to: 'ACCEPTED' | 'REJECTED' | 'REMOVED') =>
+    const transition = useCallback((ids: number[], to: 'ACCEPTED' | 'REJECTED' | 'REMOVED' | 'PENDING') =>
         storeWrite('transition', { ids, to }, 'update'), [storeWrite])
     const undo = useCallback((ids: number[]) => storeWrite('undo', { ids }, 'undo'), [storeWrite])
 

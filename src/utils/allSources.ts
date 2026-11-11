@@ -184,3 +184,72 @@ export function storeStatusText(row: any): string {
     if (s === 'REMOVED') return row?.statusBy ? `Removed by ${row.statusBy}` : 'Removed'
     return row?.statusBy ? `Rejected by ${row.statusBy}` : 'Rejected'
 }
+
+// Plan 3f-3h, 3h UI. Provenance badges: one per import source holding the work, from its own rows
+// and the rows auto-merged into them. Only the nightly import's provenances get a badge; a work a
+// curator added (MANUAL, ADD_SEARCH, AUTHORSHIPS) or one with no provenance shows none.
+export type ProvenanceBadge = { key: string, label: string, tip: string }
+const ORCID_PROVENANCE_LABEL: Record<string, string> = {
+    ORCID_SELF: 'ORCID · added by researcher',
+    ORCID_CROSSREF: 'ORCID · Crossref',
+    ORCID_SCOPUS: 'ORCID · Scopus',
+}
+export function provenanceBadgeOf(row: any): ProvenanceBadge | null {
+    const p = String(row?.provenance || '').toUpperCase()
+    let label: string | null = null
+    let id: string | null = null
+    if (p.startsWith('ORCID_')) {
+        const detail = String(row?.sourceDetail || '').trim()
+        label = ORCID_PROVENANCE_LABEL[p] || (p === 'ORCID_OTHER' ? `ORCID · ${detail || 'other source'}` : null)
+        id = row?.orcidPutCode ? `ORCID put-code ${row.orcidPutCode}` : null
+    } else if (p === 'SCOPUS_AUID') {
+        label = 'Scopus Author ID'
+        id = row?.scopusEid ? `Scopus ${row.scopusEid}` : null
+    } else if (p === 'OPENALEX_AUTHOR') {
+        label = 'OpenAlex author profile'
+        id = row?.openalexId ? `OpenAlex ${row.openalexId}` : null
+    }
+    if (!label) return null
+    const seen = String(row?.dateAdded || '').slice(0, 10)
+    const tip = [id, seen ? `first seen ${seen}` : null, 'imported nightly'].filter(Boolean).join(' · ')
+    return { key: label, label, tip }
+}
+export function provenanceBadges(work: ExtWork): ProvenanceBadge[] {
+    const out = new Map<string, ProvenanceBadge>()
+    for (const r of work.rows) {
+        const b = provenanceBadgeOf(r)
+        if (b && !out.has(b.key)) out.set(b.key, b)
+    }
+    return [...out.values()]
+}
+
+// The slot affiliation strings an import saw for the person (affiliationFlag / slotAffiliations
+// come from external_record.affiliation_flag and slot_affiliations_json, plan 3g). Entries may be
+// strings or {name, id}.
+const slotAffiliationText = (row: any): string[] => {
+    const raw = row?.slotAffiliations
+    const list = Array.isArray(raw) ? raw : raw ? [raw] : []
+    return list.map((a: any) => (typeof a === 'string' ? a : a?.name || a?.label || a?.id || '')).map((s: any) => String(s).trim()).filter(Boolean)
+}
+// "Unfamiliar affiliation" for the work: any of its own rows flagged UNFAMILIAR and none KNOWN.
+// null when no row carries the flag (today's rows, NONE, or a known affiliation).
+export function workUnfamiliarAffiliation(work: ExtWork): string[] | null {
+    const own = work.rows.filter((r) => !work.attached.includes(r))
+    const flags = own.map((r) => String(r?.affiliationFlag || '').toUpperCase())
+    if (!flags.includes('UNFAMILIAR') || flags.includes('KNOWN')) return null
+    const names = new Set<string>()
+    own.filter((r, i) => flags[i] === 'UNFAMILIAR').forEach((r) => slotAffiliationText(r).forEach((s) => names.add(s)))
+    return [...names]
+}
+
+// The auto-merged note at the top of Pending: every AUTOMERGED row, with the row it was merged
+// into when that row is in the list.
+export type AutoMerged = { row: any, parent: any | null }
+export function autoMergedRows(rows: any[]): AutoMerged[] {
+    const list = rows || []
+    const byId = new Map<string, any>()
+    for (const r of list) { const id = recordIdOf(r); if (id != null && !byId.has(id)) byId.set(id, r) }
+    return list
+        .filter((r) => String(r?.status || '').toUpperCase() === 'AUTOMERGED')
+        .map((row) => ({ row, parent: row?.mergedIntoId == null ? null : byId.get(String(row.mergedIntoId)) || null }))
+}

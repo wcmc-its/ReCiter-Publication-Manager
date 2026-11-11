@@ -17,6 +17,7 @@ registerHooks({
 const {
     extStatusOf, extSourceOf, normDoi, groupExternalWorks, workMatches, workHasSource, countWorks,
     storeTargetOf, storeStatusText, rowHidden, workHidden, EXT_SOURCE_NAMES, EXT_SOURCES_IF_PRESENT,
+    provenanceBadgeOf, provenanceBadges, workUnfamiliarAffiliation, autoMergedRows,
 } = await import('../src/utils/allSources.ts')
 const { routeAddQuery } = await import('../src/utils/externalAddSearch.ts')
 
@@ -242,4 +243,62 @@ test('countWorks: today\'s rows (no status) count the same with or without workH
     ])
     assert.deepEqual(countWorks(works, workHidden), countWorks(works))
     assert.deepEqual(countWorks(works), { PENDING: 0, ACCEPTED: 2, REJECTED: 1 })
+})
+
+// Plan 3f-3h, 3h UI helpers.
+test('provenanceBadgeOf: import provenances get a badge with id, first seen and "imported nightly"', () => {
+    const b = provenanceBadgeOf(row('ORCID:1', { provenance: 'ORCID_SELF', orcidPutCode: '123', dateAdded: '2026-11-12T03:00:00.000Z' }))
+    assert.equal(b.label, 'ORCID · added by researcher')
+    assert.equal(b.tip, 'ORCID put-code 123 · first seen 2026-11-12 · imported nightly')
+    assert.equal(provenanceBadgeOf(row('ORCID:2', { provenance: 'ORCID_CROSSREF' })).label, 'ORCID · Crossref')
+    assert.equal(provenanceBadgeOf(row('ORCID:3', { provenance: 'ORCID_SCOPUS' })).label, 'ORCID · Scopus')
+    assert.equal(provenanceBadgeOf(row('ORCID:4', { provenance: 'ORCID_OTHER', sourceDetail: 'Europe PMC' })).label, 'ORCID · Europe PMC')
+    assert.equal(provenanceBadgeOf(row('SCOPUS:5', { provenance: 'SCOPUS_AUID', scopusEid: '2-s2.0-5' })).tip, 'Scopus 2-s2.0-5 · imported nightly')
+    assert.equal(provenanceBadgeOf(row('OPENALEX:W6', { provenance: 'OPENALEX_AUTHOR' })).label, 'OpenAlex author profile')
+    // Curator-added and today's rows: no badge.
+    for (const p of ['AUTHORSHIPS', 'ADD_SEARCH', 'MANUAL', null, undefined]) assert.equal(provenanceBadgeOf(row('SCOPUS:7', { provenance: p })), null)
+})
+
+test('provenanceBadges: one per source across the work and its auto-merged children', () => {
+    const rows = [
+        row('SCOPUS:1', { id: 1, status: 'PENDING', provenance: 'SCOPUS_AUID', doi: '10.1/a' }),
+        row('ORCID:2', { id: 2, status: 'AUTOMERGED', mergedIntoId: 1, provenance: 'ORCID_SELF' }),
+        row('ORCID:3', { id: 3, status: 'AUTOMERGED', mergedIntoId: 1, provenance: 'ORCID_SELF' }),
+        row('OPENALEX:W4', { id: 4, status: 'AUTOMERGED', mergedIntoId: 1, provenance: 'OPENALEX_AUTHOR' }),
+    ]
+    const [w] = groupExternalWorks(rows)
+    assert.deepEqual(provenanceBadges(w).map((b) => b.label), ['Scopus Author ID', 'ORCID · added by researcher', 'OpenAlex author profile'])
+    // Flag-off (reciter store) rows: no badges at all.
+    assert.deepEqual(groupExternalWorks([row('SCOPUS:9', { provenance: 'AUTHORSHIPS' })]).flatMap(provenanceBadges), [])
+})
+
+test('workUnfamiliarAffiliation: UNFAMILIAR shows the slot strings; KNOWN, NONE or no flag shows nothing', () => {
+    const w = (...rows) => groupExternalWorks(rows)[0]
+    assert.deepEqual(workUnfamiliarAffiliation(w(row('SCOPUS:1', { status: 'PENDING', affiliationFlag: 'UNFAMILIAR',
+        slotAffiliations: ['Mayo Clinic', { name: 'Univ X', id: '60000' }, ''] }))), ['Mayo Clinic', 'Univ X'])
+    assert.deepEqual(workUnfamiliarAffiliation(w(row('SCOPUS:1', { status: 'PENDING', affiliationFlag: 'UNFAMILIAR' }))), [])
+    assert.equal(workUnfamiliarAffiliation(w(row('SCOPUS:1', { status: 'PENDING', affiliationFlag: 'NONE' }))), null)
+    assert.equal(workUnfamiliarAffiliation(w(row('SCOPUS:1', { status: 'PENDING' }))), null)
+    // A known affiliation on another of the work's own rows wins.
+    assert.equal(workUnfamiliarAffiliation(w(
+        row('SCOPUS:1', { status: 'PENDING', doi: '10.1/z', affiliationFlag: 'UNFAMILIAR', slotAffiliations: ['A'] }),
+        row('OPENALEX:W1', { status: 'PENDING', doi: '10.1/z', affiliationFlag: 'KNOWN' }),
+    )), null)
+    // An auto-merged child's flag does not mark the live work.
+    assert.equal(workUnfamiliarAffiliation(w(
+        row('SCOPUS:1', { id: 1, status: 'PENDING', affiliationFlag: 'KNOWN' }),
+        row('ORCID:2', { id: 2, status: 'AUTOMERGED', mergedIntoId: 1, affiliationFlag: 'UNFAMILIAR' }),
+    )), null)
+})
+
+test('autoMergedRows: AUTOMERGED rows with their parent when listed', () => {
+    const p = row('SCOPUS:1', { id: 1, status: 'ACCEPTED' })
+    const c = row('ORCID:2', { id: 2, status: 'AUTOMERGED', mergedIntoId: 1 })
+    const orphan = row('ORCID:3', { id: 3, status: 'automerged', mergedIntoId: 99 })
+    const m = autoMergedRows([p, c, orphan, row('ORCID:4', { id: 4, status: 'MERGED', mergedIntoId: 1 })])
+    assert.equal(m.length, 2)
+    assert.equal(m[0].row, c); assert.equal(m[0].parent, p)
+    assert.equal(m[1].row, orphan); assert.equal(m[1].parent, null)
+    assert.deepEqual(autoMergedRows(null), [])
+    assert.deepEqual(autoMergedRows([row('SCOPUS:5', { suppressed: true })]), [])
 })

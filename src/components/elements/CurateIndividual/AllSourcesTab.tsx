@@ -1,10 +1,11 @@
-import React, { FunctionComponent, useMemo, useState } from "react"
+import React, { FunctionComponent, useId, useMemo, useState } from "react"
 import styles from "./CurateIndividual.module.css"
 import { Button, Dialog } from "../../ui"
 import { ExternalArticles } from "./useExternalArticles"
 import {
     EXT_SOURCE_NAMES, EXT_SOURCES_IF_PRESENT, ExtSourceName, ExtStatus, ExtWork, countWorks, extStatusOf,
     groupExternalWorks, workHasSource, workHidden, workMatches, storeTargetOf, storeStatusText, StoreIntent,
+    provenanceBadges, provenanceBadgeOf, workUnfamiliarAffiliation, autoMergedRows, AutoMerged,
 } from "../../../utils/allSources"
 
 // Phase 3a — Curate's single "All sources" tab (replaces the Scopus / OpenAlex / Crossref tabs).
@@ -16,6 +17,11 @@ import {
 // steps instead: Reject -> REJECTED, Remove -> REMOVED (both remember the work so an import or
 // add of it again is flagged), Accept puts a rejected or removed work back, Undo is the store's
 // one-step Undo, and there is no hard delete.
+// Plan 3f-3h (3h UI): provenance badges for nightly imports, the unfamiliar-affiliation chip, an
+// auto-merged note with "Not the same" (AUTOMERGED -> PENDING, store mode only) and a "Show talks
+// and posters" toggle; works the type map hides stay out of Pending unless it is on. All of it is
+// inert until the store returns imported rows: today's rows carry no import provenance, flag or
+// AUTOMERGED status, and nothing is hidden among Accepted works.
 
 interface FuncProps {
     ext: ExternalArticles,
@@ -56,6 +62,31 @@ const Byline = ({ row, surname }: { row: any, surname: string }) => {
     )
 }
 
+// A chip with a tooltip that opens on hover or keyboard focus and closes on Escape or blur.
+const TipChip = ({ className, label, tip }: { className: string, label: React.ReactNode, tip: React.ReactNode }) => {
+    const id = useId()
+    const [open, setOpen] = useState(false)
+    return (
+        <span
+            className={`${className} ${styles.exTipHost}`}
+            tabIndex={0}
+            aria-describedby={id}
+            onMouseEnter={() => setOpen(true)}
+            onMouseLeave={() => setOpen(false)}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            onKeyDown={(e) => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false) } }}
+        >
+            {label}
+            <span id={id} role="tooltip" className={styles.exTip} data-open={open ? true : undefined}>{tip}</span>
+        </span>
+    )
+}
+
+const KNOWN_AFFILIATION_TIP = 'None of the affiliations on this work match one we know for this person: the institutions and '
+    + 'organizational units on their identity, Weill Cornell\'s Scopus and OpenAlex institution ids, or the affiliations '
+    + 'on their accepted papers. Earlier work at another institution is often flagged; check it before accepting.'
+
 const STATUS_OPTS: [ExtStatus, string][] = [['PENDING', 'Pending'], ['ACCEPTED', 'Accepted'], ['REJECTED', 'Rejected']]
 
 const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScopusAuthorships }) => {
@@ -74,12 +105,19 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
     const [here, setHere] = useState<Record<string, Done>>({})
     const [busy, setBusy] = useState<Record<string, boolean>>({})
     const [confirmDelete, setConfirmDelete] = useState<ExtWork | null>(null)
+    const [showHidden, setShowHidden] = useState(false)
+    const [showMerged, setShowMerged] = useState(false)
+    // "Not the same" steps taken this session, by record id, so the item stays in the note with Undo.
+    const [split, setSplit] = useState<Record<string, AutoMerged & { busy?: boolean, done?: boolean }>>({})
 
     const pickView = (v: ExtStatus) => { setViewPicked(v); setHere({}) }
 
     // A work belongs in the view by its status, or because it was acted on in this view.
     const inView = (w: ExtWork) => (here[w.key] ? here[w.key].view === view : w.status === view)
-    const live = works.filter(inView)
+    // Pending hides the works the type map hides (talks, posters, out of scope) unless the toggle is
+    // on; a work acted on this session stays put either way.
+    const hiddenPending = works.filter((w) => w.status === 'PENDING' && workHidden(w)).length
+    const live = works.filter((w) => inView(w) && (here[w.key] || view !== 'PENDING' || showHidden || !workHidden(w)))
     const gone = Object.values(here).filter((d) => d.view === view && !works.some((w) => w.key === d.work.key)).map((d) => d.work)
     const pool = [...live, ...gone]
     const shown = pool.filter((w) => workHasSource(w, src) && workMatches(w, q))
@@ -88,6 +126,28 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
         .filter((k) => !EXT_SOURCES_IF_PRESENT.includes(k as ExtSourceName) || works.some((w) => w.sources.includes(k as ExtSourceName)))
 
     const mysql = ext.store === 'mysql'
+
+    const automerged = mysql ? autoMergedRows(ext.rows) : []
+    const mergedNow = new Set(automerged.map((m) => String(m.row.id)))
+    const mergedList: (AutoMerged & { busy?: boolean, done?: boolean })[] = [
+        ...automerged.map((m) => split[String(m.row.id)] || m),
+        ...Object.values(split).filter((m) => !mergedNow.has(String(m.row.id))),
+    ]
+    const notTheSame = (m: AutoMerged) => {
+        const id = String(m.row.id)
+        setViewPicked(view)
+        setSplit((x) => ({ ...x, [id]: { ...m, busy: true } }))
+        ext.transition([Number(m.row.id)], 'PENDING').then((ok) => {
+            setSplit((x) => { const next = { ...x }; if (ok) next[id] = { ...m, done: true }; else delete next[id]; return next })
+        })
+    }
+    const undoNotTheSame = (m: AutoMerged) => {
+        const id = String(m.row.id)
+        setSplit((x) => ({ ...x, [id]: { ...m, done: true, busy: true } }))
+        ext.undo([Number(m.row.id)]).then((ok) => {
+            setSplit((x) => { const next = { ...x }; if (ok) delete next[id]; else next[id] = { ...m, done: true }; return next })
+        })
+    }
 
     const actStore = (w: ExtWork, action: Done['action']) => {
         const intent: StoreIntent = action === 'accepted' ? 'accept' : action === 'rejected' ? 'reject' : 'remove'
@@ -141,11 +201,11 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
         : `external article${plural(shown.length)}${fromSrc} in ${short}'s record`
     const subText = view === 'PENDING' ? 'Imported works wait here until a curator accepts or rejects them. Name-only matches go to Authorships instead.'
         : view === 'REJECTED' ? `Rejected here, or superseded by a PubMed record. Accept one to put it back in ${short}'s record.`
-        : 'Accepted articles from Scopus, OpenAlex and Crossref. No PMID, so no score and not part of the gold standard. A work found in several sources shows once, with each source.'
+        : 'Accepted articles from Scopus, OpenAlex, Crossref and ORCID. No PMID, so no score and not part of the gold standard. A work found in several sources shows once, with each source.'
     const emptyTitle = view === 'PENDING' && !q ? 'Nothing waiting for review' : view === 'REJECTED' && !q ? 'No rejected works'
         : works.length ? 'No matches' : 'No external articles yet'
     const emptyBody = works.length ? 'No external articles match this filter.'
-        : `When a Scopus, OpenAlex or Crossref work for ${short} is accepted in Authorships or added here, it shows up here.`
+        : `When a Scopus, OpenAlex, Crossref or ORCID work for ${short} is accepted in Authorships or added here, it shows up here.`
 
     const doneText = (d: Done) => d.action === 'accepted' ? `Accepted · now in ${short}'s record`
         : d.action === 'removed' ? `Removed from ${short}'s record`
@@ -190,6 +250,57 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
                 </div>
             </div>
 
+            {view === 'PENDING' && (mergedList.length > 0 || hiddenPending > 0) && (
+                <div className={styles.exNotes}>
+                    {mergedList.length > 0 && (
+                        <div className={styles.exNote}>
+                            <div className={styles.exNoteHead}>
+                                <span>
+                                    {automerged.length} import{automerged.length === 1 ? '' : 's'} matched works already in the record and {automerged.length === 1 ? 'was' : 'were'} merged
+                                </span>
+                                <button type="button" className={styles.exLink} aria-expanded={showMerged} onClick={() => setShowMerged((v) => !v)}>
+                                    {showMerged ? 'Hide' : 'Show'}
+                                </button>
+                            </div>
+                            {showMerged && (
+                                <ul className={styles.exNoteList}>
+                                    {mergedList.map((m) => {
+                                        const b = provenanceBadgeOf(m.row)
+                                        return (
+                                            <li key={String(m.row.id)} className={styles.exNoteItem}>
+                                                <span className={styles.exNoteText}>
+                                                    <strong>{m.row.title || '(untitled)'}</strong>
+                                                    {' '}<span className={styles.exNoteSub}>
+                                                        {b ? b.label : m.row.sourceType || 'Import'}
+                                                        {m.parent ? <> · merged into “{m.parent.title || m.parent.articleId}”</> : null}
+                                                    </span>
+                                                </span>
+                                                {m.done ? (
+                                                    <span className={styles.exBy}>
+                                                        Moved to Pending{' · '}
+                                                        <button type="button" className={styles.exUndo} onClick={() => undoNotTheSame(m)} disabled={!!m.busy}>Undo</button>
+                                                    </span>
+                                                ) : (
+                                                    <Button size="sm" onClick={() => notTheSame(m)} disabled={!!m.busy}
+                                                        title="Not the same work: moves this import to Pending as its own work">Not the same</Button>
+                                                )}
+                                            </li>
+                                        )
+                                    })}
+                                </ul>
+                            )}
+                        </div>
+                    )}
+                    {hiddenPending > 0 && (
+                        <label className={styles.exToggle}>
+                            <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
+                            Show talks and posters ({hiddenPending})
+                            <span className={styles.exNoteSub}> · not counted as waiting for review</span>
+                        </label>
+                    )}
+                </div>
+            )}
+
             {ext.loading && !ext.loaded ? (
                 <div className={styles.exEmpty}><div className={styles.exEmptyBody}>Loading…</div></div>
             ) : shown.length === 0 ? (
@@ -207,6 +318,8 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
                 const superseded = w.rows.map((x) => x.supersededByPmid).find(Boolean)
                 const meta: React.ReactNode[] = [venue && <em key="v">{venue}</em>, date, r.publicationType].filter(Boolean)
                 const isBusy = !!busy[w.key]
+                const badges = provenanceBadges(w)
+                const unfamiliar = workUnfamiliarAffiliation(w)
                 return (
                     <div key={w.key} className={styles.exRow} data-done={d ? true : undefined}>
                         <div className={styles.exMain}>
@@ -219,6 +332,11 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
                             )}
                             <div className={styles.exChips}>
                                 <span className={styles.exSrcChip}>{w.sources.join(' · ')}</span>
+                                {badges.map((b) => <TipChip key={b.key} className={styles.exProvChip} label={b.label} tip={b.tip} />)}
+                                {unfamiliar && (
+                                    <TipChip className={styles.exAffChip} tip={KNOWN_AFFILIATION_TIP}
+                                        label={<span className={styles.exAffText}>Unfamiliar affiliation{unfamiliar.length ? `: ${unfamiliar.join('; ')}` : ''}</span>} />
+                                )}
                                 {pmid
                                     ? <a className={styles.exPmidChip} href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">PMID {pmid}</a>
                                     : <span className={styles.exNotPubmed}>Not in PubMed</span>}

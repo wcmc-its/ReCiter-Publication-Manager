@@ -408,7 +408,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           All sources
           <span
             className={extCounts.ACCEPTED ? styles.tabCountAccepted : styles.tabCountZero}
-            title={`${extCounts.ACCEPTED.toLocaleString()} accepted external works from Scopus, OpenAlex and Crossref`}
+            title={`${extCounts.ACCEPTED.toLocaleString()} accepted external works from Scopus, OpenAlex, Crossref and ORCID`}
           >
             {fmtCount(extCounts.ACCEPTED, compact)}
           </span>
