@@ -4,7 +4,8 @@
 // only: no Sequelize associations (those live in reportAssociations.ts and must not be re-registered).
 import { Document, ExternalHyperlink, HeadingLevel, Packer, Paragraph, TabStopType, TextRun } from "docx";
 import sequelize from "../../../src/db/db";
-import { authorPositionSql, sourceSql } from "./reportFilterSql";
+import { authorPositionSql, sourceSql, dateTypeSql } from "./reportFilterSql";
+import { PUB_TYPES } from "../../../src/lib/pubTypes";
 import { articleColumns } from "./reportColumns";
 import {
   GROUP_LABELS,
@@ -96,10 +97,25 @@ export const generateWordBibliography = async (body: WordExportBody): Promise<Wo
   const groupBy: WordGroupBy = WORD_GROUP_BYS.includes(body.groupBy as WordGroupBy) ? (body.groupBy as WordGroupBy) : "year";
   const includeExternal = body.includeExternal !== false;
 
-  const hasSourceColumn = (await articleColumns()).sourceType;
+  const cols = await articleColumns();
+  const dateTypeClauses = dateTypeSql("asa", filters, cols, PUB_TYPES);
+  // The date ranges and grouped Type count only when they built a clause (a bound that isn't a
+  // date, or a type the search drops, must not unlock an unfiltered export).
+  const otherFilters: ReportFilters = {
+    ...filters,
+    datePublicationAddedToEntrezLowerBound: undefined,
+    datePublicationAddedToEntrezUpperBound: undefined,
+    pubDateLowerBound: undefined,
+    pubDateUpperBound: undefined,
+    pubTypes: undefined,
+  };
+  if (!dateTypeClauses.length && !hasReportFilter(otherFilters)) {
+    throw new WordExportError(400, "Add a filter (a person, organization, date, type or journal) before exporting to Word.");
+  }
   const sel = buildSelection(filters, {
     authorClause: authorPositionSql("asu", filters.authorPosition),
-    sourceClause: sourceSql("asa", filters.sourceTypes, hasSourceColumn),
+    sourceClause: sourceSql("asa", filters.sourceTypes, cols.sourceType),
+    dateTypeClauses,
     includeExternal,
   });
   const limit = await exportLimit();

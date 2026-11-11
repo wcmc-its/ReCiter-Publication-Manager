@@ -94,6 +94,32 @@ test('pmid list: allowlisted sort column, nulls last, capped', () => {
 
 test('describeFilters lists what was applied', () => {
     assert.deepEqual(describeFilters({ personTypes: ['a', 'b'], datePublicationAddedToEntrezLowerBound: '2025-01-01' }), [
-        ['Person type', 'a; b'], ['Date added after', '2025-01-01'],
+        ['Person type', 'a; b'], ['Added on or after', '2025-01-01'],
     ])
+    assert.deepEqual(describeFilters({ pubDateUpperBound: '2020-12-31', pubTypes: ['Review'], publicationTypeCanonical: ['Letter'] }), [
+        ['Published on or before', '2020-12-31'], ['Publication type', 'Review; Letter'],
+    ])
+})
+
+test('5c: date / type fragments replace the legacy date comparison', () => {
+    const f = { datePublicationAddedToEntrezLowerBound: '2025-01-01', pubTypes: ['Review'] }
+    const dateType = ["(COALESCE(asa.dateAdded, asa.pubDate, NULLIF(asa.datePublicationAddedToEntrez, '')) >= '2025-01-01')", "(asa.pubType IN ('Review'))"]
+    const w = buildReportExportWhere(f, { ...frag(f), dateType })
+    assert.equal(w.articleSql, dateType.join(' AND '))
+    assert.equal(w.replacements.dateLower, undefined)
+    // a Publication date or grouped Type filter alone is a filter
+    assert.equal(hasAnyFilter({ pubTypes: ['Review'] }, frag({})), true)
+    assert.equal(hasAnyFilter({ pubDateLowerBound: '2020-01-01' }, frag({})), true)
+    assert.equal(hasAnyFilter({}, { ...frag({}), dateType: ["(asa.pubType IN ('Review'))"] }), true)
+    assert.equal(hasAnyFilter({}, { ...frag({}), dateType: [] }), false)
+    // with the clauses built, a filter that produced none doesn't unlock an unfiltered export
+    assert.equal(hasAnyFilter({ pubTypes: ['Not A Type'] }, { ...frag({}), dateType: [] }), false)
+    assert.equal(hasAnyFilter({ pubDateLowerBound: 'soon', datePublicationAddedToEntrezUpperBound: 'x' }, { ...frag({}), dateType: [] }), false)
+})
+
+test('5c: pmid list sorts on a reportSortExpr expression', () => {
+    const w = buildReportExportWhere({ personIdentifers: ['abc1234'] }, frag({}))
+    const expr = "COALESCE(asa.dateAdded, asa.pubDate, NULLIF(asa.datePublicationAddedToEntrez, ''))"
+    assert.match(articlePmidsSql(w, expr, 'desc', 10), /ORDER BY isnull\(COALESCE\(asa\.dateAdded, asa\.pubDate, NULLIF\(asa\.datePublicationAddedToEntrez, ''\)\)\), COALESCE\(.*\) DESC, asa\.pmid DESC LIMIT 10$/)
+    assert.match(articlePmidsSql(w, "asa.x) -- ", 'asc', 10), /isnull\(asa\.datePublicationAddedToEntrez\)/)
 })

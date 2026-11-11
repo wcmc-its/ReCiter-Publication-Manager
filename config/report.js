@@ -55,9 +55,18 @@ export const reportConfig = {
   articleFilters: {
     name: "Publications",
     list: {
+      // Date added: when the record entered PubMed, or (external rows) when a curator added it;
+      // publication date when neither is known (5c, "date added where present, else publication
+      // date"). Keeps its old filter keys (datePublicationAddedToEntrez*Bound).
       date: {
-        name: "Date",
+        name: "Date added",
         options: "dateFilterData",
+        isEnabled: true,
+        filterType: "DateRange",
+      },
+      pubDate: {
+        name: "Publication date",
+        options: "pubDateFilterData",
         isEnabled: true,
         filterType: "DateRange",
       },
@@ -75,12 +84,16 @@ export const reportConfig = {
         isEnabled: true,
         dynamicFetchOptions: false,
       },
+      // 5c: the 18 types in their 4 groups (filter key `pubTypes`) once ReCiterDB fills
+      // analysis_summary_article.pubType; until then the flat list of publicationTypeCanonical
+      // values (optionLabel / value, filter key `publicationTypeCanonical`).
       type: {
         name: "Type",
         options: "articleTypeFilterData",
         optionLabel: "publicationTypeCanonical",
         value: "publicationTypeCanonical",
-        filterType: "CheckboxSelect",
+        groupedValue: "pubTypes",
+        filterType: "GroupedChecklist",
         isEnabled: true,
         dynamicFetchOptions: false,
       },

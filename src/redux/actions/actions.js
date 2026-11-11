@@ -1757,6 +1757,9 @@ export const clearPubSearchFilters = ()  => {
             reportsSearchFilters.filters.authorPosition = [];
             reportsSearchFilters.filters.datePublicationAddedToEntrezLowerBound = "";
             reportsSearchFilters.filters.datePublicationAddedToEntrezUpperBound = "";
+            reportsSearchFilters.filters.pubDateLowerBound = "";
+            reportsSearchFilters.filters.pubDateUpperBound = "";
+            reportsSearchFilters.filters.pubTypes = [];
         dispatch({
             type: methods.PUB_FILTER_CLEAR,
             payload: reportsSearchFilters

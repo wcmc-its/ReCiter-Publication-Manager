@@ -1,6 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
 import models from "../../../src/db/sequelize";
+import sequelize from "../../../src/db/db";
+import { articleColumns } from "./reportColumns";
+import { dateAddedExpr, pubDateExpr } from "./reportFilterSql";
+import { groupedTypeOptions } from "../../../src/utils/reportRow";
+import { PUB_TYPE_GROUPS } from "../../../src/lib/pubTypes";
 import  {reciterConstants}  from "../../../src/utils/constants";
 import {
     AuthorFilter,
@@ -134,32 +139,62 @@ export const authorFilter = async (
   }
 };
 
+// Bounds for the two date ranges. minDate / maxDate (Date added) keep their names for the
+// DatePicker; minPubDate / maxPubDate feed the Publication date range. Same expressions as the
+// search, so the bounds match what the filters compare against.
 export const dateFilter = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const dateRange = await models.AnalysisSummaryArticle.findAll({
-      attributes: [
-        [
-          Sequelize.fn("MIN", Sequelize.col("datePublicationAddedToEntrez")),
-          "minDate",
-        ],
-        [
-          Sequelize.fn("MAX", Sequelize.col("datePublicationAddedToEntrez")),
-          "maxDate",
-        ],
-      ],
-    });
-    res.send(dateRange);
+    const cols = await articleColumns();
+    const [rows]: any = await sequelize.query(
+      `SELECT MIN(${dateAddedExpr("", cols)}) AS minDate, MAX(${dateAddedExpr("", cols)}) AS maxDate, ` +
+        `MIN(${pubDateExpr("", cols)}) AS minPubDate, MAX(${pubDateExpr("", cols)}) AS maxPubDate ` +
+        "FROM analysis_summary_article",
+      { raw: true, plain: false }
+    );
+    res.send((rows || []).map((r: any) => ({
+      minDate: dateText(r.minDate),
+      maxDate: dateText(r.maxDate),
+      minPubDate: dateText(r.minPubDate),
+      maxPubDate: dateText(r.maxPubDate),
+    })));
   } catch (e) {
     console.log(e);
     res.status(500).send(e);
   }
 };
 
+// mysql2 hands a DATE back as a JS Date at local midnight; keep the calendar day.
+const dateText = (v: any): string | null => {
+  if (v === null || v === undefined || v === "") return null;
+  if (v instanceof Date) {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
+  }
+  return String(v);
+};
+
+// Type filter options. With the 5c columns filled: one row per (pubTypeGroup, pubType) with a
+// count, which the client renders as the grouped checklist (filter key `pubTypes`). Otherwise, or
+// while the columns are still empty (the DDL lands before the nightly that fills them), the old
+// flat list of publicationTypeCanonical values (filter key `publicationTypeCanonical`).
 export const articleTypeFilter = async (
   req: NextApiRequest,
   res: NextApiResponse
 ) => {
   try {
+    const cols = await articleColumns();
+    if (cols.pubType && cols.pubTypeGroup) {
+      const [rows]: any = await sequelize.query(
+        "SELECT pubTypeGroup, pubType, COUNT(*) AS count FROM analysis_summary_article " +
+          "WHERE pubType IS NOT NULL GROUP BY pubTypeGroup, pubType",
+        { raw: true, plain: false }
+      );
+      const grouped = groupedTypeOptions(rows || [], PUB_TYPE_GROUPS);
+      if (grouped.length) {
+        res.send(grouped);
+        return;
+      }
+    }
     const articleTypes = await models.AnalysisSummaryArticle.findAll({
       attributes: [
         [

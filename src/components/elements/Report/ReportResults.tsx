@@ -53,6 +53,12 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ reportingWebDispla
           journalTitleVerbose={row.journalTitleVerbose}
           publicationDateDisplay={row.publicationDateDisplay}
           publicationTypeCanonical={row.publicationTypeCanonical}
+          pubType={row.pubType}
+          publisher={row.publisher}
+          editors={row.editors}
+          volume={row.volume}
+          issue={row.issue}
+          pages={row.pages}
           onClickAuthor={onClickAuthor}
           reportingWebDisplay={reportingWebDisplay}
         />

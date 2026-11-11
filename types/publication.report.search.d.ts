@@ -8,8 +8,15 @@ export type PublicationSearchFilter = {
         authorPosition?: Array<string>
         // analysis_summary_article.source_type values: PUBMED, SCOPUS, OPENALEX, CROSSREF, WOS
         sourceTypes?: Array<string>
+        // "Date added" (inclusive). With ReCiterDB v3.7 it reads COALESCE(dateAdded, pubDate, ...)
         datePublicationAddedToEntrezLowerBound?: string, // format: YYYY-MM-DD
         datePublicationAddedToEntrezUpperBound?: string, // format: YYYY-MM-DD
+        // "Publication date" (inclusive), 5c
+        pubDateLowerBound?: string, // format: YYYY-MM-DD
+        pubDateUpperBound?: string, // format: YYYY-MM-DD
+        // grouped Type filter (one of the 18 PUB_TYPES), 5c; needs analysis_summary_article.pubType
+        pubTypes?: Array<string>,
+        // the old flat Type list; still honored for saved settings and links
         publicationTypeCanonical?: Array<string>,
         journalTitleVerbose?: Array<string>,
         journalImpactScoreLowerBound?: number,

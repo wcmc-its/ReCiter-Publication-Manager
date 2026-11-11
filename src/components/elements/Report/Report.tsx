@@ -207,6 +207,10 @@ const Report = () => {
     articleTypeFilterData : [...articleTypeFilterData],
     authorFilterData: [...authorFilterData],
     dateFilterData: [...dateFilterData],
+    // Publication date bounds ride along on the date endpoint (minPubDate / maxPubDate).
+    pubDateFilterData: dateFilterData
+      .filter((r: any) => r && (r.minPubDate || r.maxPubDate))
+      .map((r: any) => ({ minDate: r.minPubDate, maxDate: r.maxPubDate })),
     journalFilterData: [...journalFilterData],
     journalRankFilterData: [...journalRankFilterData],
     orgUnitsData: [...orgUnitsData],
@@ -355,13 +359,17 @@ const Report = () => {
   const onGetReportsDatabyPubFilters =()=>{
     const {personIdentifers,personTypes,institutions,orgUnits ,datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound,journalTitleVerbose,publicationTypeCanonical, authorPosition, journalImpactScoreLowerBound,journalImpactScoreUpperBound } = pubSearchFilter.filters;
     const sourceTypes = pubSearchFilter.filters.sourceTypes || [];
+    // 5c: Publication date range and the grouped Type filter count as article filters too.
+    const { pubDateLowerBound, pubDateUpperBound } = pubSearchFilter.filters;
+    const pubTypes = pubSearchFilter.filters.pubTypes || [];
+    const has5c = !!pubDateLowerBound || !!pubDateUpperBound || pubTypes.length > 0;
     let journalImpactScoreLowerBound1 = journalImpactScoreLowerBound;
     let journalImpactScoreUpperBound2 = journalImpactScoreUpperBound;
     
     if((personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0) 
-    && (datePublicationAddedToEntrezLowerBound != "" || datePublicationAddedToEntrezUpperBound != "" || journalTitleVerbose.length > 0 || publicationTypeCanonical.length > 0 || sourceTypes.length > 0 || journalImpactScoreLowerBound || journalImpactScoreUpperBound )) {
+    && (datePublicationAddedToEntrezLowerBound != "" || datePublicationAddedToEntrezUpperBound != "" || journalTitleVerbose.length > 0 || publicationTypeCanonical.length > 0 || sourceTypes.length > 0 || has5c || journalImpactScoreLowerBound || journalImpactScoreUpperBound )) {
       dispatch(fetchReportsResultsIds(pubSearchFilter)) 
-  }else if(personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0 && datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length == 0 && publicationTypeCanonical.length == 0 && sourceTypes.length == 0 && !journalImpactScoreLowerBound1 && !journalImpactScoreUpperBound2){
+  }else if(personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0 && datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length == 0 && publicationTypeCanonical.length == 0 && sourceTypes.length == 0 && !has5c && !journalImpactScoreLowerBound1 && !journalImpactScoreUpperBound2){
     dispatch(fetchReportsResultsIds(pubSearchFilter))
   }
   }

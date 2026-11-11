@@ -23,10 +23,16 @@ export type ReportExportFilters = {
   journalTitleVerbose?: string[];
   journalImpactScoreLowerBound?: number | string;
   journalImpactScoreUpperBound?: number | string;
+  // 5c
+  pubDateLowerBound?: string;
+  pubDateUpperBound?: string;
+  pubTypes?: string[];
 };
 
-// Pre-built fragments, aliased `asu` / `asa` (authorPositionSql("asu", …), sourceSql("asa", …)).
-export type ReportExportFragments = { authorPosition: string | null; source: string | null };
+// Pre-built fragments, aliased `asu` / `asa` (authorPositionSql("asu", …), sourceSql("asa", …),
+// dateTypeSql("asa", …)). `dateType` carries the Date added / Publication date / grouped Type
+// conditions; without it the Date added range falls back to the legacy column comparison.
+export type ReportExportFragments = { authorPosition: string | null; source: string | null; dateType?: string[] };
 
 export type ReportExportWhere = {
   // conditions on `asa` (analysis_summary_article), already ANDed; "1 = 1" when none
@@ -47,8 +53,12 @@ const present = (v: unknown): boolean => v !== null && v !== undefined && String
 
 // True when the request narrows the result set at all. An unfiltered export is refused: the
 // unfiltered CSV path is what OOM-killed prod on 10-01.
+// When the caller passes `fragments.dateType` (the built Date added / Publication date / grouped Type
+// clauses), only those count for the three: a bound that isn't a date, or a type the search drops
+// (no pubType column, or not one of the 18), yields no clause and so must not unlock the export.
 export const hasAnyFilter = (f?: ReportExportFilters | null, fragments?: ReportExportFragments): boolean => {
   if (!f) return false;
+  const dateTypeBuilt = !!(fragments && fragments.dateType);
   return (
     list(f.personIdentifers).length > 0 ||
     list(f.orgUnits).length > 0 ||
@@ -56,10 +66,15 @@ export const hasAnyFilter = (f?: ReportExportFilters | null, fragments?: ReportE
     list(f.personTypes).length > 0 ||
     list(f.publicationTypeCanonical).length > 0 ||
     list(f.journalTitleVerbose).length > 0 ||
-    present(f.datePublicationAddedToEntrezLowerBound) ||
-    present(f.datePublicationAddedToEntrezUpperBound) ||
+    (!dateTypeBuilt && (
+      list(f.pubTypes).length > 0 ||
+      present(f.pubDateLowerBound) ||
+      present(f.pubDateUpperBound) ||
+      present(f.datePublicationAddedToEntrezLowerBound) ||
+      present(f.datePublicationAddedToEntrezUpperBound)
+    )) ||
     (present(f.journalImpactScoreLowerBound) && present(f.journalImpactScoreUpperBound)) ||
-    !!(fragments && (fragments.authorPosition || fragments.source))
+    !!(fragments && (fragments.authorPosition || fragments.source || (fragments.dateType && fragments.dateType.length)))
   );
 };
 
@@ -70,13 +85,17 @@ export const buildReportExportWhere = (f: ReportExportFilters, fragments: Report
 
   const journals = list(f.journalTitleVerbose);
   if (journals.length) { article.push("asa.journalTitleVerbose IN (:journals)"); replacements.journals = journals; }
-  if (present(f.datePublicationAddedToEntrezLowerBound)) {
-    article.push("asa.datePublicationAddedToEntrez > :dateLower");
-    replacements.dateLower = f.datePublicationAddedToEntrezLowerBound;
-  }
-  if (present(f.datePublicationAddedToEntrezUpperBound)) {
-    article.push("asa.datePublicationAddedToEntrez < :dateUpper");
-    replacements.dateUpper = f.datePublicationAddedToEntrezUpperBound;
+  if (fragments.dateType) {
+    article.push(...fragments.dateType);
+  } else {
+    if (present(f.datePublicationAddedToEntrezLowerBound)) {
+      article.push("asa.datePublicationAddedToEntrez > :dateLower");
+      replacements.dateLower = f.datePublicationAddedToEntrezLowerBound;
+    }
+    if (present(f.datePublicationAddedToEntrezUpperBound)) {
+      article.push("asa.datePublicationAddedToEntrez < :dateUpper");
+      replacements.dateUpper = f.datePublicationAddedToEntrezUpperBound;
+    }
   }
   const types = list(f.publicationTypeCanonical);
   if (types.length) { article.push("asa.publicationTypeCanonical IN (:pubTypes)"); replacements.pubTypes = types; }
@@ -130,14 +149,23 @@ export const articleCountSql = (w: ReportExportWhere): string =>
   `SELECT COUNT(DISTINCT asa.pmid) AS n FROM analysis_summary_article asa WHERE ${w.articleSql} AND ${authorExists(w)}`;
 
 // Matching pmids in report order (nulls last, then newest first, then pmid for a stable order).
-// `sortColumn` must come from REPORT_SORT_COLUMNS; it is inlined. The caller dedupes pmids.
+// `sortColumn` is a REPORT_SORT_COLUMNS column (qualified with asa. here) or an expression from
+// reportSortExpr(key, "asa", cols); it is inlined, so anything else falls back to the default.
+// The caller dedupes pmids.
 export const articlePmidsSql = (w: ReportExportWhere, sortColumn: string | null, sortOrder: string | undefined, limit: number): string => {
-  const col = sortColumn && /^[A-Za-z0-9_]+$/.test(sortColumn) ? sortColumn : "datePublicationAddedToEntrez";
-  const dir = sortColumn && String(sortOrder || "").toUpperCase() === "ASC" ? "ASC" : "DESC";
+  const expr = !sortColumn
+    ? null
+    : /^[A-Za-z0-9_]+$/.test(sortColumn)
+      ? `asa.${sortColumn}`
+      : /^[A-Za-z0-9_.,'() ]+$/.test(sortColumn) && !/;|--/.test(sortColumn)
+        ? sortColumn
+        : null;
+  const col = expr || "asa.datePublicationAddedToEntrez";
+  const dir = expr && String(sortOrder || "").toUpperCase() === "ASC" ? "ASC" : "DESC";
   const lim = Math.max(1, Math.floor(Number(limit) || 1));
   return (
     `SELECT asa.pmid FROM analysis_summary_article asa WHERE ${w.articleSql} AND ${authorExists(w)} ` +
-    `ORDER BY isnull(asa.${col}), asa.${col} ${dir}, asa.pmid DESC LIMIT ${lim}`
+    `ORDER BY isnull(${col}), ${col} ${dir}, asa.pmid DESC LIMIT ${lim}`
   );
 };
 
@@ -175,9 +203,11 @@ export const describeFilters = (f: ReportExportFilters): Array<[string, string]>
   add("Person type", list(f.personTypes));
   add("Author position", list(f.authorPosition));
   add("Source", list(f.sourceTypes));
-  if (present(f.datePublicationAddedToEntrezLowerBound)) out.push(["Date added after", String(f.datePublicationAddedToEntrezLowerBound)]);
-  if (present(f.datePublicationAddedToEntrezUpperBound)) out.push(["Date added before", String(f.datePublicationAddedToEntrezUpperBound)]);
-  add("Publication type", list(f.publicationTypeCanonical));
+  if (present(f.datePublicationAddedToEntrezLowerBound)) out.push(["Added on or after", String(f.datePublicationAddedToEntrezLowerBound)]);
+  if (present(f.datePublicationAddedToEntrezUpperBound)) out.push(["Added on or before", String(f.datePublicationAddedToEntrezUpperBound)]);
+  if (present(f.pubDateLowerBound)) out.push(["Published on or after", String(f.pubDateLowerBound)]);
+  if (present(f.pubDateUpperBound)) out.push(["Published on or before", String(f.pubDateUpperBound)]);
+  add("Publication type", [...list(f.pubTypes), ...list(f.publicationTypeCanonical)]);
   add("Journal", list(f.journalTitleVerbose));
   if (present(f.journalImpactScoreLowerBound) && present(f.journalImpactScoreUpperBound)) {
     out.push(["Journal rank (SJR)", `${f.journalImpactScoreLowerBound} and above`]);

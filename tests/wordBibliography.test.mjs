@@ -37,6 +37,16 @@ test('buildSelection: author filters join person, values are replacements', () =
     assert.equal(s.replacements.orgLike0, "%Medicine'; drop%")
 })
 
+test('buildSelection: 5c date / type fragments replace the legacy date comparison', () => {
+    const f = { datePublicationAddedToEntrezLowerBound: '2020-01-01', pubTypes: ['Review'] }
+    const clauses = ["(asa.dateAdded >= '2020-01-01')", "(asa.pubType IN ('Review'))"]
+    const s = buildSelection(f, { dateTypeClauses: clauses })
+    assert.match(s.where, /\(asa\.dateAdded >= '2020-01-01'\) AND \(asa\.pubType IN \('Review'\)\)/)
+    assert.doesNotMatch(s.where, /:dateLower/)
+    assert.equal(hasReportFilter({ pubTypes: ['Review'] }), true)
+    assert.equal(hasReportFilter({ pubDateUpperBound: '2020-12-31' }), true)
+})
+
 test('buildSelection: article-only filters skip the person join; external toggle and source', () => {
     const f = { publicationTypeCanonical: ['Review'], datePublicationAddedToEntrezLowerBound: '2020-01-01', journalImpactScoreUpperBound: 5 }
     const s = buildSelection(f, { sourceClause: sourceSql('asa', ['PUBMED', 'SCOPUS'], true), includeExternal: false })

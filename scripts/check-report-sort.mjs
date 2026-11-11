@@ -32,18 +32,23 @@ const initBlock = model.slice(model.indexOf(".init({"));
 const columns = new Set([...initBlock.matchAll(/^ {4}(\w+): \{/gm)].map((m) => m[1]));
 assert.ok(columns.has("publicationDateStandardized"), "model column publicationDateStandardized missing");
 
-// 3. Run the helper itself (transpiled, Sequelize stubbed)
-const helperSrc = read("controllers/db/reports/reportSort.ts");
-const { outputText } = ts.transpileModule(helperSrc, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2019 },
-});
-const mod = { exports: {} };
+// 3. Run the helper itself (transpiled, Sequelize stubbed; reportFilterSql.ts is pure and loads as is)
+const load = (file, stubRequire) => {
+  const { outputText } = ts.transpileModule(read(file), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2019 },
+  });
+  const mod = { exports: {} };
+  new Function("module", "exports", "require", outputText)(mod, mod.exports, stubRequire);
+  return mod.exports;
+};
+const filterSql = load("controllers/db/reports/reportFilterSql.ts", (id) => assert.fail(`reportFilterSql.ts must not import ${id}`));
 const stubRequire = (id) => {
+  if (id === "./reportFilterSql") return filterSql;
   assert.equal(id, "sequelize");
   return { Sequelize: { literal: (val) => ({ val }) } };
 };
-new Function("module", "exports", "require", outputText)(mod, mod.exports, stubRequire);
-const { REPORT_SORT_COLUMNS, buildReportSort } = mod.exports;
+const { REPORT_SORT_COLUMNS, REPORT_DATE_SORTS, DEFAULT_REPORT_SORT, buildReportSort, reportSortExpr, isReportSortKey } =
+  load("controllers/db/reports/reportSort.ts", stubRequire);
 
 for (const key of sortKeys) {
   const column = REPORT_SORT_COLUMNS[key];
@@ -65,6 +70,31 @@ assert.deepEqual(
   "order must be whitelisted to ASC/DESC",
 );
 
+// 3b. 5c date sorts: with the v3.7 columns the date keys follow dateAdded / pubDate; without them
+// they sort exactly as before. The new key names work too, but aren't model columns (probed).
+const ALL = { pubType: true, pubDate: true, dateAdded: true };
+const ADDED = "COALESCE(dateAdded, pubDate, NULLIF(datePublicationAddedToEntrez, ''))";
+const PUBLISHED = "COALESCE(pubDate, NULLIF(publicationDateStandardized, ''))";
+assert.equal(buildReportSort({ type: "datePublicationAddedToEntrez", order: "DESC" }, ALL)[0][0].val, `isnull(${ADDED}), ${ADDED} DESC`);
+assert.equal(buildReportSort({ type: "dateAdded", order: "ASC" }, ALL)[0][0].val, `isnull(${ADDED}), ${ADDED} ASC`);
+for (const key of ["publicationDateStandardized", "publicationDateStandarized", "pubDate"]) {
+  assert.equal(buildReportSort({ type: key, order: "DESC" }, ALL)[0][0].val, `isnull(${PUBLISHED}), ${PUBLISHED} DESC`, key);
+  assert.equal(buildReportSort({ type: key, order: "DESC" }, {})[0][0].val, "isnull(publicationDateStandardized), publicationDateStandardized DESC", key);
+}
+assert.equal(buildReportSort({ type: "dateAdded" }, {})[0][0].val, "isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez DESC");
+// The exports join person (which has its own dateAdded), so they qualify every column.
+const Q = "COALESCE(AnalysisSummaryArticle.dateAdded, AnalysisSummaryArticle.pubDate, NULLIF(AnalysisSummaryArticle.datePublicationAddedToEntrez, ''))";
+assert.equal(buildReportSort({ type: "datePublicationAddedToEntrez", order: "DESC" }, ALL, "AnalysisSummaryArticle")[0][0].val, `isnull(${Q}), ${Q} DESC`);
+assert.equal(buildReportSort({ type: "citationCountNIH" }, {}, "AnalysisSummaryArticle")[0][0].val, "isnull(AnalysisSummaryArticle.citationCountNIH), AnalysisSummaryArticle.citationCountNIH DESC");
+assert.match(read("controllers/db/reports/publication.report.controller.ts"), /buildReportSort\(apiBody && apiBody\.sort, cols, "AnalysisSummaryArticle"\)/, "the exports must qualify sort columns (person.dateAdded)");
+assert.equal(buildReportSort({ type: "citationCountNIH" }, ALL)[0][0].val, "isnull(citationCountNIH), citationCountNIH DESC");
+assert.equal(reportSortExpr("citationCountNIH", "asa", ALL), "asa.citationCountNIH");
+assert.equal(reportSortExpr("dateAdded", "asa", ALL), "COALESCE(asa.dateAdded, asa.pubDate, NULLIF(asa.datePublicationAddedToEntrez, ''))");
+assert.equal(reportSortExpr("toString", "asa", ALL), undefined);
+assert.ok(isReportSortKey("pubDate") && isReportSortKey("citationCountNIH") && !isReportSortKey("constructor"));
+assert.ok(isReportSortKey(DEFAULT_REPORT_SORT.type));
+for (const key of Object.keys(REPORT_DATE_SORTS)) assert.ok(reportSortExpr(key, "", {}), key);
+
 // 4. Both paths use the helper; no inline sort literals or misspelling left
 const paths = {
   "controllers/db/reports/publication.report.search.controller.ts": 2,
@@ -72,8 +102,8 @@ const paths = {
 };
 for (const [file, count] of Object.entries(paths)) {
   const src = read(file);
-  assert.match(src, /import \{ buildReportSort \} from "\.\/reportSort";/, `${file} must import buildReportSort`);
-  const uses = src.match(/const sort = buildReportSort\(apiBody && apiBody\.sort\);/g) || [];
+  assert.match(src, /import \{ buildReportSort(, DEFAULT_REPORT_SORT)? \} from "\.\/reportSort";/, `${file} must import buildReportSort`);
+  const uses = src.match(/const sort = buildReportSort\(\(?apiBody && apiBody\.sort\)?( \|\| DEFAULT_REPORT_SORT)?, cols(, "AnalysisSummaryArticle")?\);/g) || [];
   assert.equal(uses.length, count, `${file}: expected ${count} buildReportSort call(s), got ${uses.length}`);
   assert.doesNotMatch(src, /Sequelize\.literal\('isnull\(/, `${file} still builds sort literals inline`);
 }

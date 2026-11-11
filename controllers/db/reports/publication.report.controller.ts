@@ -5,9 +5,9 @@ import { PublicationSearchFilter} from '../../../types/publication.report.search
 import { Op, Sequelize } from "sequelize";
 import {metrics } from "../../../config/report";
 import { buildReportSort } from "./reportSort";
-import { authorPositionSql, sourceSql } from "./reportFilterSql";
+import { authorPositionSql, sourceSql, dateTypeSql } from "./reportFilterSql";
+import { PUB_TYPES } from "../../../src/lib/pubTypes";
 import { articleColumns } from "./reportColumns";
-import { entrezDateBoundClauses } from "./reportDateBounds";
 		
 						 
 					 
@@ -106,7 +106,8 @@ export const generatePubsPeopleOnlyRtf = async (
   ) => {
     try {
       let apiBody: PublicationSearchFilter = req.body;
-      const hasSourceColumn = (await articleColumns()).sourceType;
+      const cols = await articleColumns();
+      const hasSourceColumn = cols.sourceType;
       if (apiBody.filters) {
         apiBody.filters.authorPosition = (apiBody.filters.authorPosition || []).filter((p) => !!authorPositionSql("x", [p]));
       }
@@ -175,10 +176,10 @@ export const generatePubsPeopleOnlyRtf = async (
             },
           });
         }
-        where[Op.and].push(...entrezDateBoundClauses(
-          apiBody.filters.datePublicationAddedToEntrezLowerBound,
-          apiBody.filters.datePublicationAddedToEntrezUpperBound,
-        ));
+        // Date added, Publication date and grouped Type (5c), as on the page (reportFilterSql.ts).
+        for (const clause of dateTypeSql("AnalysisSummaryArticle", apiBody.filters, cols, PUB_TYPES)) {
+          where[Op.and].push(Sequelize.literal(clause));
+        }
         const sourceClause = sourceSql("AnalysisSummaryArticle", apiBody.filters.sourceTypes, hasSourceColumn);
         if (sourceClause) where[Op.and].push(Sequelize.literal(sourceClause));
         if (
@@ -229,7 +230,7 @@ export const generatePubsPeopleOnlyRtf = async (
         });
 
       }
-      const sort = buildReportSort(apiBody && apiBody.sort);
+      const sort = buildReportSort(apiBody && apiBody.sort, cols, "AnalysisSummaryArticle");
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
       let searchOutput: any[] = [];
 
@@ -315,7 +316,8 @@ export const generatePubsPeopleOnlyRtf = async (
   ) => {
     try {
       let apiBody: PublicationSearchFilter = req.body;
-      const hasSourceColumn = (await articleColumns()).sourceType;
+      const cols = await articleColumns();
+      const hasSourceColumn = cols.sourceType;
       if (apiBody.filters) {
         apiBody.filters.authorPosition = (apiBody.filters.authorPosition || []).filter((p) => !!authorPositionSql("x", [p]));
       }
@@ -376,10 +378,12 @@ export const generatePubsPeopleOnlyRtf = async (
             },
           });
         }
-        where[Op.and].push(...entrezDateBoundClauses(
-          apiBody.filters.datePublicationAddedToEntrezLowerBound,
-          apiBody.filters.datePublicationAddedToEntrezUpperBound,
-        ));
+        // Date added, Publication date and grouped Type (5c), as on the page (reportFilterSql.ts). This
+        // also retires the old end-date-only branch, which compared with > and so returned rows
+        // added AFTER the end date.
+        for (const clause of dateTypeSql("AnalysisSummaryArticle", apiBody.filters, cols, PUB_TYPES)) {
+          where[Op.and].push(Sequelize.literal(clause));
+        }
 
         const sourceClause = sourceSql("AnalysisSummaryArticle", apiBody.filters.sourceTypes, hasSourceColumn);
         if (sourceClause) where[Op.and].push(Sequelize.literal(sourceClause));
@@ -420,7 +424,7 @@ export const generatePubsPeopleOnlyRtf = async (
           isPersonFilterOn = true;
         }
       }
-      const sort = buildReportSort(apiBody && apiBody.sort);
+      const sort = buildReportSort(apiBody && apiBody.sort, cols, "AnalysisSummaryArticle");
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
 										 
       let searchOutput: any[] = [];
