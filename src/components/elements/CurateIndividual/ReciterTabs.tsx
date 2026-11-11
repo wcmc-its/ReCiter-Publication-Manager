@@ -12,7 +12,7 @@ import TabScopusAuthorships from "./TabScopusAuthorships";
 import AllSourcesTab from "./AllSourcesTab";
 import AddPublicationDialog from "./AddPublicationDialog";
 import { useExternalArticles } from "./useExternalArticles";
-import { countWorks, groupExternalWorks } from "../../../utils/allSources";
+import { countWorks, groupExternalWorks, workHidden } from "../../../utils/allSources";
 import { allowedPermissions } from "../../../utils/constants";
 import { useSession } from "next-auth/react";
 import { clearPubMedData, showEvidenceByDefault, reciterFetchData, pubmedFetchData, reciterUpdatePublication } from "../../../redux/actions/actions";
@@ -48,9 +48,10 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
   // the dialog closes.
   const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(incomingDeepLink);
   // The person's external (Scopus / OpenAlex / Crossref) works, for the All sources tab and its
-  // count and "N to review" pill in the tab strip.
+  // count and "N to review" pill in the tab strip. The pill leaves out works the type map hides
+  // (talks, posters, out of scope), so it matches the tab's Pending count.
   const ext = useExternalArticles(reciterData?.reciter?.personIdentifier);
-  const extCounts = React.useMemo(() => countWorks(groupExternalWorks(ext.rows)), [ext.rows]);
+  const extCounts = React.useMemo(() => countWorks(groupExternalWorks(ext.rows), workHidden), [ext.rows]);
 
   // Smart change tracking: compare current assertions to originals
   const originalAssertions = useRef<Map<number, string>>(new Map());
@@ -407,7 +408,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           All sources
           <span
             className={extCounts.ACCEPTED ? styles.tabCountAccepted : styles.tabCountZero}
-            title={`${extCounts.ACCEPTED.toLocaleString()} accepted external works from Scopus, OpenAlex and Crossref`}
+            title={`${extCounts.ACCEPTED.toLocaleString()} accepted external works from Scopus, OpenAlex, Crossref and ORCID`}
           >
             {fmtCount(extCounts.ACCEPTED, compact)}
           </span>

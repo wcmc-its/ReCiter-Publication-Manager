@@ -256,6 +256,10 @@ export function apiRecordOf(row: any): Record<string, any> {
     addedBy: r.added_by ?? null,
     dateAdded: iso(r.added_at),
     provenance: r.provenance ?? null,
+    // Plan 3f-3h (3g columns, added with the import's DDL): null until the row and model carry them.
+    sourceDetail: r.source_detail ?? null,
+    affiliationFlag: r.affiliation_flag ?? null,
+    slotAffiliations: parseJson(r.slot_affiliations_json),
     method: r.method ?? null,
     pmid: num(r.pmid),
     doi: r.doi ?? null,

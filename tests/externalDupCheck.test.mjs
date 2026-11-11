@@ -182,3 +182,10 @@ test('apiRecordOf keeps the ExternalArticle field names', () => {
     [3, 'SCOPUS:1', 'SCOPUS', true, 99, 'J', 'Article', ['Ann Lee'], '2026-01-01T00:00:00.000Z', false])
   assert.equal(apiRecordOf({ status: 'ACCEPTED' }).suppressed, false)
 })
+
+test('apiRecordOf: the 3g import columns map when present and are null before the DDL adds them', () => {
+  const a = apiRecordOf({ status: 'PENDING', source_detail: 'Europe PMC', affiliation_flag: 'UNFAMILIAR', slot_affiliations_json: '["Mayo Clinic"]' })
+  assert.deepEqual([a.sourceDetail, a.affiliationFlag, a.slotAffiliations], ['Europe PMC', 'UNFAMILIAR', ['Mayo Clinic']])
+  const b = apiRecordOf({ status: 'PENDING' })
+  assert.deepEqual([b.sourceDetail, b.affiliationFlag, b.slotAffiliations], [null, null, null])
+})

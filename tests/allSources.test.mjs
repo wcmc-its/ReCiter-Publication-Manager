@@ -3,11 +3,23 @@
 // dialog's routing). Run with `npm test`.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {
+import { registerHooks } from 'node:module'
+
+// allSources.ts imports pubTypes without an extension, as Next resolves it; let node do the same.
+registerHooks({
+    resolve(spec, ctx, next) {
+        try { return next(spec, ctx) } catch (e) {
+            if (spec.startsWith('.') && !/\.[cm]?[jt]s$/.test(spec)) return next(spec + '.ts', ctx)
+            throw e
+        }
+    },
+})
+const {
     extStatusOf, extSourceOf, normDoi, groupExternalWorks, workMatches, workHasSource, countWorks,
-    storeTargetOf, storeStatusText,
-} from '../src/utils/allSources.ts'
-import { routeAddQuery } from '../src/utils/externalAddSearch.ts'
+    storeTargetOf, storeStatusText, rowHidden, workHidden, EXT_SOURCE_NAMES, EXT_SOURCES_IF_PRESENT,
+    provenanceBadgeOf, provenanceBadges, workUnfamiliarAffiliation, autoMergedRows,
+} = await import('../src/utils/allSources.ts')
+const { routeAddQuery } = await import('../src/utils/externalAddSearch.ts')
 
 const row = (articleId, extra = {}) => ({ articleId, sourceType: articleId.split(':')[0], title: 'T ' + articleId, ...extra })
 
@@ -109,4 +121,184 @@ test('storeStatusText: why a store row sits in the Rejected view', () => {
     // A store row out of ACCEPTED is suppressed, so the 3a grouping already puts it in Rejected.
     assert.equal(extStatusOf({ status: 'REMOVED', suppressed: true }), 'REJECTED')
     assert.equal(extStatusOf({ status: 'SUPERSEDED', suppressed: true }), 'REJECTED')
+})
+
+// Plan 3f-3h, 3h data model (P7).
+
+test('extSourceOf: ORCID by sourceType or articleId prefix; WOS and MANUAL stay Manual', () => {
+    assert.equal(extSourceOf({ articleId: 'ORCID:12345' }), 'ORCID')
+    assert.equal(extSourceOf({ articleId: 'ORCID:12345', sourceType: 'ORCID' }), 'ORCID')
+    assert.equal(extSourceOf({ articleId: 'orcid:1' }), 'ORCID')
+    assert.equal(extSourceOf({ articleId: 'MANUAL:abc', sourceType: 'MANUAL' }), 'Manual')
+    assert.deepEqual(EXT_SOURCE_NAMES, ['Scopus', 'OpenAlex', 'Crossref', 'ORCID', 'Manual'])
+    assert.deepEqual(EXT_SOURCES_IF_PRESENT, ['ORCID', 'Manual'])
+})
+
+test('extStatusOf: the 3b states that are not a live decision read as Rejected, whatever suppressed says', () => {
+    for (const s of ['REMOVED', 'SUPERSEDED', 'MERGED', 'AUTOMERGED', 'automerged']) {
+        assert.equal(extStatusOf({ status: s }), 'REJECTED', s)
+        assert.equal(extStatusOf({ status: s, suppressed: false }), 'REJECTED', s)
+    }
+    assert.equal(extStatusOf({ status: 'ACCEPTED', suppressed: true }), 'ACCEPTED', 'status wins over suppressed')
+    assert.equal(extStatusOf({ suppressed: false }), 'ACCEPTED', 'no status: suppressed fallback')
+    assert.equal(extStatusOf({ suppressed: 1 }), 'REJECTED')
+})
+
+const rec = (id, articleId, status, extra = {}) => ({ id, articleId, sourceType: articleId.split(':')[0], status, title: 'T ' + articleId, ...extra })
+
+test('groupExternalWorks: an AUTOMERGED row sits under its live record by mergedIntoId, even without a DOI', () => {
+    const works = groupExternalWorks([
+        rec(1, 'SCOPUS:1', 'PENDING'),
+        rec(2, 'ORCID:9', 'AUTOMERGED', { mergedIntoId: 1, authors: ['A Smith'] }),
+        rec(3, 'OPENALEX:W3', 'PENDING', { doi: '10.1/other' }),
+        rec(4, 'ORCID:10', 'AUTOMERGED', { mergedIntoId: 3, doi: '10.9/different' }),
+    ])
+    assert.equal(works.length, 2)
+    assert.deepEqual(works.map((w) => w.rows.map((r) => r.id)), [[1, 2], [3, 4]])
+    assert.deepEqual(works.map((w) => w.attached.map((r) => r.id)), [[2], [4]])
+    assert.equal(works[0].status, 'PENDING', 'the child does not pull the work into Rejected')
+    assert.equal(works[0].lead.id, 1, 'the lead is the live row, not the child that has authors')
+    assert.deepEqual(works[0].sources, ['Scopus', 'ORCID'], 'the child still lists its source')
+    assert.equal(works[1].key, 'doi:10.1/other', "the work keeps its live record's key")
+})
+
+test('groupExternalWorks: merge chains follow to the root; MERGED counts as a child; a missing parent stands alone', () => {
+    const works = groupExternalWorks([
+        rec(1, 'SCOPUS:1', 'ACCEPTED', { doi: '10.1/a' }),
+        rec(2, 'OPENALEX:W2', 'MERGED', { mergedIntoId: 1 }),
+        rec(3, 'ORCID:3', 'AUTOMERGED', { mergedIntoId: 2 }),
+        rec(4, 'ORCID:4', 'AUTOMERGED', { mergedIntoId: 999 }),
+        rec(5, 'CROSSREF:10.5/x', 'MERGED', { mergedIntoPmid: 123 }),
+    ])
+    assert.deepEqual(works.map((w) => w.rows.map((r) => r.id)), [[1, 2, 3], [4], [5]])
+    assert.equal(works[0].status, 'ACCEPTED')
+    assert.equal(works[1].status, 'REJECTED', 'an AUTOMERGED row with no listed parent sits in Rejected')
+    assert.deepEqual(works[1].attached, [])
+    assert.equal(works[2].status, 'REJECTED')
+    assert.equal(storeStatusText(works[2].lead), 'Same work as PMID 123')
+})
+
+test('groupExternalWorks: a mergedIntoId on a row that is not MERGED/AUTOMERGED is ignored; cycles end', () => {
+    const works = groupExternalWorks([
+        rec(1, 'SCOPUS:1', 'ACCEPTED', { mergedIntoId: 2 }),
+        rec(2, 'SCOPUS:2', 'ACCEPTED'),
+        rec(3, 'ORCID:3', 'AUTOMERGED', { mergedIntoId: 4 }),
+        rec(4, 'ORCID:4', 'AUTOMERGED', { mergedIntoId: 3 }),
+    ])
+    assert.equal(works.length, 3)
+    assert.deepEqual(works.map((w) => w.rows.length).sort(), [1, 1, 2])
+    assert.equal(works.flatMap((w) => w.rows).length, 4, 'every row lands in exactly one work')
+})
+
+test('groupExternalWorks: rows without status or id (EXTERNAL_STORE=reciter) group exactly as before', () => {
+    const rows = [
+        { articleId: 'SCOPUS:1', sourceType: 'SCOPUS', doi: '10.1/A', mergedIntoId: 5 },
+        { articleId: 'OPENALEX:W1', sourceType: 'OPENALEX', doi: '10.1/a', suppressed: true },
+        { articleId: 'SCOPUS:2', sourceType: 'SCOPUS' },
+    ]
+    const works = groupExternalWorks(rows)
+    assert.deepEqual(works.map((w) => [w.key, w.rows.length, w.status, w.attached.length]),
+        [['doi:10.1/a', 2, 'ACCEPTED', 0], ['id:SCOPUS:2', 1, 'ACCEPTED', 0]])
+})
+
+test('rowHidden / workHidden: talks, posters and out-of-scope types hide; curator type, Manual or no type do not', () => {
+    assert.equal(rowHidden({ articleId: 'ORCID:1', publicationType: 'conference-poster' }), true)
+    assert.equal(rowHidden({ articleId: 'ORCID:1', publicationType: 'lecture-speech' }), true)
+    assert.equal(rowHidden({ articleId: 'ORCID:1', publicationType: 'patent' }), true)
+    assert.equal(rowHidden({ articleId: 'ORCID:1', publicationType: 'journal-article' }), false)
+    assert.equal(rowHidden({ articleId: 'ORCID:1', publicationType: 'other' }), false, 'unmapped is shown for a curator to type')
+    assert.equal(rowHidden({ articleId: 'ORCID:1', publicationType: 'conference-poster', pubType: 'Conference Abstract' }), false)
+    assert.equal(rowHidden({ articleId: 'ORCID:1' }), false)
+    assert.equal(rowHidden({ articleId: 'MANUAL:x', sourceType: 'MANUAL', publicationType: 'conference-poster' }), false)
+    assert.equal(rowHidden({ articleId: 'OPENALEX:W1', publicationType: 'peer-review' }), true)
+    assert.equal(rowHidden({ articleId: 'OPENALEX:W1', publicationType: 'conference-abstract' }), false)
+    const [mixed, poster] = groupExternalWorks([
+        rec(1, 'ORCID:1', 'PENDING', { doi: '10.1/a', publicationType: 'conference-poster' }),
+        rec(2, 'OPENALEX:W2', 'PENDING', { doi: '10.1/a', publicationType: 'article' }),
+        rec(3, 'ORCID:3', 'PENDING', { publicationType: 'conference-presentation' }),
+        rec(4, 'SCOPUS:4', 'AUTOMERGED', { mergedIntoId: 3, publicationType: 'Article' }),
+    ])
+    assert.equal(workHidden(mixed), false, 'hidden only when every own row is')
+    assert.equal(workHidden(poster), true, 'an attached child does not unhide its live record')
+})
+
+test('countWorks: with workHidden, hidden works leave the Pending count only', () => {
+    const works = groupExternalWorks([
+        rec(1, 'ORCID:1', 'PENDING', { publicationType: 'journal-article' }),
+        rec(2, 'ORCID:2', 'PENDING', { publicationType: 'conference-poster' }),
+        rec(3, 'ORCID:3', 'PENDING', { publicationType: 'lecture-speech' }),
+        rec(4, 'SCOPUS:4', 'ACCEPTED', { publicationType: 'Erratum' }),
+        rec(5, 'ORCID:5', 'REJECTED', { publicationType: 'conference-poster' }),
+        rec(6, 'ORCID:6', 'AUTOMERGED', { mergedIntoId: 1, publicationType: 'journal-article' }),
+    ])
+    assert.deepEqual(countWorks(works), { PENDING: 3, ACCEPTED: 1, REJECTED: 1 })
+    assert.deepEqual(countWorks(works, workHidden), { PENDING: 1, ACCEPTED: 1, REJECTED: 1 })
+})
+
+test('countWorks: today\'s rows (no status) count the same with or without workHidden', () => {
+    const works = groupExternalWorks([
+        { articleId: 'SCOPUS:1', sourceType: 'SCOPUS', publicationType: 'Erratum' },
+        { articleId: 'OPENALEX:W1', sourceType: 'OPENALEX', publicationType: 'conference-abstract', suppressed: true },
+        { articleId: 'CROSSREF:10.1/b', sourceType: 'CROSSREF', publicationType: 'book' },
+    ])
+    assert.deepEqual(countWorks(works, workHidden), countWorks(works))
+    assert.deepEqual(countWorks(works), { PENDING: 0, ACCEPTED: 2, REJECTED: 1 })
+})
+
+// Plan 3f-3h, 3h UI helpers.
+test('provenanceBadgeOf: import provenances get a badge with id, first seen and "imported nightly"', () => {
+    const b = provenanceBadgeOf(row('ORCID:1', { provenance: 'ORCID_SELF', orcidPutCode: '123', dateAdded: '2026-11-12T03:00:00.000Z' }))
+    assert.equal(b.label, 'ORCID · added by researcher')
+    assert.equal(b.tip, 'ORCID put-code 123 · first seen 2026-11-12 · imported nightly')
+    assert.equal(provenanceBadgeOf(row('ORCID:2', { provenance: 'ORCID_CROSSREF' })).label, 'ORCID · Crossref')
+    assert.equal(provenanceBadgeOf(row('ORCID:3', { provenance: 'ORCID_SCOPUS' })).label, 'ORCID · Scopus')
+    assert.equal(provenanceBadgeOf(row('ORCID:4', { provenance: 'ORCID_OTHER', sourceDetail: 'Europe PMC' })).label, 'ORCID · Europe PMC')
+    assert.equal(provenanceBadgeOf(row('SCOPUS:5', { provenance: 'SCOPUS_AUID', scopusEid: '2-s2.0-5' })).tip, 'Scopus 2-s2.0-5 · imported nightly')
+    assert.equal(provenanceBadgeOf(row('OPENALEX:W6', { provenance: 'OPENALEX_AUTHOR' })).label, 'OpenAlex author profile')
+    // Curator-added and today's rows: no badge.
+    for (const p of ['AUTHORSHIPS', 'ADD_SEARCH', 'MANUAL', null, undefined]) assert.equal(provenanceBadgeOf(row('SCOPUS:7', { provenance: p })), null)
+})
+
+test('provenanceBadges: one per source across the work and its auto-merged children', () => {
+    const rows = [
+        row('SCOPUS:1', { id: 1, status: 'PENDING', provenance: 'SCOPUS_AUID', doi: '10.1/a' }),
+        row('ORCID:2', { id: 2, status: 'AUTOMERGED', mergedIntoId: 1, provenance: 'ORCID_SELF' }),
+        row('ORCID:3', { id: 3, status: 'AUTOMERGED', mergedIntoId: 1, provenance: 'ORCID_SELF' }),
+        row('OPENALEX:W4', { id: 4, status: 'AUTOMERGED', mergedIntoId: 1, provenance: 'OPENALEX_AUTHOR' }),
+    ]
+    const [w] = groupExternalWorks(rows)
+    assert.deepEqual(provenanceBadges(w).map((b) => b.label), ['Scopus Author ID', 'ORCID · added by researcher', 'OpenAlex author profile'])
+    // Flag-off (reciter store) rows: no badges at all.
+    assert.deepEqual(groupExternalWorks([row('SCOPUS:9', { provenance: 'AUTHORSHIPS' })]).flatMap(provenanceBadges), [])
+})
+
+test('workUnfamiliarAffiliation: UNFAMILIAR shows the slot strings; KNOWN, NONE or no flag shows nothing', () => {
+    const w = (...rows) => groupExternalWorks(rows)[0]
+    assert.deepEqual(workUnfamiliarAffiliation(w(row('SCOPUS:1', { status: 'PENDING', affiliationFlag: 'UNFAMILIAR',
+        slotAffiliations: ['Mayo Clinic', { name: 'Univ X', id: '60000' }, ''] }))), ['Mayo Clinic', 'Univ X'])
+    assert.deepEqual(workUnfamiliarAffiliation(w(row('SCOPUS:1', { status: 'PENDING', affiliationFlag: 'UNFAMILIAR' }))), [])
+    assert.equal(workUnfamiliarAffiliation(w(row('SCOPUS:1', { status: 'PENDING', affiliationFlag: 'NONE' }))), null)
+    assert.equal(workUnfamiliarAffiliation(w(row('SCOPUS:1', { status: 'PENDING' }))), null)
+    // A known affiliation on another of the work's own rows wins.
+    assert.equal(workUnfamiliarAffiliation(w(
+        row('SCOPUS:1', { status: 'PENDING', doi: '10.1/z', affiliationFlag: 'UNFAMILIAR', slotAffiliations: ['A'] }),
+        row('OPENALEX:W1', { status: 'PENDING', doi: '10.1/z', affiliationFlag: 'KNOWN' }),
+    )), null)
+    // An auto-merged child's flag does not mark the live work.
+    assert.equal(workUnfamiliarAffiliation(w(
+        row('SCOPUS:1', { id: 1, status: 'PENDING', affiliationFlag: 'KNOWN' }),
+        row('ORCID:2', { id: 2, status: 'AUTOMERGED', mergedIntoId: 1, affiliationFlag: 'UNFAMILIAR' }),
+    )), null)
+})
+
+test('autoMergedRows: AUTOMERGED rows with their parent when listed', () => {
+    const p = row('SCOPUS:1', { id: 1, status: 'ACCEPTED' })
+    const c = row('ORCID:2', { id: 2, status: 'AUTOMERGED', mergedIntoId: 1 })
+    const orphan = row('ORCID:3', { id: 3, status: 'automerged', mergedIntoId: 99 })
+    const m = autoMergedRows([p, c, orphan, row('ORCID:4', { id: 4, status: 'MERGED', mergedIntoId: 1 })])
+    assert.equal(m.length, 2)
+    assert.equal(m[0].row, c); assert.equal(m[0].parent, p)
+    assert.equal(m[1].row, orphan); assert.equal(m[1].parent, null)
+    assert.deepEqual(autoMergedRows(null), [])
+    assert.deepEqual(autoMergedRows([row('SCOPUS:5', { suppressed: true })]), [])
 })
