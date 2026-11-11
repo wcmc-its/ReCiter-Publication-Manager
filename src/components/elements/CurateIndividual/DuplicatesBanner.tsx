@@ -14,19 +14,40 @@ import styles from "./CurateIndividual.module.css";
 //   ponytail: REJECTED clears supersededByPmid, so the row won't revive if the PubMed record is
 //   later rejected; that needs a Java "supersede by PMID" action.
 // - Different papers: PENDING (changes no state) with a marker note; see isMarkedDifferent.
+// With the external record store (EXTERNAL_STORE=mysql, plan 3b-3e, the list answers store 'mysql'):
+// - Keep PubMed record: the external record becomes MERGED into the PMID (merge route), so it
+//   is out of Reports but still linked to its twin; Undo is the store's one-step Undo.
+// - Different papers: a per-curator verdict in external_dup_verdict; Undo deletes it. Markers
+//   already in FeedbackLog still count until P5 copies them over.
 const headers = { Accept: "application/json", "Content-Type": "application/json", Authorization: reciterConfig.backendApiKey };
 const DuplicatesBanner: React.FC<{ uid: string, accepted: any[] }> = ({ uid, accepted }) => {
   const [external, setExternal] = useState<any[]>([]);
+  const [store, setStore] = useState<'reciter' | 'mysql'>('reciter');
+  // Store mode: "PMID:n|EXT:id" for every verdict that applies to this curator, both orders.
+  const [verdicts, setVerdicts] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!uid) return;
     let live = true;
-    fetch(`/api/reciter/external-article/${encodeURIComponent(uid)}`, {
+    fetch(`/api/db/external/${encodeURIComponent(uid)}`, {
       credentials: "same-origin",
       headers,
     })
       .then((r) => (r.ok ? r.json() : {}))
-      .then((b: any) => { if (live) setExternal(Array.isArray(b?.external) ? b.external : []); })
+      .then((b: any) => {
+        if (!live) return;
+        setExternal(Array.isArray(b?.external) ? b.external : []);
+        if (b?.store !== 'mysql') return;
+        setStore('mysql');
+        return fetch(`/api/db/external/dup-verdict?uid=${encodeURIComponent(uid)}`, { credentials: "same-origin", headers })
+          .then((r) => (r.ok ? r.json() : {}))
+          .then((v: any) => {
+            if (!live) return;
+            const keys = new Set<string>();
+            (Array.isArray(v?.verdicts) ? v.verdicts : []).forEach((x: any) => { keys.add(`${x.key_a}|${x.key_b}`); keys.add(`${x.key_b}|${x.key_a}`); });
+            setVerdicts(keys);
+          });
+      })
       .catch(() => {}); // the banner is advisory; no banner on a failed read
     return () => { live = false; };
   }, [uid]);
@@ -36,8 +57,8 @@ const DuplicatesBanner: React.FC<{ uid: string, accepted: any[] }> = ({ uid, acc
   const [local, setLocal] = useState<Record<string, 'kept' | 'different' | undefined>>({});
   const pairs = useMemo(() => crossSourceDuplicates(accepted, external)
     .filter(({ pub, ext }) => local[ext.articleId] === undefined
-      ? !isMarkedDifferent(feedbacklog?.[ext.articleId], pub.pmid)
-      : false), [accepted, external, feedbacklog, local]);
+      ? !isMarkedDifferent(feedbacklog?.[ext.articleId], pub.pmid) && !verdicts.has(`PMID:${pub.pmid}|EXT:${ext.articleId}`)
+      : false), [accepted, external, feedbacklog, local, verdicts]);
 
   const send = (articleId: string, action: 'ACCEPTED' | 'REJECTED' | 'PENDING', note: string) =>
     fetch(`/api/db/external-article/feedback`, {
@@ -47,7 +68,31 @@ const DuplicatesBanner: React.FC<{ uid: string, accepted: any[] }> = ({ uid, acc
       if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b?.message || `HTTP ${r.status}`); }
     });
   const mark = (articleId: string, v: 'kept' | 'different' | undefined) => setLocal((l) => ({ ...l, [articleId]: v }));
+  const post = (path: string, method: 'POST' | 'DELETE', body: any) =>
+    fetch(`/api/db/external/${path}`, { credentials: "same-origin", method, headers, body: JSON.stringify(body) })
+      .then(async (r) => {
+        if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b?.message || `HTTP ${r.status}`); }
+      });
+  const actStore = (ext: any, pmid: number, kind: 'kept' | 'different') => {
+    const id = ext.articleId;
+    const pair = { uid, a: `PMID:${pmid}`, b: `EXT:${id}` };
+    const [write, undo, msg] = kind === 'kept'
+      ? [() => post('merge', 'POST', { dropIds: [ext.id], keepPmid: pmid, note: `Duplicate of PMID ${pmid} (kept PubMed record)` }),
+        () => post('undo', 'POST', { ids: [ext.id] }),
+        `Kept PMID ${pmid}; hid the ${extSourceLabel(ext)} copy`] as const
+      : [() => post('dup-verdict', 'POST', { ...pair, verdict: 'DIFFERENT' }),
+        () => post('dup-verdict', 'DELETE', pair),
+        `Marked as different from PMID ${pmid}`] as const;
+    mark(id, kind);
+    write()
+      .then(() => showUndoToast(msg, () => {
+        mark(id, undefined);
+        undo().catch((e) => { mark(id, kind); toast.error("Could not undo: " + (e.message || e)); });
+      }))
+      .catch((e) => { mark(id, undefined); toast.error("Could not save: " + (e.message || e)); });
+  };
   const act = (ext: any, pmid: number, kind: 'kept' | 'different') => {
+    if (store === 'mysql') return actStore(ext, pmid, kind);
     const id = ext.articleId;
     const [action, note, undoAction, undoNote, msg] = kind === 'kept'
       ? ['REJECTED', `Duplicate of PMID ${pmid} (kept PubMed record)`, 'ACCEPTED', `Duplicate of PMID ${pmid} undone`, `Kept PMID ${pmid}; hid the ${extSourceLabel(ext)} copy`] as const

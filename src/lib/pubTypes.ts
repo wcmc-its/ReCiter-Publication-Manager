@@ -119,6 +119,9 @@ const OPENALEX: Record<string, SourceTypeMapping> = {
   dataset: pub("Dataset"),
   dissertation: pub("Dissertation"),
   report: pub("Report"),
+  // Plan 3b-3e decision 5: in prod external_article (Nov 10) as 1,837 and 51 rows.
+  "conference-abstract": pub("Conference Abstract"),
+  "conference-paper": pub("Conference Paper"),
   erratum: ERRATUM,
   retraction: RETRACTION,
   "peer-review": OUT_OF_SCOPE,
@@ -139,6 +142,10 @@ const SCOPUS: Record<string, SourceTypeMapping> = {
   le: pub("Letter"),
   editorial: pub("Editorial"),
   ed: pub("Editorial"),
+  // Plan 3b-3e decision 5: a Scopus "Note" is a short communication, mapped to Letter (518 prod
+  // rows, Nov 10). Editorial was the other option.
+  note: pub("Letter"),
+  no: pub("Letter"),
   "book-chapter": pub("Book Chapter"),
   ch: pub("Book Chapter"),
   book: pub("Book"),

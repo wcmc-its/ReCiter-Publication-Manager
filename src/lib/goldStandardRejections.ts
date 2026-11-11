@@ -22,7 +22,7 @@
 // the pod's IRSA role in prod (service account `reciter-pm`), and local AWS
 // env/SSO creds in dev. No static keys.
 
-import { DynamoDBClient, BatchGetItemCommand } from '@aws-sdk/client-dynamodb'
+import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from '@aws-sdk/client-dynamodb'
 
 const REGION = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1'
 const TABLE = 'GoldStandard'
@@ -123,6 +123,28 @@ async function getPmidsByCwid(
     }
   } catch (e) {
     console.log(`GoldStandard ${attr} lookup failed (non-fatal): ` + e)
+  }
+  return out
+}
+
+/**
+ * knownpmids for one uid, read strongly consistent and NOT best-effort: it throws on any AWS
+ * error. For the external-record supersede reconcile (src/lib/externalStore.ts), which runs right
+ * after a gold-standard write and must see that write, and which must skip rather than act on an
+ * outage: the best-effort reads above turn an outage into "nothing accepted", which would revive
+ * every superseded external record for the person.
+ */
+export async function getKnownPmidsStrict(uid: string): Promise<Set<number>> {
+  const resp = await getClient().send(new GetItemCommand({
+    TableName: TABLE,
+    Key: { uid: { S: uid } },
+    ProjectionExpression: 'knownpmids',
+    ConsistentRead: true,
+  }))
+  const out = new Set<number>()
+  for (const entry of resp.Item?.knownpmids?.L ?? []) {
+    const n = Number(entry?.N)
+    if (entry?.N !== undefined && Number.isFinite(n)) out.add(n)
   }
   return out
 }

@@ -9,10 +9,11 @@ import {
 
 // PM#771 — add publications from an external source (Scopus by default, OpenAlex or Crossref) to a person's
 // record. Self-contained (AAR-tab precedent): local state + fetch, no redux. OpenAlex
-// search is proxied server-side; adds go through the ReCiter external-article API
-// (admin-key proxied) which enforces the BLOCKED (no override) / WARNING (Add anyway)
-// duplicate rules. Added pubs are listed here, visually separate from scored PubMed
-// suggestions, with a Delete (= revoke) affordance.
+// search is proxied server-side; adds go through /api/db/external/<uid>, which writes the
+// ReCiter external-article API (admin-key proxied) or, with EXTERNAL_STORE=mysql, reciterdb
+// external_record (plan 3b-3e). Both enforce the BLOCKED (no override) / WARNING (Add anyway)
+// duplicate rules with the same 409 body. Added pubs are listed here, visually separate from
+// scored PubMed suggestions, with a Delete (= revoke; a soft Remove with the store) affordance.
 //
 // Scopus is the default source (curated author lists and affiliations). Its search is the
 // Scopus Authorships tab's document search (/api/reciter/search/scopus, by DOI when the query
@@ -117,7 +118,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
     const fetchExternalList = useCallback(() => {
         if (!uid) return
         setLoadingList(true)
-        fetch(`/api/reciter/external-article/${encodeURIComponent(uid)}`, {
+        fetch(`/api/db/external/${encodeURIComponent(uid)}`, {
             credentials: "same-origin", method: "GET", headers: apiHeaders,
         })
             .then(async (r) => {
@@ -306,7 +307,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
             } catch (e) { /* fail-open: fall through to the external add */ }
         }
         setAddState(articleId, { status: "adding" })
-        let url = `/api/reciter/external-article/${encodeURIComponent(uid)}`
+        let url = `/api/db/external/${encodeURIComponent(uid)}`
         if (force) url += `?force=true`
         fetch(url, {
             credentials: "same-origin", method: "POST", headers: apiHeaders,
@@ -347,7 +348,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
     }
 
     const doDelete = (articleId: string) => {
-        fetch(`/api/reciter/external-article/${encodeURIComponent(uid)}?articleId=${encodeURIComponent(articleId)}`, {
+        fetch(`/api/db/external/${encodeURIComponent(uid)}?articleId=${encodeURIComponent(articleId)}`, {
             credentials: "same-origin", method: "DELETE", headers: apiHeaders,
         })
             .then(async (r) => {

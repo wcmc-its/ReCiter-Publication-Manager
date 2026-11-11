@@ -403,3 +403,149 @@
   color: #5a6478;
   line-height: 1.6;
 }
+
+/* ── Author profiles (Scopus / OpenAlex author ids) ── */
+.aidIntro {
+  font-size: 12px;
+  color: #5a6478;
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+.aidGroup {
+  margin-bottom: 14px;
+}
+.aidGroupHead {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #5a6478;
+  margin-bottom: 4px;
+}
+.aidNone {
+  font-size: 12px;
+  color: #8a94a6;
+  padding: 6px 0;
+}
+.aidRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid #ddd7ce;
+}
+.aidRow:last-child {
+  border-bottom: none;
+}
+.aidRow[data-status='REJECTED'] .aidValue {
+  color: #8a94a6;
+  text-decoration: line-through;
+}
+.aidMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.aidValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a2133;
+  font-family: monospace;
+  letter-spacing: 0.04em;
+}
+.aidChip {
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid #ddd7ce;
+  background: #f0ece5;
+  color: #5a6478;
+}
+.aidChipSuggested {
+  background: #eef3fa;
+  color: #2563a8;
+  border-color: #c6d7ee;
+}
+.aidChipConfirmed {
+  background: #edf7f2;
+  color: #1a7a4a;
+  border-color: #b8e0cc;
+}
+.aidChipRejected {
+  background: #fdf0ee;
+  color: #c0392b;
+  border-color: #f0c8c4;
+}
+.aidEvidence {
+  font-size: 12px;
+  color: #5a6478;
+}
+.aidWarn {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: #a05a00;
+}
+.aidMeta {
+  flex-basis: 100%;
+  font-size: 11.5px;
+  color: #8a94a6;
+}
+.aidPmids {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  font-family: monospace;
+}
+.aidPmids a {
+  color: #2563a8;
+}
+.aidLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-family: inherit;
+  color: #2563a8;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.aidLink:disabled,
+.aidActions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.aidActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.aidActions .btnRemove {
+  padding: 5px 10px;
+  font-size: 11.5px;
+}
+.aidAdd {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid #ddd7ce;
+}
+.aidSelect {
+  padding: 8px 10px;
+  border: 1px solid #ddd7ce;
+  border-radius: 5px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  color: #1a2133;
+}
+@media (max-width: 640px) {
+  .aidRow {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
