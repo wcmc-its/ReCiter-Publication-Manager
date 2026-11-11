@@ -228,22 +228,27 @@ const Profile = ({
     }
   }
 
-  const generateRTFPeopleOnly = () => {
+  // Word: the 5g .docx bibliography for this one person, grouped by year (RTF is retired).
+  const generateWordForPerson = () => {
     setExportArticleRTFLoading(true);
-    fetch(`/api/db/reports/publication/people-only`, {
+    fetch(`/api/db/reports/publication/word`, {
       credentials: "same-origin",
       method: 'POST',
       headers: {
-        Accept: 'application/json',
+        'Content-Type': 'application/json',
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify({ personIdentifiers: [uid], limit: exportArticlesRTF && exportArticlesRTF.length > 0 && exportArticlesRTF[0].maxLimit })
-    }).then(response => response.blob())
+      body: JSON.stringify({ filters: { personIdentifers: [uid] }, groupBy: 'year', includeExternal: true })
+    }).then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.blob();
+      })
       .then(fileBlob => {
         let d = new Date().toISOString().slice(0, 10);
         var link = document.createElement('a')
         link.href = window.URL.createObjectURL(fileBlob)
-        link.download = 'ArticleReport-ReCiter-' + d + ".rtf";
+        link.download = 'ArticleReport-ReCiter-' + uid + '-' + d + ".docx";
+        document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM.
         link.click()
         link.remove();
         setExportArticleRTFLoading(false);
@@ -373,7 +378,7 @@ const Profile = ({
               <Button size="sm" onClick={exportArticleCSV} disabled={exportArticleCsvLoading} sx={slateTintSx}>
                 {exportArticleCsvLoading ? 'Exporting…' : 'Excel'}
               </Button>
-              <Button size="sm" onClick={generateRTFPeopleOnly} disabled={exportArticlRTFLoading} sx={slateTintSx}>
+              <Button size="sm" onClick={generateWordForPerson} disabled={exportArticlRTFLoading} sx={slateTintSx}>
                 {exportArticlRTFLoading ? 'Exporting…' : 'Word'}
               </Button>
               {canCurateThisPerson && (onThisCuratePage ? (
