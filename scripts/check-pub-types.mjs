@@ -68,6 +68,21 @@ assert.equal(T("OpenAlex", "reference-entry"), "Reference Entry");
 assert.equal(T("Crossref", "dataset"), "Dataset");
 assert.equal(T("Crossref", "dissertation"), "Dissertation");
 assert.equal(T("Crossref", "report"), "Report");
+// Plan 3b-3e decision 5: the three source types prod external_article carried with no map.
+assert.equal(T("OpenAlex", "conference-abstract"), "Conference Abstract");
+assert.equal(T("OpenAlex", "conference-paper"), "Conference Paper");
+assert.equal(T("Scopus", "Note"), "Letter");
+assert.equal(T("Scopus", "no"), "Letter");
+assert.equal(T("OpenAlex", "Book Chapter"), "Book Chapter", "the one OpenAlex row stored Scopus-style");
+// Every source_type seen in prod external_article on Nov 10 now maps, or is a not-counted notice.
+for (const t of ["Article", "Conference Paper", "Book Chapter", "Review", "Book", "Editorial", "Note", "Letter", "Short Survey", "Data Paper"]) {
+  assert.equal(D("Scopus", t), "publication", `Scopus ${t}`);
+}
+for (const t of ["Erratum", "Retracted"]) assert.equal(D("Scopus", t), "not-counted", `Scopus ${t}`);
+for (const t of ["conference-abstract", "preprint", "conference-paper", "dataset", "article", "Book Chapter"]) {
+  assert.equal(D("OpenAlex", t), "publication", `OpenAlex ${t}`);
+}
+assert.equal(D("Crossref", "book"), "publication");
 for (const t of ["lecture-speech", "conference-poster", "LECTURE_SPEECH"]) {
   const m = mapSourceType("ORCID", t);
   assert.deepEqual([m.type, m.disposition, m.hidden], [null, "presentation", true], t);
