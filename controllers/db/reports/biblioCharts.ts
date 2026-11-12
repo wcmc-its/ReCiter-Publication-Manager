@@ -150,9 +150,10 @@ function header(h: Header, legend: Legend, out: string[]): number {
 
 type Plot = { x0: number; x1: number; yTop: number; yBottom: number; ticks: number[] };
 
-/** Y axis caption, ticks, grid and baseline; returns the plot box. */
-function yAxis(top: number, bottomSpace: number, ticks: number[], caption: string, tickSuffix: string, out: string[]): Plot {
-  const yTop = top + 14 + LABEL_SIZE; // caption row, then half a label above the top tick
+/** Y axis caption, ticks, grid and baseline; returns the plot box. `headroom` is extra space
+ *  between the caption and the top tick, for labels drawn above the tallest bar. */
+function yAxis(top: number, bottomSpace: number, ticks: number[], caption: string, tickSuffix: string, out: string[], headroom = 0): Plot {
+  const yTop = top + 14 + LABEL_SIZE + headroom; // caption row, then half a label above the top tick
   out.push(text(PAD, top + LABEL_SIZE + 2, caption, LABEL_SIZE, { fill: CHART_COLORS.muted }));
   const tickW = Math.max(...ticks.map((t) => textWidth(String(t) + tickSuffix, LABEL_SIZE)));
   const x0 = PAD + tickW + 8;
@@ -277,7 +278,8 @@ export function percentileSvg(bins: PercentileBinsData, h: Header = {}): string 
   const top = header(h, [{ label: "10% expected per bin", color: CHART_COLORS.reference, dashed: true }], out);
   const total = Math.max(1, bins.total);
   const shares = bins.counts.map((c) => (100 * c) / total);
-  const p = yAxis(top, 40, niceTicks(Math.max(10, ...shares)), "% of rated research articles", "%", out);
+  // Headroom for the count above a bar that reaches the top tick, so it clears the axis caption.
+  const p = yAxis(top, 40, niceTicks(Math.max(10, ...shares)), "% of rated research articles", "%", out, LABEL_SIZE + 2);
   const slot = (p.x1 - p.x0) / bins.labels.length;
   const barW = slot * 0.7;
   const xOf = (i: number) => p.x0 + slot * i + (slot - barW) / 2;

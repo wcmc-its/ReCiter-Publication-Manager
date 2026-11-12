@@ -164,6 +164,17 @@ test('Mirza: 32 rated, the axis reaches past 10% even when no bin does', () => {
     assert.ok(ticks.includes('10%'), 'every bin at exactly 10% still shows the 10% tick')
 })
 
+test('a count above a bar at the top tick clears the y-axis caption', () => {
+    // 10 of 20 in the first bin: the bar reaches the 50% tick right under the caption.
+    const svg = percentileSvg({ labels: percentileBins(mirza).value.labels, counts: [10, 2, 1, 1, 1, 1, 1, 1, 1, 1], total: 20 })
+    const at = (s) => [...svg.matchAll(/<text x="([\d.]+)" y="([\d.]+)"[^>]*>([^<]*)<\/text>/g)].find((m) => m[3] === s)
+    const caption = at('% of rated research articles')
+    const count = at('10')
+    assert.ok(caption && count)
+    // Cap height of an 11 px label is about 8 px; the count's top must sit below the caption's baseline.
+    assert.ok(+count[2] - 8 > +caption[2] + 2, `count baseline ${count[2]} vs caption baseline ${caption[2]}`)
+})
+
 // ---------------------------------------------------------------------------------------------
 // PNG
 

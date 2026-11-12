@@ -5,33 +5,33 @@
 <text x="539.92" y="28" font-size="12" text-anchor="start" fill="#5F5F5F">10% expected per bin</text>
 <text x="16" y="47" font-size="11" text-anchor="start" fill="#5F5F5F">% of rated research articles</text>
 <text x="40.02" y="227" font-size="11" text-anchor="end" fill="#5F5F5F">0%</text>
-<text x="40.02" y="172.33" font-size="11" text-anchor="end" fill="#5F5F5F">5%</text>
-<line x1="46.02" y1="168.33" x2="656" y2="168.33" stroke="#E6E6E6" stroke-width="1"/>
-<text x="40.02" y="117.67" font-size="11" text-anchor="end" fill="#5F5F5F">10%</text>
-<line x1="46.02" y1="113.67" x2="656" y2="113.67" stroke="#E6E6E6" stroke-width="1"/>
-<text x="40.02" y="63" font-size="11" text-anchor="end" fill="#5F5F5F">15%</text>
-<line x1="46.02" y1="59" x2="656" y2="59" stroke="#E6E6E6" stroke-width="1"/>
-<rect x="55.17" y="188.83" width="42.7" height="34.17" fill="#9A9A8E"/>
-<rect x="116.16" y="120.5" width="42.7" height="102.5" fill="#9A9A8E"/>
-<rect x="177.16" y="86.33" width="42.7" height="136.67" fill="#9A9A8E"/>
-<rect x="238.16" y="86.33" width="42.7" height="136.67" fill="#9A9A8E"/>
-<rect x="299.16" y="86.33" width="42.7" height="136.67" fill="#9A9A8E"/>
-<rect x="360.16" y="154.67" width="42.7" height="68.33" fill="#9A9A8E"/>
-<rect x="421.16" y="86.33" width="42.7" height="136.67" fill="#9A9A8E"/>
-<rect x="482.15" y="86.33" width="42.7" height="136.67" fill="#9A9A8E"/>
-<rect x="543.15" y="154.67" width="42.7" height="68.33" fill="#9A9A8E"/>
-<rect x="604.15" y="86.33" width="42.7" height="136.67" fill="#9A9A8E"/>
-<line x1="46.02" y1="113.67" x2="656" y2="113.67" stroke="#C0392B" stroke-width="1.5" stroke-dasharray="5 3"/>
-<text x="76.52" y="184.83" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">1</text>
-<text x="137.51" y="116.5" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">3</text>
-<text x="198.51" y="82.33" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
-<text x="259.51" y="82.33" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
-<text x="320.51" y="82.33" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
-<text x="381.51" y="150.67" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">2</text>
-<text x="442.51" y="82.33" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
-<text x="503.5" y="82.33" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
-<text x="564.5" y="150.67" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">2</text>
-<text x="625.5" y="82.33" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
+<text x="40.02" y="176.67" font-size="11" text-anchor="end" fill="#5F5F5F">5%</text>
+<line x1="46.02" y1="172.67" x2="656" y2="172.67" stroke="#E6E6E6" stroke-width="1"/>
+<text x="40.02" y="126.33" font-size="11" text-anchor="end" fill="#5F5F5F">10%</text>
+<line x1="46.02" y1="122.33" x2="656" y2="122.33" stroke="#E6E6E6" stroke-width="1"/>
+<text x="40.02" y="76" font-size="11" text-anchor="end" fill="#5F5F5F">15%</text>
+<line x1="46.02" y1="72" x2="656" y2="72" stroke="#E6E6E6" stroke-width="1"/>
+<rect x="55.17" y="191.54" width="42.7" height="31.46" fill="#9A9A8E"/>
+<rect x="116.16" y="128.63" width="42.7" height="94.38" fill="#9A9A8E"/>
+<rect x="177.16" y="97.17" width="42.7" height="125.83" fill="#9A9A8E"/>
+<rect x="238.16" y="97.17" width="42.7" height="125.83" fill="#9A9A8E"/>
+<rect x="299.16" y="97.17" width="42.7" height="125.83" fill="#9A9A8E"/>
+<rect x="360.16" y="160.08" width="42.7" height="62.92" fill="#9A9A8E"/>
+<rect x="421.16" y="97.17" width="42.7" height="125.83" fill="#9A9A8E"/>
+<rect x="482.15" y="97.17" width="42.7" height="125.83" fill="#9A9A8E"/>
+<rect x="543.15" y="160.08" width="42.7" height="62.92" fill="#9A9A8E"/>
+<rect x="604.15" y="97.17" width="42.7" height="125.83" fill="#9A9A8E"/>
+<line x1="46.02" y1="122.33" x2="656" y2="122.33" stroke="#C0392B" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="76.52" y="187.54" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">1</text>
+<text x="137.51" y="124.63" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">3</text>
+<text x="198.51" y="93.17" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
+<text x="259.51" y="93.17" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
+<text x="320.51" y="93.17" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
+<text x="381.51" y="156.08" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">2</text>
+<text x="442.51" y="93.17" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
+<text x="503.5" y="93.17" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
+<text x="564.5" y="156.08" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">2</text>
+<text x="625.5" y="93.17" font-size="11" text-anchor="middle" fill="#5F5F5F" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">4</text>
 <line x1="46.02" y1="223" x2="656" y2="223" stroke="#9E9E9E" stroke-width="1"/>
 <text x="76.52" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">0–10</text>
 <text x="137.51" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">10–20</text>
