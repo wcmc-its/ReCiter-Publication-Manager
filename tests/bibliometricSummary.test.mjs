@@ -11,7 +11,7 @@ import {
 } from '../controllers/db/reports/bibliometrics.ts'
 import {
     buildSummary, summaryText, ratioPhrase, multiplePhrase, numberWord, startNumber, times, pctWords,
-    rankPlural, listYears, headlineCell, possessive, HEADLINE_ORDER, ROLE_SET_PHRASE,
+    rankPlural, listYears, headlineCell, possessive, shareWords, HEADLINE_ORDER, ROLE_SET_PHRASE,
 } from '../controllers/db/reports/bibliometricSummary.ts'
 
 const FIX = JSON.parse(readFileSync(new URL('./fixtures/bibliometrics-v2-dev-2026-11-11.json', import.meta.url), 'utf8'))
@@ -396,4 +396,21 @@ test('S2c without a venue: year only, no dangling commas', () => {
         ...many(5, '50.00'),
     ]
     assert.equal(sentences(summarize(two, [], { eligible: false }))[2], 'Two first-authored articles are both at the 88.0th.')
+})
+
+test('S2a: a share that rounds to 0 or 100 stays true ("Fewer than 1", "More than 99")', () => {
+    assert.equal(shareWords(0, 1, 201), 'Fewer than 1 percent')
+    assert.equal(shareWords(100, 199, 200), 'More than 99 percent')
+    assert.equal(shareWords(100, 20, 20), 'One hundred percent')
+    assert.equal(shareWords(28, 86, 302), 'Twenty-eight percent')
+    const low = summarize([rated('91.00'), ...many(200, '50.00')], [], { eligible: false })
+    assert.equal(sentences(low)[1], "Fewer than 1 percent of Doe's 201 rated research articles are at or above the 90th NIH percentile, below the 10% expected.")
+    const high = summarize([...many(199, '95.00'), rated('50.00')], [], { eligible: false })
+    assert.equal(sentences(high)[1], "More than 99 percent of Doe's 200 rated research articles are at or above the 90th NIH percentile, nearly ten times the 10% expected.")
+})
+
+test('S6 only below 5 rated: 5 or more rated with no RCR writes neither S1 nor S6', () => {
+    const s = summarize(many(5, '50.00', { relativeCitationRatioNIH: null }), [], { eligible: false })
+    assert.deepEqual(s.fired, ['S2d', 'S7'])
+    assert.ok(!summaryText(s).includes('too few'))
 })

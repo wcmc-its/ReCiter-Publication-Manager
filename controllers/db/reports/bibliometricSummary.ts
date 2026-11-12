@@ -43,6 +43,9 @@ export const MIN_FIRST_OR_SENIOR = 5;
 export const NEAR_MISS_PCT = 8500; // 85.00 in hundredths
 export const HIGH_PCT = 9000; // 90.00
 export const TOP_PERCENT_MAX = 50;
+/** S6 fires below this many rated research articles (spec: "Fewer than 5 rated"). With 5 or more
+ *  rated but no RCR to take a median of, neither S1 nor S6 is true, so paragraph 1 is empty. */
+export const MIN_RATED_S6 = 5;
 
 /** S3 headline cell: the first rankable cell in this order. */
 export const HEADLINE_ORDER: Array<[RoleSet, number]> = [
@@ -89,6 +92,14 @@ const cap = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /** "Two" at the start of a sentence (spelled out, capitalized). */
 export const startNumber = (n: number): string => cap(numberWord(n));
+
+/** S2a's opening share. P is half-up to a whole percent, so it can be 0 with k >= 1 (k/n under
+ *  0.5%) or 100 with k < n (k/n at least 99.5%); those read so the sentence stays true. */
+export function shareWords(percent: number, k: number, n: number): string {
+  if (percent === 0 && k > 0) return "Fewer than 1 percent";
+  if (percent === 100 && k < n) return "More than 99 percent";
+  return `${startNumber(percent)} percent`;
+}
 
 /** "twice" for 2, else "three times", "ten times". */
 export const times = (x: number): string => (x === 2 ? "twice" : `${numberWord(x)} times`);
@@ -237,7 +248,7 @@ export function buildSummary(input: SummaryInput): Summary {
     p1.push(sentence("S1",
       `${possessive(S)} typical research article is cited ${ratioPhrase(medianX2)} a typical NIH R01-funded paper of the same field and year. `
       + `Across ${n} rated research articles, the median Relative Citation Ratio is ${key.typicalWork.text}.`));
-  } else {
+  } else if (rated < MIN_RATED_S6) {
     p1.push(sentence("S6", rated === 0
       ? `${S} has no rated research articles, too few for the measures in this report.`
       : `${S} has ${rated} rated research ${plural(rated, "article", "articles")}, too few for the measures in this report. `
@@ -250,7 +261,7 @@ export function buildSummary(input: SummaryInput): Summary {
     const { k, n, percent, maxPct } = key.highlyInfluential.value;
     if (k >= 1 && n >= 20 && percent !== null) {
       p2.push(sentence("S2a",
-        `${startNumber(percent)} percent of ${possessive(s)} ${n} rated research articles are at or above the 90th NIH percentile, `
+        `${shareWords(percent, k, n)} of ${possessive(s)} ${n} rated research articles are at or above the 90th NIH percentile, `
         + `${multiplePhrase(k, n)} the 10% expected.`));
     } else if (k >= 1) {
       p2.push(sentence("S2b", n === 1
