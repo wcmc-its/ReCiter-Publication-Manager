@@ -690,7 +690,8 @@ export type PeerCell = {
   average: TopN;
   /** Stored avgTop x 1000, for the parity check. */
   storedThousandths: number | null;
-  /** True when both exist and differ (the controller logs it; parity must be 0). */
+  /** True when a stored cell exists and its average differs from the recomputed one, NULL on
+   *  one side included (the controller logs it; parity must be 0). */
   mismatch: boolean;
   rank: { R: number; M: number; X: number; text: string } | null;
   rankText: string;
@@ -732,11 +733,13 @@ export function peerTable(works: BiblioWork[], cells: PeerCellRow[], opts: { eli
       const average = v2 ? topNAverage(works, rs.key, n) : { n, ratedCount, avgThousandths: null, value: null, text: REASONS.v2Unavailable };
       const c = stored.get(`${rs.key}:${n}`);
       const storedThousandths = c ? thousandths(c.avgTop) : null;
-      const mismatch = storedThousandths !== null && average.avgThousandths !== null && storedThousandths !== average.avgThousandths;
+      // A stored cell disagrees when its average differs, or when one side has an average and the
+      // other does not (the cell's rank then belongs to a different selection, so it is not shown).
+      const mismatch = v2 && c !== undefined && storedThousandths !== average.avgThousandths;
       let rank: PeerCell["rank"] = null;
       let rankText: string;
       if (average.avgThousandths === null) rankText = average.text;
-      else if (!c) rankText = REASONS.peerUnavailable;
+      else if (!c || storedThousandths === null) rankText = REASONS.peerUnavailable;
       else {
         const R = num(c.cohortRank);
         const M = num(c.cohortM);

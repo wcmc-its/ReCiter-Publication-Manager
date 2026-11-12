@@ -286,6 +286,19 @@ test('stored average that differs from the recomputed one is flagged', () => {
     assert.equal(p.rows[0].cells[0].mismatch, true)
 })
 
+test('stored cell with no average while PM computes one is a mismatch, not "Cohort too small to rank"', () => {
+    const p = peerTable(gouzy, [cell('any', 5, null, null, null, { personIdentifier: 'alg2053' })])
+    const c = p.rows[0].cells[0]
+    assert.equal(c.average.text, '83.6')
+    assert.equal(c.mismatch, true)
+    assert.equal(c.rank, null)
+    assert.equal(c.rankText, 'Peer data not available yet')
+    // agreeing NULLs (Needs 10 rated on both sides) are not a mismatch
+    const q = peerTable(gouzy, [cell('any', 10, null, null, null, { personIdentifier: 'alg2053' })])
+    assert.equal(q.rows[0].cells[1].mismatch, false)
+    assert.equal(q.rows[0].cells[1].rankText, 'Needs 10 rated')
+})
+
 // ---------------------------------------------------------------------------------------------
 // Spec edge cases (each with a fixture)
 
