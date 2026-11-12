@@ -45,6 +45,9 @@ export type BiblioWork = {
   datePublicationAddedToEntrez?: string | null;
   articleTitle?: string | null;
   journalTitleVerbose?: string | null;
+  /** person_article.journalTitleISOabbreviation ("Proc Natl Acad Sci U S A"); the summary's S2c
+   *  venue. Optional: venueName is the fallback. */
+  journalTitleISOabbreviation?: string | null;
   issn?: string | null;
   citationCountNIH?: number | string | null;
   relativeCitationRatioNIH?: number | string | null;
@@ -768,4 +771,30 @@ export function rankNote(storedRank: string | null | undefined, currentRank: str
 /** Display surname from faculty data (person.lastName), never parsed from an author string. */
 export function displaySurname(person: { lastName?: string | null } | null | undefined): string {
   return str(person?.lastName).replace(/\s+/g, " ");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Summary inputs (5h P2). bibliometricSummary.ts imports types only, so the facts it needs from
+// the works are selected here, with the same functions the sections use.
+
+export type NearMissWork = { pmid: number; role: Role; venue: string; year: number | null; pct: number };
+
+/** The rated research articles at the person's highest exact percentile, best first (byInfluence).
+ *  Venue is the ISO abbreviation when the row carries one, else venueName. Empty when none rated. */
+export function ratedAtHighest(works: BiblioWork[]): NearMissWork[] {
+  const rated = ratedInSet(countedWorks(works), "any");
+  const top = rated.length ? pctOf(rated[0]) : null;
+  if (top === null) return [];
+  return rated.filter((w) => pctOf(w) === top).map((w) => ({
+    pmid: num(w.pmid) ?? 0,
+    role: roleOf(w),
+    venue: str(w.journalTitleISOabbreviation) || venueName(w),
+    year: workYear(w),
+    pct: top,
+  }));
+}
+
+/** Years of the recent senior-authored research articles (S5), oldest first, repeats kept. */
+export function recentSeniorYears(works: BiblioWork[]): number[] {
+  return recentResearchInSet(works, "senior").map(workYear).filter((y): y is number => y !== null).sort((a, b) => a - b);
 }
