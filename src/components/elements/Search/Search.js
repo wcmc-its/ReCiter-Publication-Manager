@@ -620,8 +620,11 @@ const Search = () => {
   const canCuratePerson = (identity) => {
     if (isSuperUser) return true;
     const pid = identity?.personIdentifier;
-    if (identity && identity.inScope !== undefined && identity.inScope !== null) {
-      return rowInScopeCanCurate(identity.inScope, isProxyFor(proxyPersonIds, pid), caps.canCurate.self && pid === loggedInPersonIdentifier);
+    // A Curator_Scoped role with no scope configured gets no flag, and canCurate fails closed
+    // for it: treat every row as out of scope (proxy and own row still allowed).
+    const inScope = identity?.inScope ?? (showScopeFilter && !hasScope ? 0 : null);
+    if (identity && inScope !== null) {
+      return rowInScopeCanCurate(inScope,isProxyFor(proxyPersonIds, pid), caps.canCurate.self && pid === loggedInPersonIdentifier);
     }
     if (isCuratorAll) return true;
     if (isProxyFor(proxyPersonIds, pid)) return true;

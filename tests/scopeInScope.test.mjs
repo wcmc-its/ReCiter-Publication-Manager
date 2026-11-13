@@ -37,6 +37,9 @@ const scopes = {
     institutions: { personTypes: null, orgUnits: null, institutions: ['WCM in Qatar'] },
     typesAndOrg: { personTypes: ['academic-faculty-weillfulltime'], orgUnits: ['Medicine'] },
     allThree: { personTypes: ['academic-faculty-weillfulltime'], orgUnits: ['Medicine'], institutions: ['Weill Cornell Medicine'] },
+    // An empty list next to a configured dimension: isPersonInScope matches nobody.
+    typesAndEmptyOrg: { personTypes: ['academic-faculty-weillfulltime'], orgUnits: [] },
+    orgAndEmptyTypes: { personTypes: [], orgUnits: ['Medicine'] },
 }
 
 for (const [name, scope] of Object.entries(scopes)) {

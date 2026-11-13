@@ -116,11 +116,16 @@ export function inScopeFlagScope(canCurateAll: boolean, scope: any): ScopeData |
 export function inScopeSql(alias: string, scope: ScopeData | null, quote: (v: string) => string): string | null {
   if (!hasConfiguredScope(scope)) return null;
   const list = (vals: string[]) => vals.map((v) => quote(String(v))).join(', ');
-  const has = (vals: any) => Array.isArray(vals) && vals.length > 0;
+  // isPersonInScope restricts on any present array, including an empty one (which then matches
+  // nobody), once some other dimension is configured. An empty list can't go into IN (), so it
+  // becomes a clause that is never true.
+  const has = (vals: any) => Array.isArray(vals);
+  const inList = (col: string, vals: string[]) => (vals.length > 0 ? `${col} IN (${list(vals)})` : '0 = 1');
   const parts: string[] = [];
-  if (has(scope!.orgUnits)) parts.push(`\`${alias}\`.\`primaryOrganizationalUnit\` IN (${list(scope!.orgUnits!)})`);
-  if (has(scope!.institutions)) parts.push(`\`${alias}\`.\`primaryInstitution\` IN (${list(scope!.institutions!)})`);
-  if (has(scope!.personTypes)) {
+  if (has(scope!.orgUnits)) parts.push(inList(`\`${alias}\`.\`primaryOrganizationalUnit\``, scope!.orgUnits!));
+  if (has(scope!.institutions)) parts.push(inList(`\`${alias}\`.\`primaryInstitution\``, scope!.institutions!));
+  if (has(scope!.personTypes) && scope!.personTypes!.length === 0) parts.push('0 = 1');
+  else if (has(scope!.personTypes)) {
     parts.push(
       `EXISTS (SELECT 1 FROM \`person_person_type\` \`scopePpt\`` +
       ` WHERE \`scopePpt\`.\`personIdentifier\` = \`${alias}\`.\`personIdentifier\`` +
