@@ -485,6 +485,14 @@ const Search = () => {
     }
   }
 
+  // Cornell-only people (src/utils/cornellOnly.ts) aren't run through ReCiter, so they have no
+  // /curate page; their data is the authorships the review lanes attributed to them. /authorships
+  // is Curator_All/Superuser only (middleware), so for anyone else the row isn't a link.
+  const canOpenAuthorships = caps.canCurate.all || isSuperUser;
+  const onClickCornellOnly = (personIdentifier) => {
+    router.push({ pathname: '/authorships', query: { cwid: personIdentifier } });
+  }
+
   const handleClose = () => setShowprofile(false);
   const handleShow = () => setShowprofile(true);
 
@@ -628,10 +636,14 @@ const Search = () => {
     // setCurateIds(paginatedIdentities);
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
 	const rowCanCurate = canCuratePerson(identity);											 
+      const cornellOnly = Number(identity.cornellOnly) === 1;
+      const viewProfile = () => { setShowprofileID(identity.personIdentifier); handleShow(); };
       return <tr key={identityIndex}>
         <td key={`${identityIndex}__name`} width="30%">
         { 
-          
+          cornellOnly ?
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={canOpenAuthorships ? () => onClickCornellOnly(identity.personIdentifier) : null} cornellOnly></Name>
+          :
           isCuratorSelf ?
           <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
           :
@@ -654,6 +666,15 @@ const Search = () => {
           {/* Was a raw react-bootstrap Dropdown (bootstrap variant="primary" styling) -- switched
               to the shared SplitDropdown component so this matches the Manage Users row action
               button (dark-navy split button, icons, "Actions for this person" header). */}
+          {cornellOnly ?
+          <SplitDropdown
+            title={canOpenAuthorships ? "View Authorships" : "View Profile"}
+            onDropDownClick={canOpenAuthorships ? () => onClickCornellOnly(identity.personIdentifier) : viewProfile}
+            id={`actions_${identity.personIdentifier}`}
+            listItems={canOpenAuthorships ? [{ title: 'View Profile', onClick: viewProfile }] : []}
+            secondary={true}
+          />
+          :
           <SplitDropdown
             title={rowCanCurate ? "Curate Publications" : "Create Reports"}
             onDropDownClick={rowCanCurate ? () => onClickProfile(identity.personIdentifier) : () => redirectToCurate("report", identity)}
@@ -668,7 +689,7 @@ const Search = () => {
                 ]
             }
             secondary={true}
-          />
+          />}
         </td>
       </tr>;;
     })
@@ -805,12 +826,15 @@ function Name(props) {
     const nameString = `${firstName} ${middleName} ${lastName}`.replace(/\s+/g, ' ').trim()
     return (
       <div>
-        <button className={styles.btnLink} onClick={props.onClickProfile}>
-          {nameString}
-        </button>
+        {props.onClickProfile ?
+          <button className={styles.btnLink} onClick={props.onClickProfile}>
+            {nameString}
+          </button> :
+          <span className={styles.nameText}>{nameString}</span>}
         {props.identity.title && <div className={styles.personRole}>{props.identity.title}</div>}
         <div className={styles.personCwid}>
           <span className={styles.cwidLabel}>{props.nameOrcwidLabel}:</span> {props.identity.personIdentifier}
+          {props.cornellOnly && <span className={styles.cornellBadge}>Cornell Ithaca</span>}
         </div>
       </div>
     )

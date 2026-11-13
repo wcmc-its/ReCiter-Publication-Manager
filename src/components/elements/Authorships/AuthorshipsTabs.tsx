@@ -1963,6 +1963,9 @@ const AuthorshipsTabs = () => {
   // rather than a key list: LIKE_WIDEN_PATCH can grow a key and this needs no edit to match.
   const likeFilterStash = useRef<
     { filters: AuthorshipFilters; preset: string; searchInput: string; page: number } | null>(null);
+  // true for a visit that arrived via /authorships?cwid=<uid> (see the mount effect): that view
+  // is one person's, not the curator's own, so it never overwrites their saved view.
+  const personLink = useRef(false);
   const selectReport = useCallback((next: ReportView) => {
     if (!reportView && next) {
       reportFilterStash.current = {
@@ -2668,9 +2671,19 @@ const AuthorshipsTabs = () => {
   // list fetch, so curators land on the windowed view instead of flashing the full backlog.
   // A saved view (see SAVED_VIEW_KEY) replaces the default here, in the same render that releases
   // datesReady, so the first list fetch is for the restored view — never default-then-restored.
+  //
+  // /authorships?cwid=<uid> (Find People's link for a Cornell-only person, who has no /curate
+  // page) opens on that person instead: the free-text search on their cwid, widened like a like
+  // view so no default chip hides their rows, and the saved view left alone (personLink).
   useEffect(() => {
-    const saved = loadSavedView();
-    if (saved) {
+    const cwid = (new URLSearchParams(window.location.search).get("cwid") || "").trim();
+    const saved = cwid ? null : loadSavedView();
+    if (cwid) {
+      personLink.current = true;
+      patchFilters({ ...LIKE_WIDEN_PATCH, search: cwid });
+      setSearchInput(cwid);
+      applyDatePreset("any");
+    } else if (saved) {
       patchFilters(saved.filters);
       setSearchInput(saved.filters.search || "");
       applyDatePreset(saved.datePreset);   // "custom" returns early and keeps the restored From/To
@@ -2681,7 +2694,7 @@ const AuthorshipsTabs = () => {
   }, [applyDatePreset, patchFilters]);
   // Outside a like view only: its widened filters are not the curator's own (see SAVED_VIEW_KEY).
   useEffect(() => {
-    if (!datesReady || likeAuthor) return;
+    if (!datesReady || likeAuthor || personLink.current) return;
     saveView({ filters, datePreset });
   }, [filters, datePreset, datesReady, likeAuthor]);
 
