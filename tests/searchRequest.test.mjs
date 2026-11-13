@@ -4,7 +4,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
     searchTokens, newSearchRequest, matchedPersonIds, freshPubSearchFilter, reportFiltersFromSearch,
-    reportHandoffCapped, REPORT_HANDOFF_CAP,
+    reportHandoffCapped, REPORT_HANDOFF_CAP, peopleRowActions, pendingCell, personDisplayName,
 } from '../src/utils/searchRequest.ts'
 
 // Same shape as initialStatePubSearchFilter in src/redux/reducers/reducers.js.
@@ -103,4 +103,36 @@ test('reportHandoffCapped: only a name search above the cap', () => {
     assert.equal(reportHandoffCapped({ nameOrUids: ['a', 'b', 'c', 'd'] }, 5000), false)
     assert.equal(reportHandoffCapped({ orgUnits: ['Medicine'] }, 5000), false)
     assert.equal(reportHandoffCapped(undefined, 5000), false)
+})
+
+test('peopleRowActions: Curate + Report when the viewer can curate the row', () => {
+    assert.deepEqual(peopleRowActions({ cornellOnly: false, canCurate: true, canOpenAuthorships: true }), { primary: 'curate', secondary: 'report' })
+    assert.deepEqual(peopleRowActions({ cornellOnly: false, canCurate: true, canOpenAuthorships: false }), { primary: 'curate', secondary: 'report' })
+})
+
+test('peopleRowActions: Report only when the viewer cannot curate the row', () => {
+    assert.deepEqual(peopleRowActions({ cornellOnly: false, canCurate: false, canOpenAuthorships: false }), { primary: 'report', secondary: null })
+    assert.deepEqual(peopleRowActions({ cornellOnly: false, canCurate: false, canOpenAuthorships: true }), { primary: 'report', secondary: null })
+})
+
+test('peopleRowActions: Cornell-only rows get Authorships or nothing, never Curate or Report', () => {
+    assert.deepEqual(peopleRowActions({ cornellOnly: true, canCurate: true, canOpenAuthorships: true }), { primary: 'authorships', secondary: null })
+    assert.deepEqual(peopleRowActions({ cornellOnly: true, canCurate: true, canOpenAuthorships: false }), { primary: null, secondary: null })
+    assert.deepEqual(peopleRowActions({ cornellOnly: true, canCurate: false, canOpenAuthorships: false }), { primary: null, secondary: null })
+})
+
+test('pendingCell: amber count above zero, muted 0, dash for Cornell-only', () => {
+    assert.deepEqual(pendingCell(1204, false), { text: '1,204', hasPending: true, label: '1,204 pending suggestions' })
+    assert.deepEqual(pendingCell(1, false), { text: '1', hasPending: true, label: '1 pending suggestion' })
+    assert.deepEqual(pendingCell(0, false), { text: '0', hasPending: false, label: '0 pending suggestions' })
+    assert.deepEqual(pendingCell(null, false), { text: '0', hasPending: false, label: '0 pending suggestions' })
+    assert.equal(pendingCell(7, true).text, '–')
+    assert.equal(pendingCell(7, true).hasPending, false)
+})
+
+test('personDisplayName: skips null and empty parts, single spaces', () => {
+    assert.equal(personDisplayName({ firstName: 'David', middleName: '', lastName: 'Julius' }), 'David Julius')
+    assert.equal(personDisplayName({ firstName: 'Alaa', middleName: 'Ali', lastName: 'Abd-alrazaq' }), 'Alaa Ali Abd-alrazaq')
+    assert.equal(personDisplayName({ firstName: null, middleName: null, lastName: null }), '')
+    assert.equal(personDisplayName(undefined), '')
 })

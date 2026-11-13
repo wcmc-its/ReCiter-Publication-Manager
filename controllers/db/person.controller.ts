@@ -91,6 +91,24 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewer
 
         var users= {};
 
+        // Total pending suggestions over every matched person (all pages), for the Find People
+        // header. Same WHERE as the list; the person-type facet becomes an IN subquery so a person
+        // with several matching types is counted once.
+        const pendingTotalQuery = (async () => {
+            if (Array.isArray(effectivePersonTypes) && effectivePersonTypes.length === 0) return 0
+            const sumWhere: any = { [Op.and]: [...(where[Op.and] || [])] }
+            if (effectivePersonTypes) {
+                const types = effectivePersonTypes.map((t) => models.Person.sequelize.escape(t)).join(',')
+                sumWhere[Op.and].push(literal(`\`Person\`.\`personIdentifier\` IN (SELECT personIdentifier FROM person_person_type WHERE personType IN (${types}))`))
+            }
+            const total = await models.Person.sum('countPendingArticles', { where: sumWhere })
+            return Number(total) || 0
+        })().catch((e) => {
+            // The list doesn't depend on it: without the total the header just leaves it out.
+            console.log(e)
+            return null
+        })
+
 
         if(effectivePersonTypes) {
             const { count,rows } =  await models.Person.findAndCountAll({
@@ -121,7 +139,8 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewer
             });
             users['persons'] = rows;
             users['totalPersonsCount'] = count;
-            
+            users['pendingTotal'] = await pendingTotalQuery;
+
         } else {
             let { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
@@ -136,6 +155,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewer
             });
             users['persons'] = rows;
             users['totalPersonsCount'] = count;
+            users['pendingTotal'] = await pendingTotalQuery;
 
         }
         res.send(users);

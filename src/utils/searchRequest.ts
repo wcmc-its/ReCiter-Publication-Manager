@@ -70,3 +70,30 @@ export function reportHandoffCapped(searchFilters: Record<string, any> | null | 
   const words = Array.isArray(searchFilters?.nameOrUids) ? searchFilters!.nameOrUids : [];
   return words.length > 0 && words.length <= CWID_LIST_THRESHOLD && matchedCount > cap;
 }
+
+// Which buttons a Find People row shows, per the plan's row-action table. View profile is always
+// in the row's "⋯" menu. `canCurate` is Search.js's canCuratePerson for the row (role logic stays
+// there); `canOpenAuthorships` is Curator_All/Superuser. Cornell-only people have no /curate page
+// and are left out of the reports person picker (#1136), so they get Authorships or nothing.
+export type PeopleRowAction = 'curate' | 'report' | 'authorships';
+export function peopleRowActions(opts: { cornellOnly: boolean; canCurate: boolean; canOpenAuthorships: boolean }): {
+  primary: PeopleRowAction | null;
+  secondary: PeopleRowAction | null;
+} {
+  if (opts.cornellOnly) return { primary: opts.canOpenAuthorships ? 'authorships' : null, secondary: null };
+  if (opts.canCurate) return { primary: 'curate', secondary: 'report' };
+  return { primary: 'report', secondary: null };
+}
+
+// Text for a row's pending count: a dash for Cornell-only people (not run through ReCiter).
+export function pendingCell(count: unknown, cornellOnly: boolean): { text: string; hasPending: boolean; label: string } {
+  if (cornellOnly) return { text: '–', hasPending: false, label: 'No pending suggestions (not in ReCiter)' };
+  const n = Number(count) > 0 ? Math.floor(Number(count)) : 0;
+  return { text: n.toLocaleString('en-US'), hasPending: n > 0, label: `${n.toLocaleString('en-US')} pending suggestion${n === 1 ? '' : 's'}` };
+}
+
+// "First Middle Last" with missing or null parts left out (the person table has null names).
+export function personDisplayName(p: { firstName?: string | null; middleName?: string | null; lastName?: string | null } | null | undefined): string {
+  if (!p) return '';
+  return [p.firstName, p.middleName, p.lastName].filter((x) => typeof x === 'string' && x.trim()).join(' ').replace(/\s+/g, ' ').trim();
+}
