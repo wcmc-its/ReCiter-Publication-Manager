@@ -4,8 +4,8 @@
 // bibliometricSummary.ts, the charts from biblioCharts.ts and the document from
 // bibliometricDocx.ts. Raw SQL only: no Sequelize associations (see reportAssociations.ts).
 //
-// The v1 RTF (bibliometric.controller.ts, CALL generateBibliometricReport) is untouched; nothing in
-// the UI calls this controller until the P5 flag is switched.
+// The v1 RTF (bibliometric.controller.ts, CALL generateBibliometricReport) is untouched; the UI
+// calls this controller only while the P5 flag (bibliometricReportVersion) is "docx".
 import sequelize from "../../../src/db/db";
 import { type PeerCellRow, flag, isCounted } from "./bibliometrics";
 import {
@@ -20,6 +20,7 @@ import {
   REQUIRED_V2,
 } from "./bibliometricDocx";
 import { loadArticles } from "./word.report.controller";
+import { type BibliometricVersion, BIBLIOMETRIC_SETTING, parseBibliometricVersion } from "./bibliometricVersion";
 
 export class BibliometricExportError extends Error {
   status: number;
@@ -174,8 +175,8 @@ export type BibliometricAvailability = { show: boolean; works: number; name: str
 /**
  * Cheap check for the P5 show-button route: anyone with a counted accepted publication can run the
  * v2 report (the v1 RTF needed an analysis_summary_person row). `works` counts what the
- * Publications line counts: one per pmid, minus pubTypeCounted = 0 (errata, retractions). Not
- * called by anything in P4.
+ * Publications line counts: one per pmid, minus pubTypeCounted = 0 (errata, retractions). Called
+ * by the show route only while the flag is "docx".
  */
 export const bibliometricAvailability = async (rawUid: unknown): Promise<BibliometricAvailability> => {
   const uid = parseUid(rawUid);
@@ -192,4 +193,21 @@ export const bibliometricAvailability = async (rawUid: unknown): Promise<Bibliom
   const p = personRows[0];
   const name = p ? [p.firstName, p.lastName].filter(Boolean).join(" ").trim() || null : null;
   return { show: works > 0, works, name };
+};
+
+/**
+ * The P5 flag: which report the UI offers. Read on every call (one primary-key row), so a SQL
+ * change takes effect on the next profile or Reports load with no deploy or restart. A failed read
+ * falls back to "rtf", the v1 behaviour.
+ */
+export const bibliometricReportVersion = async (): Promise<BibliometricVersion> => {
+  try {
+    const rows = await q("SELECT viewAttributes FROM admin_settings WHERE viewName = :name LIMIT 1", {
+      name: BIBLIOMETRIC_SETTING,
+    });
+    return parseBibliometricVersion(rows[0]?.viewAttributes ?? null);
+  } catch (e) {
+    console.log("[bibliometric] version flag read failed; using rtf", (e as Error)?.message);
+    return "rtf";
+  }
 };
