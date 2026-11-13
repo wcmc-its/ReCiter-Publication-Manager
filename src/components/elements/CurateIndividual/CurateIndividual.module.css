@@ -167,6 +167,8 @@
 
 /* Avatar circle — fixed size so name never shimmies */
 .personPhotoWrap {
+  /* content-box: the photo itself is 80x80; the 1px ring sits outside it (82px overall) */
+  box-sizing: content-box;
   width: 80px;
   height: 80px;
   border-radius: 50%;
