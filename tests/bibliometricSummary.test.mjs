@@ -1,8 +1,9 @@
 // Unit tests for the bibliometric report v2 summary (controllers/db/reports/bibliometricSummary.ts):
 // templates S1-S7, the phrase tables, the headline-cell order and the writing rules. The three
 // reference people are the P1 dev row fixtures (stale January 2026 iCite; NOT prod acceptance
-// values, which the plan's Steps A and B freeze later). Peer ranks are stored-cell inputs taken from
-// the plan's dev table. No database. `npm test`.
+// values). Peer ranks are stored-cell inputs taken from the plan's dev table. The DRAFT prod
+// acceptance record from the plan's Step A (2026-11-13) is a separate fixture, checked at the end of
+// this file; Step B freezes it. No database. `npm test`.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -197,22 +198,25 @@ test('Nathan (cnathan, dev): S1, S2a, S3 (first or senior, top 10)', () => {
     ].join('\n\n'))
 })
 
-test('Mirza (aah2003, dev, courtesy instructor): S1, S2a, S7; no peer rank', () => {
-    const s = summarize(mirza, cells8({ 'any:5': ['91.160', null, null] }, { personIdentifier: 'aah2003', facultyRank: 'Instructor or Lecturer', cohortEligible: 0 }), { surname: 'Mirza' })
-    assert.deepEqual(s.fired, ['S1', 'S2a', 'S7'])
+// On prod aah2003 is weillfulltime with the Instructor or Lecturer rank, so cohort-eligible (Step A,
+// 2026-11-13). His rank comes from R2's stored cells, not computed yet: eligible with no stored cell.
+test('Mirza (aah2003, dev rows, Instructor or Lecturer, eligible): S1, S2a, S4; no S7, no rank yet', () => {
+    const s = summarize(mirza, [], { surname: 'Mirza', eligible: true })
+    assert.deepEqual(s.fired, ['S1', 'S2a', 'S4'])
     assert.equal(summaryText(s), [
         "Mirza's typical research article is cited about as often as a typical NIH R01-funded paper of the same field and year. Across 32 rated research articles, the median Relative Citation Ratio is 1.00.",
         "Thirteen percent of Mirza's 32 rated research articles are at or above the 90th NIH percentile, about 1.5 times the 10% expected.",
-        'Peer comparison covers WCM-employed full-time faculty with a faculty rank, so it is not shown.',
+        'Mirza is first author on 4 rated research articles. With fewer than 5 rated first- or senior-authored articles, rankings by author role are not shown yet.',
     ].join('\n\n'))
-    assert.ok(!/#\d/.test(summaryText(s)), 'no peer rank')
+    assert.ok(!/#\d/.test(summaryText(s)), 'no stored rank yet')
 })
 
 test('writing rules: no pronouns for people, no evaluative adjectives, S7 last', () => {
     const all = [
         summarize(gouzy, GOUZY_CELLS, { surname: 'Gouzy' }),
         summarize(nathan, NATHAN_CELLS, { surname: 'Nathan' }),
-        summarize(mirza, [], { surname: 'Mirza' }),
+        summarize(mirza, [], { surname: 'Mirza', eligible: true }),
+        summarize(mirza, [], { surname: 'Doe', eligible: false }),
         summarize([rated('50.00')], [], { surname: 'Doe', eligible: true }),
     ]
     for (const s of all) {
@@ -414,3 +418,81 @@ test('S6 only below 5 rated: 5 or more rated with no RCR writes neither S1 nor S
     assert.deepEqual(s.fired, ['S2d', 'S7'])
     assert.ok(!summaryText(s).includes('too few'))
 })
+
+// ---------------------------------------------------------------------------------------------
+// DRAFT prod acceptance record (plan Step A, read-only prod preview 2026-11-13). Not frozen: Step B
+// re-confirms it from analysis_summary_person_peer and a prod v2 docx after R2's first nightly.
+// Built from the record's aggregates, not rows; aah2003's cohort cells are pending Step B.
+
+const PROD = JSON.parse(readFileSync(new URL('./fixtures/bibliometrics-v2-prod-acceptance-DRAFT-2026-11-13.json', import.meta.url), 'utf8'))
+const hundredths = (v) => Math.round(Number(v) * 100)
+const ROLE_SETS_PROD = ['any', 'first_or_senior', 'first', 'senior']
+
+/** SummaryInput from one person's Step A aggregates (stored ranks only where the record has them). */
+function prodInput(p, runDate) {
+    const n = p.rated
+    const { k } = p.atOrAbove90
+    const cohort = typeof p.cohortCells === 'object' ? p.cohortCells : {}
+    return {
+        surname: p.surname,
+        key: {
+            available: true,
+            counts: { rated: n },
+            typicalWork: { shown: true, value: { medianX2: 2 * hundredths(p.medianRcr.exact), median: Number(p.medianRcr.exact), n }, text: p.medianRcr.display },
+            highlyInfluential: { shown: true, value: { k, n, percent: n >= 20 ? Math.floor((200 * k + n) / (2 * n)) : null, maxPct: hundredths(p.maxRatedPct) } },
+        },
+        peer: {
+            eligible: p.eligibility.cohortEligible === 1,
+            facultyRank: p.eligibility.facultyRank,
+            runDate,
+            cellsAvailable: Object.keys(cohort).length > 0,
+            rows: ROLE_SETS_PROD.map((rs) => ({
+                roleSet: rs,
+                ratedCount: p.topN[rs].rated,
+                cells: [5, 10].map((N) => {
+                    const c = cohort[`${rs}:${N}`]
+                    return { topN: N, mismatch: false, rank: c && c.R !== null ? { R: c.R, M: c.M, X: c.X, text: c.display } : null }
+                }),
+            })),
+        },
+        atHighest: [],
+        recentSeniorYears: p.recentSeniorResearch.years,
+    }
+}
+
+test('prod acceptance record is the DRAFT from Step A, 2026-11-13, read on prod', () => {
+    assert.equal(PROD.status, 'DRAFT')
+    assert.equal(PROD.step, 'A')
+    assert.equal(PROD.date, '2026-11-13')
+    assert.match(PROD.provenance.host, /^ip-172-17-5-/)
+    assert.deepEqual(Object.keys(PROD.people).sort(), ['aah2003', 'alg2053', 'cnathan'])
+})
+
+test('prod draft: aah2003 is cohort-eligible (Instructor or Lecturer); cohort cells pending Step B', () => {
+    const m = PROD.people.aah2003
+    assert.deepEqual([m.eligibility.weillfulltime, m.eligibility.cohortEligible, m.eligibility.facultyRank], [1, 1, 'Instructor or Lecturer'])
+    assert.match(m.cohortCells, /^PENDING Step B/)
+    assert.match(m.headline, /^PENDING Step B/)
+})
+
+test('prod draft: research counts by role add up; headline cell agrees with the headline order', () => {
+    for (const [uid, p] of Object.entries(PROD.people)) {
+        const r = p.researchArticles
+        assert.equal(r.first + r.senior + r.middle, r.total, uid)
+        assert.equal(p.topN.any.rated, p.rated, uid)
+        if (typeof p.headline !== 'object') continue
+        const head = headlineCell(prodInput(p, PROD.date).peer)
+        assert.equal(`${head.roleSet}:${head.cell.topN}`, p.headline.cell, uid)
+        assert.equal(`rank #${head.cell.rank.R}, in the top ${head.cell.rank.X}%`, p.headline.rankText, uid)
+    }
+})
+
+for (const uid of ['alg2053', 'cnathan', 'aah2003']) {
+    test(`prod draft: ${uid} summary from the Step A aggregates`, () => {
+        const p = PROD.people[uid]
+        const s = buildSummary(prodInput(p, PROD.date))
+        assert.deepEqual(s.fired, p.expectedSummary.fired)
+        assert.equal(summaryText(s), p.expectedSummary.paragraphs.join('\n\n'))
+        assert.ok(!s.fired.includes('S7'), 'all three are cohort-eligible on prod')
+    })
+}
