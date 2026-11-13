@@ -386,7 +386,7 @@ function peerSection(peer: PeerTable, surname: string, runDate: string): Array<P
     r.cells[0].rankText,
     r.cells[1].rankText,
   ]);
-  out.push(table(["Role set", "Rated research articles", "Average of top 5", "Average of top 10", "Rank, top 5", "Rank, top 10"], rows, [1.5, 1.6, 1.2, 1.2, 1.7, 1.7], [false, false, true, true, false, false]));
+  out.push(table(["Role set", "Rated research articles", "Average of top 5", "Average of top 10", "Rank, top 5", "Rank, top 10"], rows, [1.5, 1.6, 1.3, 1.3, 1.6, 1.6]));
   out.push(note(PEER_NOTE));
   return out;
 }
@@ -597,7 +597,7 @@ export async function buildBibliometricDocx(input: BiblioDocInput): Promise<Bibl
       paragraphStyles: [
         { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: FONT, size: 32, bold: true }, paragraph: { spacing: { before: 0, after: 120 }, keepNext: true } },
         { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true, run: { font: FONT, size: 26, bold: true }, paragraph: { spacing: { before: 280, after: 100 }, keepNext: true } },
-        { id: "ReportNote", name: "Report note", basedOn: "Normal", run: { font: FONT, size: 18, color: MUTED }, paragraph: { spacing: { after: 120 } } },
+        { id: "ReportNote", name: "Report note", basedOn: "Normal", run: { font: FONT, size: 18, color: MUTED }, paragraph: { spacing: { before: 60, after: 120 } } },
         { id: "TableText", name: "Table text", basedOn: "Normal", run: { font: FONT, size: 18 }, paragraph: { spacing: { before: 0, after: 0, line: 240 } } },
       ],
     },
