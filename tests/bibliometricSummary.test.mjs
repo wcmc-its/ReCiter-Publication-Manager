@@ -428,6 +428,15 @@ const PROD = JSON.parse(readFileSync(new URL('./fixtures/bibliometrics-v2-prod-a
 const hundredths = (v) => Math.round(Number(v) * 100)
 const ROLE_SETS_PROD = ['any', 'first_or_senior', 'first', 'senior']
 
+/** recentSeniorYears() keeps one year per article (repeats kept), but the preview printed distinct
+ *  years. Expand to one entry per article, so S5's count is the record's count. */
+function seniorYearsPerArticle(p) {
+    const { count, years } = p.recentSeniorResearch
+    if (years.length === count) return years
+    if (years.length === 1) return Array(count).fill(years[0])
+    throw new Error(`recentSeniorResearch: ${count} articles over years ${years}; store one year per article`)
+}
+
 /** SummaryInput from one person's Step A aggregates (stored ranks only where the record has them). */
 function prodInput(p, runDate) {
     const n = p.rated
@@ -456,7 +465,7 @@ function prodInput(p, runDate) {
             })),
         },
         atHighest: [],
-        recentSeniorYears: p.recentSeniorResearch.years,
+        recentSeniorYears: seniorYearsPerArticle(p),
     }
 }
 
@@ -480,6 +489,7 @@ test('prod draft: research counts by role add up; headline cell agrees with the 
         const r = p.researchArticles
         assert.equal(r.first + r.senior + r.middle, r.total, uid)
         assert.equal(p.topN.any.rated, p.rated, uid)
+        assert.equal(seniorYearsPerArticle(p).length, p.recentSeniorResearch.count, uid)
         if (typeof p.headline !== 'object') continue
         const head = headlineCell(prodInput(p, PROD.date).peer)
         assert.equal(`${head.roleSet}:${head.cell.topN}`, p.headline.cell, uid)
