@@ -94,3 +94,46 @@ export function withoutScopeKeys(filters: any): Record<string, unknown> {
   const { scopeOrgUnits, scopePersonTypes, scopeInstitutions, proxyPersonIds, ...rest } = filters || {};
   return rest;
 }
+
+/**
+ * The scope Find People should flag rows against, or null when no flag is wanted. Mirrors the
+ * scoped branch of authorization.controller.ts canCurate: a configured scope applies to anyone
+ * without curate-all, with or without the Curator_Scoped role. Curate-all viewers, and viewers
+ * with no configured scope, get null (Search.js keeps its role logic for them).
+ */
+export function inScopeFlagScope(canCurateAll: boolean, scope: any): ScopeData | null {
+  if (canCurateAll || !hasConfiguredScope(scope)) return null;
+  return scope as ScopeData;
+}
+
+/**
+ * SQL that is 1 when the person row `alias` is inside `scope` and 0 otherwise, for the
+ * `inScope` column on Find People rows. Same rule as isPersonInScope (AND across dimensions,
+ * OR within one; person types read from person_person_type) and the same dimensions the
+ * findAll scope filter uses. `quote` must SQL-quote one string value (the caller passes
+ * sequelize.escape). Returns null when no dimension is configured.
+ */
+export function inScopeSql(alias: string, scope: ScopeData | null, quote: (v: string) => string): string | null {
+  if (!hasConfiguredScope(scope)) return null;
+  const list = (vals: string[]) => vals.map((v) => quote(String(v))).join(', ');
+  const has = (vals: any) => Array.isArray(vals) && vals.length > 0;
+  const parts: string[] = [];
+  if (has(scope!.orgUnits)) parts.push(`\`${alias}\`.\`primaryOrganizationalUnit\` IN (${list(scope!.orgUnits!)})`);
+  if (has(scope!.institutions)) parts.push(`\`${alias}\`.\`primaryInstitution\` IN (${list(scope!.institutions!)})`);
+  if (has(scope!.personTypes)) {
+    parts.push(
+      `EXISTS (SELECT 1 FROM \`person_person_type\` \`scopePpt\`` +
+      ` WHERE \`scopePpt\`.\`personIdentifier\` = \`${alias}\`.\`personIdentifier\`` +
+      ` AND \`scopePpt\`.\`personType\` IN (${list(scope!.personTypes!)}))`
+    );
+  }
+  return `(CASE WHEN ${parts.join(' AND ')} THEN 1 ELSE 0 END)`;
+}
+
+/**
+ * Find People row: may a scoped curator curate this person? `inScope` is the server's flag
+ * (1/0, or "1"/"0" from MySQL). Proxy and own-row access hold regardless of scope, as in canCurate.
+ */
+export function rowInScopeCanCurate(inScope: any, isProxy: boolean, isOwnRow: boolean): boolean {
+  return Number(inScope) === 1 || isProxy || isOwnRow;
+}

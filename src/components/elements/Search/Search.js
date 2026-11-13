@@ -23,7 +23,7 @@ getCapabilities } from "../../../utils/constants"
 import Profile from "../Profile/Profile";
 import ProxyBadge from './ProxyBadge';
 import ScopeFilterCheckbox from './ScopeFilterCheckbox';
-import { hasConfiguredScope, isProxyFor, withoutScopeKeys } from '../../../utils/scopeResolver';
+import { hasConfiguredScope, isProxyFor, rowInScopeCanCurate, withoutScopeKeys } from '../../../utils/scopeResolver';
 import { searchTokens, newSearchRequest, matchedPersonIds, reportHandoffCapped, REPORT_HANDOFF_CAP } from '../../../utils/searchRequest';
 import { Button as UiButton } from '../../ui';
 
@@ -612,9 +612,18 @@ const Search = () => {
   // holder may curate the people they proxy for; a self-only curator may curate
   // only their own row. Everyone else (e.g. a pure Reporter_All) gets
   // report/profile actions but no Curate Publications.
+  //
+  // A scoped curator also gets isCuratorAll (for the shared dropdown/Pending layout), so for them
+  // the per-row `inScope` flag decides instead: /api/db/users computes it from the session's own
+  // scope, the same rule canCurate applies, and sends it only to scoped viewers. Without it a
+  // scoped curator who unchecked "only people I can curate" was offered Curate on everyone.
   const canCuratePerson = (identity) => {
-    if (isSuperUser || isCuratorAll) return true;
+    if (isSuperUser) return true;
     const pid = identity?.personIdentifier;
+    if (identity && identity.inScope !== undefined && identity.inScope !== null) {
+      return rowInScopeCanCurate(identity.inScope, isProxyFor(proxyPersonIds, pid), caps.canCurate.self && pid === loggedInPersonIdentifier);
+    }
+    if (isCuratorAll) return true;
     if (isProxyFor(proxyPersonIds, pid)) return true;
     if (isCuratorSelf) return pid === loggedInPersonIdentifier;
     return false;
@@ -649,7 +658,7 @@ const Search = () => {
           isCuratorSelf ?
           <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
           :
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' && rowCanCurate ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
         }
         </td>
         <td key={`${identityIndex}__affiliation`} width="32%" className={styles.colAffiliation}>

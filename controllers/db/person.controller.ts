@@ -4,14 +4,21 @@ import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
 import  {reciterConstants}  from "../../src/utils/constants";
 import { cornellOnlySql } from "../../src/utils/cornellOnly";
+import { inScopeSql, ScopeData } from "../../src/utils/scopeResolver";
 
 models.Person.hasMany(models.PersonPersonType, {constraints: false})
 models.PersonPersonType.belongsTo(models.Person, {constraints: false})
 
-export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
+// `viewerScope` is the signed-in curator's own scope, read from the session token by the route
+// (src/pages/api/db/users/index.ts), never from the request body. When set, every row carries
+// `inScope` (1/0) so Find People offers Curate only on people the server's canCurate would allow,
+// including when the "only people I can curate" box is unchecked.
+export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewerScope: ScopeData | null = null) => {
     
     try {
         let apiBody:PersonApiBody =  req.body
+        const inScope = inScopeSql('Person', viewerScope, (v) => models.Person.sequelize.escape(v))
+        const extraAttributes: any[] = inScope ? [[literal(inScope), 'inScope']] : []
 
         // Curator_Scoped's personType/orgUnit scope, sent by Search.js's "Show only people I
         // can curate" checkbox (checked by default for scoped curators). Combined with an
@@ -89,7 +96,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
             const { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
                 'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail',
-                [literal(cornellOnlySql('Person')), 'cornellOnly']],
+                [literal(cornellOnlySql('Person')), 'cornellOnly'], ...extraAttributes],
                 include: [
                     {
                         model: models.PersonPersonType, 
@@ -119,7 +126,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
             let { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
                 'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail',
-                [literal(cornellOnlySql('Person')), 'cornellOnly']],
+                [literal(cornellOnlySql('Person')), 'cornellOnly'], ...extraAttributes],
                 where: where,
                 group: ["personIdentifier"],
                 order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
