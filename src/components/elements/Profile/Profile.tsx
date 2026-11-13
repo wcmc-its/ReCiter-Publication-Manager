@@ -17,6 +17,7 @@ import { hasConfiguredScope, isProxyFor } from "../../../utils/scopeResolver";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import { stripHtml } from "../../../utils/htmlText";
+import { downloadBibliometricDocx } from "../../../utils/bibliometricDownload";
 import { degreeLines } from "../../../utils/degreeLines";
 import { AUTHOR_ID_TYPES, AUTHOR_ID_TYPE_LABEL, AuthorIdRow, authorIdUrl } from "../../../utils/authorIds";
 
@@ -58,6 +59,10 @@ const Profile = ({
   const [isError, setIsError] = useState(false);
   const [identity, setIdentity] = useState<any>({});
   const [showBiblioBtn, isShowBiblioBtn] = useState<boolean>(false);
+  // 5h P5: which bibliometric report the button runs, from the admin_settings bibliometricReport
+  // flag. "rtf" (the default, and on any failure) is the v1 RTF path, unchanged.
+  const [biblioVersion, setBiblioVersion] = useState<"rtf" | "docx">("rtf");
+  const [biblioLoading, setBiblioLoading] = useState<boolean>(false);
   const [exportArticleCsvLoading, setExportArticleCsvLoading] = useState<boolean>(false);
   const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
@@ -159,7 +164,30 @@ const Profile = ({
       })
   }
 
+  // 5h P5: ask the v2 show route first. It answers { version: "rtf" } without touching the v2 data
+  // while the flag is rtf, and then (or if it fails) the v1 check below runs exactly as before.
   const showBiblioAnalysis = async () => {
+    let v2: any = null;
+    try {
+      const response = await fetch('/api/db/reports/bibliometric/show/' + encodeURIComponent(uid), {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: { Accept: 'application/json', 'Authorization': reciterConfig.backendApiKey }
+      });
+      v2 = response.ok ? await response.json() : null;
+    } catch (e) {
+      v2 = null;
+    }
+    if (v2?.version === "docx") {
+      setBiblioVersion("docx");
+      isShowBiblioBtn(!!v2.show);
+      return;
+    }
+    setBiblioVersion("rtf");
+    return await showBiblioAnalysisV1();
+  }
+
+  const showBiblioAnalysisV1 = async () => {
     return await fetch('/api/db/reports/bibliometric-analysis/show-button/' + uid, {
       credentials: "same-origin",
       method: 'GET',
@@ -276,6 +304,26 @@ const Profile = ({
         setExportArticleRTFLoading(false);
         toast.error("Unable to export article report. Please try again. (ERR-8011)");
       })
+  }
+
+  // 5h P5: the v2 .docx, used only while the flag is "docx".
+  const generateBiblioDocx = async () => {
+    setBiblioLoading(true);
+    try {
+      const result = await downloadBibliometricDocx(uid, reciterConfig.backendApiKey);
+      if (result.ok === true) {
+        toast.success(`Downloaded ${result.fileName}`);
+      } else {
+        if (result.status >= 500) reportError("ERR-8012", "Unable to generate bibliometric analysis", { status: result.status });
+        toast.error(result.status >= 500 ? `${result.message} (ERR-8012)` : result.message);
+      }
+    } catch (error) {
+      console.error("[ERR-8012]", error);
+      reportError("ERR-8012", "Unable to generate bibliometric analysis", error);
+      toast.error("Unable to generate bibliometric analysis. Please try again. (ERR-8012)");
+    } finally {
+      setBiblioLoading(false);
+    }
   }
 
   const generateBiblioAnalysis = () => {
@@ -403,8 +451,13 @@ const Profile = ({
               ) : (
                 <Button size="sm" component={Link} href={`/curate/${uid}`} onClick={handleClose}>Curate</Button>
               ))}
-              {showBiblioBtn && (
+              {showBiblioBtn && biblioVersion !== "docx" && (
                 <Button size="sm" onClick={generateBiblioAnalysis} sx={amberTintSx}>Bibliometric analysis</Button>
+              )}
+              {showBiblioBtn && biblioVersion === "docx" && (
+                <Button size="sm" onClick={generateBiblioDocx} disabled={biblioLoading} sx={amberTintSx} data-testid="profile-bibliometric">
+                  {biblioLoading ? 'Generating…' : 'Bibliometric analysis'}
+                </Button>
               )}
             </Box>
 

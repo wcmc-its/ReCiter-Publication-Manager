@@ -4,6 +4,8 @@ import appStyles from '../App/App.module.css';
 import styles from './Report.module.css';
 import QuickReport from './QuickReport';
 import SearchSummary from './SearchSummary';
+import BibliometricExportModal from './BibliometricExportModal';
+import { reciterConfig } from '../../../../config/local';
 import { FilterSection } from './FilterSection';
 import { useDispatch , useSelector } from 'react-redux';
 import { RootStateOrAny } from "../../../types/redux";
@@ -75,6 +77,10 @@ const Report = () => {
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
   // Which export modal is open; the buttons sit in the title row, the modals in SearchSummary.
   const [exportType, setExportType] = useState<"CSV" | "RTF" | null>(null)
+  // 5h P5: the "Bibliometric analysis" button appears only while the admin_settings
+  // bibliometricReport flag is "docx"; with "rtf" (the default, or a failed read) the title row is v1's.
+  const [biblioEnabled, setBiblioEnabled] = useState<boolean>(false)
+  const [biblioOpen, setBiblioOpen] = useState<boolean>(false)
   // Filters as of the last search, so closing a filter menu without a change doesn't re-search.
   const lastAppliedFilters = useRef<string>(JSON.stringify(pubSearchFilter.filters))
 
@@ -102,6 +108,18 @@ const Report = () => {
     setReportingWebDisplay(attrs("reportingWebDisplay"))
     setExportArticlesRTF(attrs("reportingArticleRTF"))
   }, [updatedAdminSettings])
+
+  useEffect(() => {
+    let live = true;
+    fetch('/api/db/reports/bibliometric/version', {
+      credentials: "same-origin",
+      headers: { Accept: 'application/json', Authorization: reciterConfig.backendApiKey },
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (live) setBiblioEnabled(d?.version === 'docx'); })
+      .catch(() => { /* stays off: v1 */ });
+    return () => { live = false; };
+  }, [])
 
   // fetch filters on mount
   useEffect(() => {
@@ -375,6 +393,14 @@ const Report = () => {
   }
 
   const canExport = !!(reportsSearchResults && reportsSearchResults.articlesCount);
+  // 5h: the bibliometric analysis is one person's document, so it needs exactly one person in the
+  // Author filter and no other person-level filter (type, institution, organization).
+  const biblioFilters = pubSearchFilter?.filters || {};
+  const biblioUid: string | null =
+    (biblioFilters.personIdentifers || []).length === 1 &&
+    !(biblioFilters.personTypes || []).length && !(biblioFilters.institutions || []).length && !(biblioFilters.orgUnits || []).length
+      ? biblioFilters.personIdentifers[0]
+      : null;
 
   // Title row: page name on the left, the two exports on the right ("Excel" / "Word" per the 1e
   // rename; Word downloads a .docx bibliography, 5g).
@@ -388,6 +414,13 @@ const Report = () => {
         <Button variant="secondary" disabled={!canExport} onClick={() => openExport("RTF")} data-testid="export-word" sx={WORD_SX}>
           <ExportIcon /> Export Word
         </Button>
+        {biblioEnabled && (
+          <span title={biblioUid ? undefined : "Choose one person to run a bibliometric analysis"} style={{ display: 'inline-flex' }}>
+            <Button variant="secondary" disabled={!biblioUid} onClick={() => setBiblioOpen(true)} data-testid="export-biblio" sx={BIBLIO_SX}>
+              <ChartIcon /> Bibliometric analysis
+            </Button>
+          </span>
+        )}
       </div>
     </div>
   );
@@ -411,6 +444,9 @@ const Report = () => {
     <div>
       <div className={appStyles.mainContainer}>
         {titleRow}
+        {biblioEnabled && (
+          <BibliometricExportModal show={biblioOpen && !!biblioUid} onClose={() => setBiblioOpen(false)} uid={biblioUid} />
+        )}
         <FilterSection 
           filterOptions={filters}
           filterUpdateOptions={filterUpdateOptions}
@@ -489,6 +525,19 @@ const WORD_SX = {
   '&:hover': { bgcolor: '#e0e8f1', borderColor: 'var(--pm-slate-tint-border)' },
   '&.Mui-disabled': { color: 'var(--pm-slate)', bgcolor: 'var(--pm-slate-tint)', borderColor: 'var(--pm-slate-tint-border)' },
 };
+
+// Amber tint, matching the Profile drawer's "Bibliometric analysis" button.
+const BIBLIO_SX = {
+  color: 'var(--pm-amber)', bgcolor: 'var(--pm-amber-tint)', borderColor: 'var(--pm-amber-tint-border)',
+  '&:hover': { bgcolor: 'var(--pm-surface)', borderColor: 'var(--pm-amber-tint-border)' },
+  '&.Mui-disabled': { opacity: 0.55, color: 'var(--pm-amber)', bgcolor: 'var(--pm-amber-tint)', borderColor: 'var(--pm-amber-tint-border)' },
+};
+
+const ChartIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 3v18h18" /><path d="M8 17v-5" /><path d="M13 17V8" /><path d="M18 17v-9" />
+  </svg>
+);
 
 const ExportIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
