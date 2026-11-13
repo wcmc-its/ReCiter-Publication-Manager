@@ -301,6 +301,29 @@
   color: #2563a8;
 }
 
+/* Name of a row that isn't a link (Cornell-only, viewer without /authorships) */
+.nameText {
+  display: block;
+  margin-bottom: 2px;
+  color: #1a2133;
+  font-weight: 600;
+  font-size: 14px;
+  font-family: var(--font-sans);
+}
+
+/* "Cornell Ithaca" label on Cornell-only rows */
+.cornellBadge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #eeeae4;
+  color: #5a6478;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 /* Person role / title */
 .personRole {
   font-size: 12px;

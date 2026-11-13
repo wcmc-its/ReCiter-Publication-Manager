@@ -3,6 +3,7 @@ import { Op, Sequelize, literal } from "sequelize"
 import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
 import  {reciterConstants}  from "../../src/utils/constants";
+import { cornellOnlySql } from "../../src/utils/cornellOnly";
 
 models.Person.hasMany(models.PersonPersonType, {constraints: false})
 models.PersonPersonType.belongsTo(models.Person, {constraints: false})
@@ -87,7 +88,8 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         if(effectivePersonTypes) {
             const { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
-                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail'],
+                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail',
+                [literal(cornellOnlySql('Person')), 'cornellOnly']],
                 include: [
                     {
                         model: models.PersonPersonType, 
@@ -116,7 +118,8 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         } else {
             let { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
-                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail'],
+                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail',
+                [literal(cornellOnlySql('Person')), 'cornellOnly']],
                 where: where,
                 group: ["personIdentifier"],
                 order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
@@ -133,6 +136,18 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         console.log(e)
         res.status(500).send(e);
     }
+};
+
+// Is this uid a Cornell-only person (see src/utils/cornellOnly.ts)? false when there is no
+// person row at all, so an unknown uid behaves exactly as it did before.
+export const isCornellOnlyUid = async (uid: string): Promise<boolean> => {
+    if (!uid) return false
+    const row: any = await models.Person.findOne({
+        attributes: [[literal(cornellOnlySql('Person')), 'cornellOnly']],
+        where: { personIdentifier: uid },
+        raw: true
+    })
+    return Number(row?.cornellOnly) === 1
 };
 
 export const countPersons = async (req: NextApiRequest, res: NextApiResponse) => {
