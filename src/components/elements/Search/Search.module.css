@@ -129,7 +129,8 @@
   border: 1px solid var(--pm-border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
-  overflow: hidden;
+  /* No overflow: hidden here: it clipped the page-size menu in the footer when only a row or
+     two matched. The table scrolls inside .tableWrap instead. */
 }
 
 .resultsHeader {
@@ -161,6 +162,13 @@
 /* ── TABLE ── a real <table> with the prototype's column proportions. */
 .tableWrap {
   width: 100%;
+  overflow-x: auto;
+}
+
+/* No pagination under the table (no rows): the table is the card's last child, so round its
+   bottom corners (a hovered row would otherwise paint past them). */
+.tableWrap:last-child {
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
 }
 
 .table {

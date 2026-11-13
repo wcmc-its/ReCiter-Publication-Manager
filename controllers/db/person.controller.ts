@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { Op, Sequelize, literal } from "sequelize"
+import { Op, QueryTypes, Sequelize, literal } from "sequelize"
 import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
 import  {reciterConstants}  from "../../src/utils/constants";
@@ -101,8 +101,16 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewer
                 const types = effectivePersonTypes.map((t) => models.Person.sequelize.escape(t)).join(',')
                 sumWhere[Op.and].push(literal(`\`Person\`.\`personIdentifier\` IN (SELECT personIdentifier FROM person_person_type WHERE personType IN (${types}))`))
             }
-            const total = await models.Person.sum('countPendingArticles', { where: sumWhere })
-            return Number(total) || 0
+            // One value per personIdentifier, like the list's GROUP BY: the person table holds a few
+            // personIdentifiers twice (case variants such as Arn4002/arn4002), and a plain SUM would
+            // count them twice.
+            const perPerson = (models.Person.sequelize.getQueryInterface() as any).queryGenerator.selectQuery(
+                models.Person.getTableName(),
+                { attributes: [[Sequelize.fn('MAX', Sequelize.col('countPendingArticles')), 'cp']], where: sumWhere, group: ['personIdentifier'], tableAs: 'Person' },
+                models.Person
+            ).replace(/;\s*$/, '')
+            const [row]: any = await models.Person.sequelize.query(`SELECT SUM(cp) AS total FROM (${perPerson}) AS perPerson`, { type: QueryTypes.SELECT })
+            return Number(row?.total) || 0
         })().catch((e) => {
             // The list doesn't depend on it: without the total the header just leaves it out.
             console.log(e)
