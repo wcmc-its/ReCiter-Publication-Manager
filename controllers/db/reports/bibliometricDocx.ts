@@ -370,13 +370,14 @@ function keyFigureRows(key: KeyFigures): Cell[][] {
   ];
 }
 
-function peerSection(peer: PeerTable, surname: string, runDate: string): Array<Paragraph | Table> {
+function peerSection(peer: PeerTable, surname: string, runDate: string, currentRank: string | null): Array<Paragraph | Table> {
   const out: Array<Paragraph | Table> = [];
   if (!peer.eligible) {
     out.push(para("Peer comparison covers WCM-employed full-time faculty with a faculty rank, so it is not shown."));
     return out;
   }
-  const cohort = rankPlural(peer.facultyRank);
+  // No stored cell (nothing rated yet): the cohort is today's rank, the one eligibility came from.
+  const cohort = rankPlural(peer.facultyRank || currentRank);
   out.push(para(`${surname} is compared with WCM ${cohort} as of the ${peer.runDate || runDate} nightly run. A top-5 average needs 5 rated research articles in the role; a top-10 average needs 10. A rank needs at least 20 qualifying faculty.`));
   const rows: Cell[][] = peer.rows.map((r) => [
     r.label,
@@ -423,7 +424,8 @@ export async function buildBibliometricDocx(input: BiblioDocInput): Promise<Bibl
   const storedRank = input.cells.length ? String(input.cells[0].facultyRank ?? "").trim() || null : null;
   const rankShown = storedRank || input.currentRank;
   children.push(h1(`Bibliometric analysis: ${name}`));
-  children.push(para([text([name, (person.department || "").trim(), rankShown || "", uid].filter(Boolean).join(" · "), { bold: true })]));
+  // With no person row the name is already the uid; print it once.
+  children.push(para([text([name, (person.department || "").trim(), rankShown || "", name === uid ? "" : uid].filter(Boolean).join(" · "), { bold: true })]));
   const rn = rankNote(storedRank, input.currentRank, runDate);
   const counted = key.counts.counted;
   children.push(
@@ -452,7 +454,7 @@ export async function buildBibliometricDocx(input: BiblioDocInput): Promise<Bibl
 
   // 4. Peer comparison (S7 sentence when not eligible)
   section("Peer comparison");
-  children.push(...peerSection(peer, surname, runDate));
+  children.push(...peerSection(peer, surname, runDate, input.currentRank));
 
   // 5. Authorship over time
   const authorship = authorshipByYear(works);

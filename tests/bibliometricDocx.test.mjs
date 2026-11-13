@@ -178,6 +178,24 @@ test('only external works: publications and recent work, h-index reason, no char
     assertClean(text)
 })
 
+test('eligible today with no stored cell: peer intro names the current rank; no person row: uid once', async () => {
+    const works = FIX.people.aah2003.filter((w) => w.pmid < 0)
+    const out = await buildBibliometricDocx({
+        uid: 'new0001', person: { firstName: 'Nu', lastName: 'Faculty' }, works, cells: [], eligibleNow: true, currentRank: 'Assistant Professor',
+        articles: new Map(), runDate: RUN,
+    })
+    const { text } = await unzip(out.buffer)
+    assert.ok(text.includes('Faculty is compared with WCM assistant professors as of the'))
+    assert.ok(!text.includes('WCM faculty at the same rank'))
+    assertClean(text)
+    const bare = await buildBibliometricDocx({
+        uid: 'ext0002', person: {}, works, cells: [], eligibleNow: false, currentRank: null, articles: new Map(), runDate: RUN,
+    })
+    const b = (await unzip(bare.buffer)).text
+    assert.ok(!b.includes('ext0002 · ext0002'))
+    assert.ok(b.includes('Bibliometric analysis: ext0002'))
+})
+
 test('rank changed since the nightly: header names the rank used', async () => {
     const p = PEOPLE.alg2053
     const out = await buildBibliometricDocx({
