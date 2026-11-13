@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSelector } from "react-redux";
 import { useSession } from "next-auth/react";
-import { withoutScopeKeys } from '../../../utils/scopeResolver';
+import { hasConfiguredScope, withoutScopeKeys } from '../../../utils/scopeResolver';
 import { RootStateOrAny } from "../../../types/redux";
 import { useNextPerson } from "../../../hooks/useNextPerson";
 import styles from "./SectionNav.module.css";
@@ -26,6 +26,16 @@ const SectionNav = () => {
   // personIdentifier (faculty/postdoc who can curate themselves). Those users may open
   // Curate directly; everyone else (e.g. a Superuser with no profile of their own) must
   // first pick a person from Find People, so the item stays disabled until a search is active.
+  // Middleware lets anyone with a configured curation scope open /search (whatever their roles),
+  // so they get the People item too.
+  let hasScope = false;
+  try {
+    const raw = (session as any)?.data?.scopeData;
+    hasScope = hasConfiguredScope(raw ? JSON.parse(raw) : null);
+  } catch {
+    hasScope = false;
+  }
+
   const hasOwnProfile = roles.some(
     (role: any) => role.roleLabel === "Curator_Self" && role.personIdentifier
   );
@@ -40,7 +50,8 @@ const SectionNav = () => {
     },
     { title: "Authorships", to: "/authorships", disabled: false, allowedRoleNames: ["Superuser", "Curator_All"] },
     { title: "Reports", to: "/report", disabled: false, allowedRoleNames: ["Superuser", "Reporter_All", "Curator_All", "Curator_Self", "Curator_Scoped"] },
-  ].filter((item) => roles.some((role: any) => item.allowedRoleNames.includes(role.roleLabel)));
+  ].filter((item) => (item.to === "/search" && hasScope)
+    || roles.some((role: any) => item.allowedRoleNames.includes(role.roleLabel)));
 
   if (items.length === 0) return null;
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria, showEvidenceByDefault, updateAuthorFilter } from '../../../redux/actions/actions'
+import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria, showEvidenceByDefault, updateAuthorFilter, clearError } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -24,6 +24,8 @@ import Profile from "../Profile/Profile";
 import ProxyBadge from './ProxyBadge';
 import ScopeFilterCheckbox from './ScopeFilterCheckbox';
 import { hasConfiguredScope, isProxyFor, withoutScopeKeys } from '../../../utils/scopeResolver';
+import { searchTokens, newSearchRequest, matchedPersonIds, reportHandoffCapped, REPORT_HANDOFF_CAP } from '../../../utils/searchRequest';
+import { Button as UiButton } from '../../ui';
 
 // Guard against malformed/absent session claims so a bad JWT value can't white-screen the page.
 const safeParse = (value, fallback) => {
@@ -101,6 +103,20 @@ const Search = () => {
   const [scopeFilterChecked, setScopeFilterChecked] = useState(true); // Default checked for scoped curators (D-14)
   //ref
   const searchValue = useRef()
+
+  // List fetches report failure here instead of through the global errors array (which sends the
+  // whole app to /_error). Only the latest fetch may set or clear the error; Retry re-runs it.
+  const [loadError, setLoadError] = useState(false);
+  const fetchSeq = useRef(0);
+  const lastFetch = useRef(null);
+  const runListFetch = (makeThunk) => {
+    const seq = ++fetchSeq.current;
+    lastFetch.current = makeThunk;
+    setLoadError(false);
+    return Promise.resolve(dispatch(makeThunk())).then((result) => {
+      if (seq === fetchSeq.current) setLoadError(!!(result && result.ok === false));
+    });
+  };
 
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
@@ -277,13 +293,9 @@ const Search = () => {
     }
     // Build scope-aware filters and re-search
     let updatedFilters = applyScopeFilters(filters);
-    let request = {
-      filters: { ...updatedFilters },
-      limit: count,
-      offset: 0
-    };
+    let request = newSearchRequest(updatedFilters, count);
     dispatch(updateFilters(updatedFilters));
-    dispatch(identityFetchAllData(request));
+    runListFetch(() => identityFetchAllData(request));
     setPage(1);
   }, [scopeFilterChecked])
   
@@ -337,16 +349,17 @@ const Search = () => {
     const f = applyScopeFilters(newCount === 'reset' ? {} : filters);
     dispatch(updateFilters(f));
     if (newCount === 'reset') {
-      dispatch(identityFetchPaginatedData(1, count, f))
+      runListFetch(() => identityFetchPaginatedData(1, count, f))
     } else {
-      dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, f))
+      const limit = newCount ? newCount : count
+      runListFetch(() => identityFetchPaginatedData(page, limit, f))
     }
   }
 
 
   const handlePaginationUpdate = (page) => {
     setPage(page)
-      dispatch(identityFetchPaginatedData(page, count, filters))
+    runListFetch(() => identityFetchPaginatedData(page, count, filters))
   }
 
   const handleCountUpdate = (count) => {
@@ -428,7 +441,7 @@ const Search = () => {
       // list pasted from a spreadsheet column (newline-separated) or a comma-separated
       // list parses into one token per person instead of collapsing into one mangled
       // string that then misses the bulk-CWID threshold below.
-      let searchWords = searchText.trim().split(/[\s,]+/).filter(Boolean);
+      let searchWords = searchTokens(searchText);
       dispatch(updateAuthorFilter(searchWords.join(),10));
 
       updatedFilters = { ...updatedFilters, nameOrUids: searchWords };
@@ -448,14 +461,11 @@ const Search = () => {
 
 	// Phase 9: Add scope filter parameters when scope filter is active
     updatedFilters = applyScopeFilters(updatedFilters);
-    let request = {
-      filters: { ...updatedFilters },
-      limit:count,
-      offset: page - 1 
-    }
+    // A new search always starts at the first row, whatever page was showing.
+    let request = newSearchRequest(updatedFilters, count);
 
     dispatch(updateFilters(updatedFilters));
-    dispatch(identityFetchAllData(request));
+    runListFetch(() => identityFetchAllData(request));
     setPage(1);
     setFilterByPending(false);
   }
@@ -464,13 +474,9 @@ const Search = () => {
     const filterPending = value ? value : false;
     setFilterByPending(filterPending);
     let updatedFilters = { ...filters, showOnlyPending: filterPending };
-    let request = {
-      filters: { ...updatedFilters },
-      limit:count,
-      offset: page - 1 
-    }
+    let request = newSearchRequest(updatedFilters, count);
     dispatch(updateFilters(updatedFilters));
-    dispatch(identityFetchAllData(request));
+    runListFetch(() => identityFetchAllData(request));
     setPage(1);
   }
 
@@ -496,8 +502,12 @@ const Search = () => {
   const handleClose = () => setShowprofile(false);
   const handleShow = () => setShowprofile(true);
 
+  // Every CWID the search matched (all pages), from findAll's per-person grouped count.
+  const matchedIds = matchedPersonIds(identityPaginatedData?.totalPersonsCount);
+  const handoffCapped = reportHandoffCapped(filters, matchedIds.length);
+
   const handleGoAction = () => {
-    dispatch(updatePubFiltersFromSearch());
+    dispatch(updatePubFiltersFromSearch(matchedIds));
     if (selectedAction === "Create Reports") {
       router.push('/report');
     }
@@ -540,19 +550,11 @@ const Search = () => {
 
   const identities = filter()
 
-  if (errors && errors.length > 0) {
-    return (
-      <div className={appStyles.mainContainer}>
-
-        {/* <div className="side-nav-position">
-                    <SideNav uid={this.props.match.params.uid} history={this.props.history} />
-                </div> */}
-        <div>
-          {/* <Error {...errors} /> */}
-        </div>
-
-      </div>
-    );
+  const showLoadError = loadError || (errors && errors.length > 0);
+  const retryLoad = () => {
+    if (errors && errors.length > 0) dispatch(clearError());
+    if (lastFetch.current) runListFetch(lastFetch.current);
+    else fetchPaginatedData('reset');
   }
 
   // Spinner for when Search gets updated
@@ -722,7 +724,12 @@ const Search = () => {
               }}
             />
           )}					   
-          {(isDisplayLoader()) ?
+          {showLoadError ? (
+            <div className={styles.loadError} role="alert">
+              <p className={styles.loadErrorText}>Couldn&apos;t load people.</p>
+              <UiButton variant="secondary" size="sm" onClick={retryLoad}>Retry</UiButton>
+            </div>
+          ) : (isDisplayLoader()) ?
             (
               <Loader />
             ) : (
@@ -762,7 +769,13 @@ const Search = () => {
                           <option value="Create Reports">Create Reports</option>
                         </select>
                       </div>
-                      <button className={styles.btnGo} onClick={handleGoAction}>
+                      <button
+                        className={styles.btnGo}
+                        onClick={handleGoAction}
+                        title={handoffCapped
+                          ? `More than ${REPORT_HANDOFF_CAP} people match this name search, so the report uses only the Organization, Institution and Person type filters`
+                          : undefined}
+                      >
                         Go
                         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
                       </button>
