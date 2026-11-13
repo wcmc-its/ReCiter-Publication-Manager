@@ -26,6 +26,8 @@ export type ReportFilters = {
   pubDateLowerBound?: string;
   pubDateUpperBound?: string;
   pubTypes?: string[];
+  // 5d-1 Peer review ("yes" / "no"); applied through dateTypeSql's clauses, like the 5c filters
+  peerReview?: string[];
 };
 
 const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => x !== null && x !== undefined && String(x) !== "").map(String) : []);

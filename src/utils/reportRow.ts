@@ -156,3 +156,56 @@ export const groupedTypeOptions = (
 // True when the Type filter options are the grouped kind (vs. the old publicationTypeCanonical list).
 export const isGroupedTypeOptions = (options: unknown): options is TypeOption[] =>
   Array.isArray(options) && options.length > 0 && options.every((o: any) => o && typeof o.type === "string" && typeof o.group === "string");
+
+// 5d-1 (ReCiterDB v3.10): peer review and the person's role on the work.
+
+export type PeerReviewOption = { key: "yes" | "no"; label: string; desc: string; count: number };
+
+// Rows from the Peer review filter endpoint (peerReviewed 1 / 0, count) as the filter's two
+// options. Empty when nothing is filled yet, which hides the filter.
+export const peerReviewOptions = (rows: Array<{ peerReviewed?: number | string | null; count?: number | string | null }>): PeerReviewOption[] => {
+  let yes = 0;
+  let no = 0;
+  for (const r of rows || []) {
+    if (r.peerReviewed === null || r.peerReviewed === undefined || r.peerReviewed === "") continue;
+    if (Number(r.peerReviewed) === 1) yes += Number(r.count) || 0;
+    else if (Number(r.peerReviewed) === 0) no += Number(r.count) || 0;
+  }
+  if (!yes && !no) return [];
+  return [
+    { key: "yes", label: "Peer-reviewed", desc: "Peer reviewed by default for the type, or set on the record", count: yes },
+    { key: "no", label: "Not peer-reviewed", desc: "Letters, editorials, chapters, preprints and the like", count: no },
+  ];
+};
+
+// The "Not peer-reviewed" chip: shown only when the row says 0. NULL (no column, or not filled
+// yet) shows nothing. The tooltip says where the value came from.
+export const notPeerReviewedChip = (row: {
+  peerReviewed?: number | string | boolean | null; peerReviewedSource?: string | null; pubType?: string | null;
+}): { tip: string } | null => {
+  const v = row.peerReviewed;
+  if (v === null || v === undefined || v === "" || v === true || Number(v) !== 0) return null;
+  if (row.peerReviewedSource === "curator") return { tip: "Set by hand on this record" };
+  const type = text(row.pubType);
+  return { tip: type ? `Default for ${type}` : "Default when the publication type isn't known" };
+};
+
+// Edited books and proceedings: the byline is the editors, so the row says so once, after the
+// last name (", editor" / ", editors"), as the prototype does.
+const EDITED_TYPES = ["Edited Book", "Conference Proceedings"];
+
+export const bylineRoleSuffix = (pubType: string | null | undefined, authorCount: number): string => {
+  if (!authorCount || !EDITED_TYPES.includes(String(pubType || ""))) return "";
+  return authorCount > 1 ? ", editors" : ", editor";
+};
+
+// The note after one WCM person's name: "(section editor)", "(translator)", "(editor)" when their
+// role on the work isn't Author. Not for edited types (the byline suffix covers them) or Reference
+// Entry (venueOf puts the role in the venue line).
+export const authorRoleNote = (pubType: string | null | undefined, role: string | null | undefined): string => {
+  const r = text(role);
+  if (!r || r.toLowerCase() === "author") return "";
+  const type = String(pubType || "");
+  if (EDITED_TYPES.includes(type) || type === "Reference Entry") return "";
+  return r.toLowerCase();
+};

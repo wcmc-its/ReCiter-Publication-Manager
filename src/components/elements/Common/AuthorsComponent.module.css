@@ -33,3 +33,8 @@
   padding: 1px 3px;
   cursor: pointer;
 }
+/* A person's role on the work when it isn't Author: "(translator)". */
+.roleNote {
+  color: var(--pm-muted-foreground);
+  font-weight: 400;
+}

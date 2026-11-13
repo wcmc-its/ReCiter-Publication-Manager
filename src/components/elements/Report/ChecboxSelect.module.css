@@ -231,6 +231,13 @@
   font-weight: 500;
 }
 
+.posCount {
+  font-size: 11px;
+  color: #8a94a6;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
 .posDesc {
   font-size: 10.5px;
   color: #8a94a6;

@@ -99,7 +99,7 @@ export const generateWordBibliography = async (body: WordExportBody): Promise<Wo
 
   const cols = await articleColumns();
   const dateTypeClauses = dateTypeSql("asa", filters, cols, PUB_TYPES);
-  // The date ranges and grouped Type count only when they built a clause (a bound that isn't a
+  // The date ranges, grouped Type and Peer review count only when they built a clause (a bound that isn't a
   // date, or a type the search drops, must not unlock an unfiltered export).
   const otherFilters: ReportFilters = {
     ...filters,
@@ -108,6 +108,7 @@ export const generateWordBibliography = async (body: WordExportBody): Promise<Wo
     pubDateLowerBound: undefined,
     pubDateUpperBound: undefined,
     pubTypes: undefined,
+    peerReview: undefined,
   };
   if (!dateTypeClauses.length && !hasReportFilter(otherFilters)) {
     throw new WordExportError(400, "Add a filter (a person, organization, date, type or journal) before exporting to Word.");
