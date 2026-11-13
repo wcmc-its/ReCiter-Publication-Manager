@@ -17,6 +17,11 @@ interface FilterPubSectionProps {
   toolbarSlot?: HTMLElement | null
   view?: 'cards' | 'detail'
   onViewChange?: (view: 'cards' | 'detail') => void
+  // Detail view: the list header (count, bulk actions, hide-list caret) renders at the top of
+  // the list pane instead of across the page. null = pane not mounted (or hidden): no header.
+  inSplit?: boolean
+  listHeaderSlot?: HTMLElement | null
+  onHideList?: () => void
 }
 
 const SORT_OPTIONS = [
@@ -113,22 +118,39 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
 
   const bulkSx = { height: 26, fontSize: 12.5 };
 
+  const header = (
+    <div className={props.inSplit ? styles.splitListHeader : styles.listHeader}>
+      <span
+        aria-live="polite"
+        title={'Keyboard: A accept, R reject, U undo last, E supporting evidence, \u2191 \u2193 move between records'}
+      >
+        {(props.totalCount ?? n).toLocaleString()} {LIST_NOUN[props.tabType] ?? `publication${props.totalCount === 1 ? '' : 's'}`}
+      </span>
+      <div className={styles.listHeaderActions}>
+        {props.tabType !== 'ACCEPTED' && <Button variant="ghost" size="sm" sx={bulkSx} onClick={() => updateAll('ACCEPTED')}>Accept all</Button>}
+        {props.tabType !== 'REJECTED' && <Button variant="ghost" size="sm" sx={bulkSx} onClick={() => updateAll('REJECTED')}>Reject all</Button>}
+        {props.tabType !== 'NULL' && <Button variant="ghost" size="sm" sx={bulkSx} onClick={() => updateAll('NULL')}>Undo all</Button>}
+        {props.onHideList && (
+          <button
+            type="button"
+            className={styles.listHideBtn}
+            title="Hide list (L)"
+            aria-label="Hide list"
+            aria-expanded={true}
+            aria-controls="curate-split-list"
+            onClick={props.onHideList}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <>
       {props.toolbarSlot && createPortal(toolbar, props.toolbarSlot)}
-      <div className={styles.listHeader}>
-        <span
-          aria-live="polite"
-          title={'Keyboard: A accept, R reject, U undo last, E supporting evidence, \u2191 \u2193 move between records'}
-        >
-          {(props.totalCount ?? n).toLocaleString()} {LIST_NOUN[props.tabType] ?? `publication${props.totalCount === 1 ? '' : 's'}`}
-        </span>
-        <div className={styles.listHeaderActions}>
-          {props.tabType !== 'ACCEPTED' && <Button variant="ghost" size="sm" sx={bulkSx} onClick={() => updateAll('ACCEPTED')}>Accept all</Button>}
-          {props.tabType !== 'REJECTED' && <Button variant="ghost" size="sm" sx={bulkSx} onClick={() => updateAll('REJECTED')}>Reject all</Button>}
-          {props.tabType !== 'NULL' && <Button variant="ghost" size="sm" sx={bulkSx} onClick={() => updateAll('NULL')}>Undo all</Button>}
-        </div>
-      </div>
+      {!props.inSplit ? header : props.listHeaderSlot ? createPortal(header, props.listHeaderSlot) : null}
       <Dialog
         open={!!confirm}
         onClose={() => setConfirm(null)}

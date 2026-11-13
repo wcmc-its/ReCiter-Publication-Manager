@@ -152,18 +152,23 @@
 /* ── Person header card ── */
 
 .personHeader {
-  background: #fff;
-  border-bottom: 1px solid #e8e2d9;
-  padding: 20px 24px;
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: 13px;
+  box-shadow: 0 1px 2px rgba(34, 30, 28, 0.04), 0 1px 3px rgba(34, 30, 28, 0.05);
+  margin-bottom: 14px;
+  /* Left inset matches the right: the ⋯ button's 32px box puts its glyph 8px inside the
+     24px padding, so the photo sits 32px in. */
+  padding: 20px 24px 20px 32px;
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
+  align-items: center;
+  gap: 20px;
 }
 
 /* Avatar circle — fixed size so name never shimmies */
 .personPhotoWrap {
-  width: 44px;
-  height: 44px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   flex-shrink: 0;
   position: relative;
@@ -179,7 +184,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 24px;
   font-weight: 500;
   color: var(--pm-muted-foreground);
 }
@@ -374,12 +379,15 @@
 /* ── Custom tab bar ── */
 
 .tabsBar {
-  background: #fff;
-  border-bottom: 1px solid #e8e2d9;
+  /* Prototype: the strip sits on the panel's shaded top. The bottom rule is an inset shadow,
+     not a border, so the active "folder" tab can cover it (overflow clips a child that
+     reaches into the border box). */
+  background: var(--pm-surface-2);
+  box-shadow: inset 0 -1px 0 var(--pm-border-strong);
   display: flex;
-  align-items: stretch;
-  padding: 0 24px;
-  gap: 0;
+  align-items: flex-end;
+  padding: 0 12px 0 8px;
+  gap: 2px;
   /* Wrap onto a second row before the strip runs out of horizontal space, instead of
      relying on a scrollbar the curator has to notice (macOS hides it by default, so an
      overflowing tab like "+ Add publication" at ~1950px read as clipped, not scrollable).
@@ -391,16 +399,17 @@
 }
 
 .tab {
-  padding: 12px 18px;
-  font-size: 13px;
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 14px;
+  font-size: 13.5px;
   font-weight: 500;
-  color: var(--gray-500);
+  color: var(--pm-muted-foreground);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  background: none;
-  border-top: none;
-  border-left: none;
-  border-right: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-top-width: 2px;
+  border-radius: 8px 8px 0 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -410,40 +419,57 @@
 }
 
 .tab:hover {
-  color: var(--gray-700);
+  color: var(--pm-foreground);
 }
 
+.tab:focus-visible {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: -2px;
+}
+
+/* Raised white folder tab: side borders and a red top rule, its bottom edge joins the white
+   panel body below. */
 .tabActive {
   composes: tab;
-  color: var(--gray-900);
+  color: var(--pm-foreground);
   font-weight: 600;
-  border-bottom-color: var(--wcm-red);
+  background: var(--pm-surface);
+  border-color: var(--pm-border-strong);
+  border-top-color: var(--wcm-red);
+  border-bottom-color: var(--pm-surface);
 }
 
 .tabCount {
+  min-width: 20px;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--pm-border-strong);
+  background: var(--pm-surface);
+  color: var(--pm-foreground);
   font-size: 11px;
-  font-weight: 700;
-  padding: 1px 7px;
-  border-radius: var(--radius-pill);
-  line-height: 1.4;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
 }
 
+/* Pending suggestions */
 .tabCountSuggested {
   composes: tabCount;
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--pm-amber-tint);
+  border-color: var(--pm-amber-tint-border);
+  color: var(--pm-amber);
 }
 
-.tabCountAccepted {
+/* The open tab's count */
+.tabCountActive {
   composes: tabCount;
-  background: #dcfce7;
-  color: #166534;
-}
-
-.tabCountRejected {
-  composes: tabCount;
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--pm-foreground);
+  border-color: var(--pm-foreground);
+  color: #fff;
 }
 
 /* Curate per-source tabs (Option C) — group labels + divider between the PubMed-based
@@ -452,23 +478,29 @@
 .tabGroupLabel {
   display: flex;
   align-items: center;
-  font-size: 10px;
-  font-weight: 700;
+  height: 40px;
+  box-sizing: border-box;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #b8bfcc;
-  padding: 0 8px 0 14px;
+  color: var(--pm-muted-foreground);
+  opacity: 0.7;
+  padding: 4px 8px 0 6px;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .tabDivider {
   width: 1px;
-  align-self: stretch;
-  margin: 8px 4px;
-  background: #e8e2d9;
+  height: 22px;
+  align-self: flex-end;
+  margin: 0 0 8px;
+  background: var(--pm-muted-foreground);
+  opacity: 0.55;
   flex-shrink: 0;
 }
+.tabDivider + .tabGroupLabel { padding-left: 14px; }
 
 .tabSpacer {
   flex: 1;
@@ -479,6 +511,7 @@
   align-items: center;
   gap: 8px;
   align-self: center;
+  padding: 4px 0;
   flex-shrink: 0;
   /* .tabSpacer only right-aligns this group when both land on the same wrapped row —
      with flex-wrap on .tabsBar, a full row of tabs above can push this group onto its
@@ -591,8 +624,6 @@
 
 .tabCountZero {
   composes: tabCount;
-  background: #eeeae4;
-  color: var(--gray-400);
 }
 
 /* ── Article list ── */
@@ -963,11 +994,94 @@
   position: sticky;
   top: 60px; /* clears the 52px sticky top bar */
   max-height: calc(100vh - 68px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--pm-border);
   border-radius: 8px;
   background: var(--pm-surface);
+}
+/* Rows scroll under the list pane's header (count, bulk actions, hide caret) and histogram. */
+.splitScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   padding: 0 6px 6px;
+}
+.splitListHeader {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid var(--pm-border);
+  font-size: 12.5px;
+  color: var(--pm-muted-foreground);
+}
+.splitList .yearHist {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px 12px 6px 14px;
+  border-bottom: 1px solid var(--pm-border);
+}
+.listHideBtn {
+  margin-left: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 0;
+  background: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--pm-muted-foreground);
+  cursor: pointer;
+}
+.listHideBtn:hover { background: var(--pm-surface-2); color: var(--pm-foreground); }
+.listHideBtn:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: 1px; }
+/* Collapsed list: a narrow rail with show-list, previous/next and the position. */
+.split[data-list-hidden] { grid-template-columns: 48px minmax(0, 1fr); }
+.splitRail {
+  position: sticky;
+  top: 60px;
+  height: calc(100vh - 68px);
+  max-height: 720px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
+  background: var(--pm-surface-2);
+}
+.railBtn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--pm-border-strong);
+  background: var(--pm-surface);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--pm-foreground);
+  cursor: pointer;
+}
+.railBtn:hover:not(:disabled) { background: var(--pm-slate-tint); color: var(--pm-slate); }
+.railBtn:disabled { opacity: 0.4; cursor: default; }
+.railBtn:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: 1px; }
+.railRule { width: 24px; height: 1px; background: var(--pm-border-strong); }
+.railPos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--pm-muted-foreground);
+  font-variant-numeric: tabular-nums;
 }
 .splitRow {
   display: flex;
@@ -1062,14 +1176,19 @@
 .split .groupBulkReject { white-space: nowrap; }
 @media (max-width: 900px) {
   .split { grid-template-columns: 1fr; }
+  .split[data-list-hidden] { grid-template-columns: 1fr; }
   .splitList { position: static; max-height: 40vh; }
+  /* Stacked: the rail lies flat above the record. */
+  .splitRail { position: static; height: auto; max-height: none; flex-direction: row; justify-content: center; padding: 6px 8px; }
+  .railRule { width: 1px; height: 20px; }
+  .railPos { flex-direction: row; gap: 4px; }
 }
 
 /* Phase 2g: compact tab strip when the full one doesn't fit */
-.tabsBar[data-compact] { padding: 0 12px; }
+.tabsBar[data-compact] { padding: 0 8px 0 4px; }
 .tabsBar[data-compact] .tab,
-.tabsBar[data-compact] .tabActive { padding: 12px 10px; }
-.tabsBar[data-compact] .tabGroupLabel { padding: 0 4px 0 8px; }
+.tabsBar[data-compact] .tabActive { padding: 0 10px; }
+.tabsBar[data-compact] .tabGroupLabel { padding: 4px 4px 0 6px; }
 
 /* Phase 2h: cross-source duplicates banner on Accepted (read-only) */
 .dupBanner {
@@ -1115,14 +1234,23 @@
 
 /* Curate toolbar (#1101): one row above the tab strip (filter, sort, view, add) and a list
    header (count + bulk actions) inside the content. */
+/* Curate panel (prototype): one card; its top (toolbar + tab strip) is shaded, the body white. */
+.curatePanel {
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: 13px;
+  box-shadow: 0 1px 2px rgba(34, 30, 28, 0.04), 0 1px 3px rgba(34, 30, 28, 0.05);
+  padding-bottom: 12px;
+}
 .curateToolbar {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-  padding: 10px 24px;
-  background: var(--pm-surface);
+  padding: 10px 12px 4px;
+  background: var(--pm-surface-2);
+  border-radius: 12px 12px 0 0;
 }
 .curateToolbarSlot { display: contents; }
 .toolbarFilter { flex: 0 1 360px; min-width: 240px; }
