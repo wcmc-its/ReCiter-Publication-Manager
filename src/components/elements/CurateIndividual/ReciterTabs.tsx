@@ -320,13 +320,10 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
     if (uid) dispatch(reciterFetchData(uid, true));
   };
 
-  const countBadgeClass = (value: string) => {
-    const count = getCount(value);
-    if (count === 0) return styles.tabCountZero;
-    if (value === 'NULL') return styles.tabCountSuggested;
-    if (value === 'ACCEPTED') return styles.tabCountAccepted;
-    if (value === 'REJECTED') return styles.tabCountRejected;
-    return '';
+  // Prototype pills: pending suggestions amber, the open tab's count dark, every other count neutral.
+  const countBadgeClass = (value: string, count: number) => {
+    if (value === 'NULL' && count > 0) return styles.tabCountSuggested;
+    return key === value ? styles.tabCountActive : styles.tabCountZero;
   };
 
   const getCount = (value: string) => {
@@ -362,6 +359,8 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
 
   return (
     <>
+      {/* One panel, as in the prototype: shaded top (toolbar + folder-tab strip), white body. */}
+      <div className={styles.curatePanel}>
       <div className={styles.curateToolbar}>
         <div ref={setToolbarSlot} className={styles.curateToolbarSlot} />
         {(key === 'AddPub' || key === 'ScopusAuth') && (
@@ -394,7 +393,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
               onClick={() => onTabChange(value)}
             >
               {label}
-              <span className={countBadgeClass(value)} title={compact ? `${getCount(value).toLocaleString()} ${label.toLowerCase()}` : undefined}>{fmtCount(getCount(value), compact)}</span>
+              <span className={countBadgeClass(value, getCount(value))} title={compact ? `${getCount(value).toLocaleString()} ${label.toLowerCase()}` : undefined}>{fmtCount(getCount(value), compact)}</span>
             </button>
           );
         })}
@@ -406,7 +405,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
         >
           All sources
           <span
-            className={extCounts.ACCEPTED ? styles.tabCountAccepted : styles.tabCountZero}
+            className={countBadgeClass('AllSources', extCounts.ACCEPTED)}
             title={`${extCounts.ACCEPTED.toLocaleString()} accepted external works from Scopus, OpenAlex and Crossref`}
           >
             {fmtCount(extCounts.ACCEPTED, compact)}
@@ -487,6 +486,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           onRefresh={handleRefresh}
         />
       ) : null}
+      </div>
 
       {addOpen && (
         <AddPublicationDialog

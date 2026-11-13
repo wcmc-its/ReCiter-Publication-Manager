@@ -45,6 +45,8 @@ interface TabContentProps {
 const LIST_CHUNK = 50;
 // Remembered view (Cards or Detail), per browser. ponytail: one key; add more prefs when asked.
 const VIEW_KEY = 'pm.curate.view';
+// Detail view: list pane collapsed to a rail (prototype "listHidden" view pref), per browser.
+const LIST_KEY = 'pm.curate.listHidden';
 
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [sort, setSort] = useState<string>("0")
@@ -286,6 +288,28 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   useEffect(() => { try { if (localStorage.getItem(VIEW_KEY) === 'detail') setView('detail'); } catch {} }, []);
   const chooseView = (v: 'cards' | 'detail') => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch {} };
   const split = isArticleTab && view === 'detail';
+  // Detail view: the list pane can collapse to a narrow rail (caret in the list header, or L).
+  const [listHidden, setListHidden] = useState(false);
+  useEffect(() => { try { if (localStorage.getItem(LIST_KEY) === '1') setListHidden(true); } catch {} }, []);
+  const listToggled = useRef(false);
+  const toggleList = useCallback(() => {
+    listToggled.current = true;
+    setListHidden((h) => {
+      try { if (h) localStorage.removeItem(LIST_KEY); else localStorage.setItem(LIST_KEY, '1'); } catch {}
+      return !h;
+    });
+  }, []);
+  const showListRef = useRef<HTMLButtonElement>(null);
+  const [listHeadSlot, setListHeadSlot] = useState<HTMLDivElement | null>(null);
+  // The button that was pressed unmounts with its pane; hand focus to its counterpart.
+  useEffect(() => {
+    if (!listToggled.current) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && a.isConnected) { listToggled.current = false; return; }
+    // Re-showing: the header (and its caret) portals in a render after the pane mounts.
+    const target = listHidden ? showListRef.current : listHeadSlot?.querySelector('[aria-controls="curate-split-list"]') as HTMLElement | null;
+    if (target) { target.focus(); listToggled.current = false; }
+  }, [listHidden, listHeadSlot]);
   const detailIdx = Math.min(Math.max(focusedIndex, 0), publicationsPaginatedData.length - 1);
   const detailPub = split ? publicationsPaginatedData[detailIdx] : undefined;
   // Acting in the pane on Suggested moves on to the next pending record, like the A/R keys.
@@ -343,6 +367,9 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         // In Detail view the list row shares the data-pmid; the toggle is in the pane's card.
         const btn = document.querySelector(`[data-pmid="${focusedPub.pmid}"] button[data-evidence-toggle]`) as HTMLButtonElement | null;
         if (btn) btn.click();
+      } else if (key === 'l' && split) {
+        e.preventDefault();
+        toggleList();
       } else if (key === 'arrowdown') {
         e.preventDefault();
         // Keyboard can walk past the rendered window: grow it before focus reaches the end.
@@ -357,7 +384,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
 
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isArticleTab, isSuggested, focusedIndex, publicationsPaginatedData, props.personIdentifier, visible, openList.length]);
+  }, [isArticleTab, isSuggested, focusedIndex, publicationsPaginatedData, props.personIdentifier, visible, openList.length, split, toggleList]);
 
   // Scroll focused card into view
   useEffect(() => {
@@ -413,6 +440,50 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     }
     return rows;
   };
+
+  const histEl = hist.length > 1 ? (
+    <div className={styles.yearHist} role="group" aria-label="Publications by year">
+      <span className={styles.yearHistEnd}>{hist[0].year}</span>
+      <div className={styles.yearHistBars}>
+        {hist.map((h) => (
+          <button
+            type="button"
+            key={h.year}
+            className={styles.yearHistBar}
+            title={`${h.year}: ${h.count} publication${h.count === 1 ? '' : 's'}`}
+            aria-label={`${h.year}: ${h.count} publication${h.count === 1 ? '' : 's'}`}
+            disabled={!h.count}
+            onClick={() => jumpToYear(String(h.year))}
+          >
+            <span style={{ height: h.count ? Math.max(3, Math.round((h.count / Math.max(...hist.map((x) => x.count))) * 30)) : 1 }} />
+          </button>
+        ))}
+      </div>
+      <span className={styles.yearHistEnd}>{hist[hist.length - 1].year}</span>
+    </div>
+  ) : null;
+
+  // Collapsed list: a rail with show-list, previous/next and the position, as in the prototype.
+  const stepDetail = (d: number) => {
+    const next = Math.min(Math.max(detailIdx + d, 0), openList.length - 1);
+    if (next >= visible - 5) setVisible((v) => v + LIST_CHUNK);
+    setFocusedIndex(next);
+  };
+  const listRail = (
+    <div className={styles.splitRail}>
+      <button type="button" ref={showListRef} className={styles.railBtn} title="Show list (L)" aria-label="Show list" aria-expanded={false} onClick={toggleList}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+      </button>
+      <span className={styles.railRule} aria-hidden="true" />
+      <button type="button" className={styles.railBtn} title={'Previous (\u2191)'} aria-label="Previous publication" disabled={detailIdx <= 0} onClick={() => stepDetail(-1)}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6" /></svg>
+      </button>
+      <span className={styles.railPos} aria-live="polite"><span>{(detailIdx + 1).toLocaleString()}</span><span>of</span><span>{openList.length.toLocaleString()}</span></span>
+      <button type="button" className={styles.railBtn} title={'Next (\u2193)'} aria-label="Next publication" disabled={detailIdx >= openList.length - 1} onClick={() => stepDetail(1)}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+    </div>
+  );
 
   if (!props.publications.length) {
     if (props.tabType === 'NULL') {
@@ -492,35 +563,22 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         toolbarSlot={props.toolbarSlot}
         view={view}
         onViewChange={isArticleTab ? chooseView : undefined}
+        inSplit={split}
+        listHeaderSlot={split && !listHidden ? listHeadSlot : null}
+        onHideList={split ? toggleList : undefined}
       />
 
       {props.tabType === 'ACCEPTED' && <DuplicatesBanner uid={props.personIdentifier} accepted={props.publications} />}
 
-      {hist.length > 1 && (
-        <div className={styles.yearHist} role="group" aria-label="Publications by year">
-          <span className={styles.yearHistEnd}>{hist[0].year}</span>
-          <div className={styles.yearHistBars}>
-            {hist.map((h) => (
-              <button
-                type="button"
-                key={h.year}
-                className={styles.yearHistBar}
-                title={`${h.year}: ${h.count} publication${h.count === 1 ? '' : 's'}`}
-                aria-label={`${h.year}: ${h.count} publication${h.count === 1 ? '' : 's'}`}
-                disabled={!h.count}
-                onClick={() => jumpToYear(String(h.year))}
-              >
-                <span style={{ height: h.count ? Math.max(3, Math.round((h.count / Math.max(...hist.map((x) => x.count))) * 30)) : 1 }} />
-              </button>
-            ))}
-          </div>
-          <span className={styles.yearHistEnd}>{hist[hist.length - 1].year}</span>
-        </div>
-      )}
+      {!split && histEl}
 
       {split ? (
-        <div className={styles.split}>
-          <div className={styles.splitList} aria-label="Publications">
+        <div className={styles.split} data-list-hidden={listHidden || undefined}>
+          {listHidden ? listRail : (
+          <div className={styles.splitList} id="curate-split-list">
+            <div ref={setListHeadSlot} />
+            {histEl}
+            <div className={styles.splitScroll} aria-label="Publications">
             {renderRows((p: any, index: number) => {
               const by = authorLine(p);
               const type = p.publicationType?.publicationTypeCanonical;
@@ -566,7 +624,9 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               );
             })}
             {visible < openList.length && <div ref={sentinelRef} className={styles.listSentinel} aria-hidden="true" />}
+            </div>
           </div>
+          )}
           <div className={styles.splitDetail}>
             {detailPub && (
               <Publication
