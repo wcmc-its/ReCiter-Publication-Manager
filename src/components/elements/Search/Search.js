@@ -10,9 +10,6 @@ import { useSession } from 'next-auth/react';
 import SearchBar from "./SearchBar";
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
 import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import { styled } from '@mui/material/styles';
 import { Table,Button} from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
@@ -25,7 +22,7 @@ import ProxyBadge from './ProxyBadge';
 import ScopeFilterCheckbox from './ScopeFilterCheckbox';
 import { hasConfiguredScope, isProxyFor, rowInScopeCanCurate, withoutScopeKeys } from '../../../utils/scopeResolver';
 import { searchTokens, newSearchRequest, matchedPersonIds, reportHandoffCapped, REPORT_HANDOFF_CAP } from '../../../utils/searchRequest';
-import { Button as UiButton } from '../../ui';
+import { Button as UiButton, Switch } from '../../ui';
 
 // Guard against malformed/absent session claims so a bad JWT value can't white-screen the page.
 const safeParse = (value, fallback) => {
@@ -513,35 +510,10 @@ const Search = () => {
     }
   }
 
-  const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
-    marginLeft: '8px',
-    borderRadius: '5px',
-    overflow: 'hidden',
-    border: '1px solid #ddd7ce',
-    '& .MuiToggleButtonGroup-grouped': {
-      textTransform: 'none',
-      border: 'none',
-      borderRadius: '0 !important',
-      fontSize: '12px',
-      fontWeight: 600,
-      fontFamily: '"Inter", sans-serif',
-      padding: '5px 12px',
-      minHeight: 'auto',
-      lineHeight: 'normal',
-      color: '#8a94a6',
-      backgroundColor: '#eeeae4',
-    },
-    '& .MuiToggleButton-root.MuiButtonBase-root.Mui-selected': {
-      color: '#fff',
-      backgroundColor: '#1a2133',
-      '&:hover': {
-        backgroundColor: '#252d42',
-      }
-    }
-  }));
-
   const resetData = () => {
     dispatch(clearFilters())
+    // The reset list carries no showOnlyPending, so the switch goes off with it.
+    setFilterByPending(false)
     setPage(1)
     setCount(100)
     fetchPaginatedData('reset')
@@ -726,16 +698,31 @@ const Search = () => {
     <div className={appStyles.mainContainer}>
       <div className={styles.searchContentContainer}>
         <div className={styles.searchBar}>
-          <h1 style={{ paddingBottom: 10, marginBottom: 0 }}>Find People</h1>
-          <SearchBar searchData={searchData} resetData={resetData} findPeopleLabels = {findPeopleLabels}/>
-		  {showScopeFilter && (
-            <ScopeFilterCheckbox
-              checked={scopeFilterChecked}
-              onChange={(checked) => {
-                setScopeFilterChecked(checked);
-              }}
-            />
-          )}					   
+          <h1 className={styles.pageTitle}>People</h1>
+          <SearchBar
+            searchData={searchData}
+            resetData={resetData}
+            findPeopleLabels={findPeopleLabels}
+            toggles={(isCuratorAll || isSuperUser || showScopeFilter) && (
+              <div className={styles.filterToggles}>
+                {(isCuratorAll || isSuperUser) && (
+                  <Switch
+                    label="Pending only"
+                    checked={filterByPending}
+                    onChange={(e) => handlePendingFilterUpdate(e.target.checked)}
+                  />
+                )}
+                {showScopeFilter && (
+                  <ScopeFilterCheckbox
+                    checked={scopeFilterChecked}
+                    onChange={(checked) => {
+                      setScopeFilterChecked(checked);
+                    }}
+                  />
+                )}
+              </div>
+            )}
+          />
           {showLoadError ? (
             <div className={styles.loadError} role="alert">
               <p className={styles.loadErrorText}>Couldn&apos;t load people.</p>
@@ -751,26 +738,12 @@ const Search = () => {
                     <span className={styles.resultsCountNumber}>{numberFormation(totalCountUpdated)}</span>
                     <span className={styles.resultsCountLabel}>{filtersOn ? 'people found using filters' : 'people'}</span>
                   </div>
-                  {/* #967 follow-up: this bar (Show only pending, Go to Create Reports) acts on the
+                  {/* #967 follow-up: this bar (Go to Create Reports) acts on the
                       result set, so it must not hang off filtersOn. filtersOn deliberately ignores
                       scope keys, which meant a scoped curator -- whose only "filter" is their scope --
                       could never reach it. Gate on having rows instead. */}
                   {totalCountUpdated > 0 && (
                     <div className={styles.resultsRight}>
-                      {(isCuratorAll || isSuperUser) && (
-                        <div className={styles.pendingFilter}>
-                          <span className={styles.pendingFilterLabel}>Show only pending</span>
-                          <StyledToggleButtonGroup
-                            color="primary"
-                            value={filterByPending}
-                            exclusive
-                            onChange={(e, val) => { handlePendingFilterUpdate(val); }}
-                          >
-                            <ToggleButton value={false}>No</ToggleButton>
-                            <ToggleButton value={true}>Yes</ToggleButton>
-                          </StyledToggleButtonGroup>
-                        </div>
-                      )}
                       <span className={styles.actionLabel}>Go to</span>
                       <div className={styles.actionSelectWrap}>
                         <select
