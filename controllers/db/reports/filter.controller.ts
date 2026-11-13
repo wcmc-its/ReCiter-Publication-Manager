@@ -1,12 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { Op, Sequelize } from "sequelize";
+import { Op, Sequelize, literal } from "sequelize";
 import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
 import { articleColumns } from "./reportColumns";
 import { dateAddedExpr, pubDateExpr } from "./reportFilterSql";
-import { groupedTypeOptions } from "../../../src/utils/reportRow";
+import { groupedTypeOptions, peerReviewOptions } from "../../../src/utils/reportRow";
 import { PUB_TYPE_GROUPS } from "../../../src/lib/pubTypes";
 import  {reciterConstants}  from "../../../src/utils/constants";
+import { cornellOnlySql } from "../../../src/utils/cornellOnly";
 import {
     AuthorFilter,
     JournalFilter
@@ -27,6 +28,8 @@ export const authorFilter = async (
     const count = req.query.count as string;
     let limit = parseInt(count) || 10;
     let persons = null as any;
+    // Cornell-only people (src/utils/cornellOnly.ts) have nothing in person_article to report on.
+    const notCornellOnly = literal(`NOT ${cornellOnlySql("Person")}`);
 
     if(!authorFilter) 
     {
@@ -39,6 +42,7 @@ export const authorFilter = async (
             "lastName",
             "primaryOrganizationalUnit",
           ],
+          where: { [Op.and]: [notCornellOnly] },
           order: [
               Sequelize.fn('isnull', Sequelize.col('lastName')),
               ['lastName', 'ASC'],
@@ -52,7 +56,7 @@ export const authorFilter = async (
   else if(authorFilterArray && Array.isArray(authorFilterArray) && authorFilterArray.length > 0)
   {
     const where = {}
-    where[Op.and] = []
+    where[Op.and] = [notCornellOnly]
     if(authorFilterArray && authorFilterArray.length > reciterConstants.nameCWIDSpaceCountThreshold) {
       where[Op.and].push({[Op.or]:[
           {'$Person.personIdentifier$': { [Op.in]: authorFilterArray }},
@@ -98,6 +102,7 @@ export const authorFilter = async (
         "primaryOrganizationalUnit",
       ],
       where: {
+        [Op.and]: [notCornellOnly],
         [Op.or]: [
           {
             personIdentifier: {
@@ -208,6 +213,28 @@ export const articleTypeFilter = async (
     ],
     });
     res.send(articleTypes);
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(e);
+  }
+};
+
+// Peer review filter options (5d-1): Peer-reviewed / Not peer-reviewed with counts, from
+// analysis_summary_article.peerReviewed (ReCiterDB v3.10). An empty list (no column, or the DDL is
+// applied but no nightly has filled it yet) hides the filter on the page.
+export const peerReviewFilter = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const cols = await articleColumns();
+    if (!cols.peerReviewed) {
+      res.send([]);
+      return;
+    }
+    const [rows]: any = await sequelize.query(
+      "SELECT peerReviewed, COUNT(*) AS count FROM analysis_summary_article " +
+        "WHERE peerReviewed IS NOT NULL GROUP BY peerReviewed",
+      { raw: true, plain: false }
+    );
+    res.send(peerReviewOptions(rows || []));
   } catch (e) {
     console.log(e);
     res.status(500).send(e);

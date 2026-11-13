@@ -39,7 +39,7 @@ export const sourceSql = (alias: string, sources: string[] | null | undefined, h
 // ReCiterDB v3.7 (5c) adds analysis_summary_article.pubType / pubTypeGroup / pubDate / dateAdded
 // and friends. reportColumns.ts probes for them; every fragment below falls back to the older
 // columns when they're absent, so one PM build works before and after the DDL.
-export type ReportDateTypeColumns = { pubType?: boolean; pubDate?: boolean; dateAdded?: boolean };
+export type ReportDateTypeColumns = { pubType?: boolean; pubDate?: boolean; dateAdded?: boolean; peerReviewed?: boolean };
 
 // Filter keys. The "Date added" range keeps its old key names so saved links and admin settings
 // still work; `publicationTypeCanonical` (the old flat Type list) is still honored too.
@@ -49,6 +49,7 @@ export type ReportDateTypeFilters = {
   pubDateLowerBound?: string | null;
   pubDateUpperBound?: string | null;
   pubTypes?: string[] | null;
+  peerReview?: string[] | string | null;
 };
 
 // A bound is a calendar date. Anything else is dropped, which also makes it safe to inline.
@@ -95,7 +96,22 @@ export const pubTypeSql = (alias: string, types: unknown, hasColumn: boolean, al
   return `(${alias}.pubType IN (${picked.map((t) => `'${t.replace(/'/g, "''")}'`).join(", ")}))`;
 };
 
-// Every 5c article fragment for one query: Date added, Publication date and grouped Type.
+// Peer review filter (5d-1): "yes" / "no", where neither or both selected means Any.
+// analysis_summary_article.peerReviewed (ReCiterDB v3.10) is 1 / 0 once a nightly has filled it;
+// NULL (DDL applied, not yet filled) matches neither. Without the column there is nothing to
+// match, so no filter.
+export const PEER_REVIEW_VALUES = ["yes", "no"] as const;
+
+export const peerReviewSql = (alias: string, values: unknown, hasColumn: boolean): string | null => {
+  if (!hasColumn) return null;
+  const list = Array.isArray(values) ? values : values === null || values === undefined ? [] : [values];
+  const picked = new Set(list.map((v) => String(v).toLowerCase()).filter((v) => (PEER_REVIEW_VALUES as readonly string[]).includes(v)));
+  if (picked.size !== 1) return null;
+  return picked.has("yes") ? `(${alias}.peerReviewed = 1)` : `(${alias}.peerReviewed = 0)`;
+};
+
+// Every 5c/5d article fragment for one query: Date added, Publication date, grouped Type and
+// Peer review.
 export const dateTypeSql = (
   alias: string,
   f: ReportDateTypeFilters | null | undefined,
@@ -107,5 +123,6 @@ export const dateTypeSql = (
     dateRangeSql(dateAddedExpr(alias, cols), f.datePublicationAddedToEntrezLowerBound, f.datePublicationAddedToEntrezUpperBound),
     dateRangeSql(pubDateExpr(alias, cols), f.pubDateLowerBound, f.pubDateUpperBound),
     pubTypeSql(alias, f.pubTypes, !!cols.pubType, allowedTypes),
+    peerReviewSql(alias, f.peerReview, !!cols.peerReviewed),
   ].filter((s): s is string => !!s);
 };

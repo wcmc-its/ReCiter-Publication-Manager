@@ -18,7 +18,7 @@ import { buildReportSort, DEFAULT_REPORT_SORT } from "./reportSort";
 import { authorPositionSql, sourceSql, dateTypeSql } from "./reportFilterSql";
 import { PUB_TYPES } from "../../../src/lib/pubTypes";
 import { bylineAuthors } from "../../../src/utils/externalByline";
-import { articleColumns, articleExtraAttributes } from "./reportColumns";
+import { articleColumns, articleExtraAttributes, authorColumns } from "./reportColumns";
 
 
 import "./reportAssociations";
@@ -1104,6 +1104,31 @@ export const publicationAuthorSearchWithFilter = async (
         const authors = bylineAuthors(byPmid[pmid]);
         if (authors.length) searchOutput.push({ pmid, authors });
       });
+    }
+    // 5d-1: each WCM person's role on the work (analysis_summary_author.role, ReCiterDB v3.10),
+    // for the note after their name. Only roles other than Author matter, and only when the
+    // column exists.
+    const { role: hasRole } = await authorColumns();
+    const rolePmids = (apiBody?.pmids || []).map(Number).filter((p) => Number.isFinite(p) && p !== 0);
+    if (hasRole && rolePmids.length && searchOutput.length) {
+      const [roleRows]: any = await sequelize.query(
+        "SELECT pmid, personIdentifier, role FROM analysis_summary_author " +
+          "WHERE pmid IN (:pmids) AND role IS NOT NULL AND role <> 'Author' AND personIdentifier IS NOT NULL",
+        { replacements: { pmids: rolePmids }, raw: true, plain: false }
+      );
+      const roleOf = new Map<string, string>();
+      for (const r of roleRows || []) roleOf.set(`${Number(r.pmid)}|${r.personIdentifier}`, String(r.role));
+      if (roleOf.size) {
+        for (const entry of searchOutput) {
+          for (const a of entry.authors || []) {
+            const pid = typeof a?.get === "function" ? a.get("personIdentifier") : a?.personIdentifier;
+            const role = pid ? roleOf.get(`${Number(entry.pmid)}|${pid}`) : undefined;
+            if (!role) continue;
+            if (typeof a.setDataValue === "function") a.setDataValue("role", role);
+            else a.role = role;
+          }
+        }
+      }
     }
     return searchOutput;
   } catch (e) {

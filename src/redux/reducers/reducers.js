@@ -647,6 +647,16 @@ export const authorFilterDataFromSearch = (state=[], action) => {
 
 }
 
+// Peer review filter options (5d-1); empty hides the filter (no v3.10 column, or not filled yet).
+export const peerReviewFilterData = (state=[], action) => {
+  switch(action.type) {
+      case methods.PEER_REVIEW_FILTER_CHANGE_ALL_DATA :
+          return Array.isArray(action.payload) ? action.payload : []
+      default :
+          return state
+  }
+}
+
 export const dateFilterData = (state=[], action) => {
 
   switch(action.type) {
@@ -729,6 +739,8 @@ export const initialStatePubSearchFilter = {
     pubDateLowerBound: "",
     pubDateUpperBound: "",
     pubTypes: [],
+    // 5d-1 Peer review: [] (Any), ["yes"] or ["no"]
+    peerReview: [],
     publicationTypeCanonical: [],
     authorPosition :[],
     sourceTypes: [],
@@ -887,6 +899,7 @@ export default combineReducers({
     articleTypeFilterData,
     authorFilterData,
     dateFilterData,
+    peerReviewFilterData,
     journalFilterData,
     journalRankFilterData,
     reportingFiltersLoading,

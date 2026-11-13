@@ -97,6 +97,16 @@ export const reportConfig = {
         isEnabled: true,
         dynamicFetchOptions: false,
       },
+      // 5d-1: Yes / No / Any on analysis_summary_article.peerReviewed (ReCiterDB v3.10). Options
+      // (with counts) come from filter/peerreview; the chip is hidden while that list is empty.
+      peerReview: {
+        name: "Peer review",
+        options: "peerReviewFilterData",
+        filterType: "Checklist",
+        single: true,
+        isEnabled: true,
+        dynamicFetchOptions: false,
+      },
       journal: {
         name: "Journal",
         options: "journalFilterData",

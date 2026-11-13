@@ -27,6 +27,8 @@ export type ReportExportFilters = {
   pubDateLowerBound?: string;
   pubDateUpperBound?: string;
   pubTypes?: string[];
+  // 5d-1: "yes" / "no" (one of them; neither or both = Any)
+  peerReview?: string[];
 };
 
 // Pre-built fragments, aliased `asu` / `asa` (authorPositionSql("asu", …), sourceSql("asa", …),
@@ -208,6 +210,8 @@ export const describeFilters = (f: ReportExportFilters): Array<[string, string]>
   if (present(f.pubDateLowerBound)) out.push(["Published on or after", String(f.pubDateLowerBound)]);
   if (present(f.pubDateUpperBound)) out.push(["Published on or before", String(f.pubDateUpperBound)]);
   add("Publication type", [...list(f.pubTypes), ...list(f.publicationTypeCanonical)]);
+  const peer = Array.from(new Set(list(f.peerReview).map((v) => v.toLowerCase()).filter((v) => v === "yes" || v === "no")));
+  if (peer.length === 1) out.push(["Peer review", peer[0] === "yes" ? "Peer-reviewed" : "Not peer-reviewed"]);
   add("Journal", list(f.journalTitleVerbose));
   if (present(f.journalImpactScoreLowerBound) && present(f.journalImpactScoreUpperBound)) {
     out.push(["Journal rank (SJR)", `${f.journalImpactScoreLowerBound} and above`]);

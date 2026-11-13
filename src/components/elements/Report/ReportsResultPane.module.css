@@ -89,6 +89,19 @@
   color: var(--pm-foreground);
 }
 
+/* "Not peer-reviewed": dashed outline, muted, after the type badge (mockup). */
+.notPeerReviewed {
+  height: 22px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  border: 1px dashed var(--pm-border-strong, var(--pm-border));
+  color: var(--pm-muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .mono {
   font-family: var(--font-mono);
   font-size: 12.5px;

@@ -23,6 +23,7 @@ const filterNameToState = {
   date: ["datePublicationAddedToEntrezLowerBound", "datePublicationAddedToEntrezUpperBound"],
   pubDate: ["pubDateLowerBound", "pubDateUpperBound"],
   type: "publicationTypeCanonical",
+  peerReview: "peerReview",
   journal: "journalTitleVerbose",
   journalRank: ["journalImpactScoreLowerBound", "journalImpactScoreUpperBound"],
 }
@@ -140,11 +141,16 @@ const DisplayFilter = ({onClose, reportFiltersLabes,onLoadMore, filter, index,is
         />
       )
     }
-    case "Checklist":
+    case "Checklist": {
+      // Options are inline in config/report.js, or (a string) the name of a fetched list; a
+      // fetched list that is empty hides the filter (Peer review before ReCiterDB v3.10).
+      const options = typeof filter.options === "string" ? filterOptions[filter.options] : filter.options;
+      if (!Array.isArray(options) || !options.length) return null;
       return (
         <CheckList
           title={filter.name}
-          options={filter.options}
+          options={options}
+          single={!!filter.single}
           onUpdateFilter={onSetSearchFilters}
           filterName={filterName}
           selectedOptions={selectedFilters[filterName] || []}
@@ -153,6 +159,7 @@ const DisplayFilter = ({onClose, reportFiltersLabes,onLoadMore, filter, index,is
           onClose={onClose}
         />
       )
+    }
     default:
       return (
         <Button key={index}>{filter.name}</Button>
