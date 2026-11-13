@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="672" height="263" viewBox="0 0 672 263" role="img" aria-label="Authorship over time" font-family="Liberation Sans">
+<title>Authorship over time</title>
+<rect x="0" y="0" width="672" height="263" fill="#FFFFFF"/>
+<text x="16" y="32" font-size="16" text-anchor="start" fill="#222222">Authorship over time</text>
+<rect x="486.64" y="40" width="11" height="11" fill="#BFBFB3"/>
+<text x="502.64" y="50" font-size="12" text-anchor="start" fill="#5F5F5F">First</text>
+<rect x="539.96" y="40" width="11" height="11" fill="#E4E4DE"/>
+<text x="555.96" y="50" font-size="12" text-anchor="start" fill="#5F5F5F">Middle</text>
+<rect x="605.31" y="40" width="11" height="11" fill="#2878D8"/>
+<text x="621.31" y="50" font-size="12" text-anchor="start" fill="#5F5F5F">Senior</text>
+<text x="16" y="69" font-size="11" text-anchor="start" fill="#5F5F5F">articles</text>
+<text x="30.24" y="227" font-size="11" text-anchor="end" fill="#5F5F5F">0</text>
+<text x="30.24" y="198.6" font-size="11" text-anchor="end" fill="#5F5F5F">10</text>
+<line x1="36.24" y1="194.6" x2="656" y2="194.6" stroke="#E6E6E6" stroke-width="1"/>
+<text x="30.24" y="170.2" font-size="11" text-anchor="end" fill="#5F5F5F">20</text>
+<line x1="36.24" y1="166.2" x2="656" y2="166.2" stroke="#E6E6E6" stroke-width="1"/>
+<text x="30.24" y="141.8" font-size="11" text-anchor="end" fill="#5F5F5F">30</text>
+<line x1="36.24" y1="137.8" x2="656" y2="137.8" stroke="#E6E6E6" stroke-width="1"/>
+<text x="30.24" y="113.4" font-size="11" text-anchor="end" fill="#5F5F5F">40</text>
+<line x1="36.24" y1="109.4" x2="656" y2="109.4" stroke="#E6E6E6" stroke-width="1"/>
+<text x="30.24" y="85" font-size="11" text-anchor="end" fill="#5F5F5F">50</text>
+<line x1="36.24" y1="81" x2="656" y2="81" stroke="#E6E6E6" stroke-width="1"/>
+<rect x="46.05" y="217.32" width="32.02" height="5.68" fill="#BFBFB3"/>
+<rect x="46.05" y="211.64" width="32.02" height="5.68" fill="#E4E4DE"/>
+<rect x="46.05" y="208.8" width="32.02" height="2.84" fill="#2878D8"/>
+<rect x="97.7" y="203.12" width="32.02" height="19.88" fill="#BFBFB3"/>
+<rect x="97.7" y="194.6" width="32.02" height="8.52" fill="#E4E4DE"/>
+<rect x="97.7" y="191.76" width="32.02" height="2.84" fill="#2878D8"/>
+<rect x="149.34" y="197.44" width="32.02" height="25.56" fill="#BFBFB3"/>
+<rect x="149.34" y="169.04" width="32.02" height="28.4" fill="#E4E4DE"/>
+<rect x="149.34" y="146.32" width="32.02" height="22.72" fill="#2878D8"/>
+<rect x="200.99" y="214.48" width="32.02" height="8.52" fill="#BFBFB3"/>
+<rect x="200.99" y="157.68" width="32.02" height="56.8" fill="#E4E4DE"/>
+<rect x="200.99" y="86.68" width="32.02" height="71" fill="#2878D8"/>
+<rect x="252.64" y="214.48" width="32.02" height="8.52" fill="#BFBFB3"/>
+<rect x="252.64" y="177.56" width="32.02" height="36.92" fill="#E4E4DE"/>
+<rect x="252.64" y="89.52" width="32.02" height="88.04" fill="#2878D8"/>
+<rect x="304.28" y="157.68" width="32.02" height="65.32" fill="#E4E4DE"/>
+<rect x="304.28" y="112.24" width="32.02" height="45.44" fill="#2878D8"/>
+<rect x="355.93" y="208.8" width="32.02" height="14.2" fill="#E4E4DE"/>
+<rect x="355.93" y="180.4" width="32.02" height="28.4" fill="#2878D8"/>
+<rect x="407.58" y="220.16" width="32.02" height="2.84" fill="#BFBFB3"/>
+<rect x="407.58" y="188.92" width="32.02" height="31.24" fill="#E4E4DE"/>
+<rect x="407.58" y="140.64" width="32.02" height="48.28" fill="#2878D8"/>
+<rect x="459.22" y="217.32" width="32.02" height="5.68" fill="#BFBFB3"/>
+<rect x="459.22" y="177.56" width="32.02" height="39.76" fill="#E4E4DE"/>
+<rect x="459.22" y="117.92" width="32.02" height="59.64" fill="#2878D8"/>
+<rect x="510.87" y="214.48" width="32.02" height="8.52" fill="#BFBFB3"/>
+<rect x="510.87" y="166.2" width="32.02" height="48.28" fill="#E4E4DE"/>
+<rect x="510.87" y="126.44" width="32.02" height="39.76" fill="#2878D8"/>
+<rect x="562.52" y="217.32" width="32.02" height="5.68" fill="#BFBFB3"/>
+<rect x="562.52" y="152" width="32.02" height="65.32" fill="#E4E4DE"/>
+<rect x="562.52" y="123.6" width="32.02" height="28.4" fill="#2878D8"/>
+<rect x="614.17" y="214.48" width="32.02" height="8.52" fill="#E4E4DE"/>
+<rect x="614.17" y="208.8" width="32.02" height="5.68" fill="#2878D8"/>
+<line x1="36.24" y1="223" x2="656" y2="223" stroke="#9E9E9E" stroke-width="1"/>
+<text x="62.06" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">1971–</text>
+<text x="62.06" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">1974</text>
+<text x="113.71" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">1975–</text>
+<text x="113.71" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">1979</text>
+<text x="165.35" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">1980–</text>
+<text x="165.35" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">1984</text>
+<text x="217" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">1985–</text>
+<text x="217" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">1989</text>
+<text x="268.65" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">1990–</text>
+<text x="268.65" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">1994</text>
+<text x="320.29" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">1995–</text>
+<text x="320.29" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">1999</text>
+<text x="371.94" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">2000–</text>
+<text x="371.94" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">2004</text>
+<text x="423.59" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">2005–</text>
+<text x="423.59" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">2009</text>
+<text x="475.24" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">2010–</text>
+<text x="475.24" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">2014</text>
+<text x="526.88" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">2015–</text>
+<text x="526.88" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">2019</text>
+<text x="578.53" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">2020–</text>
+<text x="578.53" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">2024</text>
+<text x="630.18" y="238" font-size="11" text-anchor="middle" fill="#5F5F5F">2025–</text>
+<text x="630.18" y="251" font-size="11" text-anchor="middle" fill="#5F5F5F">2026</text>
+</svg>
