@@ -141,9 +141,11 @@ check("hideNoSuggestion has reference sites (state, filterBody, deps, checkbox)"
 check("none of them run rows through a client-side .filter(...) of their own",
   hideRefLines.some((l) => l.includes(".filter(")), false);
 
-// The checkbox is wired to the same state, not a separate local toggle.
-check("the checkbox reflects hideNoSuggestion", tabsSrc.includes("checked={hideNoSuggestion}"), true);
+// The Hide chip's box is wired to the same state, not a separate local toggle (Authorships PR 2
+// moved it from a Filters-popover checkbox to the Hide chip's list).
+check("the checkbox reflects hideNoSuggestion",
+  tabsSrc.includes('isChecked={(v) => (v === "noSuggestion" ? hideNoSuggestion : hideNoIdentity)}'), true);
 check("the checkbox writes back through setHideNoSuggestion",
-  tabsSrc.includes("onChange={(e) => setHideNoSuggestion(e.target.checked)}"), true);
+  tabsSrc.includes('setHideNoSuggestion((x) => !x)'), true);
 
 console.log(`\n${n}/${n} passed\n`);
