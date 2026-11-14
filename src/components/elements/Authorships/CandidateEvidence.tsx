@@ -153,7 +153,7 @@ export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick,
             return (
               <button type="button" key={x.c.cwid} onClick={() => setStart(i)} aria-current={inView || undefined}
                 style={{ height: 24, padding: "0 9px", borderRadius: 999, border: `1px solid ${inView ? "#94a3b8" : "#e5e7eb"}`, background: inView ? "#f1f5f9" : "#fff",
-                  fontSize: 12, fontWeight: inView ? 600 : 400, cursor: "pointer", fontFamily: "inherit", color: x.c.already_rejected ? "#b91c1c" : "#1f2937" }}>
+                  fontSize: 12, fontWeight: inView ? 600 : 400, cursor: "pointer", fontFamily: "inherit", color: x.c.already_rejected ? "var(--pm-red)" : "#1f2937" }}>
                 {x.c.name || x.c.cwid}{x.c.cwid === pickedCwid ? " ✓" : ""}
               </button>
             );
@@ -172,16 +172,16 @@ export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick,
                 onClick={() => onPick(c.cwid)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(c.cwid); } }}
                 title={`Pick ${c.name || c.cwid}`}
                 style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, padding: "7px 9px", borderRadius: 8, cursor: "pointer",
-                  border: `1px solid ${picked ? "#2563eb" : c.already_rejected ? "#fecaca" : "#e5e7eb"}`,
-                  background: picked ? "#eff6ff" : c.already_rejected ? "#fef2f2" : "#fff" }}>
+                  border: `1px solid ${picked ? "var(--pm-slate)" : c.already_rejected ? "var(--pm-red-tint-border)" : "#e5e7eb"}`,
+                  background: picked ? "var(--pm-slate-tint)" : c.already_rejected ? "var(--pm-red-tint)" : "#fff" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                   <span aria-hidden="true" style={{ width: 13, height: 13, flex: "none", borderRadius: "50%", boxSizing: "border-box", background: "#fff",
-                    border: picked ? "4px solid #2563eb" : "1.5px solid #94a3b8" }} />
+                    border: picked ? "4px solid var(--pm-slate)" : "1.5px solid #94a3b8" }} />
                   {renderHead(c)}
                 </span>
                 <span style={{ ...MUTED, fontVariantNumeric: "tabular-nums" }}>IO {c.io_score == null ? "—" : Math.round(c.io_score)}</span>
                 <TallyBar rows={rows} width={110} compact />
-                {c.cwid === bestCwid && <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.03em", color: "#146c39" }}>MOST EVIDENCE</span>}
+                {c.cwid === bestCwid && <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.03em", color: "var(--pm-slate)" }}>MOST EVIDENCE</span>}
               </div>
             );
           })}
