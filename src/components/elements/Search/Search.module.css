@@ -390,3 +390,22 @@
   color: #8a94a6;
 }
 
+
+/* List fetch failed: message and Retry in place of the results. */
+.loadError {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 16px;
+  margin-top: 12px;
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--radius-card);
+}
+
+.loadErrorText {
+  margin: 0;
+  font-size: 14px;
+  color: var(--pm-foreground);
+}

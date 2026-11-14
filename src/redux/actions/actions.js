@@ -3,6 +3,7 @@ import fetchWithTimeout from '../../utils/fetchWithTimeout';
 import { toast } from "react-toastify"
 import { reciterConfig } from '../../../config/local';
 import { initialStatePubSearchFilter } from "../reducers/reducers";
+import { freshPubSearchFilter, reportFiltersFromSearch } from "../../utils/searchRequest";
 
 
 export const addError = (message) =>
@@ -96,11 +97,20 @@ export const identityFetchData = uid => dispatch => {
         })
 }
 
+// Find People can have several list fetches in flight (initial load, a search, a page change).
+// Only the latest may replace the results, so a slow earlier response can't overwrite a newer search.
+// Each loading flag is cleared only by the latest fetch that set it.
+let identityListSeq = 0;
+let identityAllSeq = 0;
+let identityPaginatedSeq = 0;
+
 export const identityFetchAllData = (request) => dispatch => {
+    const seq = ++identityListSeq;
+    identityAllSeq = seq;
     dispatch({
         type: methods.IDENTITY_FETCH_ALL_DATA
     })
-    fetchWithTimeout('/api/db/users', {
+    return fetchWithTimeout('/api/db/users', {
         credentials: "same-origin",
         method: 'POST',
         headers: {
@@ -124,26 +134,30 @@ export const identityFetchAllData = (request) => dispatch => {
             }
         })
         .then(data => {
-            dispatch({
-                type: methods.IDENTITY_CHANGE_PAGINATED_DATA,
-                payload: data
-            })
+            if (seq === identityListSeq) {
+                dispatch({
+                    type: methods.IDENTITY_CHANGE_PAGINATED_DATA,
+                    payload: data
+                })
+            }
 
-            dispatch({
-                type: methods.IDENTITY_CANCEL_ALL_FETCHING
-            })
+            if (seq === identityAllSeq) {
+                dispatch({
+                    type: methods.IDENTITY_CANCEL_ALL_FETCHING
+                })
+            }
+            return { ok: true }
         })
         .catch(error => {
+            // Find People shows its own "Couldn't load people" card with Retry for this. A global
+            // addError would send the whole app to /_error instead.
             console.log(error)
-            toast.error("Identity All Api failed - " + error.title);
-            dispatch(
-                addError(error)
-            )
-
-            dispatch({
-                type: methods.IDENTITY_CANCEL_ALL_FETCHING
-            })
-
+            if (seq === identityAllSeq) {
+                dispatch({
+                    type: methods.IDENTITY_CANCEL_ALL_FETCHING
+                })
+            }
+            return { ok: false, error }
         })
 }
 
@@ -177,12 +191,14 @@ export const clearIdentityORFeatureGenError = () => dispatch => {
 }
 
 export const identityFetchPaginatedData = (page, limit,filters) => dispatch => {
+    const seq = ++identityListSeq;
+    identityPaginatedSeq = seq;
     const offset = (page - 1) * limit;
     const request = { limit, offset, filters };
     dispatch({
         type: methods.IDENTITY_FETCH_PAGINATED_DATA
     })
-    fetchWithTimeout(`/api/db/users`, {
+    return fetchWithTimeout(`/api/db/users`, {
         credentials: "same-origin",
         method: 'POST',
         headers: {
@@ -205,26 +221,29 @@ export const identityFetchPaginatedData = (page, limit,filters) => dispatch => {
             }
         })
         .then(data => {
-            dispatch({
-                type: methods.IDENTITY_CHANGE_PAGINATED_DATA,
-                payload: data
-            })
+            if (seq === identityListSeq) {
+                dispatch({
+                    type: methods.IDENTITY_CHANGE_PAGINATED_DATA,
+                    payload: data
+                })
+            }
 
-            dispatch({
-                type: methods.IDENTITY_CANCEL_PAGINATED_FETCHING
-            })
+            if (seq === identityPaginatedSeq) {
+                dispatch({
+                    type: methods.IDENTITY_CANCEL_PAGINATED_FETCHING
+                })
+            }
+            return { ok: true }
         })
         .catch(error => {
+            // Same as identityFetchAllData: Find People renders the error with Retry in place.
             console.log(error)
-            toast.error("Identity Fetch PaginatedData Api failed - " + error.title);
-            dispatch(
-                addError(error)
-            )
-
-            dispatch({
-                type: methods.IDENTITY_CANCEL_PAGINATED_FETCHING
-            })
-
+            if (seq === identityPaginatedSeq) {
+                dispatch({
+                    type: methods.IDENTITY_CANCEL_PAGINATED_FETCHING
+                })
+            }
+            return { ok: false, error }
         })
 }
 
@@ -1770,85 +1789,44 @@ export const clearReportSearchResults = () => dispatch => {
     })
 }
 
+// Each of these builds a fresh /report filter object. They used to mutate the reducer's shared
+// initialStatePubSearchFilter (and dispatch a misspelled `payoload`, so only the mutation took effect),
+// which let one page's hand-off leak into every later "clear" (#850).
 export const clearPubSearchFilters = ()  => {
-    return(dispatch, getState) => {
-        const filters = getState().filters;
-        
-        let reportsSearchFilters = initialStatePubSearchFilter;
-            //clearing all report filters upon clicking reset button
-            reportsSearchFilters.filters.personIdentifers = [];
-            reportsSearchFilters.filters.orgUnits = [];
-            reportsSearchFilters.filters.institutions = [];
-            reportsSearchFilters.filters.personTypes = [];
-            reportsSearchFilters.filters.publicationTypeCanonical = [];
-            reportsSearchFilters.filters.journalTitleVerbose = [];
-            reportsSearchFilters.filters.authorPosition = [];
-            reportsSearchFilters.filters.datePublicationAddedToEntrezLowerBound = "";
-            reportsSearchFilters.filters.datePublicationAddedToEntrezUpperBound = "";
-            reportsSearchFilters.filters.pubDateLowerBound = "";
-            reportsSearchFilters.filters.pubDateUpperBound = "";
-            reportsSearchFilters.filters.pubTypes = [];
-            reportsSearchFilters.filters.peerReview = [];
-        dispatch({
-            type: methods.PUB_FILTER_CLEAR,
-            payload: reportsSearchFilters
-        })
+    return (dispatch) => {
         dispatch({
             type: methods.PUB_FILTER_UPDATE,
-            payload: reportsSearchFilters
+            payload: freshPubSearchFilter(initialStatePubSearchFilter)
         })
         dispatch({
             type: methods.REPORTS_SEARCH_CLEAR,
             payload: []
         })
-        
     }
 }
 
 
-export const updateIndividualPersonReportCriteria =(personIdentifier) =>{
-    return(dispatch, getState) => {
-        const filters = getState().filters;
-        let reportsSearchFilters = initialStatePubSearchFilter;
-          if (personIdentifier) {
-            reportsSearchFilters.filters.personIdentifers = [personIdentifier.personIdentifier];
-          }
-          updateAuthorFilter(personIdentifier.personIdentifier,10)
-          dispatch({
-            type: methods.PUB_FILTER_CLEAR,
-            payoload: reportsSearchFilters
-          });
+export const updateIndividualPersonReportCriteria = (person) => {
+    return (dispatch) => {
+        const reportsSearchFilters = freshPubSearchFilter(initialStatePubSearchFilter);
+        if (person && person.personIdentifier) {
+            reportsSearchFilters.filters.personIdentifers = [person.personIdentifier];
+        }
+        dispatch({
+            type: methods.PUB_FILTER_UPDATE,
+            payload: reportsSearchFilters
+        });
     }
-    
 }
 
-// Populate Create Reports Filters by Search Filters Data
-export const updatePubFiltersFromSearch = () => {
+// Populate Create Reports filters from the Find People search: the facet filters, plus the CWIDs the
+// search matched (never the typed name words). See reportFiltersFromSearch for the rule.
+export const updatePubFiltersFromSearch = (matchedIds = []) => {
   return (dispatch, getState) => {
-      
-      // get filters from Search Page
-      const filters = getState().filters;
-    let reportsSearchFilters = initialStatePubSearchFilter;
-    if (filters.orgUnits) {
-      reportsSearchFilters.filters.orgUnits = [...filters.orgUnits]; 
-    }
-
-    if (filters.institutions) {
-      reportsSearchFilters.filters.institutions = [...filters.institutions];
-    }
-
-    if (filters.personTypes) {
-      reportsSearchFilters.filters.personTypes = [...filters.personTypes];
-    }
-
-    if (filters.nameOrUids) {
-      reportsSearchFilters.filters.personIdentifers = [...filters.nameOrUids];
-    }
-
-
+    const { pubSearchFilter } = reportFiltersFromSearch(initialStatePubSearchFilter, getState().filters, matchedIds);
     dispatch({
-      type: methods.PUB_FILTER_CLEAR,
-      payoload: reportsSearchFilters
+      type: methods.PUB_FILTER_UPDATE,
+      payload: pubSearchFilter
     });
   }
 }
