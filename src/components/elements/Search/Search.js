@@ -535,8 +535,12 @@ const Search = () => {
   // can legitimately match nobody, and that must render the empty state). The filter card, the
   // results header and the table header stay on screen, so the count's live region is announced.
   // The /users/count fetch no longer holds the list back: the header uses findAll's own count.
+  // Before the first response the store still holds its initial [] (no `persons`): that is "not
+  // loaded yet" too, also for a scoped curator, whose first render otherwise flashed the scope
+  // empty state and announced "0 people" before the scoped fetch started.
   const isListLoading = () => {
-    return !!(identityAllFetching || identityPaginatedFetching ||
+    const neverLoaded = !Array.isArray(identityPaginatedData?.persons);
+    return !!(identityAllFetching || identityPaginatedFetching || neverLoaded ||
       (!filtersOn && !showScopeFilter && !(identityPaginatedData?.persons?.length > 0)));
   }
 
