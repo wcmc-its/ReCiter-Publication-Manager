@@ -2768,10 +2768,12 @@ const AuthorshipsTabs = () => {
       const toggleSelect = toggleSelectRef.current;
       if (cmd === "evidence") { setExpanded((x) => (x === row.id ? null : row.id)); e.preventDefault(); }
       else if (cmd === "accept") {
-        if (row.single_candidate && statusView === "open") {
-          if (row.identity_in_reciter === false) showError(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Dismiss it instead.`);
+        // Y works in the Open queue only, like N and S. The row has no "Pick one" button any more:
+        // a multi-candidate row is assigned from its opened evidence (E).
+        if (statusView === "open" && row.single_candidate) {
+          if (row.identity_in_reciter === false) showError(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Assign it to someone else instead.`);
           else doAction?.(row, "accept");
-        } else showError("Use Pick one ▾ to assign an authorship with several candidates.");
+        } else if (statusView === "open") showError("Several people share this name: open the row (E) and pick one to assign it.");
         e.preventDefault();
       }
       else if (cmd === "reject") { if (statusView === "open") doAction?.(row, "reject"); e.preventDefault(); }
@@ -3397,7 +3399,7 @@ const AuthorshipsTabs = () => {
         ))}
         </div>
         <div data-arow-foot style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 14, rowGap: 8, padding: "8px 16px", fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>
-          {shortcutsLine(statusView === "open" || statusView === "conflicts" || statusView === "duplicates").map((s) => <span key={s}>{s}</span>)}
+          {shortcutsLine(statusView === "open").map((s) => <span key={s}>{s}</span>)}
           {/* pagination — the feed's. A like view is the whole pile on one page (LIKE_PILE_CAP),
               so it has nothing to page. */}
           {!likeAuthor.trim() && !listError && (
