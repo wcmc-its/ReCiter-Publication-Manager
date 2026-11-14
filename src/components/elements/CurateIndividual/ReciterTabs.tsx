@@ -11,6 +11,7 @@ import TabAddPublication from "../TabAddPublication/TabAddPublication";
 import TabScopusAuthorships from "./TabScopusAuthorships";
 import AllSourcesTab from "./AllSourcesTab";
 import AddPublicationDialog from "./AddPublicationDialog";
+import ManualEntryDialog, { ManualEntryMode } from "./ManualEntryDialog";
 import { useExternalArticles } from "./useExternalArticles";
 import { countWorks, groupExternalWorks } from "../../../utils/allSources";
 import { allowedPermissions } from "../../../utils/constants";
@@ -51,6 +52,12 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
   // count and "N to review" pill in the tab strip.
   const ext = useExternalArticles(reciterData?.reciter?.personIdentifier);
   const extCounts = React.useMemo(() => countWorks(groupExternalWorks(ext.rows)), [ext.rows]);
+  // 3d: the manual entry Dialog (Add publication > Enter manually, or Edit on a manual row). Only
+  // with the external record store; the list route says which store answered.
+  const manualOn = ext.store === 'mysql';
+  const [manual, setManual] = useState<ManualEntryMode | null>(null);
+  // Bumped after a manual add so All sources shows its Accepted view.
+  const [showAcceptedNonce, setShowAcceptedNonce] = useState(0);
 
   // Smart change tracking: compare current assertions to originals
   const originalAssertions = useRef<Map<number, string>>(new Map());
@@ -462,6 +469,8 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           ext={ext}
           fullName={fullName}
           onOpenScopusAuthorships={() => onTabChange('ScopusAuth')}
+          onEditManual={manualOn ? (record) => setManual({ kind: 'edit', record }) : undefined}
+          showAcceptedNonce={showAcceptedNonce}
         />
       ) : activeTabData ? (
         <ReciterTabContent
@@ -503,6 +512,26 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           getPmidStatus={getPmidStatus}
           findRecordPmid={findRecordPmid}
           onOpenScopusAuthorships={() => { closeAdd(); onTabChange('ScopusAuth'); }}
+          onEnterManually={manualOn ? (query) => { setAddOpen(false); setAddDeepLink(null); setManual({ kind: 'create', query, fromSearch: true }); } : undefined}
+        />
+      )}
+
+      {manual && manualOn && (
+        <ManualEntryDialog
+          open
+          mode={manual}
+          uid={reciterData.reciter?.personIdentifier}
+          fullName={fullName}
+          onClose={() => setManual(null)}
+          onBackToSearch={() => { setManual(null); setAddOpen(true); }}
+          onSaved={(_record, created) => {
+            setManual(null);
+            ext.refetch();
+            if (created) { onTabChange('AllSources'); setShowAcceptedNonce((n) => n + 1); }
+          }}
+          getPmidStatus={getPmidStatus}
+          onAddViaPubMed={(pmid) => { setManual(null); handleAddViaPubMed(pmid); }}
+          onOpenSuggested={() => { setManual(null); onTabChange('NULL'); }}
         />
       )}
     </>

@@ -1,4 +1,4 @@
-import React, { FunctionComponent, useMemo, useState } from "react"
+import React, { FunctionComponent, useEffect, useMemo, useState } from "react"
 import styles from "./CurateIndividual.module.css"
 import { Button, Dialog } from "../../ui"
 import { ExternalArticles } from "./useExternalArticles"
@@ -6,6 +6,8 @@ import {
     EXT_SOURCE_NAMES, ExtSourceName, ExtStatus, ExtWork, countWorks, extStatusOf, groupExternalWorks,
     workHasSource, workMatches, storeTargetOf, storeStatusText, StoreIntent,
 } from "../../../utils/allSources"
+import { manualProvenance, manualDateText, venueInputOf } from "../../../utils/manualEntry"
+import { venueOf, peerReviewedOf, defaultRole } from "../../../lib/pubTypes"
 
 // Phase 3a — Curate's single "All sources" tab (replaces the Scopus / OpenAlex / Crossref tabs).
 // One row per work across sources (grouped by DOI), a status switch and a source switch, and
@@ -21,6 +23,10 @@ interface FuncProps {
     ext: ExternalArticles,
     fullName: string,
     onOpenScopusAuthorships: () => void,
+    // 3d (external record store only): Edit on an accepted manual row opens the manual entry Dialog.
+    onEditManual?: (record: any) => void,
+    // Bumped after a manual add: switch to the Accepted view, where the new work is.
+    showAcceptedNonce?: number,
 }
 
 type Done = {
@@ -58,7 +64,7 @@ const Byline = ({ row, surname }: { row: any, surname: string }) => {
 
 const STATUS_OPTS: [ExtStatus, string][] = [['PENDING', 'Pending'], ['ACCEPTED', 'Accepted'], ['REJECTED', 'Rejected']]
 
-const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScopusAuthorships }) => {
+const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScopusAuthorships, onEditManual, showAcceptedNonce }) => {
     const nameParts = (fullName || '').trim().split(/\s+/).filter(Boolean)
     const short = nameParts[0] || 'this person'
     const surname = (nameParts[nameParts.length - 1] || '').replace(/[.,]/g, '')
@@ -74,6 +80,7 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
     const [confirmDelete, setConfirmDelete] = useState<ExtWork | null>(null)
 
     const pickView = (v: ExtStatus) => { setViewPicked(v); setHere({}) }
+    useEffect(() => { if (showAcceptedNonce) pickView('ACCEPTED') }, [showAcceptedNonce])
 
     // A work belongs in the view by its status, or because it was acted on in this view.
     const inView = (w: ExtWork) => (here[w.key] ? here[w.key].view === view : w.status === view)
@@ -203,7 +210,14 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
                 const pmid = w.rows.map((x) => x.pmid).find(Boolean)
                 const doi = w.rows.map((x) => x.doi).find(Boolean)
                 const superseded = w.rows.map((x) => x.supersededByPmid).find(Boolean)
-                const meta: React.ReactNode[] = [venue && <em key="v">{venue}</em>, date, r.publicationType].filter(Boolean)
+                // A manual record (3d): venue line by type, the date as entered, our type.
+                const man = w.rows.find((x) => String(x.sourceType || '').toUpperCase() === 'MANUAL' && x.pubType)
+                const manVenue = man ? venueOf(venueInputOf(man)) : ''
+                const meta: React.ReactNode[] = man
+                    ? [manVenue && <em key="v">{manVenue}</em>, manualDateText(man.pubDate), man.pubType].filter(Boolean)
+                    : [venue && <em key="v">{venue}</em>, date, r.publicationType].filter(Boolean)
+                const prov = man ? manualProvenance(man) : null
+                const manRole = man && man.role && man.role !== defaultRole(man.pubType) && man.pubType !== 'Reference Entry' ? man.role : null
                 const isBusy = !!busy[w.key]
                 return (
                     <div key={w.key} className={styles.exRow} data-done={d ? true : undefined}>
@@ -217,6 +231,9 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
                             )}
                             <div className={styles.exChips}>
                                 <span className={styles.exSrcChip}>{w.sources.join(' · ')}</span>
+                                {prov && <span className={styles.exProvChip} title={prov.tip}>{prov.text}</span>}
+                                {man && <span className={styles.exPlainChip}>{peerReviewedOf({ type: man.pubType, pr: man.peerReviewed, journal: man.journalOrVenue }) ? 'Peer-reviewed' : 'Not peer-reviewed'}</span>}
+                                {manRole && <span className={styles.exPlainChip}>{short}: {String(manRole).toLowerCase()}</span>}
                                 {pmid
                                     ? <a className={styles.exPmidChip} href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">PMID {pmid}</a>
                                     : <span className={styles.exNotPubmed}>Not in PubMed</span>}
@@ -226,7 +243,8 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
                                         Found in {w.sources.length} sources · counted once
                                     </span>
                                 )}
-                                {r.articleId && <span className={styles.exId}>{r.articleId}</span>}
+                                {man ? (man.isbn && <span className={styles.exId}>ISBN {man.isbn}</span>)
+                                    : r.articleId && <span className={styles.exId}>{r.articleId}</span>}
                                 {doi && <a href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI ↗</a>}
                             </div>
                         </div>
@@ -246,6 +264,9 @@ const AllSourcesTab: FunctionComponent<FuncProps> = ({ ext, fullName, onOpenScop
                             ) : w.status === 'ACCEPTED' ? (
                                 <>
                                     <div className={styles.exBtns}>
+                                        {man && onEditManual && mysql && (
+                                            <Button size="sm" onClick={() => onEditManual(man)} disabled={isBusy}>Edit</Button>
+                                        )}
                                         <Button size="sm" onClick={() => act(w, 'removed')} disabled={isBusy}
                                             title={`Takes this work out of ${short}'s record. Reversible: it moves to Rejected.`}>Remove</Button>
                                     </div>

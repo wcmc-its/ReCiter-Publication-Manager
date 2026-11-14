@@ -14,6 +14,7 @@ import {
 import { isExternalStatus } from '../../src/lib/externalLifecycle'
 import { ShapeError } from '../../src/lib/externalRecordShape'
 import { storeTargetOf } from '../../src/utils/allSources'
+import { validateManualBody } from '../../src/utils/manualEntry'
 
 // The 3c API (plan 3b-3e, "PM API"): /api/db/external/**, plus the legacy external-article routes
 // when EXTERNAL_STORE=mysql. One switch decides the store:
@@ -90,8 +91,14 @@ export async function listExternal(uid: string): Promise<Reply> {
 
 // Add publication (Curate). Provenance is the server's call: MANUAL for a manual record,
 // otherwise ADD_SEARCH; AUTHORSHIPS is written only by the Authorships controller.
+const isManualBody = (body: any): boolean =>
+  String(body?.sourceType || body?.articleId || '').trim().toUpperCase().startsWith('MANUAL')
+
 export async function addExternal(uid: string, body: any, s: Session, force: boolean): Promise<Reply> {
   if (!(await canCurate(s.eff, uid))) return forbidden()
+  // Manual entry (3d) lives only in the external record store: Java's ExternalArticle has no
+  // MANUAL source, so with the store off a manual add is refused, not proxied.
+  if (isManualBody(body) && externalStoreMode() !== 'mysql') return storeOff()
   if (externalStoreMode() !== 'mysql') {
     const addedBy = s.token?.username ? String(s.token.username) : undefined
     return javaReply(await addExternalArticle(uid, body, addedBy, force), [200, 201])
@@ -99,7 +106,14 @@ export async function addExternal(uid: string, body: any, s: Session, force: boo
   if (!s.actor) return noSession()
   return guarded(async () => {
     const { addedBy: _a, provenance: _p, ...rest } = body || {}
-    const manual = String(rest.sourceType || rest.articleId || '').toUpperCase().startsWith('MANUAL')
+    const manual = isManualBody(rest)
+    if (manual) {
+      const bad = validateManualBody(rest)
+      if (bad) return fail(400, bad)
+      // A new manual record always gets a server-minted MANUAL:<uuid> (recordFromInput).
+      delete rest.articleId
+      rest.sourceType = 'MANUAL'
+    }
     const r = await createRecord({ uid, body: rest, actor: s.actor as Actor, force, provenance: manual ? 'MANUAL' : 'ADD_SEARCH' })
     if (r.status === 409) return { status: 409, body: { statusCode: 409, message: r.body } }
     return { status: 201, body: { statusCode: 201, external: r.record, reAdded: r.reAdded } }
@@ -194,17 +208,26 @@ export async function getExternalRecord(id: number, s: Session): Promise<Reply> 
 export async function editExternal(id: number, patch: any, s: Session): Promise<Reply> {
   if (externalStoreMode() !== 'mysql') return storeOff()
   if (!s.actor) return noSession()
-  return guarded(async () => ({
-    status: 200,
-    body: { statusCode: 200, external: await editRecord({ id, patch, actor: s.actor as Actor, canCurate: mayCurate(s) }) },
-  }), 'edit')
+  return guarded(async () => {
+    // A manual record keeps what its create required (3d): a type, a title and a year.
+    const cur = await getRecord(id)
+    if (cur && cur.sourceType === 'MANUAL' && patch && typeof patch === 'object') {
+      const bad = validateManualBody({ ...cur, ...patch })
+      if (bad) return fail(400, bad)
+    }
+    return {
+      status: 200,
+      body: { statusCode: 200, external: await editRecord({ id, patch, actor: s.actor as Actor, canCurate: mayCurate(s) }) },
+    }
+  }, 'edit')
 }
 
-export async function dupCheckExternal(uid: string, body: any, s: Session): Promise<Reply> {
+// excludeId: the record being edited (3d Edit), so it is not its own duplicate.
+export async function dupCheckExternal(uid: string, body: any, s: Session, excludeId?: number | null): Promise<Reply> {
   if (externalStoreMode() !== 'mysql') return storeOff()
   if (!(await canCurate(s.eff, uid))) return forbidden()
   return guarded(async () => {
-    const { result, conflict } = await dupCheck(uid, body)
+    const { result, conflict } = await dupCheck(uid, body, { excludeId: excludeId ?? null })
     return { status: 200, body: { statusCode: 200, level: result.level, conflict, matches: result.matches } }
   }, 'dupcheck')
 }

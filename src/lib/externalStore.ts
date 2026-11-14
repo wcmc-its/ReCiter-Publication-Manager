@@ -118,9 +118,16 @@ export async function loadDupContext(uid: string, opts: { goldStandard?: GoldSta
 }
 
 // Dry-run of the create check (the manual-entry dialog's live check, 3d).
-export async function dupCheck(uid: string, body: any, opts: { goldStandard?: GoldStandardSets } = {}) {
+// excludeId leaves one of the person's records out (the record being edited is not its own duplicate).
+export async function dupCheck(uid: string, body: any, opts: { goldStandard?: GoldStandardSets; excludeId?: number | null } = {}) {
   const record = recordFromInput(body)
-  const result = checkExternalDup(record as any, await loadDupContext(uid, opts))
+  const ctx = await loadDupContext(uid, opts)
+  const ex = opts.excludeId == null ? null : Number(opts.excludeId)
+  if (ex != null) {
+    ctx.existing = (ctx.existing || []).filter((e) => Number(e.id) !== ex)
+    ctx.rejections = (ctx.rejections || []).filter((r) => r.record_id == null || Number(r.record_id) !== ex)
+  }
+  const result = checkExternalDup(record as any, ctx)
   return { record, result, conflict: conflictBody(result) }
 }
 

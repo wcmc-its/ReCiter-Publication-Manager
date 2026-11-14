@@ -10,7 +10,8 @@ import { AddDialogSource, AddSource, routeAddQuery } from "../../../utils/extern
 //     the tabs, searched with this query and year range), and the dialog closes;
 //   - a DOI or other query for Scopus / OpenAlex / Crossref runs the existing external add
 //     search (#1060–#1062) inside the dialog, with its add, "Add anyway" and "Add via PubMed".
-// Layout follows the UI refresh prototype's Add publication dialog.
+// Layout follows the UI refresh prototype's Add publication dialog. With the external record store
+// (3d) it also offers "Enter manually" (ManualEntryDialog), above the search and on no results.
 
 export type AddDialogInitial = { query?: string, source?: AddSource, autoSearch?: boolean, invalidDoi?: boolean }
 
@@ -26,6 +27,9 @@ interface FuncProps {
     getPmidStatus: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
     findRecordPmid: (doc: { doi?: string; articleId?: string }) => number | null,
     onOpenScopusAuthorships: () => void,
+    // 3d: open the manual entry Dialog with the current query. Only passed with the external
+    // record store (EXTERNAL_STORE=mysql); without it the dialog is unchanged.
+    onEnterManually?: (query: string) => void,
 }
 
 const SOURCES: [AddDialogSource, string][] = [['PUBMED', 'PubMed'], ['SCOPUS', 'Scopus'], ['OPENALEX', 'OpenAlex'], ['CROSSREF', 'Crossref']]
@@ -92,6 +96,13 @@ const AddPublicationDialog: FunctionComponent<FuncProps> = (props) => {
                 </div>
                 <span className={styles.apNote}>{srcNote}</span>
             </div>
+            {props.onEnterManually && (
+                <div className={styles.apManual}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                    <span className={styles.apManualText}>Not in any of these sources? A book, chapter, report or talk can be entered by hand.</span>
+                    <button type="button" className={styles.apManualBtn} onClick={() => props.onEnterManually?.(query)}>Enter manually</button>
+                </div>
+            )}
             <form className={styles.apSearch} onSubmit={search}>
                 <input
                     className={styles.apInput}
@@ -130,6 +141,7 @@ const AddPublicationDialog: FunctionComponent<FuncProps> = (props) => {
                         initialQuery={run.query}
                         initialSource={run.source}
                         autoSearch
+                        onEnterManually={props.onEnterManually ? () => props.onEnterManually?.(run.query) : undefined}
                     />
                 </div>
             )}
