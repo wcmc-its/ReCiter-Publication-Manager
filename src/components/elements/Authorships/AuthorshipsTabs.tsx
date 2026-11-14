@@ -25,6 +25,7 @@ import { externalSourceLabel, isExternalSource, openalexRecordUrl } from "../../
 import type { AuthorshipSource } from "../../../lib/externalSource";
 import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } from "./CandidateEvidence";
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
+import { formatRowDate, ioBadge, roleLine, shortcutsLine, sourceBadgeText, splitAffiliation } from "../../../utils/authorshipRow";
 
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
@@ -845,12 +846,12 @@ const IconX = (p: IconProps) => <Icon {...p}><path d="M18 6 6 18M6 6l12 12" /></
 const IconChevR = (p: IconProps) => <Icon {...p}><path d="m9 18 6-6-6-6" /></Icon>;
 const IconChevD = (p: IconProps) => <Icon {...p}><path d="m6 9 6 6 6-6" /></Icon>;
 const IconExt = (p: IconProps) => <Icon {...p}><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></Icon>;
-const IconPin = (p: IconProps) => <Icon {...p}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></Icon>;
 const IconInfo = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></Icon>;
 const IconAlert = (p: IconProps) => <Icon {...p}><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z" /><path d="M12 9v4M12 17h.01" /></Icon>;
 const IconMore = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></Icon>;
 const IconUsers = (p: IconProps) => <Icon {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></Icon>;
 const IconCopy = (p: IconProps) => <Icon {...p}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></Icon>;
+const IconZoom = (p: IconProps) => <Icon {...p}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /><path d="M8 11h6M11 8v6" /></Icon>;
 const IconClock = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></Icon>;
 
 // ---- small presentational bits -------------------------------------------
@@ -864,23 +865,6 @@ const Tip = ({ children, ...rest }: any) => (
 
 // ---- pure helpers --------------------------------------------------------
 const hasWcm = (aff?: string) => !!aff && WCM_RE.test(aff);
-
-// Wrap the WCM institution token in <mark>. Returns React nodes (one match).
-const highlightAffiliation = (text?: string): ReactNode => {
-  if (!text) return null;
-  const m = text.match(WCM_RE);
-  if (!m || m.index === undefined) return text;
-  const before = text.slice(0, m.index);
-  const matched = text.slice(m.index, m.index + m[0].length);
-  const after = text.slice(m.index + m[0].length);
-  return (
-    <>
-      {before}
-      <mark style={{ background: "var(--pm-slate-tint)", color: "var(--pm-slate)", padding: "0 3px", borderRadius: 3, fontWeight: 600 }}>{matched}</mark>
-      {after}
-    </>
-  );
-};
 
 // IO color band (F2): >=90 green, 50-89 amber, <50 muted grey
 const ioColor = (v?: number) => (v == null ? "#94a3b8" : v >= 90 ? "var(--pm-slate)" : v >= 50 ? "var(--pm-amber)" : "#94a3b8");
@@ -1088,27 +1072,6 @@ const PmidCite = ({ pmid }: { pmid: number }) => {
 // ---- Scopus lane bits ----------------------------------------------------
 const scopusRecordUrl = (externalId?: string) =>
   externalId ? `https://www.scopus.com/record/display.uri?eid=2-s2.0-${externalId}&origin=inward` : undefined;
-
-const scopusBadgeStyle: CSSProperties = {
-  display: "inline-flex", alignItems: "center", fontSize: 10.5, fontWeight: 700, letterSpacing: ".04em",
-  padding: "2px 7px", borderRadius: 5, background: "var(--pm-slate-tint)", color: "var(--pm-slate)", textTransform: "uppercase",
-};
-const notInPubmedPillStyle: CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "2px 8px",
-  borderRadius: 20, background: "var(--pm-amber-tint)", color: "var(--pm-amber)", border: "1px solid var(--pm-amber-tint-border)", whiteSpace: "nowrap",
-};
-// replaces the Accept button when the proposed identity has no ReCiter Identity record
-const noIdentityPillStyle: CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "5px 10px",
-  borderRadius: 20, background: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0", whiteSpace: "nowrap",
-  cursor: "help",
-};
-// replaces the Accept button when the proposed identity already rejected this exact pmid
-const alreadyRejectedPillStyle: CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "5px 10px",
-  borderRadius: 20, background: "var(--pm-red-tint)", color: "var(--pm-red)", border: "1px solid var(--pm-red-tint-border)", whiteSpace: "nowrap",
-  cursor: "help",
-};
 
 // Scopus evidence lead: no PMID — Scopus record + DOI links (mirrors PmidLink's slot).
 const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
@@ -3347,6 +3310,104 @@ const AuthorshipsTabs = () => {
               : "Bulk accept acts on single-candidate rows on this page. Bulk assign and bulk reject also cover open multi-candidate rows and single-candidate rows with no ReCiter identity."}
           </div>
         )}
+        {/* ---- the table (prototype markup ~957-1234) ---------------------------------------
+            The rows live in this panel under one column header, separated by hairlines. The
+            feed's pagination (Decision 3: kept, the prototype has none) and the shortcuts line
+            close the panel. */}
+        <div data-arow-head style={{
+          display: "grid", gridTemplateColumns: ROW_GRID, gap: 14, padding: "8px 16px 8px 19px",
+          borderBottom: "1px solid var(--pm-border)", fontSize: 11, fontWeight: 600, letterSpacing: "0.06em",
+          textTransform: "uppercase", color: "var(--pm-muted-foreground)",
+        }}>
+          <span /><span title="Identity-Only Score">IO</span><span>Author → suggested identity</span><span>Article</span><span style={{ width: 104 }} />
+        </div>
+        <div>
+        {loading && <div style={{ padding: 24, textAlign: "center", color: "var(--pm-muted-foreground)" }}>Loading…</div>}
+        {/* During a bulk run every selected row leaves the page at once and the refill waits for
+            the whole batch, so an empty list here means "working", not "nothing matches" — the
+            old message read as a dead page and invited the reload that abandons the run. */}
+        {!loading && rows.length === 0 && bulkProgress && (
+          <div style={{ padding: 24, textAlign: "center", color: "#4a5262", fontVariantNumeric: "tabular-nums" }}>
+            Working through the selection: {bulkProgress.done.toLocaleString()} of {bulkProgress.total.toLocaleString()}.
+            The queue refills when the batch finishes — keep this tab open.
+          </div>
+        )}
+        {/* A failed list request is not an empty result: say so, in the card, with a Retry. */}
+        {!loading && listError && (
+          <div role="alert" style={{ padding: "40px 24px", textAlign: "center" }}>
+            <div style={{ fontFamily: "var(--font-display-serif)", fontSize: 20, fontWeight: 600, color: "var(--pm-foreground)", marginBottom: 6 }}>
+              Couldn&rsquo;t load authorships
+            </div>
+            <div style={{ fontSize: 13.5, color: "var(--pm-muted-foreground)", marginBottom: 14 }}>
+              The server didn&rsquo;t answer. Your filters are kept; try again in a moment.
+            </div>
+            <button type="button" onClick={() => fetchData()} style={btn("ghost")}>Retry</button>
+          </div>
+        )}
+        {!loading && !listError && rows.length === 0 && !bulkProgress && (
+          <div style={{ padding: 24, textAlign: "center", color: "var(--pm-muted-foreground)" }}>No authorships match these filters.</div>
+        )}
+        {!loading && rows.map((r) => (
+          <AuthorshipCard
+            key={r.id}
+            row={r}
+            // Both review queues (see STATUS_VIEW_LABEL above) hand the card "open": their rows
+            // ARE open rows, so the card must offer the same per-row actions, including Force.
+            // Spelled out rather than routed through a helper so the type narrows here.
+            statusView={statusView === "duplicates" || statusView === "conflicts" ? "open" : statusView}
+            // …but the checkbox must NOT follow that substitution, and this is why it is a prop
+            // rather than something the card recomputes from the statusView it was handed. Bulk
+            // actions are open-queue only (isBulkSelectable returns false for every other view,
+            // and toggleSelect gates on the REAL statusView), so a card told "open" inside the
+            // duplicates or conflicts queue rendered an enabled checkbox that did nothing when
+            // clicked. Computed here, from the real queue, so the page and the card cannot
+            // disagree about what is selectable.
+            selectable={isBulkSelectable(r, statusView)}
+            isExpanded={expanded === r.id}
+            isSelected={selected.has(r.id)}
+            isFocused={focusedId === r.id}
+            acting={actingId === r.id}
+            pickedCwid={picked[r.id]}
+            assignPrefill={assignPrefill?.id === r.id ? assignPrefill.name : undefined}
+            registerRef={(el) => { cardRefs.current[r.id] = el; }}
+            onFocus={() => setFocusedId(r.id)}
+            onToggleExpand={() => setExpanded((e) => (e === r.id ? null : r.id))}
+            onToggleSelect={() => toggleSelect(r)}
+            onPick={(cwid) => setPicked((p) => ({ ...p, [r.id]: cwid }))}
+            onAction={(action, extra) => doAction(r, action, extra)}
+            onMenu={(anchor) => setMenu({ anchor, row: r })}
+            onAssignOther={() => focusAssignOther(r.id, r.wcm_author)}
+            // Scopus/OpenAlex rows have no pmid; the server keys their siblings by external_id
+            // (siblingKey), and the search box matches external_id, so narrow by that.
+            onNarrowPmid={() => narrowToPmid(isExternalSource(r) ? r.external_id : r.pmid)}
+            onFindOthers={() => findOthersLikeThis(r.wcm_author, (r.like_count ?? 0) + (isParkedView ? 0 : 1))}
+            // §2.6 hover card: `undefined` means "not asked yet / still in flight", which the
+            // card renders as a loading line. An answered cwid always has an entry.
+            priorNamesByCwid={priorNames}
+            onHoverIdentity={requestPriorNames}
+            // Session conflict if this curator just hit it; otherwise rehydrate the one
+            // persisted on the row, so a refresh (or a different curator) still sees why.
+            conflict={conflicts[r.id] ?? (r.accept_conflict ? {
+              kind: "dup" as const,
+              id: r.id, action: "accept", message: r.accept_conflict, matches: [],
+              wcm_author: r.wcm_author, top_name: r.top_name, ts: 0,
+            } : undefined)}
+            onClearConflict={() => clearConflict(r.id)}
+          />
+        ))}
+        </div>
+        <div data-arow-foot style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 14, rowGap: 8, padding: "8px 16px", fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>
+          {shortcutsLine(statusView === "open" || statusView === "conflicts" || statusView === "duplicates").map((s) => <span key={s}>{s}</span>)}
+          {/* pagination — the feed's. A like view is the whole pile on one page (LIKE_PILE_CAP),
+              so it has nothing to page. */}
+          {!likeAuthor.trim() && !listError && (
+            <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{count.toLocaleString()} authorships · page {page + 1} of {totalPages}</span>
+              <button type="button" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} style={pagerBtn(page === 0)}>Previous</button>
+              <button type="button" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)} style={pagerBtn(page + 1 >= totalPages)}>Next</button>
+            </span>
+          )}
+        </div>
         </>
         )}
       </div>
@@ -3633,114 +3694,19 @@ const AuthorshipsTabs = () => {
         />
       )}
 
-      {/* card queue */}
-      {!reportView && (
-      <div>
-        {loading && <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>Loading…</div>}
-        {/* During a bulk run every selected row leaves the page at once and the refill waits for
-            the whole batch, so an empty list here means "working", not "nothing matches" — the
-            old message read as a dead page and invited the reload that abandons the run. */}
-        {!loading && rows.length === 0 && bulkProgress && (
-          <div style={{ padding: 24, textAlign: "center", color: "#4a5262", fontVariantNumeric: "tabular-nums" }}>
-            Working through the selection: {bulkProgress.done.toLocaleString()} of {bulkProgress.total.toLocaleString()}.
-            The queue refills when the batch finishes — keep this tab open.
-          </div>
-        )}
-        {/* A failed list request is not an empty result: say so, in the card, with a Retry. */}
-        {!loading && listError && (
-          <div role="alert" style={{ padding: "40px 24px", textAlign: "center", background: "var(--pm-surface)", border: "1px solid var(--pm-border)", borderRadius: "var(--radius-card)" }}>
-            <div style={{ fontFamily: "var(--font-display-serif)", fontSize: 20, fontWeight: 600, color: "var(--pm-foreground)", marginBottom: 6 }}>
-              Couldn&rsquo;t load authorships
-            </div>
-            <div style={{ fontSize: 13.5, color: "var(--pm-muted-foreground)", marginBottom: 14 }}>
-              The server didn&rsquo;t answer. Your filters are kept; try again in a moment.
-            </div>
-            <button type="button" onClick={() => fetchData()} style={btn("ghost")}>Retry</button>
-          </div>
-        )}
-        {!loading && !listError && rows.length === 0 && !bulkProgress && (
-          <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>No authorships match these filters.</div>
-        )}
-        {!loading && rows.map((r) => (
-          <AuthorshipCard
-            key={r.id}
-            row={r}
-            // Both review queues (see STATUS_VIEW_LABEL above) hand the card "open": their rows
-            // ARE open rows, so the card must offer the same per-row actions, including Force.
-            // Spelled out rather than routed through a helper so the type narrows here.
-            statusView={statusView === "duplicates" || statusView === "conflicts" ? "open" : statusView}
-            // …but the checkbox must NOT follow that substitution, and this is why it is a prop
-            // rather than something the card recomputes from the statusView it was handed. Bulk
-            // actions are open-queue only (isBulkSelectable returns false for every other view,
-            // and toggleSelect gates on the REAL statusView), so a card told "open" inside the
-            // duplicates or conflicts queue rendered an enabled checkbox that did nothing when
-            // clicked. Computed here, from the real queue, so the page and the card cannot
-            // disagree about what is selectable.
-            selectable={isBulkSelectable(r, statusView)}
-            isExpanded={expanded === r.id}
-            isSelected={selected.has(r.id)}
-            isFocused={focusedId === r.id}
-            acting={actingId === r.id}
-            pickedCwid={picked[r.id]}
-            assignPrefill={assignPrefill?.id === r.id ? assignPrefill.name : undefined}
-            registerRef={(el) => { cardRefs.current[r.id] = el; }}
-            onFocus={() => setFocusedId(r.id)}
-            onToggleExpand={() => setExpanded((e) => (e === r.id ? null : r.id))}
-            onToggleSelect={() => toggleSelect(r)}
-            onPick={(cwid) => setPicked((p) => ({ ...p, [r.id]: cwid }))}
-            onAction={(action, extra) => doAction(r, action, extra)}
-            onMenu={(anchor) => setMenu({ anchor, row: r })}
-            onAssignOther={() => focusAssignOther(r.id, r.wcm_author)}
-            // Scopus/OpenAlex rows have no pmid; the server keys their siblings by external_id
-            // (siblingKey), and the search box matches external_id, so narrow by that.
-            onNarrowPmid={() => narrowToPmid(isExternalSource(r) ? r.external_id : r.pmid)}
-            onFindOthers={() => findOthersLikeThis(r.wcm_author, (r.like_count ?? 0) + (isParkedView ? 0 : 1))}
-            // §2.6 hover card: `undefined` means "not asked yet / still in flight", which the
-            // card renders as a loading line. An answered cwid always has an entry.
-            priorNamesByCwid={priorNames}
-            onHoverIdentity={requestPriorNames}
-            // Session conflict if this curator just hit it; otherwise rehydrate the one
-            // persisted on the row, so a refresh (or a different curator) still sees why.
-            conflict={conflicts[r.id] ?? (r.accept_conflict ? {
-              kind: "dup" as const,
-              id: r.id, action: "accept", message: r.accept_conflict, matches: [],
-              wcm_author: r.wcm_author, top_name: r.top_name, ts: 0,
-            } : undefined)}
-            onClearConflict={() => clearConflict(r.id)}
-          />
-        ))}
-      </div>
-      )}
-
-      {/* pagination — the feed's, so it goes with the feed. A report is capped, not paged, and
-          a like view is the whole pile on one page (LIKE_PILE_CAP), so it has nothing to page. */}
-      {!reportView && !likeAuthor.trim() && !listError && (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 18, color: "#475569", fontSize: 13 }}>
-        <span style={{ fontVariantNumeric: "tabular-nums" }}>{count.toLocaleString()} authorships · page {page + 1} of {totalPages}</span>
-        <span style={{ display: "flex", gap: 8 }}>
-          <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} style={btn("ghost", page === 0)}>Previous</button>
-          <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)} style={btn("ghost", page + 1 >= totalPages)}>Next</button>
-        </span>
-      </div>
-      )}
-
-      {/* overflow menu: Snooze / Dismiss, plus Reject all for multi-candidate rows.
-          Single-candidate Reject is a primary button on the card itself, not buried here.
-          Multi-candidate's "none of them wrote it" is a real reject too — against every
-          candidate, not just top_cwid — so it belongs here, not the no-op Dismiss below.
-          "Assign to someone else…" is a SHORTCUT, not a new control (issue #937): it expands
-          the card and focuses the typed-cwid input <AssignOther> already renders, the same
-          input the "Evidence"/"Pick one" disclosure reveals. On a single-candidate row that
-          disclosure is the ONLY other item, and its label gives no hint an assign control
-          lives behind it — a two-item menu (Snooze/Dismiss) reads as "this is all there is",
-          which is exactly how the feature got reported as unshipped after #936 put it live.
-          "Show N others like this" (T5) mirrors the card's own ghost button — offered for every
-          row that has a server-computed like_count > 0, not just multi-candidate ones, and
-          hidden entirely (proactive) once there's nobody else to gather. */}
-      <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
-        {menu && !menu.row.single_candidate && (
-          <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "var(--pm-red)" }}>
-            <IconX size={14} style={{ marginRight: 8 }} /> Reject all
+      {/* the row's ⋯ menu (prototype markup ~1092-1099): evidence toggle, Assign to someone
+          else…, Snooze, Dismiss, each with its shortcut. Reject (Reject all on a
+          multi-candidate row) is the row's own ✕ now, and "Show N others like this" is the link
+          under the identity, so neither is repeated here. "Assign to someone else…" is a
+          SHORTCUT, not a new control (#937): it opens the row and focuses the typed-cwid input
+          <AssignOther> already renders. */}
+      <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}
+        PaperProps={{ style: { ...popoverPaper, width: 210 } }}
+        MenuListProps={{ dense: true, sx: { p: "6px", "& .MuiMenuItem-root": { fontSize: 13, minHeight: 0, p: "8px 10px", borderRadius: "6px", color: "var(--pm-foreground)", gap: 1 }, "& .MuiMenuItem-root:hover, & .MuiMenuItem-root.Mui-focusVisible": { bgcolor: "var(--pm-surface-2)" } } }}>
+        {menu && (
+          <MenuItem onClick={() => { const { id } = menu.row; setMenu(null); setExpanded((x) => (x === id ? null : id)); }}>
+            {expanded === menu.row.id ? "Hide evidence" : "Show evidence"}<MenuKey k="E" />
           </MenuItem>
         )}
         {menu && (
@@ -3752,12 +3718,7 @@ const AuthorshipsTabs = () => {
             Assign to someone else…
           </MenuItem>
         )}
-        {menu && (menu.row.like_count ?? 0) > 0 && (
-          <MenuItem onClick={() => { findOthersLikeThis(menu.row.wcm_author, (menu.row.like_count ?? 0) + (isParkedView ? 0 : 1)); setMenu(null); }}>
-            Show {menu.row.like_count} other{menu.row.like_count === 1 ? "" : "s"} like this
-          </MenuItem>
-        )}
-        <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
+        <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days<MenuKey k="S" /></MenuItem>
         <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")}>Dismiss</MenuItem>
       </Menu>
 
@@ -4144,6 +4105,35 @@ const CannedReportBody = ({ view, response, loading, error, expanded, onToggle }
 };
 
 // ---- card ----------------------------------------------------------------
+// ---- the table row (prototype markup ~957-1114) --------------------------------------------
+// Column widths shared by the header row and every row: checkbox | IO | author → identity |
+// article | actions (104px, set on the cell itself).
+const ROW_GRID = "20px 40px minmax(0,1.05fr) minmax(0,1.6fr) auto";
+const IO_TONES: Record<"slate" | "amber" | "red" | "muted", { bg: string; fg: string; bd: string }> = {
+  slate: { bg: "var(--pm-slate-tint)", fg: "var(--pm-slate)", bd: "var(--pm-slate-tint-border)" },
+  amber: { bg: "var(--pm-amber-tint)", fg: "var(--pm-amber)", bd: "var(--pm-amber-tint-border)" },
+  red: { bg: "var(--pm-red-tint)", fg: "var(--pm-red)", bd: "var(--pm-red-tint-border)" },
+  muted: { bg: "var(--pm-surface-2)", fg: "var(--pm-muted-foreground)", bd: "var(--pm-border)" },
+};
+// A shortcut key at the right end of a menu item.
+const MenuKey = ({ k }: { k: string }) => (
+  <span style={{ marginLeft: "auto", fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>{k}</span>
+);
+// Previous / Next in the table footer: the UI system's outline button at its xs size.
+const pagerBtn = (disabled: boolean): CSSProperties => ({
+  height: 26, padding: "0 10px", borderRadius: 6, border: "1px solid var(--pm-border-strong)", background: "#fff",
+  font: "inherit", fontSize: 12.5, fontWeight: 500, color: "var(--pm-foreground)",
+  cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1,
+});
+// The row's 30px icon buttons. Hover fills come from .pm-arow-* in globals.css.
+const rowActBtn = (kind: "accept" | "reject" | "more", disabled?: boolean): CSSProperties => ({
+  width: 30, height: 30, borderRadius: 6, display: "grid", placeItems: "center", padding: 0, flexShrink: 0,
+  cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1,
+  ...(kind === "accept" ? { border: "1px solid var(--pm-slate-tint-border)", background: "var(--pm-slate-tint)", color: "var(--pm-slate)" }
+    : kind === "reject" ? { border: "1px solid var(--pm-red-tint-border)", background: "var(--pm-red-tint)", color: "var(--pm-red)" }
+      : { border: "1px solid transparent", background: "none", color: "var(--pm-muted-foreground)" }),
+});
+
 interface CardProps {
   row: AuthorshipRow;
   statusView: "open" | "snoozed" | "dismissed";
@@ -4207,7 +4197,6 @@ const AuthorshipCard = ({
   // candidate_cwids_json does (a single-candidate row's JSON holds exactly that one entry).
   const topCand = isMulti ? undefined : parseCandidates(r.candidate_cwids_json)
     .find((c) => String(c.cwid || "").toLowerCase() === String(r.top_cwid || "").toLowerCase());
-  const meta = CLASS_META[r.classification || "absent"];
   // T4: `selectable` is the same predicate toggleSelect gates on — multi-candidate rows are now
   // checkbox-selectable too (open, non-scopus, bulk-assign only; see isBulkSelectable/
   // isMultiAssignEligible). It arrives as a prop, computed by the page from the real statusView.
@@ -4229,72 +4218,123 @@ const AuthorshipCard = ({
   };
   const closeIdentityHover = () => { cancelHover(); setIdentityHover(false); };
 
-  const cardStyle: CSSProperties = {
-    background: isSelected ? "var(--pm-slate-tint)" : "#fff",
-    border: "1px solid #e8edf2",
-    borderRadius: 10,
-    marginBottom: 11,
-    boxShadow: isFocused ? "0 0 0 2px var(--pm-slate)" : "0 1px 2px rgba(15,23,42,.04)",
-    transition: "box-shadow 150ms, background 150ms",
+  // One table row (prototype markup ~963-1114): checkbox | IO | author → identity | article |
+  // actions, separated by hairlines. The focused row gets a 3px slate spine and the surface-2
+  // fill. Hover still moves focus (onMouseEnter), so the keyboard acts on the row under the
+  // pointer, as before.
+  const rowStyle: CSSProperties = {
+    borderBottom: "1px solid var(--pm-border)",
+    borderLeft: `3px solid ${isFocused ? "var(--pm-slate)" : "transparent"}`,
+    background: isFocused ? "var(--pm-surface-2)" : "transparent",
     cursor: "pointer",
+    outline: "none",
     scrollMarginTop: "calc(var(--header-height, 52px) + 12px)", // see the expand-anchoring effect
   };
+  const badge = ioBadge(r);
+  const badgeTone = IO_TONES[badge.tone];
+  const badgeTitle = !r.top_cwid ? "No suggested identity"
+    : isMulti ? `Best of ${r.n_candidates ?? candidates.length} candidates · Identity-Only Score ${fmtScore(r.top_io_score)}`
+      : isAbsent ? (isExternalSource(r) ? `Not in PubMed, so there is no Identity-Only Score · match confidence ${confBand(r.top_confidence)}`
+        : `Never retrieved by ReCiter, so there is no Identity-Only Score · match confidence ${confBand(r.top_confidence)}`)
+        : `Identity-Only Score ${fmtScore(r.top_io_score)} · ${badge.band} confidence${statusView !== "dismissed" && r.top_fg_score != null ? ` · Authorship Score ${fmtScore(r.top_fg_score)}${r.top_fg_score < 30 ? " (below the 30 cut)" : ""}` : ""}`;
+  // What Accept can do on this row, and why not when it can't. Every disabled state is the same
+  // gate the old labelled buttons had; only the control changed.
+  const acceptBlock: string | null = isMulti ? (nothingToPick ? "No candidate to accept — open the row to look up the directory" : "Pick a candidate first — open the row to compare them")
+    : noSuggestion ? "No candidate to accept"
+      : topRetired ? `${r.top_cwid} is a retired CWID${r.top_superseded_by ? ` — assign it to ${r.top_superseded_by} instead` : ""}`
+        : noIdentity ? `${r.top_name || r.top_cwid} has no ReCiter identity, so there is nothing to add this authorship to — assign it to someone else`
+          : alreadyRejected ? `${r.top_name || r.top_cwid} already rejected this article on their own curation page`
+            : null;
+  // noSuggestion: the server has nobody to reject (409), so Reject goes with Accept.
+  const rejectBlock = noSuggestion ? "No candidate to reject" : null;
+  const affiliation = r.author_affiliation ? splitAffiliation(r.author_affiliation, WCM_RE) : null;
+  const dateText = formatRowDate(r.entrez_date);
+  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
   return (
-    <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus} onClick={onToggleExpand} style={cardStyle}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 15px" }}>
+    <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus}
+      data-arow={r.id} data-focused={isFocused ? "true" : "false"} data-multi={isMulti ? "true" : "false"}
+      data-expanded={isExpanded ? "true" : "false"}
+      title={isExpanded ? "Click to close" : "Click to show evidence and look up someone else"}
+      onClick={() => {
+        // Selecting text (copying a title) shouldn't toggle the row.
+        if (typeof window !== "undefined" && String(window.getSelection?.() || "")) return;
+        onToggleExpand();
+      }}
+      style={rowStyle}>
+      <div style={{ display: "grid", gridTemplateColumns: ROW_GRID, gap: 14, alignItems: "start", padding: "13px 16px", fontSize: 14, lineHeight: 1.45, color: "var(--pm-foreground)" }}>
         {/* selection checkbox — single-candidate open rows with a ReCiter identity, PLUS
             (T4) open, non-scopus multi-candidate rows, for bulk-assign only. See `selectable`. */}
-        <input type="checkbox" disabled={!selectable}
-          checked={isSelected} onChange={onToggleSelect} onClick={(e) => e.stopPropagation()}
-          aria-label={`select ${r.wcm_author || ""}`}
-          style={{ width: 16, height: 16, marginTop: 3, accentColor: "var(--pm-slate)", cursor: selectable ? "pointer" : "default", flex: "none", opacity: selectable ? 1 : 0.3 }} />
+        <div style={{ paddingTop: 6 }}>
+          {selectable ? (
+            <button type="button" role="checkbox" aria-checked={isSelected} aria-label={`select ${r.wcm_author || ""}`}
+              onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
+              style={{ border: 0, background: "none", padding: 0, cursor: "pointer", display: "block" }}>
+              <span style={{
+                width: 16, height: 16, boxSizing: "border-box", borderRadius: 4, display: "grid", placeItems: "center",
+                color: "var(--pm-slate)", border: `1.5px solid ${isSelected ? "var(--pm-slate)" : "var(--pm-muted-foreground)"}`,
+                background: isSelected ? "var(--pm-slate-tint)" : "#fff",
+              }}>
+                {isSelected && <IconCheck size={11} style={{ strokeWidth: 3 }} />}
+              </span>
+            </button>
+          ) : null}
+        </div>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* L1 — WCM author + position */}
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 15, fontWeight: 600, color: "#0f172a" }}>{r.wcm_author}</span>
-            <span style={{ fontSize: 12, color: "#94a3b8" }}>{r.author_position_label} author</span>
-            {/* §2.6's co-author pill. The mockup labels this "+N more WCM on this paper", which
-                this number does not mean and must not claim: pmid_sibling_count counts sibling
-                authorship_review rows in the ACTIVE STATUS VIEW only, so a co-author already
-                accepted onto their identity — the commonest case on a well-worked paper — is
-                not in it. Rather than ship the mockup's wording over a number that would
-                understate the paper's WCM authors, the label says what it counts. Fixing the
-                count itself needs a person_article join the list query does not have. */}
+        {/* IO badge + evidence toggle */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+          <div data-io title={badgeTitle} style={{
+            width: "100%", boxSizing: "border-box", height: 28, borderRadius: 6, display: "grid", placeItems: "center",
+            fontSize: 13, fontWeight: 600, fontVariantNumeric: "tabular-nums", cursor: "help",
+            background: badgeTone.bg, color: badgeTone.fg, border: `1px solid ${badgeTone.bd}`,
+          }}>{badge.text}</div>
+          <button type="button" data-ev className="pm-arow-ev" onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+            aria-expanded={isExpanded} aria-label={isExpanded ? "Hide evidence (E)" : "Show evidence (E)"}
+            title={isExpanded ? "Hide evidence (E)" : "Show evidence (E)"}
+            style={{
+              width: 24, height: 24, borderRadius: 6, display: "grid", placeItems: "center", padding: 0, cursor: "pointer",
+              border: `1px solid ${isExpanded ? "var(--pm-slate-tint-border)" : "transparent"}`,
+              background: isExpanded ? "var(--pm-slate-tint)" : "transparent",
+              color: isExpanded ? "var(--pm-slate)" : "var(--pm-muted-foreground)",
+            }}>
+            <IconZoom size={14} />
+          </button>
+        </div>
+
+        {/* author → suggested identity */}
+        <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 600, color: "var(--pm-foreground)" }}>{r.wcm_author}</span>
+            {r.author_position_label && <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>{r.author_position_label} author</span>}
+            {/* §2.6's co-author pill. pmid_sibling_count counts sibling authorship_review rows
+                in the ACTIVE STATUS VIEW only, so a co-author already accepted onto their
+                identity is not in it; the label says what it counts. */}
             {(r.pmid_sibling_count ?? 1) > 1 && (
               <Tip title="Other authorship rows for this paper still sitting in the queue you're viewing. Co-authors already assigned to an identity are NOT counted, so this is not the paper's full WCM author list. Click to narrow the queue to this PMID." placement="top" arrow>
                 <button onClick={(e) => { e.stopPropagation(); onNarrowPmid(); }} style={{
-                  display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid var(--pm-slate-tint-border)", background: "var(--pm-slate-tint)",
-                  color: "var(--pm-slate)", borderRadius: 12, padding: "1px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  font: "inherit", display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid var(--pm-border)", background: "#fff",
+                  color: "var(--pm-muted-foreground)", borderRadius: 999, padding: "0 7px", height: 18, fontSize: 11, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap",
                 }}>
-                  <IconUsers size={12} /> +{(r.pmid_sibling_count as number) - 1} more in this queue
+                  <IconUsers size={11} /> +{(r.pmid_sibling_count as number) - 1} more in this queue
                 </button>
               </Tip>
             )}
           </div>
 
-          {/* L2 — proposed identity */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
-            <span style={{ color: "#94a3b8" }}>→</span>
-            {isMulti ? (
-              <span style={{ color: "#94a3b8" }}>{nothingToPick ? "no WCM candidate proposed — look up the directory" : <>choose among {r.n_candidates} WCM homonyms</>}</span>
-            ) : noSuggestion ? (
-              <span style={{ fontStyle: "italic", color: "#94a3b8" }}>No suggested identity — assign one below</span>
-            ) : (
-              <>
-                {/* §2.6: the proposed identity's name + cwid carry the 296px hover card. The
-                    wrapper is the hover target AND the positioning context for the popup. */}
-                <span onMouseEnter={openIdentityHover} onMouseLeave={closeIdentityHover}
-                  style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 600, color: "#0f172a" }}>{r.top_name}</span>
-                  {nameSourceBadge(topCand)}
-                  {r.top_cwid && (
-                    <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      title={`Open ${r.top_name || r.top_cwid}'s curate profile`}
-                      style={{ color: "var(--pm-slate)", textDecoration: "none" }}>{r.top_cwid}</a>
-                  )}
+          {isMulti ? (
+            <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>
+              {nothingToPick ? "No WCM candidate proposed · look up the directory" : `${r.n_candidates ?? candidates.length} people share this name · pick one`}
+            </span>
+          ) : noSuggestion ? (
+            <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)", paddingLeft: 16 }}>→ No suggested identity · assign one below</span>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", minWidth: 0 }}>
+                <span style={{ color: "var(--pm-muted-foreground)", fontSize: 12 }}>→</span>
+                {/* §2.6: the proposed identity's name carries the hover card. The wrapper is the
+                    hover target AND the positioning context for the popup. */}
+                <span onMouseEnter={openIdentityHover} onMouseLeave={closeIdentityHover} style={{ position: "relative", display: "inline-block" }}>
+                  <span data-idname style={{ fontWeight: 600, color: "var(--pm-slate)", borderBottom: "1px dotted var(--pm-slate-tint-border)", cursor: "help" }}>{r.top_name}</span>
                   {identityHover && (
                     <IdentityHoverCard
                       subject={{ name: r.top_name, cwid: r.top_cwid, dept: r.top_dept,
@@ -4303,227 +4343,165 @@ const AuthorshipCard = ({
                       priorNames={r.top_cwid ? priorNamesByCwid[r.top_cwid] : undefined} byline={r.wcm_author} />
                   )}
                 </span>
-                <span style={{ color: "#94a3b8" }}>· {r.top_person_type}{r.top_dept ? `, ${r.top_dept}` : ""}</span>
-              </>
-            )}
-            {/* T5: "Show N others like this" — proactive (only rendered once the server-side
-                like_count says there IS someone) and variant-tolerant (the normalized-key match
-                behind like_count catches "Bernard J. Park" starting from "Bernard Park", which
-                T4's free-text-box version could not). Every open card, not just multi-candidate
-                ones — a curator working a single-candidate row may still want the group. */}
-            {statusView === "open" && likeCount > 0 && (
-              <Tip title={`Filter the queue to ${likeCount} other open row${likeCount === 1 ? "" : "s"} for "${r.wcm_author}" (matches middle-initial and similar byline variants)`} placement="top" arrow>
-                <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onFindOthers(); }}>
-                  Show {likeCount} other{likeCount === 1 ? "" : "s"} like this
-                </button>
+                {r.top_cwid && (
+                  <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer" onClick={stop}
+                    title={`Open ${r.top_name || r.top_cwid}'s curate profile`}
+                    style={{ fontSize: 12, color: "var(--pm-slate)", textDecoration: "none" }}>{r.top_cwid}</a>
+                )}
+                {nameSourceBadge(topCand)}
+              </div>
+              {roleLine(r.top_person_type, r.top_dept, r.top_institution) && (
+                <span data-role style={{ fontSize: 12, color: "var(--pm-muted-foreground)", paddingLeft: 16 }}>
+                  {roleLine(r.top_person_type, r.top_dept, r.top_institution)}
+                </span>
+              )}
+              {/* Why this row can't be accepted, in words, where the prototype puts its
+                  "Not in ReCiter yet" line. #1012 (retired CWID) is checked first: a retired cwid
+                  usually still HAS a ReCiter identity. The no-identity line keeps the app's
+                  assign path (Decision 1): assigning records the decision on the row but does not
+                  create an identity, so Accept can't stand in for it. */}
+              {statusView === "open" && topRetired && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-red)", paddingLeft: 16 }}>
+                  Retired CWID
+                  {r.top_superseded_by && (
+                    <> · <a href="#" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignOther(); }}
+                      style={{ color: "var(--pm-slate)" }}>assign to {r.top_superseded_by}</a></>
+                  )}
+                </span>
+              )}
+              {statusView === "open" && !topRetired && noIdentity && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-amber)", paddingLeft: 16 }}
+                  title="This person has no row in ReCiter's Identity table, so there is nothing to add this authorship to.">
+                  Not in ReCiter yet · <a href="#" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAssignOther(); }}
+                    style={{ color: "var(--pm-amber)" }}>assign to someone else</a>
+                </span>
+              )}
+              {statusView === "open" && !topRetired && !noIdentity && alreadyRejected && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-red)", paddingLeft: 16 }}>
+                  Already rejected by this person
+                </span>
+              )}
+            </>
+          )}
+
+          {/* #990: another WCM identity already holds ACCEPTED at this row's exact byline slot. */}
+          {(r.accepted_by?.length ?? 0) > 0 && (
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-amber)", paddingLeft: 16 }}>
+              Already accepted by {r.accepted_by!.map((a) => `${a.name} (${a.cwid})`).join(", ")}
+            </span>
+          )}
+
+          {/* T5: "Show N others like this" — only once the server-side like_count says there IS
+              someone, on every open row. */}
+          {statusView === "open" && likeCount > 0 && (
+            <a href="#" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onFindOthers(); }}
+              title={`Filter the queue to ${likeCount} other open row${likeCount === 1 ? "" : "s"} for "${r.wcm_author}" (matches middle-initial and similar byline variants)`}
+              style={{ fontSize: 12, marginLeft: 16, width: "fit-content", color: "var(--pm-slate)", textDecoration: "none" }}>
+              Show {likeCount} other{likeCount === 1 ? "" : "s"} like this
+            </a>
+          )}
+        </div>
+
+        {/* article */}
+        <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+          <span data-title title={stripHtml(r.title)} style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.4, color: "var(--pm-foreground)", ...clampStyle(2) }}
+            dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.title) }} />
+          {/* journal · date · pub type. entrez_date is the NCBI index date on PubMed rows and the
+              cover / publication date on the other lanes (#927), so its label stays in the tip. */}
+          <span data-meta style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>
+            {r.journal && <em dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} />}
+            {dateText && (
+              <Tip title={dateLabel(r.source).tip} placement="top" arrow>
+                <span style={{ cursor: "help" }}>{r.journal ? " · " : ""}{dateLabel(r.source).label === "Indexed" ? "Indexed " : ""}{dateText}</span>
               </Tip>
             )}
+            {r.pub_type && <>{(r.journal || dateText) ? " · " : ""}{r.pub_type}</>}
+            {!isExternalSource(r) && r.pmid != null && (
+              <span onClick={stop} style={{ display: "inline-flex", verticalAlign: "middle", marginLeft: 8, fontSize: 12 }}><PmidCite pmid={r.pmid} /></span>
+            )}
+          </span>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: "var(--pm-muted-foreground)", minWidth: 0 }}>
+            <span data-src style={{
+              height: 18, padding: "0 6px", display: "inline-flex", alignItems: "center", borderRadius: 4, fontSize: 10.5, fontWeight: 600,
+              letterSpacing: "0.02em", whiteSpace: "nowrap", flexShrink: 0,
+              background: isExternalSource(r) ? "var(--pm-amber-tint)" : "var(--pm-slate-tint)",
+              color: isExternalSource(r) ? "var(--pm-amber)" : "var(--pm-slate)",
+            }}>{sourceBadgeText(r.source)}</span>
+            <span title={r.author_affiliation || ""} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+              {affiliation ? (
+                <>{affiliation.pre}{affiliation.hit && <strong style={{ fontWeight: 600, color: "var(--pm-slate)" }}>{affiliation.hit}</strong>}{affiliation.post}</>
+              ) : "No affiliation on the byline"}
+            </span>
           </div>
-
-          {/* Scopus source markers — this lane is not-in-PubMed, so no production/IO score exists */}
-          {isExternalSource(r) && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
-              <span style={scopusBadgeStyle}>{r.source === "openalex" ? "OpenAlex" : "Scopus"}</span>
-              <span style={notInPubmedPillStyle}>Not in PubMed</span>
-              {r.pub_type && <Chip kind="neutral" style={{ fontSize: 10, padding: "1px 7px" }}>{r.pub_type}</Chip>}
+          {/* Scopus / OpenAlex byline — full author list from authors_json, one quiet line. */}
+          {isExternalSource(r) && formatAuthorsJson(r.authors_json) && (
+            <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={formatAuthorsJson(r.authors_json)}>
+              {formatAuthorsJson(r.authors_json)}
+            </span>
+          )}
+          {/* exact-DOI duplicate precheck, and the producer's PubMed-twin heuristic (#951): two
+              separate signals. The twin chip clears once a curator records a verdict. */}
+          {(r.dup_flag || (r.matched_pmid != null && !r.matched_pmid_verdict)) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
               {r.dup_flag && (
                 <Tip title={r.dup_reason || "Possible duplicate — already added as an external article"} placement="top" arrow>
                   <span><Chip kind="warn"><IconAlert size={12} /> Possible duplicate</Chip></span>
                 </Tip>
               )}
-            </div>
-          )}
-          {!isExternalSource(r) && r.dup_flag && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
-              <Tip title={r.dup_reason || "Possible duplicate — already added as an external article"} placement="top" arrow>
-                <span><Chip kind="warn"><IconAlert size={12} /> Possible duplicate</Chip></span>
-              </Tip>
-            </div>
-          )}
-
-          {/* PubMed-twin flag — a SEPARATE producer signal from dup_flag above (that one is an
-              exact-DOI precheck against external_article) and from accept_conflict (a live 409
-              from a previous Accept attempt): the producer's heuristic title+surname PubMed
-              search for a Scopus row (or an unverdicted doi/scopus match). Clears once a
-              curator sets a verdict — "Same paper" dismisses the row, "Different papers" sets
-              matched_pmid_verdict='distinct' and this chip stops rendering for it. */}
-          {r.matched_pmid != null && !r.matched_pmid_verdict && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
-              <Tip title={`The producer found a PubMed record that may be the same paper as this ${externalSourceLabel(r)} row (a heuristic title+author search, not a confirmed match). Expand this card to compare and record a verdict.`} placement="top" arrow>
-                <span><Chip kind="warn"><IconAlert size={12} /> PubMed twin? {
-                  r.matched_pmid_source === "doi" ? "DOI match"
-                    : r.matched_pmid_source === "scopus" ? "Scopus link"
-                    : "title match"
-                }</Chip></span>
-              </Tip>
-            </div>
-          )}
-
-          {/* #990: another WCM identity already holds ACCEPTED at this row's exact byline slot
-              (identityConflictWhere()'s own rival, named). Same amber box register as
-              MultiEvidence's "no department" line below — fires on every row shape, single- or
-              multi-candidate, since accepted_by is computed per (pmid, author_position), not
-              per n_candidates. */}
-          {(r.accepted_by?.length ?? 0) > 0 && (
-            <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "var(--pm-amber-tint)", color: "var(--pm-amber)", marginTop: 5 }}>
-              <IconAlert size={15} style={{ marginTop: 1 }} />
-              <span>Already accepted by {r.accepted_by!.map((a) => `${a.name} (${a.cwid})`).join(", ")}</span>
-            </div>
-          )}
-
-          {/* Scopus byline — full author list from authors_json, quiet/muted like the L3 meta line */}
-          {isExternalSource(r) && formatAuthorsJson(r.authors_json) && (
-            <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3, ...clampStyle(2) }} title={formatAuthorsJson(r.authors_json)}>
-              {formatAuthorsJson(r.authors_json)}
-            </div>
-          )}
-
-          {/* L3 — paper meta (quiet). Title wraps to two lines, then venue and date get a line
-              of their own so a long title can no longer push them out of view (#927). PMID link
-              now lives in the evidence panel. */}
-          <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4, ...clampStyle(2) }} title={stripHtml(r.title)}>
-            <span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.title) }} />
-          </div>
-          {/* §2.6's meta line: journal · Indexed date · PMID + copy. The PMID moved up here
-              from the evidence panel, where it was only reachable by expanding the card — a
-              curator cross-checking in PubMed had to open a row to get the number. */}
-          {(r.journal || r.entrez_date || (!isExternalSource(r) && r.pmid)) && (
-            <div style={{ display: "flex", alignItems: "baseline", gap: 9, flexWrap: "wrap", fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>
-              {(r.journal || r.entrez_date) && (
-                <span>
-                  {r.journal && <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} /></i>}
-                  {r.entrez_date && (
-                    <Tip title={dateLabel(r.source).tip} placement="top" arrow>
-                      <span style={{ cursor: "help" }}>{r.journal ? " · " : ""}{dateLabel(r.source).label} {r.entrez_date}</span>
-                    </Tip>
-                  )}
-                </span>
+              {r.matched_pmid != null && !r.matched_pmid_verdict && (
+                <Tip title={`The producer found a PubMed record that may be the same paper as this ${externalSourceLabel(r)} row (a heuristic title+author search, not a confirmed match). Open this row to compare and record a verdict.`} placement="top" arrow>
+                  <span><Chip kind="warn"><IconAlert size={12} /> PubMed twin? {
+                    r.matched_pmid_source === "doi" ? "DOI match"
+                      : r.matched_pmid_source === "scopus" ? "Scopus link"
+                      : "title match"
+                  }</Chip></span>
+                </Tip>
               )}
-              {!isExternalSource(r) && r.pmid != null && <PmidCite pmid={r.pmid} />}
             </div>
           )}
-
-          {/* L4 — full affiliation (WCM highlighted), wraps to multiple lines + disclosure */}
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginTop: 7, fontSize: 12.5, color: "#475569" }}>
-            <span style={{ display: "inline-flex", alignItems: "flex-start", gap: 6, minWidth: 0, flex: 1 }}>
-              <IconPin size={15} style={{ color: "#94a3b8", marginTop: 2 }} />
-              <span>
-                {r.author_affiliation ? highlightAffiliation(r.author_affiliation) : "—"}
-              </span>
-            </span>
-            <button onClick={(e) => { e.stopPropagation(); onToggleExpand(); }} aria-expanded={isExpanded} style={{
-              display: "inline-flex", alignItems: "center", gap: 4, marginLeft: "auto", background: "none", border: "none",
-              font: "inherit", fontSize: 12, fontWeight: 600, color: isExpanded ? "var(--pm-slate)" : "#475569", cursor: "pointer",
-              padding: "2px 4px", borderRadius: 5, flex: "none",
-            }}>
-              {nothingToPick ? "Look up" : isMulti ? "Pick one" : "Evidence"} {isExpanded ? <IconChevD size={13} /> : <IconChevR size={13} />}
-            </button>
-          </div>
         </div>
 
-        {/* right rail: score block + primary action + overflow */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "none" }}>
-          {/* §2.6 hides the AS diagnosis "once the row is resolved". In this queue the only
-              resolved rows on screen are the Dismissed view's (accept/reject/assign remove the
-              row outright; snoozed rows are not resolved), so that is the one view it hides in. */}
-          <ScoreRail row={r} isMulti={isMulti} isAbsent={isAbsent} candidates={candidates}
-            resolved={statusView === "dismissed"} />
+        {/* actions: ✓ ✕ ⋯ in the open queue, Reopen in the parked ones */}
+        <div data-actions style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, width: 104 }}>
           {statusView === "open" ? (
-            isMulti ? (
-              <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>{nothingToPick ? "Look up" : "Pick one"} <IconChevR size={13} /></button>
-            ) : noSuggestion ? (
-              // #938 — top_cwid null: no candidate to accept OR reject (both 409 server-side
-              // with nothing proposed), so neither button is offered. "Someone else" below
-              // (AssignOther, rendered for every non-multi row) stays the one live action.
-              <Tip title="ReCiterDB's matcher no longer matches this byline to any WCM identity — there is no candidate here to accept or reject. Assign it to someone below, or leave it open." placement="top" arrow>
-                <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No suggested identity</span>
-              </Tip>
-            ) : topRetired ? (
-              // #1012 — ED has RETIRED the cwid the producer proposed. Ahead of noIdentity on
-              // purpose: a retired cwid usually still HAS a ReCiter Identity, so that branch
-              // would not catch it and Accept would be offered right up until the server's 409.
-              // Reject stays live (the byline genuinely may not be this person's), and the
-              // successor is named with the same Assign… shortcut the no-identity branch uses,
-              // so the one-click path is to the live cwid rather than to a dead end.
-              <>
-                <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
-                  <IconX size={14} /> Reject
-                </button>
-                <Tip title={`${r.top_cwid} is a retired CWID in the WCM directory${r.top_superseded_by ? ` — ${r.top_superseded_by} replaced it. Click to assign this authorship to ${r.top_superseded_by}.` : ", and no replacement is on record."}`} placement="top" arrow>
-                  <span
-                    style={{ ...alreadyRejectedPillStyle, ...(r.top_superseded_by ? { cursor: "pointer" } : null) }}
-                    onClick={(e) => { e.stopPropagation(); if (r.top_superseded_by) onAssignOther(); }}
-                  >
-                    Retired CWID{r.top_superseded_by ? ` — use ${r.top_superseded_by}` : ""}
-                  </span>
-                </Tip>
-                {r.top_superseded_by && (
-                  <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAssignOther(); }}>
-                    Assign…
-                  </button>
-                )}
-              </>
-            ) : noIdentity ? (
-              <>
-                <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
-                  <IconX size={14} /> Reject
-                </button>
-                {/* T3 — the pill used to be inert (Accept has nothing to add this authorship
-                    to). It's the same "Assign to someone else…" shortcut as the overflow menu:
-                    expand the card and focus AssignOther's typed-cwid input. A ghost "Assign…"
-                    button sits next to it so the affordance is visible without opening ⋯. */}
-                <Tip title={`${r.top_name || r.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Click to assign this authorship to someone else instead.`} placement="top" arrow>
-                  <span
-                    style={{ ...noIdentityPillStyle, cursor: "pointer" }}
-                    title="Assign this authorship — expand and pick or type a person"
-                    onClick={(e) => { e.stopPropagation(); onAssignOther(); }}
-                  >
-                    No ReCiter identity
-                  </span>
-                </Tip>
-                <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAssignOther(); }}>
-                  Assign…
-                </button>
-              </>
-            ) : alreadyRejected ? (
-              <>
-                <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
-                  <IconX size={14} /> Reject
-                </button>
-                <Tip title={`${r.top_name || r.top_cwid} already rejected this exact article via their own curation page, so this authorship can't be accepted.`} placement="top" arrow>
-                  <span style={alreadyRejectedPillStyle} onClick={(e) => e.stopPropagation()}>Already rejected by this person</span>
-                </Tip>
-              </>
-            ) : (
-              <>
-                <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
-                  <IconX size={14} /> Reject
-                </button>
-                <button style={btn("accept", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("accept"); }}>
-                  <IconCheck /> Accept
-                </button>
-              </>
-            )
+            <>
+              <button type="button" className="pm-arow-accept" aria-label={isMulti ? "Assign" : "Accept"}
+                title={acceptBlock || "Accept (Y)"} disabled={acting || !!acceptBlock}
+                onClick={(e) => { e.stopPropagation(); onAction("accept"); }}
+                style={rowActBtn("accept", acting || !!acceptBlock)}>
+                <IconCheck size={14} style={{ strokeWidth: 2.5 }} />
+              </button>
+              <button type="button" className="pm-arow-reject" aria-label={isMulti ? "Reject all" : "Reject"}
+                title={rejectBlock || (isMulti ? "Reject all candidates (N)" : "Reject (N)")} disabled={acting || !!rejectBlock}
+                onClick={(e) => { e.stopPropagation(); onAction("reject"); }}
+                style={rowActBtn("reject", acting || !!rejectBlock)}>
+                <IconX size={14} style={{ strokeWidth: 2.5 }} />
+              </button>
+              <button type="button" className="pm-arow-more" aria-label="More actions" title="More actions" disabled={acting}
+                onClick={(e) => { e.stopPropagation(); onMenu(e.currentTarget); }}
+                style={rowActBtn("more", acting)}>
+                <IconMore size={16} />
+              </button>
+            </>
           ) : (
-            <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reopen"); }}>Reopen</button>
-          )}
-          {statusView === "open" && (
-            <button style={iconBtn(acting)} disabled={acting} aria-label="More actions"
-              onClick={(e) => { e.stopPropagation(); onMenu(e.currentTarget); }}><IconMore /></button>
+            <button type="button" disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reopen"); }}
+              style={{
+                height: 26, padding: "0 10px", borderRadius: 6, border: "1px solid var(--pm-border-strong)", background: "#fff",
+                font: "inherit", fontSize: 12.5, fontWeight: 500, color: "var(--pm-foreground)", cursor: acting ? "default" : "pointer", opacity: acting ? 0.5 : 1,
+              }}>Reopen</button>
           )}
         </div>
       </div>
-
       {/* snoozed wake-time hint */}
       {statusView === "snoozed" && r.snooze_until && (
-        <div style={{ padding: "0 15px 10px 43px", fontSize: 11, color: "#94a3b8" }}>Wakes {r.snooze_until}</div>
+        <div style={{ padding: "0 16px 10px 104px", fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>Wakes {r.snooze_until}</div>
       )}
 
       {/* possible-duplicate conflict — anchored to THIS card (never a global toast that can
           drift over an unrelated one), stays up until the curator acts, names who it's for. */}
       {conflict && (
         <div onClick={(e) => e.stopPropagation()} style={{
-          margin: "0 15px 12px 43px", padding: "10px 12px", borderRadius: 8,
+          margin: "0 16px 12px 104px", padding: "10px 12px", borderRadius: 8,
           background: "var(--pm-amber-tint)", border: "1px solid var(--pm-amber-tint-border)", fontSize: 12.5, color: "var(--pm-amber)",
         }}>
           <div style={{ fontWeight: 700, marginBottom: 3 }}>
@@ -4567,7 +4545,7 @@ const AuthorshipCard = ({
 
       {/* expanded evidence / pick-one */}
       {isExpanded && (
-        <div style={{ padding: "0 15px 14px 43px", fontSize: 13, color: "#475569" }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ margin: "0 16px 12px 104px", fontSize: 13, color: "var(--pm-foreground)", cursor: "default" }}>
           {isMulti ? (
             <MultiEvidence row={r} candidates={candidates} pickedCwid={pickedCwid} acting={acting}
               onPick={onPick} onAction={onAction}
@@ -4614,81 +4592,6 @@ const AuthorshipCard = ({
         </div>
       )}
     </article>
-  );
-};
-
-// §2.6's score stack: one badge, with the AS diagnosis in 11.5px beneath it (mockup:401-416).
-// The badge SHAPE is the mockup's for every branch; its colour thresholds are this page's own
-// existing ones (ioColor: >= 90 / >= 50), not the mockup's fixture, so a row that reads green
-// today still reads green — the redesign restyles the block, it does not re-grade the queue.
-const ioBadgeColors = (v?: number): { bg: string; fg: string } => (
-  v == null ? { bg: "#f2f0ec", fg: "#6b7484" }
-    : v >= 90 ? { bg: "var(--pm-slate-tint)", fg: "var(--pm-slate)" }
-      : v >= 50 ? { bg: "var(--pm-amber-tint)", fg: "var(--pm-amber)" }
-        : { bg: "#f2f0ec", fg: "#6b7484" }
-);
-const scoreBadgeStyle = (bg: string, fg: string): CSSProperties => ({
-  display: "inline-block", fontSize: 12.5, fontWeight: 600, padding: "3px 9px", borderRadius: 999,
-  whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", background: bg, color: fg,
-});
-
-// right-rail score block
-const ScoreRail = ({ row: r, isMulti, isAbsent, candidates, resolved }: { row: AuthorshipRow; isMulti: boolean; isAbsent: boolean; candidates: Candidate[]; resolved?: boolean }) => {
-  // #938 — top_io_score is not part of ReCiterDB#177's null sweep, so without this branch a
-  // no-suggestion row (top_cwid null) would fall through to the plain numeric score below,
-  // a real coloured score attached to no candidate at all. Same muted palette as the
-  // "No ReCiter identity" pill (noIdentityPillStyle) — a different fact, same "nothing to
-  // act on here" register.
-  if (!r.top_cwid) {
-    return (
-      <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={scoreBadgeStyle("#f2f0ec", "#6b7484")}>No suggestion</span>
-      </div>
-    );
-  }
-  if (isMulti) {
-    const total = r.n_candidates ?? candidates.length;
-    return (
-      <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={scoreBadgeStyle("var(--pm-amber-tint)", "var(--pm-amber)")}>{total} candidates</span>
-        {r.top_io_score != null && (
-          <span style={{ display: "block", fontSize: 11.5, color: "#5c6474", marginTop: 2, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-            top IO {fmtScore(r.top_io_score)}
-          </span>
-        )}
-      </div>
-    );
-  }
-  if (isAbsent) {
-    const scopus = isExternalSource(r);
-    return (
-      <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={scoreBadgeStyle(scopus ? "var(--pm-slate-tint)" : "var(--pm-amber-tint)", scopus ? "var(--pm-slate)" : "var(--pm-amber)")}>
-          {scopus ? "Not in PubMed" : "Never retrieved"}
-        </span>
-        <span style={{ display: "block", fontSize: 11.5, color: "#5c6474", marginTop: 2, textAlign: "right" }}>
-          conf: {confBand(r.top_confidence)}
-        </span>
-      </div>
-    );
-  }
-  const io = ioBadgeColors(r.top_io_score);
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, minWidth: 64 }}>
-      <Tip title="Identity-Only score — authorship likelihood from identity evidence alone (name, affiliation, cohort), ignoring curator feedback (0-100)." placement="left" arrow>
-        <span style={{ ...scoreBadgeStyle(io.bg, io.fg), cursor: "help" }}>IO {fmtScore(r.top_io_score)}</span>
-      </Tip>
-      {/* AS = ReCiter's production authorship score, the diagnosis under the trusted signal.
-          Amber below 70 (mockup:763-765). Hidden once the row is resolved — there is no
-          decision left for it to inform. */}
-      {!resolved && r.top_fg_score != null && (
-        <Tip title="AS — ReCiter authorship score (production model), 0-100. Below 30 means production buried this person." placement="left" arrow>
-          <span style={{ fontSize: 11.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", cursor: "help", color: r.top_fg_score < 70 ? "var(--pm-amber)" : "#5c6474" }}>
-            AS {fmtScore(r.top_fg_score)}
-          </span>
-        </Tip>
-      )}
-    </div>
   );
 };
 
