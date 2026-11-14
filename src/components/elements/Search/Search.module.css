@@ -283,16 +283,24 @@
   border-radius: 2px;
 }
 
+/* One line: the title ellipsizes, the CWID keeps its full width. */
 .personSub {
+  display: flex;
+  min-width: 0;
   margin-top: 2px;
   font-size: 12.5px;
   color: var(--pm-muted-foreground);
   white-space: nowrap;
+}
+
+.personTitle {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .personCwid {
+  flex: none;
   font-variant-numeric: tabular-nums;
 }
 
@@ -385,13 +393,189 @@
   border: 0;
 }
 
-.noitemsList {
+/* ── EMPTY STATE ── centered in the card, 48px padding. */
+.table tbody tr.emptyRow:hover {
+  background: transparent;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 16px;
   text-align: center;
-  margin: 10px 0px;
-  padding: 0px;
+}
+
+.emptyText {
+  margin: 0;
   font-size: 14px;
-  font-weight: 400;
   color: var(--pm-muted-foreground);
+}
+
+/* Pasted CWID list with misses: one muted line between the header and the table. */
+.notFound {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--pm-border);
+  background: var(--pm-amber-tint);
+  font-size: 13px;
+  color: var(--pm-foreground);
+  overflow-wrap: anywhere;
+}
+
+.notFoundLead {
+  font-weight: 600;
+}
+
+.notFoundIds {
+  font-variant-numeric: tabular-nums;
+}
+
+.resultsLoading {
+  color: var(--pm-muted-foreground);
+}
+
+/* ── LOADING ── skeleton rows, the same shimmer as the Reports skeleton cards. */
+@keyframes peopleShimmer {
+  0%   { background-position: -800px 0; }
+  100% { background-position:  800px 0; }
+}
+
+.table tbody tr.skeletonRow:hover {
+  background: transparent;
+}
+
+.skLine,
+.skPill,
+.skActions {
+  border-radius: 3px;
+  background: linear-gradient(90deg, #f0ece6 25%, #e6e1d9 50%, #f0ece6 75%);
+  background-size: 1600px 100%;
+  animation: peopleShimmer 1.6s ease-in-out infinite;
+}
+
+.skLine {
+  height: 11px;
+  max-width: 100%;
+}
+
+.skLine + .skLine {
+  margin-top: 7px;
+}
+
+.skPill {
+  width: 28px;
+  height: 18px;
+  margin-left: auto;
+  border-radius: var(--radius-pill);
+}
+
+.skActions {
+  width: 132px;
+  max-width: 100%;
+  height: 28px;
+  margin-left: auto;
+  border-radius: var(--radius-md);
+}
+
+.skeletonRow:nth-child(4) { opacity: 0.8; }
+.skeletonRow:nth-child(5) { opacity: 0.6; }
+.skeletonRow:nth-child(6) { opacity: 0.4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .skLine,
+  .skPill,
+  .skActions {
+    animation: none;
+  }
+}
+
+/* Shown only at narrow widths (below). */
+.instUnder,
+.pendingCaption {
+  display: none;
+}
+
+/* ── ABOUT 900px ── Institution moves under Organization (four columns). */
+@media (max-width: 1024px) {
+  .table col.colInstW,
+  .table th.colInst,
+  .table td.colInst {
+    display: none;
+  }
+
+  .colOrgW { width: 30%; }
+
+  .instUnder {
+    display: block;
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: var(--pm-muted-foreground);
+  }
+}
+
+/* ── UNDER 640px ── each row becomes a stacked card: name block, affiliation, then the
+   pending pill and the actions on one line. */
+@media (max-width: 640px) {
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  .table colgroup,
+  .table thead {
+    display: none;
+  }
+
+  .table tbody tr {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "name name"
+      "org org"
+      "pending actions";
+    gap: 6px 12px;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--pm-border);
+  }
+
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table tbody td {
+    display: block;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .table tbody td.colName { grid-area: name; }
+  .table tbody td.colOrg { grid-area: org; }
+  .table tbody td.colPending { grid-area: pending; text-align: left; }
+  .table tbody td.colActions { grid-area: actions; }
+
+  /* No pending column for this role: the actions take the whole last line. */
+  .table tbody tr:not(:has(td.colPending)) td.colActions {
+    grid-column: 1 / -1;
+  }
+
+  .table tbody tr.emptyRow,
+  .table tbody tr.emptyRow td {
+    display: block;
+    padding: 0;
+  }
+
+  .pendingCaption {
+    display: inline;
+    margin-left: 4px;
+    font-size: 12px;
+    color: var(--pm-muted-foreground);
+  }
+
+  .resultsHeader {
+    padding: 12px;
+  }
 }
 
 /* List fetch failed: message and Retry in place of the results. */

@@ -9,7 +9,6 @@ import { useSession } from 'next-auth/react';
 import SearchBar from "./SearchBar";
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
 import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
-import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
 import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation,
 getCapabilities } from "../../../utils/constants"
@@ -18,7 +17,7 @@ import Profile from "../Profile/Profile";
 import ProxyBadge from './ProxyBadge';
 import ScopeFilterCheckbox from './ScopeFilterCheckbox';
 import { hasConfiguredScope, isProxyFor, rowInScopeCanCurate, withoutScopeKeys } from '../../../utils/scopeResolver';
-import { searchTokens, newSearchRequest, matchedPersonIds, reportHandoffCapped, REPORT_HANDOFF_CAP, peopleRowActions, pendingCell, personDisplayName } from '../../../utils/searchRequest';
+import { searchTokens, newSearchRequest, matchedPersonIds, reportHandoffCapped, REPORT_HANDOFF_CAP, peopleRowActions, pendingCell, personDisplayName, cwidListNotFound, peopleEmptyState } from '../../../utils/searchRequest';
 import RowActions from './RowActions';
 import { Button as UiButton, Switch } from '../../ui';
 
@@ -26,6 +25,10 @@ import { Button as UiButton, Switch } from '../../ui';
 const safeParse = (value, fallback) => {
   try { return value != null ? JSON.parse(value) : fallback; } catch { return fallback; }
 };
+
+const SKELETON_ROWS = 6;
+// A long paste lists this many not-found CWIDs, then "and N more".
+const NOT_FOUND_SHOWN = 25;
 
 const Search = () => {
 
@@ -499,27 +502,46 @@ const Search = () => {
     fetchCount()
   }
 
+  // Empty-state buttons. "Clear filters" clears the filter card the same way Reset does; "Show
+  // everyone" unchecks "only people I can curate" (the scope effect re-runs the search). Both
+  // buttons vanish with the empty state, so focus goes back to the search box.
+  const [clearSignal, setClearSignal] = useState(0);
+  const focusQuery = () => {
+    if (typeof document !== 'undefined') document.getElementById('people-search-query')?.focus();
+  };
+  const clearAllFilters = () => {
+    setClearSignal((n) => n + 1);
+    focusQuery();
+  };
+  const showEveryone = () => {
+    setScopeFilterChecked(false);
+    focusQuery();
+  };
+
   const identities = filter()
 
   const showLoadError = loadError || (errors && errors.length > 0);
   const retryLoad = () => {
+    // The Retry button goes away with the error card, so focus goes back to the search box.
+    focusQuery();
     if (errors && errors.length > 0) dispatch(clearError());
     if (lastFetch.current) runListFetch(lastFetch.current);
     else fetchPaginatedData('reset');
   }
 
-  // Spinner for when Search gets updated
-  const isDisplayLoader = () => {
-    if ((!filtersOn && (identityPaginatedFetching || isCountLoading) && page === 1) ||
-      // An unscoped list is never empty, so empty means "not loaded yet" -- but a scope can
-      // legitimately match nobody, and that must render the empty state, not a spinner.
-      (!filtersOn && !showScopeFilter && identityPaginatedData?.persons?.length <= 0) ||
-      // A search or scope-toggle fetch is in flight: spin regardless of user filters.
-      identityAllFetching) {
-      return true;
-    } else {
-      return false;
-    }
+  // Skeleton rows while the list loads: any list fetch in flight (initial load, search, filter,
+  // pending/scope toggle, page or page size), or an unscoped, unfiltered list that is still empty
+  // (an unscoped list is never empty, so empty means "not loaded yet" -- but a scope or a filter
+  // can legitimately match nobody, and that must render the empty state). The filter card, the
+  // results header and the table header stay on screen, so the count's live region is announced.
+  // The /users/count fetch no longer holds the list back: the header uses findAll's own count.
+  // Before the first response the store still holds its initial [] (no `persons`): that is "not
+  // loaded yet" too, also for a scoped curator, whose first render otherwise flashed the scope
+  // empty state and announced "0 people" before the scoped fetch started.
+  const isListLoading = () => {
+    const neverLoaded = !Array.isArray(identityPaginatedData?.persons);
+    return !!(identityAllFetching || identityPaginatedFetching || neverLoaded ||
+      (!filtersOn && !showScopeFilter && !(identityPaginatedData?.persons?.length > 0)));
   }
 
   const redirectToCurate = (isFor, data, title) => {
@@ -548,14 +570,7 @@ const Search = () => {
   }
   }
 
-  // Spinner when navigating between pages
-  const isDisplayLoaderTable = () => {
-    if (!filtersOn && identityPaginatedFetching) {
-      return true;
-    }
-    return false;
-  }
-  
+
 	// Per-row curate authorization for the Actions dropdown. Mirrors the backend
   // checkCurationScope gate so the UI never offers "Curate Publications" for a
   // person the user cannot actually curate: curate-all roles (Superuser /
@@ -595,6 +610,8 @@ const Search = () => {
   // request), so they must not count as "filters on" -- otherwise the initial load renders the
   // filtered empty state instead of the spinner while the first response is in flight.
   let filtersOn = Object.keys(withoutScopeKeys(filters)).length !== 0;
+  const listLoading = isListLoading();
+  const idLabel = nameOrcwidLabel?.labelUserView || 'CWID';
   let tableBody;
   let paginatedIdentities = identities.paginatedIdentities;
   const showPending = isCuratorAll || isSuperUser;
@@ -625,7 +642,11 @@ const Search = () => {
           <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={openName}
             cornellOnly={cornellOnly} isProxy={!cornellOnly && isProxyFor(proxyPersonIds, identity.personIdentifier)} />
         </td>
-        <td className={styles.colOrg}>{identity.primaryOrganizationalUnit}</td>
+        <td className={styles.colOrg}>
+          {identity.primaryOrganizationalUnit}
+          {/* Narrow widths drop the Institution column and show it here, as a second muted line. */}
+          {identity.primaryInstitution && <span className={styles.instUnder}>{identity.primaryInstitution}</span>}
+        </td>
         <td className={styles.colInst}>{identity.primaryInstitution}</td>
         {showPending ?
         <td className={styles.colPending}>
@@ -634,6 +655,8 @@ const Search = () => {
             className={pending.hasPending ? styles.pendingPill : styles.pendingNone}
             title={cornellOnly ? pending.label : undefined}
           ><span aria-hidden="true">{pending.text}</span><span className={styles.srOnly}>{pending.label}</span></span>
+          {/* Card layout (under 640px) has no column header, so the count gets a word. */}
+          {!cornellOnly && <span className={styles.pendingCaption} aria-hidden="true">pending</span>}
         </td>
          : null}
         <td className={styles.colActions}>
@@ -648,21 +671,47 @@ const Search = () => {
       </tr>;
     })
   } else {
+    const emptyKind = peopleEmptyState({ scopeFilterShown: showScopeFilter, scopeFilterChecked });
     tableBody = (
-      <tr>
+      <tr className={styles.emptyRow}>
         <td colSpan={showPending ? 5 : 4}>
-          <p className={styles.noitemsList}>
-            {showScopeFilter && scopeFilterChecked
-              ? 'No people found matching your scope. Try unchecking the scope filter to see all results.': 'No records found'}
-          </p>
+          <div className={styles.emptyState}>
+            {emptyKind === 'scope' ? (
+              <>
+                <p className={styles.emptyText}>No one in your curation scope matches.</p>
+                <UiButton variant="ghost" size="sm" onClick={showEveryone}>Show everyone</UiButton>
+              </>
+            ) : (
+              <>
+                <p className={styles.emptyText}>No people match. Try a {idLabel} or clear a filter.</p>
+                <UiButton variant="ghost" size="sm" onClick={clearAllFilters}>Clear filters</UiButton>
+              </>
+            )}
+          </div>
         </td>
       </tr>
     )
+  }
+  if (listLoading) {
+    tableBody = Array.from({ length: SKELETON_ROWS }, (_, i) => (
+      <tr key={`sk-${i}`} className={styles.skeletonRow} aria-hidden="true">
+        <td className={styles.colName}>
+          <div className={styles.skLine} style={{ width: `${62 - (i % 3) * 9}%`, height: 13 }} />
+          <div className={styles.skLine} style={{ width: `${44 - (i % 2) * 8}%` }} />
+        </td>
+        <td className={styles.colOrg}><div className={styles.skLine} style={{ width: `${70 - (i % 3) * 12}%` }} /></td>
+        <td className={styles.colInst}><div className={styles.skLine} style={{ width: `${58 - (i % 2) * 14}%` }} /></td>
+        {showPending ? <td className={styles.colPending}><div className={styles.skPill} /></td> : null}
+        <td className={styles.colActions}><div className={styles.skActions} /></td>
+      </tr>
+    ));
   }
 
   const totalCountUpdated = identityPaginatedData?.totalPersonsCount?.length ?? 0
   // Sum of countPendingArticles over every matched person (findAll's pendingTotal); null if absent.
   const pendingTotal = typeof identityPaginatedData?.pendingTotal === 'number' ? identityPaginatedData.pendingTotal : null
+  // A pasted CWID list: which CWIDs matched nobody (client-side diff, no API change).
+  const listNotFound = cwidListNotFound(filters?.nameOrUids, matchedIds)
   return (
     <div className={appStyles.mainContainer}>
       <div className={styles.searchContentContainer}>
@@ -671,6 +720,7 @@ const Search = () => {
           <SearchBar
             searchData={searchData}
             resetData={resetData}
+            clearSignal={clearSignal}
             findPeopleLabels={findPeopleLabels}
             toggles={(isCuratorAll || isSuperUser || showScopeFilter) && (
               <div className={styles.filterToggles}>
@@ -697,26 +747,31 @@ const Search = () => {
               <p className={styles.loadErrorText}>Couldn&apos;t load people.</p>
               <UiButton variant="secondary" size="sm" onClick={retryLoad}>Retry</UiButton>
             </div>
-          ) : (isDisplayLoader()) ?
-            (
-              <Loader />
-            ) : (
+          ) : (
               <div className={styles.resultsCard}>
                 <div className={styles.resultsHeader}>
-                  <div className={styles.resultsCount}>
-                    <strong className={styles.resultsCountNumber}>{numberFormation(totalCountUpdated)}</strong>
-                    {' '}{totalCountUpdated === 1 ? 'person' : 'people'}
-                    {showPending && pendingTotal !== null && (
+                  {/* Polite live region: a new count (or "Loading people…") is read out after a
+                      search, a filter change or a page change. It stays mounted while loading. */}
+                  <div className={styles.resultsCount} aria-live="polite" aria-atomic="true">
+                    {listLoading ? (
+                      <span className={styles.resultsLoading}>Loading people…</span>
+                    ) : (
                       <>
-                        {' '}<span className={styles.resultsSep} aria-hidden="true">·</span>{' '}
-                        {numberFormation(pendingTotal)} pending suggestion{pendingTotal === 1 ? '' : 's'}
+                        <strong className={styles.resultsCountNumber}>{numberFormation(totalCountUpdated)}</strong>
+                        {' '}{totalCountUpdated === 1 ? 'person' : 'people'}
+                        {showPending && pendingTotal !== null && (
+                          <>
+                            {' '}<span className={styles.resultsSep} aria-hidden="true">·</span>{' '}
+                            {numberFormation(pendingTotal)} pending suggestion{pendingTotal === 1 ? '' : 's'}
+                          </>
+                        )}
                       </>
                     )}
                   </div>
                   {/* #967 follow-up: this acts on the result set, so it must not hang off filtersOn.
                       filtersOn deliberately ignores scope keys, which meant a scoped curator --
                       whose only "filter" is their scope -- could never reach it. Gate on rows. */}
-                  {totalCountUpdated > 0 && (
+                  {!listLoading && totalCountUpdated > 0 && (
                     <UiButton
                       variant="secondary"
                       size="sm"
@@ -729,51 +784,64 @@ const Search = () => {
                     </UiButton>
                   )}
                 </div>
-                <React.Fragment>
-                  {isDisplayLoaderTable() ? <Loader /> :
-                    <div className={styles.tableWrap}>
-                      <table className={styles.table}>
-                        <colgroup>
-                          <col />
-                          <col className={styles.colOrgW} />
-                          <col className={styles.colInstW} />
-                          {showPending ? <col className={styles.colPendingW} /> : null}
-                          <col className={styles.colActionsW} />
-                        </colgroup>
-                        <thead>
-                          <tr>
-                            <th scope="col">Name</th>
-                            <th scope="col">Organization</th>
-                            <th scope="col">Institution</th>
-                            {showPending ? <th scope="col" className={styles.colPending}>Pending</th> : null}
-                            <th scope="col"><span className={styles.srOnly}>Actions</span></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tableBody}
-                        </tbody>
-                      </table>
-                    </div>
-                  }
+                {!listLoading && listNotFound && listNotFound.notFound.length > 0 && (
+                  <div className={styles.notFound}>
+                    <span className={styles.notFoundLead}>
+                      Showing {numberFormation(listNotFound.found)} of {numberFormation(listNotFound.listed)} {idLabel}s.
+                    </span>{' '}
+                    Not found{showScopeFilter && scopeFilterChecked ? ' in your curation scope' : ''}:{' '}
+                    <span className={styles.notFoundIds}>
+                      {listNotFound.notFound.slice(0, NOT_FOUND_SHOWN).join(', ')}
+                      {listNotFound.notFound.length > NOT_FOUND_SHOWN
+                        ? ` and ${numberFormation(listNotFound.notFound.length - NOT_FOUND_SHOWN)} more`
+                        : ''}
+                    </span>
+                  </div>
+                )}
+                <div className={styles.tableWrap}>
+                  <table className={styles.table} aria-busy={listLoading ? 'true' : undefined} aria-label="People">
+                    <colgroup>
+                      <col />
+                      <col className={styles.colOrgW} />
+                      <col className={styles.colInstW} />
+                      {showPending ? <col className={styles.colPendingW} /> : null}
+                      <col className={styles.colActionsW} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col" className={styles.colOrg}>Organization</th>
+                        <th scope="col" className={styles.colInst}>Institution</th>
+                        {showPending ? <th scope="col" className={styles.colPending}>Pending</th> : null}
+                        <th scope="col" className={styles.colActions}><span className={styles.srOnly}>Actions</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableBody}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Stays mounted while a page loads, so focus stays on the page button pressed. A
+                    new search hides it until its own total arrives. */}
+                {!identityAllFetching && (
                   <Pagination total={totalCountUpdated} page={page}
                     count={count}
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
                     inCard
                   />
-
-                  <Profile
-                    uid={showProfileID}
-                    modalShow={showProfile}
-                    handleShow={handleShow}
-                    handleClose={handleClose}
-                    viewProfileLabels={viewProfileLabels}
-                    headShotLabelData = {headShot}
-                  />
-                </React.Fragment>
+                )}
               </div>
             )
           }
+          <Profile
+            uid={showProfileID}
+            modalShow={showProfile}
+            handleShow={handleShow}
+            handleClose={handleClose}
+            viewProfileLabels={viewProfileLabels}
+            headShotLabelData = {headShot}
+          />
         </div>
       </div>
     </div>
@@ -794,8 +862,9 @@ function Name(props) {
         {props.isProxy && <ProxyBadge />}
         {props.cornellOnly && <span className={styles.rowTag}>Cornell Ithaca</span>}
       </div>
+      {/* The title ellipsizes and the CWID never does, so a long title can't hide the CWID. */}
       <div className={styles.personSub}>
-        {identity.title && <>{identity.title}<span aria-hidden="true"> · </span></>}
+        {identity.title && <span className={styles.personTitle}>{identity.title}<span aria-hidden="true">{'\u00a0·\u00a0'}</span></span>}
         {props.nameOrcwidLabel && <span className={styles.srOnly}>{props.nameOrcwidLabel} </span>}
         <span className={styles.personCwid}>{identity.personIdentifier}</span>
       </div>

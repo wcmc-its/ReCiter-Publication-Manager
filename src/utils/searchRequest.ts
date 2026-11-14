@@ -97,3 +97,31 @@ export function personDisplayName(p: { firstName?: string | null; middleName?: s
   if (!p) return '';
   return [p.firstName, p.middleName, p.lastName].filter((x) => typeof x === 'string' && x.trim()).join(' ').replace(/\s+/g, ' ').trim();
 }
+
+// After a pasted CWID list (more than CWID_LIST_THRESHOLD tokens), which of the pasted CWIDs
+// matched nobody. Client-side only: `matchedIds` is every CWID the search matched (all pages).
+// The server compares case-insensitively, so this does too. Returns null for a name search.
+export function cwidListNotFound(
+  nameOrUids: unknown,
+  matchedIds: string[],
+): { listed: number; found: number; notFound: string[] } | null {
+  const words: string[] = Array.isArray(nameOrUids) ? nameOrUids.filter((w) => typeof w === 'string' && w) : [];
+  if (words.length <= CWID_LIST_THRESHOLD) return null;
+  const seen = new Set<string>();
+  const unique = words.filter((w) => {
+    const k = w.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const matched = new Set((matchedIds || []).map((id) => String(id).toLowerCase()));
+  const notFound = unique.filter((w) => !matched.has(w.toLowerCase()));
+  return { listed: unique.length, found: unique.length - notFound.length, notFound };
+}
+
+// Which empty state the results card shows: a scoped curator with "only people I can curate" on
+// gets the scope message (and "Show everyone"); everyone else the plain one (and "Clear filters").
+export type PeopleEmptyState = 'scope' | 'plain';
+export function peopleEmptyState(opts: { scopeFilterShown: boolean; scopeFilterChecked: boolean }): PeopleEmptyState {
+  return opts.scopeFilterShown && opts.scopeFilterChecked ? 'scope' : 'plain';
+}

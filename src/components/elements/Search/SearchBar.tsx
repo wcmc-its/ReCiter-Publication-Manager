@@ -12,6 +12,7 @@ const SearchBar = ({
   resetData,
   findPeopleLabels,
   toggles,
+  clearSignal = 0,
 } : {
   searchData: (
     searchQuery: string,
@@ -23,6 +24,8 @@ const SearchBar = ({
   findPeopleLabels: any;
   // Switches that act at once (Pending only, the scope checkbox), placed inside the card.
   toggles?: React.ReactNode;
+  // Bumped by the results card's "Clear filters" button: clears the card as Reset does.
+  clearSignal?: number;
 }) => {
 
   const filters = useSelector((state: RootStateOrAny) => state.filters)
@@ -75,6 +78,11 @@ useEffect(() => {
     setFilterClearCount(c => c + 1);
     resetData();
   }
+
+  useEffect(() => {
+    if (clearSignal > 0) clearFilters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearSignal])
 
   const handleFilterUpdate = (filterName: string, values: string[]) => {
     if (filterName === 'orgUnits') setOrgUnitQuery(values);

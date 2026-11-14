@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import {
     searchTokens, newSearchRequest, matchedPersonIds, freshPubSearchFilter, reportFiltersFromSearch,
     reportHandoffCapped, REPORT_HANDOFF_CAP, peopleRowActions, pendingCell, personDisplayName,
+    cwidListNotFound, peopleEmptyState,
 } from '../src/utils/searchRequest.ts'
 
 // Same shape as initialStatePubSearchFilter in src/redux/reducers/reducers.js.
@@ -135,4 +136,26 @@ test('personDisplayName: skips null and empty parts, single spaces', () => {
     assert.equal(personDisplayName({ firstName: 'Alaa', middleName: 'Ali', lastName: 'Abd-alrazaq' }), 'Alaa Ali Abd-alrazaq')
     assert.equal(personDisplayName({ firstName: null, middleName: null, lastName: null }), '')
     assert.equal(personDisplayName(undefined), '')
+})
+
+test('cwidListNotFound: lists pasted CWIDs that matched nobody, case-insensitively', () => {
+    const r = cwidListNotFound(['aaa4027', 'MEB7002', 'zzz9999', 'paa2013', 'aaa4027'], ['aaa4027', 'meb7002', 'paa2013'])
+    assert.deepEqual(r, { listed: 4, found: 3, notFound: ['zzz9999'] })
+})
+
+test('cwidListNotFound: null for a name search (3 tokens or fewer) or no search', () => {
+    assert.equal(cwidListNotFound(['john', 'smith'], []), null)
+    assert.equal(cwidListNotFound(['a', 'b', 'c'], []), null)
+    assert.equal(cwidListNotFound(undefined, ['x']), null)
+})
+
+test('cwidListNotFound: every CWID missing, and none missing', () => {
+    assert.deepEqual(cwidListNotFound(['a1', 'b2', 'c3', 'd4'], []), { listed: 4, found: 0, notFound: ['a1', 'b2', 'c3', 'd4'] })
+    assert.deepEqual(cwidListNotFound(['a1', 'b2', 'c3', 'd4'], ['A1', 'b2', 'c3', 'd4']), { listed: 4, found: 4, notFound: [] })
+})
+
+test('peopleEmptyState: scope message only when the scope box is shown and checked', () => {
+    assert.equal(peopleEmptyState({ scopeFilterShown: true, scopeFilterChecked: true }), 'scope')
+    assert.equal(peopleEmptyState({ scopeFilterShown: true, scopeFilterChecked: false }), 'plain')
+    assert.equal(peopleEmptyState({ scopeFilterShown: false, scopeFilterChecked: true }), 'plain')
 })
