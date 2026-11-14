@@ -123,312 +123,266 @@
   margin-left: auto;
 }
 
+/* ── RESULTS CARD ── header line, table, one pagination as the footer. */
+.resultsCard {
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  /* No overflow: hidden here: it clipped the page-size menu in the footer when only a row or
+     two matched. The table scrolls inside .tableWrap instead. */
+}
 
-
-/* ── UNIFIED RESULTS BAR (TOP) ── */
-.resultsBar {
-  background: #ffffff;
-  border: 1px solid #e8e2d9;
-  border-radius: 8px 8px 0 0;
-  padding: 12px 16px;
+.resultsHeader {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  box-shadow: 0 1px 4px rgba(26,33,51,0.05);
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--pm-border);
 }
 
 .resultsCount {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
+  font-size: 13px;
+  color: var(--pm-muted-foreground);
 }
 
 .resultsCountNumber {
-  font-family: inherit;
+  font-size: 15px;
   font-weight: 600;
-  font-size: 20px;
-  color: #2c2a27;
-  letter-spacing: -0.02em;
+  color: var(--pm-foreground);
+  font-variant-numeric: tabular-nums;
 }
 
-.resultsCountLabel {
-  font-size: 13px;
-  color: #8a94a6;
+.resultsSep {
+  margin: 0 2px;
 }
 
-.resultsRight {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.actionLabel {
-  font-size: 11.5px;
-  color: #8a94a6;
-  white-space: nowrap;
-}
-
-.actionSelectWrap {
-  position: relative;
-}
-
-.actionSelect {
-  appearance: none;
-  padding: 6px 28px 6px 11px;
-  border: 1px solid #ddd7ce;
-  border-radius: 5px;
-  background: #eeeae4;
-  color: #5a6478;
-  font-size: 12.5px;
-  font-family: var(--font-sans);
-  font-weight: 500;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.15s;
-}
-
-.actionSelect:hover {
-  border-color: #bbb5aa;
-  background: #e8e3db;
-  color: #1a2133;
-}
-
-.actionSelectWrap::after {
-  content: '';
-  position: absolute;
-  right: 9px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid #8a94a6;
-  pointer-events: none;
-}
-
-.btnGo {
-  padding: 6px 14px;
-  background: #1a2133;
-  color: #fff;
-  border: none;
-  border-radius: 5px;
-  font-size: 12.5px;
-  font-weight: 600;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  transition: background 0.15s;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.btnGo:hover {
-  background: #243050;
-}
-
-.btnGo svg {
-  width: 11px;
-  height: 11px;
-  opacity: 0.7;
-}
-
-
-
-.individualLink {
-    color: #2563a8;
-    cursor: pointer;
-    font-weight: 600;
-}
-
-.individualLink:hover {
-    color: #c0392b;
-}
-
-.dropdownMenu {
-  max-height: 200px;
-  overflow-y: auto;
+/* ── TABLE ── a real <table> with the prototype's column proportions. */
+.tableWrap {
   width: 100%;
-  box-shadow: var(--shadow-md);
-  border-radius: 8px;
-  border: 1px solid #e8e2d9;
+  overflow-x: auto;
 }
 
+/* No pagination under the table (no rows): the table is the card's last child, so round its
+   bottom corners (a hovered row would otherwise paint past them). */
+.tableWrap:last-child {
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+}
 
-
-
-
-
-/* ── TABLE ── */
 .table {
-  border: 1px solid #eae6df;
-  border-radius: 6px;
-  overflow: hidden;
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
   font-family: var(--font-sans);
 }
 
-.table > thead {
-  background-color: #faf8f5;
-  border-bottom: 1px solid #eae6df;
-}
+/* Name takes what the other columns leave. */
+.colOrgW { width: 22%; }
+.colInstW { width: 18%; }
+.colPendingW { width: 88px; }
+.colActionsW { width: 212px; }
 
-.table > thead th {
-  font-size: 11px !important;
-  font-weight: 600 !important;
+.table thead th {
+  padding: 8px 16px;
+  background: var(--pm-surface-2);
+  border-bottom: 1px solid var(--pm-border);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #8a847c !important;
-  padding: 8px 14px !important;
-  background: transparent;
+  color: var(--pm-muted-foreground);
+  text-align: left;
+  white-space: nowrap;
 }
 
-.table th:first-child {
-  padding-left: 16px !important;
+.table tbody td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--pm-border);
+  vertical-align: middle;
+  font-size: 13px;
+  color: var(--pm-foreground);
+  overflow-wrap: anywhere;
 }
 
-.table tr td:first-child {
-  padding-left: 16px;
-}
-
-.table tbody {
-  background-color: #fff;
+.table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .table tbody tr {
-  border-color: #eae6df;
   transition: background 0.12s;
 }
 
 .table tbody tr:hover {
-  background-color: #faf8f5;
+  background: var(--pm-surface-2);
 }
 
-.table tbody td {
-  padding: 12px 14px;
-  vertical-align: middle;
-  font-size: 13px;
-  color: #6b6560;
-}
-
-.table tr td p {
-  margin: auto;
-  line-height: 1.4;
-  padding: 0;
-}
-
-.table tr a {
-  text-decoration: none;
-  color: #2563a8;
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.table tr a:hover {
-  text-decoration: underline;
-}
-
-/* Person name button link in table */
-.btnLink {
-  text-decoration: none;
-  color: #1a2133;
-  background: none;
-  border: none;
-  padding: 0px;
-  font-weight: 600;
-  font-size: 14px;
-  font-family: var(--font-sans);
+.rowClickable {
   cursor: pointer;
-  transition: color 0.15s;
-  display: block;
-  margin-bottom: 2px;
+}
+
+.colName {
+  min-width: 0;
+}
+
+.colOrg {
+  min-width: 0;
+}
+
+.colInst {
+  min-width: 0;
+  color: var(--pm-muted-foreground) !important;
+}
+
+.table .colPending {
+  text-align: right;
+}
+
+.colActions {
+  min-width: 0;
+}
+
+/* Name block: name (the row's one link), then title · CWID on one muted line. */
+.nameBlock {
+  min-width: 0;
+}
+
+.nameLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.btnLink,
+.nameText {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--pm-foreground);
   text-align: left;
+}
+
+.btnLink {
+  cursor: pointer;
 }
 
 .btnLink:hover {
   text-decoration: underline;
-  color: #2563a8;
 }
 
-/* Name of a row that isn't a link (Cornell-only, viewer without /authorships) */
-.nameText {
-  display: block;
-  margin-bottom: 2px;
-  color: #1a2133;
-  font-weight: 600;
-  font-size: 14px;
-  font-family: var(--font-sans);
+.btnLink:focus-visible {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
-/* "Cornell Ithaca" label on Cornell-only rows */
-.cornellBadge {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: #eeeae4;
-  color: #5a6478;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+.personSub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--pm-muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Person role / title */
-.personRole {
-  font-size: 12px;
-  color: #5a6478;
-  margin-bottom: 2px;
-  line-height: 1.4;
-}
-
-/* CWID line */
 .personCwid {
-  font-size: 11px;
-  color: #8a94a6;
-  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
 
-.cwidLabel {
+/* "Proxy" and "Cornell Ithaca" labels: small neutral pills. */
+.rowTag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--pm-border-strong);
+  background: var(--pm-surface-2);
+  color: var(--pm-muted-foreground);
+  font-size: 11px;
   font-weight: 600;
-  color: #5a6478;
+  white-space: nowrap;
 }
 
-/* Column-specific styles */
-.colOrg {
-  font-size: 12.5px !important;
-  color: #5a6478 !important;
-}
-
-.colInst {
-  font-size: 12px !important;
-  color: #8a94a6 !important;
-}
-
-.colPending {
-  text-align: center;
-}
-
-/* Pending badges */
-.pendingBadgeHas {
+/* Pending: amber pill above zero, plain muted text at zero (and a dash for Cornell-only). */
+.pendingPill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
+  min-width: 24px;
   height: 22px;
-  padding: 0 6px;
-  border-radius: 11px;
-  font-size: 11px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--pm-amber-tint-border);
+  background: var(--pm-amber-tint);
+  color: var(--pm-amber);
+  font-size: 12px;
   font-weight: 600;
-  background: #eeeae4;
-  color: #1a2133;
-  border: none;
+  font-variant-numeric: tabular-nums;
 }
 
-.pendingBadgeNone {
+.pendingNone {
+  display: inline-block;
+  min-width: 24px;
+  padding: 0 7px;
+  text-align: center;
   font-size: 12px;
-  color: #8a94a6;
+  color: var(--pm-muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Row actions: up to two buttons and the "⋯" menu, right-aligned. */
+.rowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.moreBtn {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--pm-muted-foreground);
+  cursor: pointer;
+}
+
+.moreBtn:hover,
+.moreBtn[aria-expanded="true"] {
+  background: var(--pm-surface-2);
+  color: var(--pm-foreground);
+}
+
+.moreBtn:focus-visible {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: 2px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .noitemsList {
@@ -437,9 +391,8 @@
   padding: 0px;
   font-size: 14px;
   font-weight: 400;
-  color: #8a94a6;
+  color: var(--pm-muted-foreground);
 }
-
 
 /* List fetch failed: message and Retry in place of the results. */
 .loadError {

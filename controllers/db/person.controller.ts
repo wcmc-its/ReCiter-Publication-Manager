@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { Op, Sequelize, literal } from "sequelize"
+import { Op, QueryTypes, Sequelize, literal } from "sequelize"
 import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
 import  {reciterConstants}  from "../../src/utils/constants";
@@ -91,6 +91,32 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewer
 
         var users= {};
 
+        // Total pending suggestions over every matched person (all pages), for the Find People
+        // header. Same WHERE as the list; the person-type facet becomes an IN subquery so a person
+        // with several matching types is counted once.
+        const pendingTotalQuery = (async () => {
+            if (Array.isArray(effectivePersonTypes) && effectivePersonTypes.length === 0) return 0
+            const sumWhere: any = { [Op.and]: [...(where[Op.and] || [])] }
+            if (effectivePersonTypes) {
+                const types = effectivePersonTypes.map((t) => models.Person.sequelize.escape(t)).join(',')
+                sumWhere[Op.and].push(literal(`\`Person\`.\`personIdentifier\` IN (SELECT personIdentifier FROM person_person_type WHERE personType IN (${types}))`))
+            }
+            // One value per personIdentifier, like the list's GROUP BY: the person table holds a few
+            // personIdentifiers twice (case variants such as Arn4002/arn4002), and a plain SUM would
+            // count them twice.
+            const perPerson = (models.Person.sequelize.getQueryInterface() as any).queryGenerator.selectQuery(
+                models.Person.getTableName(),
+                { attributes: [[Sequelize.fn('MAX', Sequelize.col('countPendingArticles')), 'cp']], where: sumWhere, group: ['personIdentifier'], tableAs: 'Person' },
+                models.Person
+            ).replace(/;\s*$/, '')
+            const [row]: any = await models.Person.sequelize.query(`SELECT SUM(cp) AS total FROM (${perPerson}) AS perPerson`, { type: QueryTypes.SELECT })
+            return Number(row?.total) || 0
+        })().catch((e) => {
+            // The list doesn't depend on it: without the total the header just leaves it out.
+            console.log(e)
+            return null
+        })
+
 
         if(effectivePersonTypes) {
             const { count,rows } =  await models.Person.findAndCountAll({
@@ -121,7 +147,8 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewer
             });
             users['persons'] = rows;
             users['totalPersonsCount'] = count;
-            
+            users['pendingTotal'] = await pendingTotalQuery;
+
         } else {
             let { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
@@ -136,6 +163,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewer
             });
             users['persons'] = rows;
             users['totalPersonsCount'] = count;
+            users['pendingTotal'] = await pendingTotalQuery;
 
         }
         res.send(users);

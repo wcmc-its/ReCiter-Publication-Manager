@@ -8,10 +8,11 @@ interface PaginationProps {
   page: number,
   onChange: (page: number) => void,
   onCountChange?: (count: string) => void,
-  merged?: boolean,
+  // Footer of a results card (Find People): no box of its own, just a top rule.
+  inCard?: boolean,
 }
 
-const Pagination: React.FC<PaginationProps> = ({ total, page, count, onChange, onCountChange, merged }) => {
+const Pagination: React.FC<PaginationProps> = ({ total, page, count, onChange, onCountChange, inCard }) => {
   if (total <= 0) return null;
 
   const totalPages = Math.ceil(total / count);
@@ -25,7 +26,7 @@ const Pagination: React.FC<PaginationProps> = ({ total, page, count, onChange, o
   };
 
   return (
-    <div className={merged ? styles.controlsMerged : styles.controls}>
+    <div className={inCard ? styles.controlsInCard : styles.controls}>
       <span className={styles.showLabel}>Show</span>
       <DropdownButton
         className={styles.countDropdown}
@@ -54,6 +55,7 @@ const Pagination: React.FC<PaginationProps> = ({ total, page, count, onChange, o
           className={styles.pageBtn}
           onClick={onClickPrev}
           disabled={page === 1}
+          aria-label="Previous page"
         >&#8249;</button>
         <span className={styles.pageInfo}>
           Page <strong>{page.toLocaleString()}</strong> of {totalPages.toLocaleString()}
@@ -62,6 +64,7 @@ const Pagination: React.FC<PaginationProps> = ({ total, page, count, onChange, o
           className={styles.pageBtn}
           onClick={onClickNext}
           disabled={page >= totalPages}
+          aria-label="Next page"
         >&#8250;</button>
       </div>
     </div>
