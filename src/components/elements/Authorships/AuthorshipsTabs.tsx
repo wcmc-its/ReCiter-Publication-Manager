@@ -1998,6 +1998,11 @@ const AuthorshipsTabs = () => {
   // rather than a key list: LIKE_WIDEN_PATCH can grow a key and this needs no edit to match.
   const likeFilterStash = useRef<
     { filters: AuthorshipFilters; preset: string; searchInput: string; page: number } | null>(null);
+  // How many rows a like drill promised (the button's like_count, plus the row it was opened from
+  // when that row is itself open), for the banner's "Showing N of M". Every row the curator
+  // resolves inside the drill leaves the pile too, so doActionAsync takes one off it; otherwise
+  // the banner would blame the current filters for rows that were just accepted or rejected.
+  const [likeExpected, setLikeExpected] = useState<number | null>(null);
   // true for a visit that arrived via /authorships?cwid=<uid> (see the mount effect): that view
   // is one person's, not the curator's own, so it never overwrites their saved view.
   const personLink = useRef(false);
@@ -2164,6 +2169,7 @@ const AuthorshipsTabs = () => {
     });
     setRows((rs) => rs.filter((x) => x.id !== row.id));
     setCount((c) => Math.max(0, c - 1));
+    setLikeExpected((n) => (n == null ? n : Math.max(0, n - 1)));
     return fetch("/api/db/authorships/action", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ id: row.id, action, ...extra }),
@@ -2589,13 +2595,10 @@ const AuthorshipsTabs = () => {
   // it keeps working as its own independent filter. Page reset to 0 is already handled by the
   // pendingPageReset effect above, which watches filterBody (likeAuthor is now part of it).
   //
-  // #1011: it also WIDENS the list to the count's own scope (LIKE_WIDEN_PATCH), stashing the
-  // filters it clears so dismissing the "Like: …" chip puts them straight back. Without that
-  // widening the button promised N and delivered N ∩ (every other chip) — see LIKE_WIDEN_PATCH.
-  // One patch object, so the widening and the like filter land in a single refetch.
-  // How many rows the drill promised (the button's like_count, plus the row it was opened from
-  // when that row is itself open), for the banner's "Showing N of M". Cleared on the way out.
-  const [likeExpected, setLikeExpected] = useState<number | null>(null);
+  // It stashes the filters on entry so "← Back to previous filters" (and the auto-exit on an
+  // emptied view) puts them straight back. Since Authorships PR 2 it no longer widens them
+  // (#1011's LIKE_WIDEN_PATCH): the banner says "Showing N of M" when the filters hide part of
+  // the pile, using `expected` (see likeExpected).
   const findOthersLikeThis = useCallback((wcmAuthor?: string, expected?: number | null) => {
     if (!wcmAuthor) return;
     setLikeExpected(expected ?? null);
@@ -2979,7 +2982,7 @@ const AuthorshipsTabs = () => {
                 {SUMMARY_HEADLINE[statusView] || "authorships"}
                 {headerDatePhrase ? `, ${headerDatePhrase}` : ""}
               </>
-            ) : " "}
+            ) : "\u00a0"}
           </div>
         </div>
 
