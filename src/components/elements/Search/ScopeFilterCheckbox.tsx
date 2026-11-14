@@ -1,5 +1,5 @@
 import React from 'react';
-import { Form } from 'react-bootstrap';
+import { Checkbox } from '../../ui';
 import styles from './ScopeFilterCheckbox.module.css';
 
 interface ScopeFilterCheckboxProps {
@@ -7,16 +7,18 @@ interface ScopeFilterCheckboxProps {
   onChange: (checked: boolean) => void;
 }
 
+// Scoped curators only: limits the list to people inside their curation scope. Sits in the
+// filter card and applies as soon as it changes.
 const ScopeFilterCheckbox: React.FC<ScopeFilterCheckboxProps> = ({ checked, onChange }) => {
   return (
-    <Form.Check
-      type="checkbox"
-      id="scopeFilterCheckbox"
-      label="Show only people I can curate"
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-      className={`mt-2 ${styles.scopeFilter}`}
-    />
+    <span className={styles.scopeFilter}>
+      <Checkbox
+        id="scopeFilterCheckbox"
+        label="Only people I can curate"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+    </span>
   );
 };
 

@@ -12,21 +12,118 @@
     color: #1a2133;
 }
 
-.filterRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+/* Page title: same as the Reports title. */
+.pageTitle {
+  margin: 8px 0 16px;
+  padding: 0;
+  font-weight: 600;
+  color: var(--pm-foreground);
+  font-size: 30px;
+  font-family: var(--font-display-serif);
+  letter-spacing: -0.01em;
 }
 
-.filterRowLabel {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #8a94a6;
-  margin-bottom: 8px;
+/* ── FILTER CARD ── one wrapping row: query, filter pills, toggles, Search / Reset. */
+.filterCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
+
+/* Basis wide enough for the whole placeholder; past that the row wraps instead of squeezing it. */
+.queryField {
+  flex: 1 1 380px;
+  min-width: 240px;
+}
+
+.filterPills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The shared CheckboxSelect toggles as pills, the same look as on Reports (FilterSection). */
+.filterPills :global(.dropdown-toggle) {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px !important;
+  margin: 0;
+  border-radius: var(--radius-pill) !important;
+  border: 1px solid var(--pm-border-strong) !important;
+  background: var(--pm-surface) !important;
+  color: var(--pm-foreground) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+}
+
+.filterPills :global(.dropdown-toggle:hover) {
+  background: var(--pm-surface-2) !important;
+  color: var(--pm-foreground) !important;
+  border-color: var(--pm-border-strong) !important;
+}
+
+.filterPills :global(.dropdown-toggle:focus-visible) {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: 2px;
+}
+
+/* A filter with selections: slate tint, also while focused or pressed (globals.css gives the
+   pill a beige :focus/:active fill at the same specificity). */
+.filterPills :global(.dropdown-toggle.btn-primary),
+.filterPills :global(.dropdown-toggle.btn-primary:hover),
+.filterPills :global(.dropdown-toggle.btn-primary:focus),
+.filterPills :global(.dropdown-toggle.btn-primary:active) {
+  background: var(--pm-slate-tint) !important;
+  border-color: var(--pm-slate-tint-border) !important;
+  color: var(--pm-slate) !important;
+  font-weight: 600 !important;
+}
+
+.filterPills :global(.dropdown-toggle::after) {
+  border: 0;
+  width: 7px;
+  height: 7px;
+  margin: -3px 0 0 2px;
+  border-right: 1.75px solid currentColor;
+  border-bottom: 1.75px solid currentColor;
+  transform: rotate(45deg);
+  vertical-align: 0;
+}
+
+.filterToggles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding-left: 6px;
+}
+
+.filterToggles :global(.MuiFormControlLabel-label) {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Search and Reset hold the right end; when the row wraps they move down together. */
+.filterActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+
 
 /* ── UNIFIED RESULTS BAR (TOP) ── */
 .resultsBar {
@@ -138,18 +235,7 @@
   opacity: 0.7;
 }
 
-.pendingFilter {
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  margin-right: 8px;
-}
 
-.pendingFilterLabel {
-  font-size: 12px;
-  color: #8a94a6;
-  font-weight: 400;
-}
 
 .individualLink {
     color: #2563a8;
@@ -170,46 +256,10 @@
   border: 1px solid #e8e2d9;
 }
 
-.textButton {
-  color: #8a94a6;
-  cursor: pointer;
-  font-size: 13px;
-  font-family: var(--font-sans);
-  padding: 8px 16px;
-  border: 1px solid #ddd7ce;
-  border-radius: 5px;
-  transition: all 0.15s;
-  text-decoration: none;
-  background: transparent;
-}
 
-.textButton:hover {
-  border-color: #bbb5aa;
-  color: #5a6478;
-}
 
-.searchFormContainer {
-  background: #ffffff;
-  border: 1px solid #e8e2d9;
-  box-shadow: 0 1px 4px rgba(26,33,51,0.05);
-  border-radius: 8px;
-  margin-bottom: 24px;
-  padding: 24px 28px;
-}
 
-.searchFormContainer :global(.mb-3) {
-  margin-bottom: 0 !important;
-}
 
-.searchFormLabel {
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #8a94a6 !important;
-  font-family: var(--font-sans);
-  margin-bottom: 6px !important;
-}
 
 /* ── TABLE ── */
 .table {

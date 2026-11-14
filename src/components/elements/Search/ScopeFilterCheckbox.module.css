@@ -1,20 +1,9 @@
 .scopeFilter {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 44px;
-    /* neutralize bootstrap's .form-check padding-left / input negative margin so the
-       gap above is the real spacing between the box and its label */
-    padding-left: 0;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
 }
-.scopeFilter input {
-    margin: 0;
-    float: none;
-    flex: none;
-}
-.scopeFilter label {
-    font-size: 13px;
-    color: #5a6478;
-    margin-bottom: 0;
-    cursor: pointer;
+
+.scopeFilter :global(.MuiFormControlLabel-label) {
+  font-size: 13px;
 }
