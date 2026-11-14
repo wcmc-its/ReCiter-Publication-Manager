@@ -5,6 +5,7 @@ import { PersonApiBody } from '../../types/personapi.body'
 import  {reciterConstants}  from "../../src/utils/constants";
 import { cornellOnlySql } from "../../src/utils/cornellOnly";
 import { inScopeSql, ScopeData } from "../../src/utils/scopeResolver";
+import { peopleOrderSql } from "../../src/utils/peopleOrder";
 
 models.Person.hasMany(models.PersonPersonType, {constraints: false})
 models.PersonPersonType.belongsTo(models.Person, {constraints: false})
@@ -140,7 +141,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewer
                 ],
                 where: where,
                 group: ["personIdentifier"],
-                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
+                order: [literal(peopleOrderSql('Person'))],
                 offset: apiBody.offset,
                 limit: apiBody.limit,
                 subQuery: false
@@ -156,7 +157,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewer
                 [literal(cornellOnlySql('Person')), 'cornellOnly'], ...extraAttributes],
                 where: where,
                 group: ["personIdentifier"],
-                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
+                order: [literal(peopleOrderSql('Person'))],
                 offset: apiBody.offset,
                 limit: apiBody.limit,
                 subQuery: false
