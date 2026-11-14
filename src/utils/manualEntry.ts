@@ -421,14 +421,21 @@ export function formFromOpenAlex(row: any, opts: { personSurname?: string } = {}
 
 // Server-side check of a manual add body (the route refuses what the Dialog would not send):
 // a known type, a title and a four-digit year; a DOI of the 10.x/y shape; a checked ISBN.
-export function validateManualBody(body: any): string | null {
+// `create`: a new manual record carries no PMID (the Dialog sends a PMID to the PubMed add flow).
+// An edit may set one later, which the supersede reconcile then matches.
+export function validateManualBody(body: any, opts: { create?: boolean } = {}): string | null {
   if (!body || typeof body !== 'object') return 'A record body is required'
   if (!isPubType(body.pubType)) return 'A manual record needs a publication type'
   if (!String(body.title ?? '').trim()) return 'A manual record needs a title'
-  if (!/^(19|20)\d{2}(-\d{2}(-\d{2})?)?$/.test(String(body.pubDate ?? '').trim())) return 'A manual record needs a year (YYYY, YYYY-MM or YYYY-MM-DD)'
+  // A real month and day too: '2024-13' would otherwise save as month precision and show "2024 undefined".
+  const d = String(body.pubDate ?? '').trim().match(/^((?:19|20)\d{2})(?:-(\d{2})(?:-(\d{2}))?)?$/)
+  if (!d || (d[2] && parseMonthDay(d[3] ? `${d[2]}-${d[3]}` : d[2], d[1]) === null)) return 'A manual record needs a year (YYYY, YYYY-MM or YYYY-MM-DD)'
+  // Non-Peer-Reviewed Writing is never peer reviewed (the Dialog has no choice for it).
+  if (body.peerReviewed === true && !canBePeerReviewed(body.pubType)) return `${body.pubType} cannot be marked peer-reviewed`
   if (body.doi != null && String(body.doi).trim() && !normalizeDoiInput(String(body.doi))) return 'The DOI must look like 10.xxxx/…'
   if (body.isbn != null && String(body.isbn).trim() && !normalizeIsbnInput(String(body.isbn))) return 'The ISBN is not a valid ISBN-10 or ISBN-13'
   if (body.role != null && !ROLE_SET.has(body.role)) return `Unknown role ${body.role}`
+  if (opts.create && body.pmid != null && String(body.pmid).trim()) return 'A work with a PMID is added through PubMed, not by hand'
   return null
 }
 

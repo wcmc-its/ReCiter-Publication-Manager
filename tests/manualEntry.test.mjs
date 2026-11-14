@@ -171,6 +171,12 @@ test('server check of a manual body', () => {
   assert.match(M.validateManualBody({ ...ok, doi: 'x' }), /DOI/)
   assert.match(M.validateManualBody({ ...ok, isbn: '123' }), /ISBN/)
   assert.match(M.validateManualBody({ ...ok, role: 'Boss' }), /role/)
+  assert.equal(M.validateManualBody({ ...ok, pubDate: '2024-02-29' }), null)
+  for (const d of ['2024-13', '2024-00', '2023-02-29', '2024-04-31']) assert.match(M.validateManualBody({ ...ok, pubDate: d }), /year/, d)
+  assert.match(M.validateManualBody({ ...ok, pmid: 12345678 }, { create: true }), /PubMed/)
+  assert.equal(M.validateManualBody({ ...ok, pmid: 12345678 }), null)
+  assert.match(M.validateManualBody({ ...ok, pubType: 'Non-Peer-Reviewed Writing', peerReviewed: true }), /peer-reviewed/)
+  assert.equal(M.validateManualBody({ ...ok, pubType: 'Non-Peer-Reviewed Writing', peerReviewed: null }), null)
 })
 
 test('a manual body meets the store duplicate check: DOI blocks, title+year warns', () => {

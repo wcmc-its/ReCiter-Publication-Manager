@@ -210,6 +210,10 @@ try {
     ['no year', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '' }],
     ['bad DOI', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '2021', doi: 'nope' }],
     ['bad ISBN', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '2021', isbn: '978-0-00-000000-1' }],
+    ['month 13', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '2021-13' }],
+    ['Feb 30', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '2021-02-30' }],
+    ['a PMID', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '2021', pmid: 12345678 }],
+    ['peer-reviewed NPRW', { sourceType: 'MANUAL', pubType: 'Non-Peer-Reviewed Writing', title: 'T', pubDate: '2021', peerReviewed: true }],
   ]) check((await api.addExternal(UID, body, me, false)).status === 400, `manual add, ${label} -> 400`)
   const man = await api.addExternal(UID, {
     sourceType: 'MANUAL', articleId: 'MANUAL:client-chosen', pubType: 'Book Chapter', title: 'A chapter entered by hand',
@@ -241,6 +245,8 @@ try {
   check(ed.status === 200 && xe.article_id === man.body.external.articleId && xe.title === 'A chapter, edited' && xe.date_precision === 'DAY' && xe.byline === '((Lin M)), Zed A', 'edit keeps the article_id, changes title, precision and position', JSON.stringify(xe))
   check((await lastEvent(X)).action === 'EDIT', 'EDIT event')
   check((await api.editExternal(X, { title: 'x' }, stranger)).status === 403, 'edit without canCurate -> 403')
+  check((await api.editExternal(X, { title: '' }, stranger)).status === 403, 'edit without canCurate -> 403 before the body checks')
+  check((await api.editExternal(X, { pubDate: '2024-13' }, me)).status === 400, 'edit a manual record to month 13 -> 400')
 } catch (e) {
   failures++
   console.error(`  ${FAIL} unexpected error: ${e.stack || e}`)

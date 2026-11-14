@@ -108,7 +108,7 @@ export async function addExternal(uid: string, body: any, s: Session, force: boo
     const { addedBy: _a, provenance: _p, ...rest } = body || {}
     const manual = isManualBody(rest)
     if (manual) {
-      const bad = validateManualBody(rest)
+      const bad = validateManualBody(rest, { create: true })
       if (bad) return fail(400, bad)
       // A new manual record always gets a server-minted MANUAL:<uuid> (recordFromInput).
       delete rest.articleId
@@ -211,6 +211,8 @@ export async function editExternal(id: number, patch: any, s: Session): Promise<
   return guarded(async () => {
     // A manual record keeps what its create required (3d): a type, a title and a year.
     const cur = await getRecord(id)
+    // Permission before the body checks, so a caller who cannot curate learns nothing about the record.
+    if (cur && !(await canCurate(s.eff, cur.uid))) return forbidden()
     if (cur && cur.sourceType === 'MANUAL' && patch && typeof patch === 'object') {
       const bad = validateManualBody({ ...cur, ...patch })
       if (bad) return fail(400, bad)
