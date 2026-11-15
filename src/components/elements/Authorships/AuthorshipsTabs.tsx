@@ -4336,7 +4336,7 @@ const AuthorshipCard = ({
           {isMulti ? (
             <>
               <span data-share style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>
-                {nothingToPick ? "No WCM candidate proposed · look up the directory" : shareLine(ranked.length || (r.n_candidates ?? candidates.length), !!pick)}
+                {nothingToPick ? "No WCM candidate proposed · look up the directory" : shareLine(ranked.length || (r.n_candidates ?? candidates.length), !!pick || statusView !== "open")}
               </span>
               {/* The candidates as an inline radio group (prototype markup ~1015-1030): picking
                   one turns on ✓, which then assigns to them. Writes nothing by itself. Only the
@@ -4629,7 +4629,7 @@ const ExpandedPanel = ({ row: r, candidates, pickedCwid, acting, statusView, onP
       style={{ margin: "0 16px 12px 104px", display: "flex", flexDirection: "column", gap: 10, fontSize: 13, color: "var(--pm-foreground)", cursor: "default" }}>
       {isMulti ? (
         <MultiEvidence row={r} candidates={candidates} pickedCwid={pickedCwid} ev={ev}
-          onPick={statusView === "open" ? onPick : () => undefined}
+          onPick={statusView === "open" ? onPick : undefined}
           priorNamesByCwid={priorNamesByCwid} onHoverIdentity={onHoverIdentity} />
       ) : noSuggestion ? (
         <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>No suggested identity to compare against. Use the box below to look the author up in the directory.</span>
@@ -4784,7 +4784,8 @@ const HomonymNote = ({ listed, typed }: { listed: number; typed: number }) => ty
 // row as the other way to pick. The notes the row can't show in one line sit above it.
 const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, ev, onPick, priorNamesByCwid, onHoverIdentity }: {
   row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; ev: ReturnType<typeof useCandidateEvidence>;
-  onPick: (cwid: string) => void;
+  // undefined on the parked queues (Snoozed / Dismissed): only the Open queue can act.
+  onPick?: (cwid: string) => void;
   priorNamesByCwid: Record<string, PriorNames>; onHoverIdentity: (cwid?: string | null) => void;
 }) => {
   // #1012: a cwid ED has RETIRED is removed from the picker outright — unlike already_rejected,
@@ -4848,7 +4849,8 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, ev, onPi
       ) : ev.status === "error" || !cols ? (
         <span style={{ fontSize: 12.5, color: "var(--pm-amber)" }}>Couldn’t load the comparison. Pick from the list above, or close and reopen the row to retry.</span>
       ) : (
-        <CompareGrid cols={cols} pickedCwid={pickedCwid} onPick={onPick} renderHead={head} hint={compareHint(pickedCwid ? pickedName : null)} />
+        <CompareGrid cols={cols} pickedCwid={pickedCwid} onPick={onPick} renderHead={head}
+          hint={onPick ? compareHint(pickedCwid ? pickedName : null) : "Reopen it to pick who gets this authorship."} />
       )}
       {/* #1012: what the retired-cwid filter removed, and what replaced it. */}
       {retiredCandidates.length > 0 && (

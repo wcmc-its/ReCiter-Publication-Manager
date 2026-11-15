@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { reciterConfig } from "../../../../config/local";
-import { tallyOf } from "../../../utils/candidateEvidence";
+import { mostEvidenceCwid, tallyOf } from "../../../utils/candidateEvidence";
 import type { CandidateFacts, EvidenceCandidate, EvidenceKind, EvidenceRow } from "../../../utils/candidateEvidence";
 
 export interface CandidateEvidenceData {
@@ -162,7 +162,8 @@ export { orderByEvidence } from "../../../utils/candidateEvidence";
 const stripPx = (n: number) => (n >= 3 ? "var(--pm-slate)" : n >= 0 ? "var(--pm-amber)" : "var(--pm-red)");
 
 export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick, renderHead, hint }: {
-  cols: Array<{ c: C; rows: EvidenceRow[] }>; pickedCwid?: string; onPick: (cwid: string) => void;
+  // undefined = read-only (a parked queue): the headers are not a picker.
+  cols: Array<{ c: C; rows: EvidenceRow[] }>; pickedCwid?: string; onPick?: (cwid: string) => void;
   renderHead: (c: C) => ReactNode;   // name, badges, hover card: owned by the caller
   hint: string;
 }) => {
@@ -172,11 +173,9 @@ export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick,
   const off = ((start % n) + n) % n;
   const shown = Array.from({ length: per }, (_, j) => cols[(off + j) % n]);
   const score = (rows: EvidenceRow[]) => rows.reduce((t, e) => t + ({ match: 1, partial: 0.4, mismatch: -1, nodata: 0 })[e.kind], 0);
-  // "Most evidence" only when one candidate leads outright and has not already rejected the paper.
-  const live = cols.filter((x) => !x.c.already_rejected);
-  const top = live.length ? Math.max(...live.map((x) => score(x.rows))) : -Infinity;
-  const leaders = live.filter((x) => score(x.rows) === top);
-  const bestCwid = leaders.length === 1 ? leaders[0].c.cwid : undefined;
+  // "Most evidence" only when one candidate leads outright, on the same strength the columns are
+  // ordered by, and has not already rejected the paper.
+  const bestCwid = mostEvidenceCwid(cols);
   // The builder's row order; a label shows when any shown candidate has it (Prior decisions is per candidate).
   const labels = LABEL_ORDER.filter((l) => shown.some((x) => x.rows.some((e) => e.label === l)));
   const mineOf = (l: string) => (l === IO_LABEL ? "Scored per person →" : cols.map((x) => x.rows.find((e) => e.label === l)?.mine).find(Boolean));
@@ -186,7 +185,7 @@ export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick,
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }} data-testid="compare-grid" onClick={stop}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={HEAD}>Compare {n} candidates</span>
-        <span data-compare-hint style={{ fontSize: 12.5, color: pickedCwid ? "var(--pm-slate)" : "var(--pm-amber)" }}>{hint}</span>
+        <span data-compare-hint style={{ fontSize: 12.5, color: !onPick ? "var(--pm-muted-foreground)" : pickedCwid ? "var(--pm-slate)" : "var(--pm-amber)" }}>{hint}</span>
       </div>
       {per < n && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -225,14 +224,14 @@ export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick,
           {shown.map(({ c, rows }) => {
             const picked = c.cwid === pickedCwid;
             return (
-              <div role="columnheader" key={c.cwid} aria-pressed={picked} tabIndex={0} data-cmp-head={c.cwid}
-                onClick={() => onPick(c.cwid)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(c.cwid); } }}
-                title={`Assign to ${c.name || c.cwid}`}
-                style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, padding: "7px 9px", borderRadius: 8, cursor: "pointer", boxSizing: "border-box",
+              <div role="columnheader" key={c.cwid} aria-pressed={onPick ? picked : undefined} tabIndex={onPick ? 0 : undefined} data-cmp-head={c.cwid}
+                onClick={() => onPick?.(c.cwid)} onKeyDown={(e) => { if (onPick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onPick(c.cwid); } }}
+                title={onPick ? `Assign to ${c.name || c.cwid}` : undefined}
+                style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, padding: "7px 9px", borderRadius: 8, cursor: onPick ? "pointer" : "default", boxSizing: "border-box",
                   border: `1px solid ${picked ? "var(--pm-slate)" : "var(--pm-border)"}`, background: picked ? "var(--pm-slate-tint)" : "#fff" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                   <span aria-hidden="true" style={{ width: 13, height: 13, flex: "none", borderRadius: "50%", boxSizing: "border-box", background: "#fff",
-                    border: picked ? "4px solid var(--pm-slate)" : "1.5px solid var(--pm-muted-foreground)" }} />
+                    border: picked ? "4px solid var(--pm-slate)" : "1.5px solid var(--pm-muted-foreground)", visibility: onPick ? "visible" : "hidden" }} />
                   {renderHead(c)}
                 </span>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--pm-muted-foreground)" }}>

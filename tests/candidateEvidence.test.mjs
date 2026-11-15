@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-    buildCandidateEvidence, cornellEmailIds, evidenceStrength, tallyOf, authorKey, normName, orderByEvidence,
+    buildCandidateEvidence, cornellEmailIds, evidenceStrength, tallyOf, authorKey, normName, orderByEvidence, mostEvidenceCwid,
 } from '../src/utils/candidateEvidence.ts'
 
 const row = {
@@ -111,4 +111,20 @@ test('Identity-Only Score row carries the score and its band, floored', () => {
     const mid = buildCandidateEvidence({ byline: 'Ann Lee', source: 'pubmed' }, { io_score: 71.4 }).find((r) => r.label === 'Identity-Only Score')
     assert.equal(mid.theirs, '71 · Medium')
     assert.equal(mid.kind, 'partial')
+})
+
+test('mostEvidenceCwid: follows the column order (email match wins), skips rejected, a tie marks nobody', () => {
+    const R = (kinds, email) => [
+        ...(email ? [{ label: 'Email', kind: 'match' }] : []),
+        ...kinds.map((k, i) => ({ label: `L${i}`, kind: k })),
+    ]
+    // b has more plain matches, but a's email match puts a first in orderByEvidence too
+    const cols = [
+        { c: { cwid: 'a' }, rows: R(['mismatch'], true) },
+        { c: { cwid: 'b' }, rows: R(['match', 'match', 'match']) },
+    ]
+    assert.equal(mostEvidenceCwid(cols), 'a')
+    assert.equal(mostEvidenceCwid([{ c: { cwid: 'a', already_rejected: true }, rows: R(['match', 'match']) }, { c: { cwid: 'b' }, rows: R(['match']) }]), 'b')
+    assert.equal(mostEvidenceCwid([{ c: { cwid: 'a' }, rows: R(['match']) }, { c: { cwid: 'b' }, rows: R(['match']) }]), undefined)
+    assert.equal(mostEvidenceCwid([{ c: { cwid: 'a', already_rejected: true }, rows: R(['match']) }]), undefined)
 })

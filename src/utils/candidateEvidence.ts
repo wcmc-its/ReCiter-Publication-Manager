@@ -209,3 +209,14 @@ export const evidenceStrength = (rows: EvidenceRow[]): number =>
 export const orderByEvidence = <C extends EvidenceCandidate>(cands: C[], rowsOf: (c: C) => EvidenceRow[]) =>
     cands.map((c) => { const rows = rowsOf(c); return { c, rows, s: evidenceStrength(rows) } })
         .sort((a, b) => Number(!!a.c.already_rejected) - Number(!!b.c.already_rejected) || b.s - a.s || (b.c.io_score ?? -1) - (a.c.io_score ?? -1))
+
+// The grid's "Most evidence" column: the one candidate who leads outright on the same
+// evidenceStrength the columns are ordered by (so the label always sits on the first column when
+// it shows at all), never one who already rejected the paper. A tie at the top marks nobody.
+export const mostEvidenceCwid = <C extends EvidenceCandidate & { cwid: string }>(cols: Array<{ c: C; rows: EvidenceRow[] }>): string | undefined => {
+    const live = cols.filter((x) => !x.c.already_rejected)
+    if (!live.length) return undefined
+    const s = live.map((x) => evidenceStrength(x.rows))
+    const top = Math.max(...s)
+    return s.filter((v) => v === top).length === 1 ? live[s.indexOf(top)].c.cwid : undefined
+}
