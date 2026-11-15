@@ -2126,6 +2126,7 @@ const PRIOR_NAMES_PAPER_CAP = 5;
 const PRIOR_NAMES_TOPIC_CAP = 6;
 const PRIOR_NAMES_JOURNAL_CAP = 3;
 const PRIOR_NAMES_NAMESAKE_CAP = 3;
+const PRIOR_NAMES_COAUTHOR_CAP = 3;
 
 export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
@@ -2143,13 +2144,15 @@ export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResp
       attributes: [
         "personIdentifier", "articleAuthorNameFirstName", "articleAuthorNameLastName",
         [fn("COUNT", col("id")), "n"],
+        // The latest year on an accepted paper under this form: the hover card's "Last" column.
+        [fn("MAX", fn("NULLIF", col("articleYear"), 0)), "y1"],
       ],
       where: { personIdentifier: { [Op.in]: cwids }, userAssertion: "ACCEPTED" },
       group: ["personIdentifier", "articleAuthorNameFirstName", "articleAuthorNameLastName"],
       raw: true,
     });
 
-    const names: Record<string, Array<{ first: string; last: string; n: number }>> = {};
+    const names: Record<string, Array<{ first: string; last: string; n: number; lastYear?: number }>> = {};
     const accepted: Record<string, number> = {};
     const dropped: Record<string, number> = {};
     for (const r of rows) {
@@ -2159,7 +2162,7 @@ export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResp
       const first = String(r.articleAuthorNameFirstName || "").trim();
       const last = String(r.articleAuthorNameLastName || "").trim();
       if (!first && !last) continue;   // nameless accepted rows still count toward `accepted`
-      (names[cwid] ||= []).push({ first, last, n });
+      (names[cwid] ||= []).push({ first, last, n, lastYear: Number(r.y1) || undefined });
     }
     for (const cwid of Object.keys(names)) {
       names[cwid].sort((a, b) => b.n - a.n || `${a.last}${a.first}`.localeCompare(`${b.last}${b.first}`));
@@ -2340,13 +2343,34 @@ export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResp
     }
     for (const cw of Object.keys(namesakes)) namesakes[cw] = namesakes[cw].sort((a, b) => b.n - a.n).slice(0, PRIOR_NAMES_NAMESAKE_CAP);
 
+    // ---- frequent co-authors (UI refresh PR 4, the line 4d-2 planned) -----------------------
+    // The people who appear most often beside them on ACCEPTED papers, by distinct paper. Same
+    // join and index path as candidate-evidence's co-author query (person_article ->
+    // person_article_author on (personIdentifier, pmid)), but not narrowed to one paper's
+    // surnames, so the top few are picked in SQL with a window rather than shipped to node.
+    const coRows: any[] = await sequelize.query(
+      "SELECT cwid, f, l, n FROM (" +
+      "SELECT pa.personIdentifier AS cwid, paa.authorFirstName AS f, paa.authorLastName AS l, COUNT(DISTINCT pa.pmid) AS n, " +
+      "ROW_NUMBER() OVER (PARTITION BY pa.personIdentifier ORDER BY COUNT(DISTINCT pa.pmid) DESC, paa.authorLastName, paa.authorFirstName) AS rn " +
+      "FROM person_article pa JOIN person_article_author paa ON paa.personIdentifier = pa.personIdentifier AND paa.pmid = pa.pmid " +
+      "WHERE pa.personIdentifier IN (:cwids) AND pa.userAssertion = 'ACCEPTED' AND paa.targetAuthor = 0 AND paa.authorLastName <> '' " +
+      "GROUP BY 1, 2, 3) t WHERE rn <= :cap",
+      { replacements: { cwids, cap: PRIOR_NAMES_COAUTHOR_CAP }, type: QueryTypes.SELECT });
+    const coauthors: Record<string, Array<{ name: string; n: number }>> = {};
+    for (const r of coRows) {
+      const name = `${String(r.f || "").trim()} ${String(r.l || "").trim()}`.trim();
+      if (name) (coauthors[String(r.cwid)] ||= []).push({ name, n: Number(r.n) || 0 });
+    }
+    for (const cw of Object.keys(coauthors)) coauthors[cw].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+
     // Every requested cwid gets an entry, so the client can tell "asked and has none" from
     // "never asked" without tracking its own request bookkeeping.
     for (const c of cwids) {
       names[c] ||= []; accepted[c] ||= 0; papers[c] ||= []; topics[c] ||= [];
       counts[c] ||= { accepted: 0, rejected: 0, pending: 0 }; journals[c] ||= []; namesakes[c] ||= [];
+      coauthors[c] ||= [];
     }
-    res.send({ names, accepted, more: dropped, papers, identity, topics, counts, journals, namesakes });
+    res.send({ names, accepted, more: dropped, papers, identity, topics, counts, journals, namesakes, coauthors });
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));
@@ -2385,28 +2409,41 @@ export const authorshipCandidateEvidence = async (req: NextApiRequest, res: Next
     const pos = Number(row.author_position) || 0;
     const byline = String(row.wcm_author || "").trim().toLowerCase();
     let coauthors: string[] | null = null;
+    // The whole byline in order, and where this row's author sits in it, for the expanded row's
+    // "Authors" line (UI refresh PR 4). Same source as `coauthors`; null when that is null.
+    let authors: string[] | null = null;
+    let target = -1;
     if (row.source === "pubmed" && row.pmid) {
       const holder: any = await models.PersonArticle.findOne({ attributes: ["personIdentifier"], where: { pmid: row.pmid }, raw: true });
       if (holder) {
-        const authors: any[] = await models.PersonArticleAuthor.findAll({
+        const authorRows: any[] = await models.PersonArticleAuthor.findAll({
           attributes: ["authorFirstName", "authorLastName", "rank"],
           where: { personIdentifier: holder.personIdentifier, pmid: row.pmid }, order: [["rank", "ASC"]], raw: true,
         });
-        if (authors.length) coauthors = authors.filter((a) => Number(a.rank) !== pos)
-          .map((a) => `${String(a.authorFirstName || "").trim()} ${String(a.authorLastName || "").trim()}`.trim()).filter(Boolean);
+        if (authorRows.length) {
+          const named = authorRows
+            .map((a) => ({ rank: Number(a.rank), name: `${String(a.authorFirstName || "").trim()} ${String(a.authorLastName || "").trim()}`.trim() }))
+            .filter((a) => a.name);
+          coauthors = named.filter((a) => a.rank !== pos).map((a) => a.name);
+          authors = named.map((a) => a.name);
+          target = named.findIndex((a) => a.rank === pos);
+        }
       }
     } else if (row.authors_json) {
       try {
         const list = JSON.parse(row.authors_json);
-        if (Array.isArray(list) && list.length) coauthors = list
-          .map((a: any) => `${String(a?.given || "").trim()} ${String(a?.surname || "").trim()}`.trim())
-          .filter((n: string, i: number) => n && i !== pos - 1 && n.toLowerCase() !== byline);
-      } catch { coauthors = null; }
+        if (Array.isArray(list) && list.length) {
+          const all = list.map((a: any) => `${String(a?.given || "").trim()} ${String(a?.surname || "").trim()}`.trim());
+          coauthors = all.filter((n: string, i: number) => n && i !== pos - 1 && n.toLowerCase() !== byline);
+          authors = all.filter(Boolean);
+          target = pos > 0 && all[pos - 1] ? authors.indexOf(all[pos - 1]) : authors.findIndex((n: string) => n.toLowerCase() === byline);
+        }
+      } catch { coauthors = null; authors = null; target = -1; }
     }
 
     const facts: Record<string, any> = {};
     for (const c of cwids) facts[c] = { accepted: 0, forms: [], rejectedForms: [], journalHits: 0, degreeYear: null, coauthorHits: [] };
-    if (!cwids.length) return res.send({ coauthors, facts });
+    if (!cwids.length) return res.send({ coauthors, authors, target, facts });
     // person_article's cwids can differ in case from the candidate list; map back.
     const key = new Map(cwids.map((c) => [c.toLowerCase(), c]));
     const k = (v: any) => key.get(String(v).toLowerCase()) || String(v);
@@ -2457,7 +2494,7 @@ export const authorshipCandidateEvidence = async (req: NextApiRequest, res: Next
       for (const r of cRows) if (facts[k(r.cwid)]) facts[k(r.cwid)].coauthorHits.push({ last: String(r.last || ""), initial: String(r.initial || ""), n: Number(r.n) || 0 });
     }
 
-    res.send({ coauthors, facts });
+    res.send({ coauthors, authors, target, facts });
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));

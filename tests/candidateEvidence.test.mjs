@@ -104,3 +104,11 @@ test('orderByEvidence: email match first, rejected last even when strongest, IO 
     const order = orderByEvidence(cands, (c) => buildCandidateEvidence(r, c, facts)).map((x) => x.c.cwid)
     assert.deepEqual(order, ['zzz9999', 'bbb1', 'aaa1', 'rej1'])
 })
+
+test('Identity-Only Score row carries the score and its band, floored', () => {
+    const io = buildCandidateEvidence({ byline: 'Ann Lee', source: 'pubmed' }, { io_score: 99.8 }).find((r) => r.label === 'Identity-Only Score')
+    assert.equal(io.theirs, '99 · High')
+    const mid = buildCandidateEvidence({ byline: 'Ann Lee', source: 'pubmed' }, { io_score: 71.4 }).find((r) => r.label === 'Identity-Only Score')
+    assert.equal(mid.theirs, '71 · Medium')
+    assert.equal(mid.kind, 'partial')
+})

@@ -74,3 +74,79 @@ export const sourceBadgeText = (source?: string | null): string =>
 export const shortcutsLine = (openQueue: boolean): string[] => (openQueue
   ? ["J/K move", "Y accept", "N reject", "S snooze", "X select", "U undo", "? all shortcuts"]
   : ["J/K move", "U undo", "? all shortcuts"]);
+
+// ---- expanded row (UI refresh PR 4) --------------------------------------------------------
+
+// "99 · High": the Identity-Only Score with its band, as the evidence table's IO row and the
+// hover card's IO pill say it. Floored like the badge, so the two never disagree.
+export const ioScoreText = (v?: number | null): string => {
+  const band = ioBand(v);
+  return band ? `${ioBadgeText(v)} · ${band}` : "—";
+};
+
+// The footer's Authorship Score line. PubMed rows carry production's score; Scopus and OpenAlex
+// rows were never scored by production, and a PubMed row whose person production never
+// retrieved has none either.
+export const fgLine = (fg?: number | null, source?: string | null): string => {
+  if (source === "scopus" || source === "openalex") return `None · ${source === "scopus" ? "Scopus" : "OpenAlex"} rows are not scored by production`;
+  if (fg == null || Number.isNaN(fg)) return "None · production never scored this person";
+  return `${Math.floor(fg)} · ${fg >= 30 ? "at or above" : "below"} the 30 cut`;
+};
+
+// The byline with this row's author pulled out for highlighting. A long author list is elided
+// around the target so the line stays a line: the first `edge` names, the target with one
+// neighbour each side, and the last name. `target` < 0 (author not found) → no highlight.
+export const bylineParts = (authors: string[], target: number, max = 12, edge = 3): { pre: string; tgt: string; post: string } => {
+  const list = authors.filter(Boolean);
+  if (!list.length) return { pre: "", tgt: "", post: "" };
+  const t = target >= 0 && target < list.length ? target : -1;
+  const keep = new Set<number>();
+  if (list.length <= max) list.forEach((_, i) => keep.add(i));
+  else {
+    for (let i = 0; i < Math.min(edge, list.length); i++) keep.add(i);
+    keep.add(list.length - 1);
+    if (t >= 0) [t - 1, t, t + 1].forEach((i) => { if (i >= 0 && i < list.length) keep.add(i); });
+  }
+  // Join the kept names, writing "…" once for each run of dropped ones.
+  const join = (from: number, to: number) => {
+    const out: string[] = [];
+    let gap = false;
+    for (let i = from; i < to; i++) {
+      if (keep.has(i)) { if (gap) out.push("…"); out.push(list[i]); gap = false; } else gap = true;
+    }
+    if (gap) out.push("…");
+    return out;
+  };
+  if (t < 0) return { pre: join(0, list.length).join(", "), tgt: "", post: "" };
+  const before = join(0, t), after = join(t + 1, list.length);
+  return {
+    pre: before.length ? `${before.join(", ")}, ` : "",
+    tgt: list[t],
+    post: after.length ? `, ${after.join(", ")}` : "",
+  };
+};
+
+export interface RankableCandidate {
+  cwid: string; given_match?: string; io_score?: number | null; confidence?: number | null;
+  already_rejected?: boolean; retired_cwid?: boolean;
+}
+
+// The order candidates are listed in on a multi-candidate row: a full given-name match first,
+// then IO, then the matcher's confidence (the AAR producer's own key). Candidates who already
+// rejected this paper go last, and retired CWIDs are left out (the row says why separately).
+export const rankCandidates = <C extends RankableCandidate>(cands: C[]): C[] => {
+  const live = cands.filter((c) => !c.retired_cwid);
+  const full = (c: C) => (c.given_match === "full" ? 1 : 0);
+  const byScore = (a: C, b: C) => (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1);
+  return [
+    ...live.filter((c) => !c.already_rejected).sort((a, b) => full(b) - full(a) || byScore(a, b)),
+    ...live.filter((c) => c.already_rejected).sort(byScore),
+  ];
+};
+
+// The hint beside "Compare N candidates", and the collapsed row's count line.
+export const compareHint = (pickedName?: string | null): string => (pickedName
+  ? `Accept assigns to ${pickedName}. Click another column to switch.`
+  : "Click a column to pick who gets this authorship.");
+export const shareLine = (n: number, picked: boolean): string =>
+  `${n} people share this name${picked ? "" : " · pick one"}`;

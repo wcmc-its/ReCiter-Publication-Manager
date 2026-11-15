@@ -331,6 +331,18 @@ h1:where(:not(.pm-page-title)) {
   outline: 2px solid var(--pm-ring);
   outline-offset: 1px;
 }
+/* The expanded row: the collapsed row's candidate radios, the directory hits under "Someone
+   else", and the comparison pager. A picked radio / hit keeps its slate tint (inline). */
+.pm-arow-cand:not([aria-checked="true"]):hover,
+.pm-dir-hit:not([aria-checked="true"]):hover,
+.pm-cmp-page:hover {
+  background: var(--pm-surface-2);
+}
+.pm-arow-cand:focus-visible,
+.pm-dir-hit:focus-visible {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: -2px;
+}
 
 .table {
   vertical-align: middle !important;

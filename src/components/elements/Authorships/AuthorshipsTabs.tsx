@@ -25,7 +25,10 @@ import { externalSourceLabel, isExternalSource, openalexRecordUrl } from "../../
 import type { AuthorshipSource } from "../../../lib/externalSource";
 import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } from "./CandidateEvidence";
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
-import { formatRowDate, ioBadge, roleLine, shortcutsLine, sourceBadgeText, splitAffiliation } from "../../../utils/authorshipRow";
+import {
+  bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
+  shortcutsLine, sourceBadgeText, splitAffiliation,
+} from "../../../utils/authorshipRow";
 
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
@@ -187,7 +190,8 @@ interface ActivityEntry {
 // mockup's "No accepted papers yet" line belongs to `accepted === 0` alone — reading it off
 // names.length would tell a curator someone has published nothing when they have published a lot.
 interface PriorNames {
-  names: Array<{ first: string; last: string; n: number }>;
+  // lastYear: the latest year on an accepted paper under that form (the card's "Last" column).
+  names: Array<{ first: string; last: string; n: number; lastYear?: number }>;
   accepted: number;
   more?: number;
   // Titles of accepted papers. A byline name alone often cannot separate two WCM homonyms
@@ -209,6 +213,8 @@ interface PriorNames {
   counts?: { accepted: number; rejected: number; pending: number; firstYear?: number; lastYear?: number };
   journals?: Array<{ journal: string; n: number }>;
   namesakes?: Array<{ first: string; last: string; n: number }>;
+  // UI refresh PR 4: the people beside them most often on accepted papers, by distinct paper.
+  coauthors?: Array<{ name: string; n: number }>;
 }
 
 interface Candidate {
@@ -941,40 +947,6 @@ const dateLabel = (source?: string) => (source === "openalex"
   ? { label: "Cover date", tip: "Scopus cover date (prism:coverDate) — the issue date Scopus carries for this document. This lane is not in PubMed, so there is no Entrez date." }
   : { label: "Indexed", tip: "Date NCBI indexed this record (Entrez date), not the publication date — for a record indexed late the two can differ by years. authorship_review has no publication-date column." });
 
-// inline IO/FG explanation (F8)
-const ioFgNote = (r: AuthorshipRow): string => {
-  if (r.top_io_score == null) {
-    const wcm = hasWcm(r.author_affiliation);
-    return wcm
-      ? `Never retrieved — no IO/Authorship Score. The affiliation names Weill Cornell${r.top_dept ? ` and the department (${r.top_dept})` : " and the surname is unique"}; production never scored this person.`
-      : `Never retrieved — no IO/Authorship Score. The surname is unique among WCM identities (${r.top_cohort_size ?? 1} homonym); production never scored this person.`;
-  }
-  const io = fmtScore(r.top_io_score);
-  const fg = fmtScore(r.top_fg_score);
-  if (hasWcm(r.author_affiliation)) {
-    return `IO ${io} — unique match; Authorship Score fell to ${fg} even though the affiliation names Weill Cornell — production under-scored a clear WCM authorship.`;
-  }
-  return `IO ${io} — name uniquely matches ${r.top_cwid || "this identity"} (${r.top_cohort_size ?? 1} WCM homonym); Authorship Score fell to ${fg} because the affiliation names an external institution, not WCM. Identity carries it.`;
-};
-
-// scopus lane note — no PubMed record, so no production/IO score; ranked by matcher confidence.
-const scopusNote = (r: AuthorshipRow): string => {
-  const cohort = r.top_cohort_size ?? 1;
-  const who = hasWcm(r.author_affiliation)
-    ? "The affiliation names Weill Cornell"
-    : `The surname matches ${cohort} WCM identit${cohort === 1 ? "y" : "ies"}`;
-  return `Not in PubMed — found via the Scopus AF-ID sweep, so production never scored it (no IO/Authorship Score exists). ${who}; ranked by identity-match confidence (${confBand(r.top_confidence)}). Accepting adds it as an ExternalArticle (no PMID → not gold standard).`;
-};
-
-// openalex lane note — conference abstracts and preprints OpenAlex has and PubMed does not.
-const openalexNote = (r: AuthorshipRow): string => {
-  const cohort = r.top_cohort_size ?? 1;
-  const who = hasWcm(r.author_affiliation)
-    ? "The affiliation names Weill Cornell"
-    : `The surname matches ${cohort} WCM identit${cohort === 1 ? "y" : "ies"}`;
-  return `Not in PubMed — found via the OpenAlex conference-abstract/preprint sweep, so production never scored it (no IO/Authorship Score exists). ${who}; ranked by identity-match confidence (${confBand(r.top_confidence)}). Accepting adds it as an ExternalArticle (no PMID → not gold standard).`;
-};
-
 const btn = (variant: "accept" | "reject" | "soft" | "ghost", disabled?: boolean): CSSProperties => {
   const base: CSSProperties = {
     display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 7, padding: "6px 12px",
@@ -1036,7 +1008,8 @@ const clampStyle = (lines: number): CSSProperties => ({
 // check for 1.4s (mockup:387-394, :798-803). It replaces the old evidence-panel PmidLink — the
 // number is now on the collapsed card, so it is not also repeated inside the panel.
 // stopPropagation on both, so neither toggles the card open (Item 6).
-const PmidCite = ({ pmid }: { pmid: number }) => {
+// `bare`: the number alone, for the expanded row's footer where the key already says "PMID".
+const PmidCite = ({ pmid, bare }: { pmid: number; bare?: boolean }) => {
   const [copied, setCopied] = useState(false);
   // cleanup on unmount/re-trigger, so a card removed (accept/reject) inside the 1.4s window
   // can't setState after unmount.
@@ -1050,7 +1023,7 @@ const PmidCite = ({ pmid }: { pmid: number }) => {
       <a href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noreferrer"
         onClick={(e) => e.stopPropagation()}
         style={{ color: "var(--pm-slate)", textDecoration: "none", fontVariantNumeric: "tabular-nums" }}>
-        PMID {pmid}
+        {bare ? pmid : `PMID ${pmid}`}
       </a>
       <button
         onClick={(e) => {
@@ -1077,7 +1050,7 @@ const scopusRecordUrl = (externalId?: string) =>
 const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
   const scopusUrl = scopusRecordUrl(r.external_id);
   return (
-    <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 9, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
       {scopusUrl && (
         <a href={scopusUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={outLinkStyle}>
           Scopus record <IconExt size={13} />
@@ -1098,7 +1071,7 @@ const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
 const OpenAlexLinks = ({ row: r }: { row: AuthorshipRow }) => {
   const openalexUrl = openalexRecordUrl(r.external_id);
   return (
-    <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 9, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
       {openalexUrl && (
         <a href={openalexUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={outLinkStyle}>
           OpenAlex record <IconExt size={13} />
@@ -1143,15 +1116,37 @@ const recordLine = (c: NonNullable<PriorNames["counts"]>): string => {
   return [`${c.accepted.toLocaleString()} accepted`, `${c.rejected.toLocaleString()} rejected`, `${c.pending.toLocaleString()} pending`, years].filter(Boolean).join(" · ");
 };
 
-const IdentityHoverCard = ({ subject, priorNames, byline }: {
+// The hover card's "names they publish under" columns: name | pubs | share bar | last year.
+const HC_FORMS = "minmax(0,1fr) 40px 92px 38px";
+type HoverPill = { text: string; tone: "slate" | "amber" | "red" | "muted" };
+const HOVER_PILL: Record<HoverPill["tone"], { bg: string; fg: string; bd: string }> = {
+  slate: { bg: "var(--pm-slate-tint)", fg: "var(--pm-slate)", bd: "var(--pm-slate-tint-border)" },
+  amber: { bg: "var(--pm-amber-tint)", fg: "var(--pm-amber)", bd: "var(--pm-amber-tint-border)" },
+  red: { bg: "var(--pm-red-tint)", fg: "var(--pm-red)", bd: "var(--pm-red-tint-border)" },
+  muted: { bg: "var(--pm-surface-2)", fg: "var(--pm-muted-foreground)", bd: "var(--pm-border)" },
+};
+// What the row says about one candidate, as the hover card's pills.
+const hoverPills = (c: { io_score?: number | null; given_match?: string; affil_dept_match?: boolean }, affiliation?: string): HoverPill[] => {
+  const out: HoverPill[] = [];
+  const band = ioBandOf(c.io_score);
+  if (band) out.push({ text: `IO ${ioScoreText(c.io_score)}`, tone: band === "High" ? "slate" : band === "Medium" ? "amber" : "red" });
+  if (c.given_match === "full") out.push({ text: "Full given name", tone: "slate" });
+  if (c.affil_dept_match) out.push({ text: "Dept in affiliation", tone: "slate" });
+  if (hasWcm(affiliation)) out.push({ text: "WCM in affiliation", tone: "slate" });
+  return out;
+};
+
+const IdentityHoverCard = ({ subject, priorNames, byline, pills }: {
   // Takes a plain identity rather than an AuthorshipRow so the multi-candidate list can show
   // the same card per CANDIDATE. It was row-shaped and therefore single-candidate-only, which
   // is precisely backwards: the row that needs an identity dossier most is the homonym row
   // asking a curator to choose among five people with the same surname.
-  subject: { name?: string; cwid?: string; dept?: string; division?: string; institution?: string; name_source?: string; name_n?: number };
+  subject: { name?: string; cwid?: string; dept?: string; division?: string; institution?: string; person_type?: string; name_source?: string; name_n?: number };
   priorNames?: PriorNames;
   // The row's byline, so the card can say when it is not one of their accepted names.
   byline?: string;
+  // What this row already says about the match ("IO 99 · High", "Full given name", …).
+  pills?: HoverPill[];
 }) => {
   const r = subject;
   const id = priorNames?.identity;
@@ -1248,131 +1243,128 @@ const IdentityHoverCard = ({ subject, priorNames, byline }: {
     // same answer. Returning the previous object makes React bail out instead of looping.
     setPlace((p) => (p.up === up && p.dx === dx && p.max === max ? p : { up, dx, max }));
   }, [priorNames]);
+  const label: CSSProperties = { fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--pm-muted-foreground)" };
+  const muted: CSSProperties = { color: "var(--pm-muted-foreground)" };
+  const org = [r.dept, r.division || id?.division, r.person_type, r.institution].map((x) => (x || "").trim()).filter(Boolean).join(" · ");
+  const formTotal = (priorNames?.names || []).reduce((t, p) => t + p.n, 0) || 1;
+  const thisForm = (p: { first: string; last: string }) => !!byline && formKey(`${p.first} ${p.last}`) === formKey(byline);
+  const topN = (xs: Array<{ label: string; n: number }>) => xs.map((x) => (x.n > 1 ? `${x.label} (${x.n.toLocaleString()})` : x.label)).join(" · ");
+  const counts = priorNames?.counts;
+  const hasCounts = !!counts && counts.accepted + counts.rejected + counts.pending > 0;
+  const grid: Array<[string, ReactNode, CSSProperties?]> = [];
+  if (hasCounts) grid.push(["Record", recordLine(counts!)]);
+  if (priorNames?.topics?.length) grid.push(["Topics", priorNames.topics.map((t) => t.keyword).join(" · ")]);
+  if (priorNames?.journals?.length) grid.push(["Journals", topN(priorNames.journals.map((j) => ({ label: j.journal, n: j.n })))]);
+  if (priorNames?.coauthors?.length) grid.push(["Co-authors", topN(priorNames.coauthors.map((c) => ({ label: c.name, n: c.n })))]);
+  if (showNamesakes) grid.push(["Not them", topN(priorNames!.namesakes!.map((x) => ({ label: `${x.first} ${x.last}`.trim(), n: x.n }))), { color: "var(--pm-red)" }]);
+  if (priorNames?.papers?.length) grid.push(["Recent", (
+    <span key="recent" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {priorNames.papers.slice(0, 3).map((p) => (
+        <span key={p.pmid} title={p.title} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+          {p.year && <span style={{ ...muted, fontVariantNumeric: "tabular-nums" }}>{p.year} </span>}{p.title}
+        </span>
+      ))}
+    </span>
+  )]);
   return (
-    <span ref={cardRef} onClick={(e) => e.stopPropagation()}
+    <span ref={cardRef} onClick={(e) => e.stopPropagation()} data-hovercard
       style={{
-        position: "absolute", zIndex: 60, width: 460, display: "block", cursor: "default",
+        position: "absolute", zIndex: 60, width: 370, maxWidth: "calc(100vw - 48px)", display: "block", cursor: "default",
         left: place.dx,
-        // The 8px stand-off travels with the card: it has to sit between the card and the
+        // The 6px stand-off travels with the card: it has to sit between the card and the
         // anchor, which is the other side of the box once flipped.
         top: place.up ? "auto" : "100%", bottom: place.up ? "100%" : "auto",
-        paddingTop: place.up ? 0 : 8, paddingBottom: place.up ? 8 : 0,
+        paddingTop: place.up ? 0 : 6, paddingBottom: place.up ? 6 : 0,
       }}>
-      <span ref={bodyRef} style={{
-        display: "flex", flexDirection: "column", gap: 10, background: "#fff", border: `1px solid ${CTRL.border}`,
-        borderRadius: 8, boxShadow: "0 14px 34px rgba(27,36,50,0.18)", padding: "13px 15px",
-        fontWeight: 400, letterSpacing: 0, color: CTRL.ink,
+      <span ref={bodyRef} role="dialog" aria-label={r.name || r.cwid} style={{
+        display: "flex", flexDirection: "column", gap: 9, background: "#fff", border: "1px solid var(--pm-border-strong)",
+        borderRadius: 10, boxShadow: "0 10px 28px rgba(34,30,28,0.14)", padding: "12px 14px",
+        fontSize: 12.5, lineHeight: 1.45, fontWeight: 400, letterSpacing: 0, color: "var(--pm-foreground)", textAlign: "left", whiteSpace: "normal",
         // 0 until the effect has measured, which is the pre-paint pass — never a visible state.
-        // When the content is shorter than the room available this is inert: no scrollbar, no
-        // visual change, and the card looks exactly as it did.
+        // When the content is shorter than the room available this is inert.
         ...(place.max ? { maxHeight: place.max, overflowY: "auto" as const } : {}) }}>
-        <span style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{r.name || r.cwid}</span>
-          {nameSourceBadge(r)}
-          <span style={{ fontSize: 13, color: CTRL.accent }}>{r.cwid}</span>
-        </span>
-        {(showLegal || showPublishing) && (
-          <span style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12.5, color: "#4a5262" }}>
-            {showPublishing && <span><span style={{ color: "#8b93a2" }}>Publishes as </span>{id!.publishingName}</span>}
-            {showLegal && <span><span style={{ color: "#8b93a2" }}>Directory name </span>{id!.legalName}</span>}
+        <span style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 600, fontSize: 13.5 }}>{r.name || r.cwid}</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>{r.cwid}</span>
+            {nameSourceBadge(r)}
           </span>
-        )}
-        {hasDetail && (
-          <span style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13, color: "#4a5262", lineHeight: 1.45 }}>
-            {id?.title && <span>{id.title}</span>}
-            {r.dept && <span>{r.dept}</span>}
-            {(r.division || id?.division) && <span style={{ color: "#6f7889" }}>{r.division || id?.division}</span>}
-            {r.institution && <span style={{ color: "#6f7889" }}>{r.institution}</span>}
-          </span>
-        )}
-        <span style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
-          {!!priorNames?.counts && (priorNames.counts.accepted + priorNames.counts.rejected + priorNames.counts.pending) > 0 && (
-            <span style={{ fontSize: 12.5, color: "#4a5262", fontVariantNumeric: "tabular-nums", marginBottom: 3 }}>{recordLine(priorNames.counts)}</span>
-          )}
-          {bylineMiss && (
-            <span style={{ fontSize: 12.5, color: "var(--pm-amber)", marginBottom: 3 }}>This byline (“{byline}”) isn’t one of the names on their accepted papers.</span>
-          )}
-          {!priorNames ? (
-            <span style={{ fontSize: 13, color: "#6f7889" }}>Loading…</span>
-          ) : priorNames.accepted === 0 ? (
-            <span style={{ fontSize: 13, color: "#6f7889" }}>No accepted papers yet</span>
-          ) : priorNames.names.length === 0 ? (
-            <span style={{ fontSize: 13, color: "#6f7889" }}>
-              {priorNames.accepted.toLocaleString()} accepted paper{priorNames.accepted === 1 ? "" : "s"}, none with a byline name recorded
+          {id?.title && <span style={muted}>{id.title}</span>}
+          {org && <span style={muted}>{org}</span>}
+          {(showLegal || showPublishing) && (
+            <span style={muted}>
+              {showPublishing && <>Publishes as {id!.publishingName}</>}
+              {showPublishing && showLegal && " · "}
+              {showLegal && <>Directory name {id!.legalName}</>}
             </span>
-          ) : (
-            <>
-              <span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>NAMES ON ACCEPTED PAPERS</span>
-              {priorNames.names.map((p, i) => (
-                <span key={`${p.last}|${p.first}|${i}`}
-                  style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
-                  <span style={{ color: CTRL.ink }}>{`${p.first} ${p.last}`.trim()}</span>
-                  <span style={{ color: "#6f7889", fontVariantNumeric: "tabular-nums" }}>{p.n.toLocaleString()}</span>
-                </span>
-              ))}
-              {!!priorNames.more && (
-                <span style={{ fontSize: 12, color: "#8b93a2" }}>+{priorNames.more.toLocaleString()} more form{priorNames.more === 1 ? "" : "s"}</span>
-              )}
-            </>
           )}
         </span>
-        {/* What this person publishes ABOUT — between the byline names and the paper titles on
-            purpose. The three blocks answer three different questions and this one is the cheapest
-            to read: names settle "is this byline form theirs", the titles are the drill-down, and
-            this is the compact summary of the same accepted corpus, so the card reads
-            summary-then-detail downward and the fastest discriminator sits ABOVE the block the
-            window edge clips first. On the case this card exists for — two WCM homonyms, same
-            surname, same era, sometimes the same department — six MeSH terms separate them faster
-            than six titles do.
-            Rendered VERBATIM. MeSH lowercases gene and protein prefixes deliberately ("tau
-            Proteins", "ras Proteins", "beta-Thalassemia" — 7,338 of 2,310,368 keyword rows start
-            lowercase), so any title-casing pass here would print them wrong.
-            Chips, not a second right-aligned count column beside NAMES ON ACCEPTED PAPERS: the two
-            counts are not the same scale (a keyword count cannot be compared across cwids at all),
-            and stacking them in matching columns would invite exactly that reading. */}
-        {!!priorNames?.topics?.length && (
-          <span style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
-            <span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>TOPICS</span>
-            <span style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {priorNames.topics.map((t) => (
-                <Chip key={t.keyword} kind="neutral">
-                  {t.keyword}
-                  <span style={{ color: "#8b93a2", fontVariantNumeric: "tabular-nums" }}>{t.n.toLocaleString()}</span>
-                </Chip>
-              ))}
-            </span>
+        {!priorNames ? (
+          <span style={muted}>Loading…</span>
+        ) : priorNames.accepted === 0 ? (
+          <span style={{ ...muted, borderTop: "1px solid var(--pm-border)", paddingTop: 9 }}>No curated publications yet.</span>
+        ) : priorNames.names.length === 0 ? (
+          <span style={muted}>
+            {priorNames.accepted.toLocaleString()} accepted paper{priorNames.accepted === 1 ? "" : "s"}, none with a byline name recorded
           </span>
-        )}
-        {(!!priorNames?.journals?.length || showNamesakes) && (
-          <span style={{ display: "flex", flexDirection: "column", gap: 5, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9, fontSize: 12.5, lineHeight: 1.4 }}>
-            {!!priorNames?.journals?.length && (
-              <span><span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>JOURNALS </span>
-                {priorNames.journals.map((j) => `${j.journal} (${j.n.toLocaleString()})`).join(" · ")}</span>
+        ) : (
+          <span style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <span style={label}>Names they publish under</span>
+            <span style={{ display: "block", border: "1px solid var(--pm-border)", borderRadius: 7, overflow: "hidden" }}>
+              <span style={{ display: "grid", gridTemplateColumns: HC_FORMS, gap: 8, alignItems: "center", padding: "5px 9px", background: "var(--pm-surface-2)",
+                fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--pm-muted-foreground)" }}>
+                <span>Name as published</span><span style={{ textAlign: "right" }}>Pubs</span><span>Share</span><span style={{ textAlign: "right" }}>Last</span>
+              </span>
+              {priorNames.names.map((p, i) => {
+                const mine = thisForm(p);
+                const pct = `${Math.max(1, Math.round((100 * p.n) / formTotal))}%`;
+                return (
+                  <span key={`${p.last}|${p.first}|${i}`} data-form={mine ? "this" : undefined} style={{ display: "grid", gridTemplateColumns: HC_FORMS, gap: 8, alignItems: "center",
+                    padding: "5px 9px", borderTop: "1px solid var(--pm-border)", background: mine ? "var(--pm-slate-tint)" : "#fff", fontSize: 12.5 }}>
+                    <span style={{ minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: mine ? 600 : 500 }}>{`${p.first} ${p.last}`.trim()}</span>
+                      {mine && <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--pm-slate)", whiteSpace: "nowrap" }}>this byline</span>}
+                    </span>
+                    <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{p.n.toLocaleString()}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--pm-surface-2)", overflow: "hidden" }}>
+                        <span style={{ display: "block", height: 6, width: pct, background: "var(--pm-slate)" }} />
+                      </span>
+                      <span style={{ fontSize: 11, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums", width: 28, textAlign: "right" }}>{pct}</span>
+                    </span>
+                    <span style={{ textAlign: "right", fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{p.lastYear || ""}</span>
+                  </span>
+                );
+              })}
+            </span>
+            {!!priorNames.more && (
+              <span style={{ fontSize: 11.5, ...muted }}>+{priorNames.more.toLocaleString()} more form{priorNames.more === 1 ? "" : "s"}</span>
             )}
-            {showNamesakes && (
-              <span title="Bylines on papers they rejected that never appear on an accepted paper">
-                <span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>REJECTED AS </span>
-                {priorNames.namesakes.map((x) => `${`${x.first} ${x.last}`.trim()} (${x.n.toLocaleString()})`).join(" · ")}</span>
+            {bylineMiss && (
+              <span style={{ fontSize: 11.5, color: "var(--pm-amber)", fontWeight: 500 }}>This byline (“{byline}”) isn’t one of the names they’ve published under.</span>
             )}
           </span>
         )}
-        {!!priorNames?.papers?.length && (
-          <span style={{ display: "flex", flexDirection: "column", gap: 5, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
-            <span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>ACCEPTED PAPERS</span>
-            {priorNames.papers.map((p) => (
-              <span key={p.pmid} style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.35 }}>
-                {p.year && <span style={{ color: "#8b93a2", fontVariantNumeric: "tabular-nums", flex: "none" }}>{p.year}</span>}
-                {/* clamped to two lines: a title is identifying at a glance, and a card that
-                    grows with the longest title stops being scannable. */}
-                <span style={{ color: CTRL.ink, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.title}</span>
+        {!!pills?.length && (
+          <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {pills.map((p) => (
+              <span key={p.text} style={{ height: 20, padding: "0 7px", display: "inline-flex", alignItems: "center", borderRadius: 999, fontSize: 11.5,
+                background: HOVER_PILL[p.tone].bg, color: HOVER_PILL[p.tone].fg, border: `1px solid ${HOVER_PILL[p.tone].bd}` }}>{p.text}</span>
+            ))}
+          </span>
+        )}
+        {grid.length > 0 && (
+          <span style={{ display: "grid", gridTemplateColumns: "96px minmax(0,1fr)", gap: "5px 10px", borderTop: "1px solid var(--pm-border)", paddingTop: 9 }}>
+            {grid.map(([k, v, st]) => (
+              <span key={k} style={{ display: "contents" }}>
+                <span style={label}>{k}</span><span style={{ minWidth: 0, ...st }}>{v}</span>
               </span>
             ))}
-            {priorNames.accepted > priorNames.papers.length && (
-              <span style={{ fontSize: 12, color: "#8b93a2" }}>
-                of {priorNames.accepted.toLocaleString()} accepted
-              </span>
-            )}
           </span>
+        )}
+        {r.cwid && (
+          <a href={`/curate/${r.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+            style={{ fontSize: 12.5, width: "fit-content", color: "var(--pm-slate)" }}>Open curation page →</a>
         )}
       </span>
     </span>
@@ -1596,6 +1588,9 @@ const AuthorshipsTabs = () => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   // multi-candidate: chosen cwid per row id
   const [picked, setPicked] = useState<Record<number, string>>({});
+  // For the keyboard handler, which is bound once: Y on a multi-candidate row assigns the pick.
+  const pickedRef = useRef(picked);
+  pickedRef.current = picked;
   // T4/B-8: "Assign selected (N) to…" — anchor opens the candidate-union picker; choosing a
   // target (typed or from the union) fires ONE server lookup (authorshipLookupCwid) rather than
   // submitting anything, so assignLookupCwid holds the in-flight typed/picked string while that
@@ -2024,6 +2019,7 @@ const AuthorshipsTabs = () => {
           papers: d?.papers?.[cwid] || [], identity: d?.identity?.[cwid],
           topics: d?.topics?.[cwid] || [],
           counts: d?.counts?.[cwid], journals: d?.journals?.[cwid] || [], namesakes: d?.namesakes?.[cwid] || [],
+          coauthors: d?.coauthors?.[cwid] || [],
         },
       })))
       .catch(() => { priorNamesAsked.current.delete(cwid); });
@@ -2773,7 +2769,13 @@ const AuthorshipsTabs = () => {
         if (statusView === "open" && row.single_candidate) {
           if (row.identity_in_reciter === false) showError(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Assign it to someone else instead.`);
           else doAction?.(row, "accept");
-        } else if (statusView === "open") showError("Several people share this name: open the row (E) and pick one to assign it.");
+        } else if (statusView === "open") {
+          // The same pick ✓ uses: one of the row's live candidates, chosen by a radio or a column.
+          const cwid = pickedRef.current[row.id];
+          const live = rankCandidates(parseCandidates(row.candidate_cwids_json)).some((c) => c.cwid === cwid);
+          if (cwid && live) doAction?.(row, "assign", { cwid });
+          else showError("Several people share this name: pick one on the row first, then press Y to assign it.");
+        }
         e.preventDefault();
       }
       else if (cmd === "reject") { if (statusView === "open") doAction?.(row, "reject"); e.preventDefault(); }
@@ -4210,15 +4212,23 @@ const AuthorshipCard = ({
   // delay, so a pointer travelling down the page over five names asks for none of them. The
   // timer is cleared on leave AND on unmount — a card removed by an accept mid-hover would
   // otherwise open a popup on a node that no longer exists.
-  const [identityHover, setIdentityHover] = useState(false);
+  // One hover card at a time per row, so a cwid rather than a flag: the suggested identity's
+  // name and each candidate radio on a multi row share it.
+  const [hoverCwid, setHoverCwid] = useState<string | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelHover = () => { if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; } };
   useEffect(() => cancelHover, []);
-  const openIdentityHover = () => {
+  const openHover = (cwid?: string | null) => {
     cancelHover();
-    hoverTimer.current = setTimeout(() => { setIdentityHover(true); onHoverIdentity(r.top_cwid); }, 220);
+    if (!cwid) return;
+    hoverTimer.current = setTimeout(() => { setHoverCwid(cwid); onHoverIdentity(cwid); }, 220);
   };
-  const closeIdentityHover = () => { cancelHover(); setIdentityHover(false); };
+  const closeHover = () => { cancelHover(); setHoverCwid(null); };
+  // The candidates in the order the row lists them; retired CWIDs left out (the opened row says
+  // why). A pick that is no longer among them doesn't count.
+  const ranked = isMulti ? rankCandidates(candidates) : [];
+  const pick = ranked.find((c) => c.cwid === pickedCwid);
+  const acceptedByCwids = new Set((r.accepted_by || []).map((a) => String(a.cwid || "").toLowerCase()));
 
   // One table row (prototype markup ~963-1114): checkbox | IO | author → identity | article |
   // actions, separated by hairlines. The focused row gets a 3px slate spine and the surface-2
@@ -4241,7 +4251,7 @@ const AuthorshipCard = ({
         : `Identity-Only Score ${fmtScore(r.top_io_score)} · ${badge.band} confidence${statusView !== "dismissed" && r.top_fg_score != null ? ` · Authorship Score ${fmtScore(r.top_fg_score)}${r.top_fg_score < 30 ? " (below the 30 cut)" : ""}` : ""}`;
   // What Accept can do on this row, and why not when it can't. Every disabled state is the same
   // gate the old labelled buttons had; only the control changed.
-  const acceptBlock: string | null = isMulti ? (nothingToPick ? "No candidate to accept — open the row to look up the directory" : "Pick a candidate first — open the row to compare them")
+  const acceptBlock: string | null = isMulti ? (nothingToPick ? "No candidate to accept — open the row to look up the directory" : pick ? null : "Pick a candidate first")
     : noSuggestion ? "No candidate to accept"
       : topRetired ? `${r.top_cwid} is a retired CWID${r.top_superseded_by ? ` — assign it to ${r.top_superseded_by} instead` : ""}`
         : noIdentity ? `${r.top_name || r.top_cwid} has no ReCiter identity, so there is nothing to add this authorship to — assign it to someone else`
@@ -4324,9 +4334,55 @@ const AuthorshipCard = ({
           </div>
 
           {isMulti ? (
-            <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>
-              {nothingToPick ? "No WCM candidate proposed · look up the directory" : `${r.n_candidates ?? candidates.length} people share this name · pick one`}
-            </span>
+            <>
+              <span data-share style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>
+                {nothingToPick ? "No WCM candidate proposed · look up the directory" : shareLine(ranked.length || (r.n_candidates ?? candidates.length), !!pick)}
+              </span>
+              {/* The candidates as an inline radio group (prototype markup ~1015-1030): picking
+                  one turns on ✓, which then assigns to them. Writes nothing by itself. Only the
+                  Open queue can act, so the parked queues list them without radios. */}
+              {ranked.length > 0 && (
+                <div role="radiogroup" aria-label={`Who wrote this as ${r.wcm_author || "this author"}`} onClick={stop}
+                  style={{ marginLeft: -6, display: "flex", flexDirection: "column", gap: 1 }}>
+                  {ranked.map((c) => {
+                    const on = c.cwid === pick?.cwid;
+                    const live = statusView === "open";
+                    const warn = c.already_rejected ? "Already rejected this paper on their own record"
+                      : acceptedByCwids.has(c.cwid.toLowerCase()) ? "Already accepted this article" : "";
+                    return (
+                      <div key={c.cwid} role="radio" aria-checked={on} tabIndex={live ? 0 : -1} data-cand={c.cwid}
+                        className={live ? "pm-arow-cand" : undefined}
+                        title={[`${c.name || c.cwid} (${c.cwid})`, c.person_type, c.dept, c.io_score != null ? `IO ${Math.floor(c.io_score)}` : `${confBand(c.confidence)} match`, warn].filter(Boolean).join(" · ")}
+                        onClick={() => { if (live) onPick(c.cwid); }}
+                        onKeyDown={(e) => { if (live && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); onPick(c.cwid); } }}
+                        onMouseEnter={() => openHover(c.cwid)} onMouseLeave={closeHover}
+                        style={{ position: "relative", display: "grid", gridTemplateColumns: "13px minmax(0,1fr) auto", gap: 8, alignItems: "center",
+                          padding: "4px 6px", borderRadius: 6, background: on ? "var(--pm-slate-tint)" : undefined, cursor: live ? "pointer" : "default", fontSize: 12.5 }}>
+                        <span aria-hidden="true" style={{ width: 13, height: 13, borderRadius: "50%", boxSizing: "border-box", background: "#fff",
+                          border: on ? "4px solid var(--pm-slate)" : "1.5px solid var(--pm-muted-foreground)", visibility: live ? "visible" : "hidden" }} />
+                        <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <span style={{ fontWeight: on ? 600 : 500, color: warn ? "var(--pm-red)" : on ? "var(--pm-slate)" : "var(--pm-foreground)" }}>{c.name || c.cwid}</span>
+                          {c.dept && <span style={{ color: "var(--pm-muted-foreground)" }}> · {c.dept}</span>}
+                          {warn && <span style={{ color: "var(--pm-red)" }}> · {c.already_rejected ? "already rejected" : "accepted this article"}</span>}
+                        </span>
+                        <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>
+                          {c.io_score != null ? Math.floor(c.io_score) : "—"}
+                        </span>
+                        {hoverCwid === c.cwid && (
+                          <span style={{ position: "absolute", top: "100%", left: 21, width: 0, height: 0 }}>
+                            <span style={{ position: "relative", display: "block" }}>
+                              <IdentityHoverCard
+                                subject={{ name: c.name, cwid: c.cwid, dept: c.dept, person_type: c.person_type, name_source: c.name_source, name_n: c.name_n }}
+                                priorNames={priorNamesByCwid[c.cwid]} byline={r.wcm_author} pills={hoverPills(c, r.author_affiliation)} />
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           ) : noSuggestion ? (
             <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)", paddingLeft: 16 }}>→ No suggested identity · assign one below</span>
           ) : (
@@ -4335,14 +4391,15 @@ const AuthorshipCard = ({
                 <span style={{ color: "var(--pm-muted-foreground)", fontSize: 12 }}>→</span>
                 {/* §2.6: the proposed identity's name carries the hover card. The wrapper is the
                     hover target AND the positioning context for the popup. */}
-                <span onMouseEnter={openIdentityHover} onMouseLeave={closeIdentityHover} style={{ position: "relative", display: "inline-block" }}>
+                <span onMouseEnter={() => openHover(r.top_cwid)} onMouseLeave={closeHover} style={{ position: "relative", display: "inline-block" }}>
                   <span data-idname style={{ fontWeight: 600, color: "var(--pm-slate)", borderBottom: "1px dotted var(--pm-slate-tint-border)", cursor: "help" }}>{r.top_name}</span>
-                  {identityHover && (
+                  {!!r.top_cwid && hoverCwid === r.top_cwid && (
                     <IdentityHoverCard
-                      subject={{ name: r.top_name, cwid: r.top_cwid, dept: r.top_dept,
+                      subject={{ name: r.top_name, cwid: r.top_cwid, dept: r.top_dept, person_type: r.top_person_type,
                                  division: r.top_division, institution: r.top_institution,
                                  name_source: topCand?.name_source, name_n: topCand?.name_n }}
-                      priorNames={r.top_cwid ? priorNamesByCwid[r.top_cwid] : undefined} byline={r.wcm_author} />
+                      priorNames={priorNamesByCwid[r.top_cwid]} byline={r.wcm_author}
+                      pills={hoverPills({ io_score: r.top_io_score, given_match: r.top_given_match, affil_dept_match: r.top_affil_match }, r.author_affiliation)} />
                   )}
                 </span>
                 {r.top_cwid && (
@@ -4418,9 +4475,6 @@ const AuthorshipCard = ({
               </Tip>
             )}
             {r.pub_type && <>{(r.journal || dateText) ? " · " : ""}{r.pub_type}</>}
-            {!isExternalSource(r) && r.pmid != null && (
-              <span onClick={stop} style={{ display: "inline-flex", verticalAlign: "middle", marginLeft: 8, fontSize: 12 }}><PmidCite pmid={r.pmid} /></span>
-            )}
           </span>
           <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: "var(--pm-muted-foreground)", minWidth: 0 }}>
             <span data-src style={{
@@ -4467,9 +4521,9 @@ const AuthorshipCard = ({
         <div data-actions style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, width: 104 }}>
           {statusView === "open" ? (
             <>
-              <button type="button" className="pm-arow-accept" aria-label={isMulti ? "Assign" : "Accept"}
-                title={acceptBlock || "Accept (Y)"} disabled={acting || !!acceptBlock}
-                onClick={(e) => { e.stopPropagation(); onAction("accept"); }}
+              <button type="button" className="pm-arow-accept" aria-label={isMulti ? (pick ? `Assign to ${pick.name || pick.cwid}` : "Assign") : "Accept"}
+                title={acceptBlock || (isMulti && pick ? `Assign to ${pick.name || pick.cwid} (Y)` : "Accept (Y)")} disabled={acting || !!acceptBlock}
+                onClick={(e) => { e.stopPropagation(); if (isMulti) { if (pick) onAction("assign", { cwid: pick.cwid }); } else onAction("accept"); }}
                 style={rowActBtn("accept", acting || !!acceptBlock)}>
                 <IconCheck size={14} style={{ strokeWidth: 2.5 }} />
               </button>
@@ -4545,120 +4599,139 @@ const AuthorshipCard = ({
         </div>
       )}
 
-      {/* expanded evidence / pick-one */}
+      {/* expanded evidence, the record footer and the "someone else" strip */}
       {isExpanded && (
-        <div onClick={(e) => e.stopPropagation()} style={{ margin: "0 16px 12px 104px", fontSize: 13, color: "var(--pm-foreground)", cursor: "default" }}>
-          {isMulti ? (
-            <MultiEvidence row={r} candidates={candidates} pickedCwid={pickedCwid} acting={acting}
-              onPick={onPick} onAction={onAction}
-              priorNamesByCwid={priorNamesByCwid} onHoverIdentity={onHoverIdentity} />
-          ) : (
-            <SingleEvidence row={r} wcm={wcm} isAbsent={isAbsent} />
-          )}
-          {/* PubMed-twin adjudication (#951 Layer 2) — the producer's matched_pmid flag,
-              rendered ahead of AssignOther so the comparison is the first thing a curator sees
-              on a flagged row (assigning is still possible below regardless of what this
-              panel finds). Fetched lazily on expand, same as everything else in this block. */}
-          {r.matched_pmid != null && (
-            <CounterpartPanel row={r} acting={acting} onAction={onAction} />
-          )}
-          {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
-              single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
-              it's the case where the curator most often knows a name the card can't offer. */}
-          {/* A row with NO candidates has nothing to pick, and a row whose best candidate is
-              only an initial-tier guess has nothing worth trusting: expanding either runs the
-              directory lookup on the byline name straight away (the prefill path, `auto` so the
-              server applies the WCM-first / Cornell-fallback rule). 93% of open pubmed rows are
-              in one of those two states (2026-09-20), which is why this is routine rather than a
-              button. Since UI refresh 4c a full given-name match runs it too: every expand. */}
-          <AssignOther rowId={r.id} acting={acting} onAction={onAction} authorName={r.wcm_author}
-            affiliation={r.author_affiliation}
-            prefill={assignPrefill ?? r.wcm_author}
-            autoPrefill={!assignPrefill} />
-          {/* One note for both buttons above. `listed` is candidates-minus-one and does not
-              move with the radio: whichever one is picked, the same number of others are
-              rejected. `typed` is all N — someone typed into the box is by definition not one
-              of the proposed candidates. (If the curator types a listed candidate's cwid
-              instead of clicking its radio, the server excludes them and typed over-counts by
-              one.) F-2: a single-candidate row records the same "not mine" for its one
-              proposed candidate when the curator assigns elsewhere — but only when that
-              candidate actually exists to be displaced (a real top_cwid) and has a ReCiter
-              identity to write the rejection against (noIdentity / noSuggestion are exactly
-              the server-computed facts that already gate this row's own "No ReCiter identity"
-              pill and no-suggestion state). Scopus has no pmid to reject, so neither count. */}
-          <HomonymNote
-            listed={!isExternalSource(r) && isMulti ? Math.max(0, candidates.length - 1) : 0}
-            typed={isExternalSource(r) ? 0
-              : isMulti ? candidates.length
-                : (noSuggestion || noIdentity ? 0 : 1)} />
-        </div>
+        <ExpandedPanel row={r} candidates={candidates} pickedCwid={pick?.cwid} acting={acting} statusView={statusView}
+          onPick={onPick} onAction={onAction} priorNamesByCwid={priorNamesByCwid} onHoverIdentity={onHoverIdentity}
+          assignPrefill={assignPrefill} />
       )}
     </article>
   );
 };
 
-// single-candidate / absent evidence panel
-const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: boolean; isAbsent: boolean }) => {
-  // #938 — top_cwid null: neither ioFgNote nor scopusNote below is safe to call, since both
-  // are written assuming a matched candidate exists (ioFgNote literally names r.top_cwid as
-  // the thing "uniquely matched"). Short-circuit the note itself rather than patch either
-  // function for a case they were never meant to describe.
+// The expanded row (prototype markup ~1115-1185): the evidence (one candidate's table, or the
+// comparison grid on a multi-candidate row), the grey record footer, then the "someone else"
+// strip. The candidate-evidence request is made once here and shared by the table, the grid and
+// the footer's Authors line.
+const ExpandedPanel = ({ row: r, candidates, pickedCwid, acting, statusView, onPick, onAction,
+  priorNamesByCwid, onHoverIdentity, assignPrefill }: {
+  row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean; statusView: "open" | "snoozed" | "dismissed";
+  onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
+  priorNamesByCwid: Record<string, PriorNames>; onHoverIdentity: (cwid?: string | null) => void; assignPrefill?: string;
+}) => {
+  const isMulti = !r.single_candidate;
   const noSuggestion = !r.top_cwid;
+  const noIdentity = r.identity_in_reciter === false;
+  const live = candidates.filter((c) => !c.retired_cwid);
+  const ev = useCandidateEvidence(r.id, isMulti ? live.map((c) => c.cwid).sort().join(",") : r.top_cwid || "");
   return (
-  <>
-    {/* Scopus rows have no PMID, so this lane keeps its record/DOI links here. PubMed rows get
-        their PMID + copy button on the card's own meta line (§2.6) instead of twice over. */}
-    {r.source === "scopus" && <div><ScopusLinks row={r} /></div>}
-    {r.source === "openalex" && <div><OpenAlexLinks row={r} /></div>}
-    {/* absent → labeled facts, no score blocks (F10) */}
-    {isAbsent && (
-      <div style={{ display: "flex", gap: 22, marginBottom: 10 }}>
-        <div><div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{confBand(r.top_confidence)}</div><div style={factLabel}>Confidence</div></div>
-        <div><div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>{r.top_cohort_size ?? "—"}</div><div style={factLabel}>WCM homonym</div></div>
-        <div><div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{r.top_given_match || "—"}</div><div style={factLabel}>Given name</div></div>
-      </div>
-    )}
-    {/* signal chips (F7) */}
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 9 }}>
-      {wcm
-        ? <Chip kind="ok"><IconCheck size={13} /> WCM affiliation match</Chip>
-        : <Chip kind="warn"><IconAlert size={13} /> No WCM string in affiliation</Chip>}
-      {/* #938 — top_dept/top_affil_match are also part of ReCiterDB#177's null sweep; on a
-          no-suggestion row there is no candidate department to compare against, so this chip
-          would otherwise assert a mismatch against nothing (same class of bug as ioFgNote). */}
-      {!noSuggestion && (r.top_affil_match
-        ? <Chip kind="neutral">Dept: {r.top_dept} ✓</Chip>
-        : <Chip kind="neutral">Dept ≠ affiliation</Chip>)}
+    <div onClick={(e) => e.stopPropagation()} data-expanded-panel
+      style={{ margin: "0 16px 12px 104px", display: "flex", flexDirection: "column", gap: 10, fontSize: 13, color: "var(--pm-foreground)", cursor: "default" }}>
+      {isMulti ? (
+        <MultiEvidence row={r} candidates={candidates} pickedCwid={pickedCwid} ev={ev}
+          onPick={statusView === "open" ? onPick : () => undefined}
+          priorNamesByCwid={priorNamesByCwid} onHoverIdentity={onHoverIdentity} />
+      ) : noSuggestion ? (
+        <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>No suggested identity to compare against. Use the box below to look the author up in the directory.</span>
+      ) : (
+        <SingleEvidenceTable row={r} ev={ev} />
+      )}
+      {/* PubMed-twin adjudication (#951 Layer 2) — the producer's matched_pmid flag, rendered
+          ahead of the footer so the comparison is the first thing a curator sees on a flagged
+          row (assigning is still possible below regardless of what this panel finds). */}
+      {r.matched_pmid != null && (
+        <CounterpartPanel row={r} acting={acting} onAction={onAction} />
+      )}
+      <RecordFooter row={r} ev={ev} />
+      {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
+          single-candidate row is precisely where the producer was CONFIDENTLY wrong, so it's the
+          case where the curator most often knows a name the row can't offer. Opening a row runs
+          the directory lookup on the byline name straight away (UI refresh 4c: every expand);
+          the box itself starts empty, as in the prototype. */}
+      {(
+        <AssignOther rowId={r.id} acting={acting} onAction={onAction} authorName={r.wcm_author}
+          affiliation={r.author_affiliation} prefill={assignPrefill} autoSearch={!assignPrefill}
+          // One note for the box and the radios. `listed` is candidates-minus-one, `typed` is all
+          // of them: someone typed in is by definition not a listed candidate. F-2: a
+          // single-candidate row records the same "not mine" for its one proposed candidate when
+          // that candidate exists and has a ReCiter identity. Scopus has no pmid to reject.
+          note={<HomonymNote
+            listed={!isExternalSource(r) && isMulti ? Math.max(0, candidates.length - 1) : 0}
+            typed={isExternalSource(r) ? 0
+              : isMulti ? candidates.length
+                : (noSuggestion || noIdentity ? 0 : 1)} />} />
+      )}
     </div>
-    {/* inline note (F8) — scopus lane gets its own not-in-PubMed explanation; #938's
-        no-suggestion rows get neither, since both notes assume a matched candidate */}
-    <div style={{
-      display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px",
-      background: noSuggestion ? "#f8fafc" : isExternalSource(r) ? "var(--pm-slate-tint)" : isAbsent ? "var(--pm-amber-tint)" : "var(--pm-slate-tint)",
-      color: noSuggestion ? "#64748b" : isExternalSource(r) ? "var(--pm-slate)" : isAbsent ? "var(--pm-amber)" : "#475569",
-    }}>
-      {noSuggestion
-        ? <IconInfo size={15} style={{ marginTop: 1, color: "#64748b" }} />
-        : isExternalSource(r)
-          ? <IconInfo size={15} style={{ marginTop: 1, color: "var(--pm-slate)" }} />
-          : isAbsent ? <IconAlert size={15} style={{ marginTop: 1, color: "var(--pm-amber)" }} /> : <IconInfo size={15} style={{ marginTop: 1, color: "var(--pm-slate)" }} />}
-      <span>{noSuggestion
-        ? "No proposed identity — the matcher no longer matches this byline to any WCM identity. Assign it to someone below, or leave it open."
-        : r.source === "openalex" ? openalexNote(r)
-        : r.source === "scopus" ? scopusNote(r) : ioFgNote(r)}</span>
-    </div>
-    {!noSuggestion && <SingleEvidenceTable row={r} />}
-  </>
   );
 };
 
-// 4d-3: the evidence table for the row's one candidate. Mounted with the expanded panel, so it
-// fetches at the same moment AssignOther's directory lookup fires. A single row carries its
-// candidate as top_* fields, not a candidate object, so build one from them.
-const SingleEvidenceTable = ({ row: r }: { row: AuthorshipRow }) => {
-  const ev = useCandidateEvidence(r.id, r.top_cwid || "");
-  if (ev.status === "loading") return <div style={{ marginTop: 10, fontSize: 12.5, color: "#6b7484" }}>Loading evidence…</div>;
-  if (ev.status === "error") return <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--pm-amber)" }}>Couldn’t load the evidence table. Collapse and reopen the row to retry.</div>;
+// The grey key/value box under the evidence (prototype markup ~1179-1184): the byline with this
+// row's author highlighted, the record id, production's Authorship Score against the 30 cut,
+// and the match class.
+const RecordFooter = ({ row: r, ev }: { row: AuthorshipRow; ev: ReturnType<typeof useCandidateEvidence> }) => {
+  const external = isExternalSource(r);
+  const fromJson = (() => {
+    if (!external || !r.authors_json) return null;
+    try {
+      const list = JSON.parse(r.authors_json);
+      return Array.isArray(list) ? list.map((a: any) => `${String(a?.given || "").trim()} ${String(a?.surname || "").trim()}`.trim()).filter(Boolean) as string[] : null;
+    } catch { return null; }
+  })();
+  const authors = ev.status === "ok" && ev.data.authors?.length ? ev.data.authors : fromJson;
+  const target = ev.status === "ok" && ev.data.authors?.length ? (ev.data.target ?? -1)
+    : (fromJson || []).findIndex((n) => n.toLowerCase() === String(r.wcm_author || "").toLowerCase());
+  const parts = authors?.length ? bylineParts(authors, target) : null;
+  const cls = r.classification ? CLASS_META[r.classification] : undefined;
+  const k: CSSProperties = { color: "var(--pm-muted-foreground)" };
+  const hl: CSSProperties = { background: "var(--pm-slate-tint)", color: "var(--pm-slate)", padding: "0 3px", borderRadius: 3, fontWeight: 600 };
+  return (
+    <div data-record-footer style={{
+      padding: "9px 12px", borderRadius: 8, background: "var(--pm-page)", border: "1px solid var(--pm-border)",
+      display: "grid", gridTemplateColumns: "110px minmax(0,1fr)", gap: "5px 12px", fontSize: 12.5, lineHeight: 1.5,
+    }}>
+      <span style={k}>Authors</span>
+      <span data-authors style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+        {parts ? (
+          <>{parts.pre}{parts.tgt ? <strong style={hl}>{parts.tgt}</strong> : null}{parts.post}
+            {authors!.length > 12 && <span style={k}> · {authors!.length} authors</span>}</>
+        ) : ev.status === "loading" && !external ? (
+          <span style={k}>Loading…</span>
+        ) : (
+          <><strong style={hl}>{r.wcm_author}</strong><span style={k}> · the full author list isn’t available</span></>
+        )}
+      </span>
+      {external ? (
+        <>
+          <span style={k}>{r.source === "openalex" ? "OpenAlex" : "Scopus"}</span>
+          <span style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{r.external_id || "—"}</span>
+            {r.source === "openalex" ? <OpenAlexLinks row={r} /> : <ScopusLinks row={r} />}
+          </span>
+        </>
+      ) : (
+        <>
+          <span style={k}>PMID</span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{r.pmid != null ? <PmidCite pmid={r.pmid} bare /> : "—"}</span>
+        </>
+      )}
+      <span style={k}>Authorship Score</span>
+      <span data-fg>{fgLine(r.top_fg_score, r.source)}</span>
+      {cls && (
+        <>
+          <span style={k}>Match class</span>
+          <span><strong style={{ fontWeight: 600, color: r.classification === "buried" ? "var(--pm-red)" : r.classification === "absent" ? "var(--pm-amber)" : "var(--pm-muted-foreground)" }}>{cls.label}</strong> · {cls.hint}</span>
+        </>
+      )}
+    </div>
+  );
+};
+
+// 4d-3: the evidence table for the row's one candidate. A single row carries its candidate as
+// top_* fields, not a candidate object, so build one from them. Scopus / OpenAlex rows and rows
+// production never retrieved say so beside the tally, where the prototype puts its note.
+const SingleEvidenceTable = ({ row: r, ev }: { row: AuthorshipRow; ev: ReturnType<typeof useCandidateEvidence> }) => {
+  if (ev.status === "loading") return <div style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>Loading evidence…</div>;
+  if (ev.status === "error") return <div style={{ fontSize: 12.5, color: "var(--pm-amber)" }}>Couldn’t load the evidence table. Close and reopen the row to retry.</div>;
   const year = Number((r.entrez_date || "").slice(0, 4)) || null;
   const rows = buildCandidateEvidence(
     { byline: r.wcm_author, affiliation: r.author_affiliation, journal: r.journal, year, source: r.source, coauthors: ev.data.coauthors },
@@ -4666,7 +4739,10 @@ const SingleEvidenceTable = ({ row: r }: { row: AuthorshipRow }) => {
       affil_dept_match: r.top_affil_match, already_rejected: r.top_already_rejected },
     ev.data.facts[r.top_cwid || ""],
   );
-  return <EvidenceTable rows={rows} who={`${r.top_name || r.top_cwid} · ${r.top_cwid}`} />;
+  const note = isExternalSource(r) ? `Not in PubMed, so production never scored it · match confidence ${confBand(r.top_confidence)}`
+    : r.top_io_score == null ? `Never retrieved by ReCiter, so there is no Identity-Only Score · match confidence ${confBand(r.top_confidence)}` : "";
+  return <EvidenceTable rows={rows} who={`${r.top_name || r.top_cwid} · ${r.top_cwid}`}
+    note={note ? <span data-ev-note style={{ fontSize: 12, color: "var(--pm-amber)" }}>{note}</span> : undefined} />;
 };
 
 // What an assign does to the OTHER candidate(s) on the row, said before the click rather than
@@ -4687,7 +4763,7 @@ const SingleEvidenceTable = ({ row: r }: { row: AuthorshipRow }) => {
 // Tucked behind an info button (owner request 2026-09-15): the amber paragraph was the tallest
 // thing on every card and read the same each time. The full sentence is the tooltip.
 const HomonymNote = ({ listed, typed }: { listed: number; typed: number }) => typed < 1 ? null : (
-  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+  <div style={{ display: "flex" }}>
     <Tip placement="left" arrow title={<>
       {listed < 1
         // single-candidate row: the two counts collapse (0 listed / 1 typed), so the combined
@@ -4704,118 +4780,56 @@ const HomonymNote = ({ listed, typed }: { listed: number; typed: number }) => ty
   </div>
 );
 
-// multi-candidate disambiguation panel (F11)
-const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, onPick, onAction,
-  priorNamesByCwid, onHoverIdentity }: {
-  row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean;
-  onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
+// The opened multi-candidate row: the comparison grid (4d-4), with the radios on the collapsed
+// row as the other way to pick. The notes the row can't show in one line sit above it.
+const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, ev, onPick, priorNamesByCwid, onHoverIdentity }: {
+  row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; ev: ReturnType<typeof useCandidateEvidence>;
+  onPick: (cwid: string) => void;
   priorNamesByCwid: Record<string, PriorNames>; onHoverIdentity: (cwid?: string | null) => void;
 }) => {
-  // #1012: a cwid ED has RETIRED is removed from the picker outright — unlike already_rejected
-  // below, which stays VISIBLE because it records a judgement a curator may still overrule. This
-  // is not a judgement: the identifier is dead, the human lives under another cwid, and every
-  // write to it lands on a record nothing reads again. There is no "yes, I'm sure" that makes it
-  // right, so the server refuses it too (case "assign") and hiding it removes a dead end rather
-  // than removing a choice.
-  //
-  // Never silent — what was removed is named under the list, with its replacement, which is very
-  // often ALREADY one of the remaining candidates (112 of the 233 affected open rows on the
-  // 2026-09-09 census). On those rows the card's "choose among N WCM homonyms" was counting one
-  // human twice.
+  // #1012: a cwid ED has RETIRED is removed from the picker outright — unlike already_rejected,
+  // which stays VISIBLE because it records a judgement a curator may still overrule. Never
+  // silent: what was removed is named under the grid, with its replacement, which is very often
+  // ALREADY one of the remaining candidates (112 of the 233 affected open rows on 2026-09-09).
   const retiredCandidates = allCandidates.filter((c) => c.retired_cwid);
-  const candidates = retiredCandidates.length
-    ? allCandidates.filter((c) => !c.retired_cwid) : allCandidates;
+  const candidates = rankCandidates(allCandidates);
+  const anyDeptMatch = candidates.some((c) => c.affil_dept_match);
   // One hover at a time, so a single cwid rather than a per-candidate flag each.
   const [hoverCwid, setHoverCwid] = useState<string | null>(null);
   const candHoverTimer = useRef<any>(null);
+  useEffect(() => () => clearTimeout(candHoverTimer.current), []);
   const openHover = (cwid: string) => {
     clearTimeout(candHoverTimer.current);
     candHoverTimer.current = setTimeout(() => { setHoverCwid(cwid); onHoverIdentity(cwid); }, 220);
   };
   const closeHover = () => { clearTimeout(candHoverTimer.current); setHoverCwid(null); };
-  // rank by full given-name match first, then IO desc, then matcher confidence desc --
-  // the same key the AAR producer now writes server-side. io_score is on a 0-100 scale, so
-  // a 0.62 is the model saying "not this person"; ranking on IO alone let any faintly-scored
-  // homonym take the lead over a byline-exact name match. IO and then confidence break the
-  // remaining ties (a candidate production never retrieved -- io_score null -- still carries
-  // a name/department confidence signal).
-  // Candidates who already rejected this exact pmid (GoldStandard.rejectedpmids) must never
-  // become the visually-highlighted lead — rank/lead computation runs over this filtered set —
-  // but they stay VISIBLE in the rendered list below (`visible` is still built from the raw
-  // `candidates` prop) so a curator who remembers "5 candidates" isn't confused by only 4.
-  const eligibleForLead = candidates.filter((c) => !c.already_rejected);
-  const isFull = (c: Candidate) => (c.given_match === "full" ? 1 : 0);
-  const ranked = [...eligibleForLead].sort((a, b) => isFull(b) - isFull(a) ||
-    (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1));
-  // a full name match is never folded away behind "Show all", scored or not.
-  const unfolded = ranked.filter((c) => isFull(c) || c.io_score != null);
-  const folded = ranked.filter((c) => !isFull(c) && c.io_score == null);
-  const [showAll, setShowAll] = useState(false);
-  const anyDeptMatch = candidates.some((c) => c.affil_dept_match);
-  // lead = the top-ranked candidate, but only when it is actually strong: a full given-name
-  // match, or an IO-scored one, or a confidence that is itself meaningful (>=0.5) -- a flat
-  // tie among all-weak candidates should still highlight nobody.
-  const top = ranked[0];
-  const lead = top && (isFull(top) || top.io_score != null || (top.confidence ?? 0) >= 0.5) ? top : undefined;
-  // The Assign button writes the PRODUCTION gold standard, so it must reflect an
-  // EXPLICIT curator pick — never a silent default. We highlight the top-ranked
-  // candidate (lead) as a visual hint only; selectedCwid drives the radio state but
-  // Assign is gated on pickedCwid below so opening/mis-clicking a card can't write GS.
-  const selectedCwid = pickedCwid;
-  // when nothing survives the fold, there is nothing to show in the default view —
-  // auto-expand the folded list so the curator always has a visible choice to pick.
-  // Already-rejected candidates are appended unconditionally (not gated by showAll) so they
-  // stay visible for transparency even though they're excluded from the ranked/lead logic above.
-  const rejectedCandidates = candidates.filter((c) => c.already_rejected)
-    .sort((a, b) => (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1));
-  const visible = [...(showAll || unfolded.length === 0 ? ranked : unfolded), ...rejectedCandidates];
-  // #990: which of these candidates is ALREADY the accepted rival identityConflictWhere()/
-  // accepted_by names for this exact byline slot — a "picking this one just re-confirms an
-  // existing conflict" signal, distinct from already_rejected (which is about a DIFFERENT
-  // candidate's own /curate rejection, not this row's slot).
-  // Lowercased on both sides: the server's own exclusion of the row's top_cwid, and the SQL
-  // this list comes from, compare cwids under a case-insensitive collation, so a case-only
-  // difference between a candidate cwid and an accepted_by cwid must not silently drop the
-  // badge off the one candidate the curator most needs it on.
+  // #990: candidates who already hold ACCEPTED at this byline slot. Lowercased on both sides,
+  // as the server compares cwids case-insensitively.
   const acceptedByCwids = new Set((r.accepted_by || []).map((a) => String(a.cwid || "").toLowerCase()));
-
-  // 4d-4: the comparison grid. Fetched on expand like SingleEvidence's table, keyed on the
-  // candidate set. With 2 or 3 visible candidates it REPLACES the radio list (a column header
-  // click is the pick); with 4+ the list stays and the grid pages under it. Until the evidence
-  // arrives, or if it fails, the list is shown, so picking never waits on this fetch.
-  const ev = useCandidateEvidence(r.id, candidates.map((c) => c.cwid).sort().join(","));
   const rowInput = { byline: r.wcm_author, affiliation: r.author_affiliation, journal: r.journal,
     year: Number((r.entrez_date || "").slice(0, 4)) || null, source: r.source,
     coauthors: ev.status === "ok" ? ev.data.coauthors : null };
-  // The grid takes every non-retired candidate, ignoring the "never retrieved" fold: the fold
-  // exists because those candidates have no IO, and the evidence rows don't need one. In prod
-  // the fold often left a single visible candidate, which hid the grid until "Show all".
-  const gridCands = [...ranked, ...rejectedCandidates];
-  const cols = ev.status === "ok" && gridCands.length >= 2
-    ? orderByEvidence(gridCands, (c) => buildCandidateEvidence(rowInput, c, ev.data.facts[c.cwid])) : null;
-  const gridPicks = !!cols && gridCands.length <= 3;
-  // Name, badges, cwid link and hover card: shared by the list rows and the grid headers.
-  const nameLine = (c: Candidate) => (
-    <span onMouseEnter={() => c.cwid && openHover(c.cwid)} onMouseLeave={closeHover}
-      style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 13.5, fontWeight: 600, color: "#0f172a", minWidth: 0 }}>
-      {c.name}{" "}
-      {nameSourceBadge(c)}
-      {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--pm-slate)", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
-      {hoverCwid === c.cwid && (
-        <IdentityHoverCard subject={{ name: c.name, cwid: c.cwid, dept: c.dept, name_source: c.name_source, name_n: c.name_n }}
-          priorNames={c.cwid ? priorNamesByCwid[c.cwid] : undefined} byline={r.wcm_author} />
-      )}
-    </span>
-  );
-  const gridHead = (c: Candidate) => {
-    const elsewhere = acceptedByCwids.has(String(c.cwid || "").toLowerCase());
+  const cols = ev.status === "ok" && candidates.length >= 1
+    ? orderByEvidence(candidates, (c) => buildCandidateEvidence(rowInput, c, ev.data.facts[c.cwid])) : null;
+  const pickedName = candidates.find((c) => c.cwid === pickedCwid)?.name || pickedCwid;
+  // Name, hover card and warning badges: the grid's column header.
+  const head = (c: Candidate) => {
+    const rejected = c.already_rejected === true;
+    const acceptedElsewhere = acceptedByCwids.has(String(c.cwid || "").toLowerCase());
     return (
       <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-        {nameLine(c)}
-        {(c.already_rejected || elsewhere) && (
+        <span onMouseEnter={() => c.cwid && openHover(c.cwid)} onMouseLeave={closeHover}
+          style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0, fontSize: 12.5, fontWeight: 600 }}>
+          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || c.cwid}</span>
+          {hoverCwid === c.cwid && (
+            <IdentityHoverCard subject={{ name: c.name, cwid: c.cwid, dept: c.dept, person_type: c.person_type, name_source: c.name_source, name_n: c.name_n }}
+              priorNames={c.cwid ? priorNamesByCwid[c.cwid] : undefined} byline={r.wcm_author} pills={hoverPills(c, r.author_affiliation)} />
+          )}
+        </span>
+        {(rejected || acceptedElsewhere) && (
           <span style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-            {c.already_rejected && <Chip kind="warn">Already rejected</Chip>}
-            {elsewhere && <Chip kind="warn">Accepted this article</Chip>}
+            {rejected && <Chip kind="warn">Already rejected</Chip>}
+            {acceptedElsewhere && <Chip kind="warn">Accepted this article</Chip>}
           </span>
         )}
       </span>
@@ -4824,117 +4838,36 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
 
   return (
     <>
-      {/* see SingleEvidence — the PMID now sits on the card's meta line, not in here. */}
-      {r.source === "scopus" && <div><ScopusLinks row={r} /></div>}
-      {r.source === "openalex" && <div><OpenAlexLinks row={r} /></div>}
-      {!anyDeptMatch && (
-        <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "var(--pm-amber-tint)", color: "var(--pm-amber)", marginBottom: 10 }}>
-          <IconAlert size={15} style={{ marginTop: 1 }} />
-          <span>The affiliation names Weill Cornell but no department — ranked by identity-only (IO).</span>
+      {!anyDeptMatch && candidates.length > 0 && (
+        <span style={{ fontSize: 12, color: "var(--pm-amber)" }}>The affiliation names no department any candidate is in, so the candidates are ranked by Identity-Only Score.</span>
+      )}
+      {candidates.length === 0 ? (
+        <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>No candidate to compare. Use the box below to look the author up in the directory.</span>
+      ) : ev.status === "loading" ? (
+        <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>Loading the comparison…</span>
+      ) : ev.status === "error" || !cols ? (
+        <span style={{ fontSize: 12.5, color: "var(--pm-amber)" }}>Couldn’t load the comparison. Pick from the list above, or close and reopen the row to retry.</span>
+      ) : (
+        <CompareGrid cols={cols} pickedCwid={pickedCwid} onPick={onPick} renderHead={head} hint={compareHint(pickedCwid ? pickedName : null)} />
+      )}
+      {/* #1012: what the retired-cwid filter removed, and what replaced it. */}
+      {retiredCandidates.length > 0 && (
+        <div style={{ fontSize: 12, color: "var(--pm-amber)", lineHeight: 1.45 }}>
+          {retiredCandidates.map((c) => {
+            const alsoHere = c.superseded_by && candidates.some(
+              (k) => k.cwid.toLowerCase() === String(c.superseded_by).toLowerCase());
+            return (
+              <div key={c.cwid}>
+                <strong>{c.cwid}</strong>{c.name ? ` (${c.name})` : ""} is a retired CWID
+                {c.superseded_by
+                  ? <> — {alsoHere ? "the same person as " : "replaced by "}<strong>{c.superseded_by}</strong>
+                      {alsoHere ? ", listed above" : ""}.</>
+                  : <> with no replacement on record.</>}
+              </div>
+            );
+          })}
         </div>
       )}
-      <div>
-        {gridPicks && cols && <CompareGrid cols={cols} pickedCwid={pickedCwid} onPick={onPick} paged={false} renderHead={gridHead} />}
-        {!gridPicks && visible.map((c, i) => {
-          const isLead = c.cwid === lead?.cwid;
-          const checked = c.cwid === selectedCwid;
-          const rejected = c.already_rejected === true;
-          const acceptedElsewhere = acceptedByCwids.has(String(c.cwid || "").toLowerCase());
-          return (
-            <label key={c.cwid || i} onClick={(e) => e.stopPropagation()} style={{
-              display: "flex", alignItems: "center", gap: 11, padding: "9px 11px",
-              border: `1px solid ${isLead ? "var(--pm-slate-tint-border)" : rejected ? "var(--pm-red-tint-border)" : "#e8edf2"}`, borderRadius: 7, marginBottom: 7,
-              cursor: "pointer",
-              background: isLead ? "var(--pm-slate-tint)" : rejected ? "var(--pm-red-tint)" : "#fff",
-              opacity: rejected ? 0.8 : 1,
-            }}>
-              {/* A rejected candidate is WARNED about, not blocked. GoldStandard rejection is
-                  per-(person, pmid) and cannot say "not this authorship", so on a paper with two
-                  same-cohort WCM authors, resolving one writes a rejection that also blocks the
-                  other -- PMID 42625032 rejected zhl4007 for the "Zhongchi Li" slot at position 0
-                  and thereby locked him out of his own "Zhucui Li" slot at position 9. Rare (1 of
-                  57 such rows), but unrecoverable from the UI: it took a prod GoldStandard edit.
-                  The reject-others write stays -- it is real feedback signal on every other paper
-                  -- so the fix belongs here, and the curator adjudicates the pill. */}
-              <input type="radio" name={`m${r.id}`} checked={checked} onChange={() => onPick(c.cwid)}
-                onClick={(e) => e.stopPropagation()}
-                style={{ accentColor: "var(--pm-slate)", flex: "none" }} />
-              <span style={{ flex: 1, minWidth: 0 }}>
-                {nameLine(c)}
-                <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>
-                  {c.person_type}{c.dept ? ` · ${c.dept}` : ""}{!hasWcm(r.author_affiliation) ? " · ⚠ no WCM string" : ""}
-                </span>
-                {(c.given_match === "full" || c.affil_dept_match || rejected || acceptedElsewhere) && (
-                  <span style={{ display: "flex", gap: 5, marginTop: 4, flexWrap: "wrap" }}>
-                    {/* already-rejected (GoldStandard) takes precedence — shown ahead of any match chips */}
-                    {rejected && <Chip kind="warn">Already rejected</Chip>}
-                    {/* #990: this candidate is the accepted_by rival named on the card above —
-                        picking them here would just re-confirm the existing slot conflict. */}
-                    {acceptedElsewhere && <Chip kind="warn">Accepted this article</Chip>}
-                    {c.given_match === "full" && <Chip kind="ok">Full name match</Chip>}
-                    {c.affil_dept_match && <Chip kind="ok">Dept match</Chip>}
-                  </span>
-                )}
-              </span>
-              <span style={{ textAlign: "right" }}>
-                {c.io_score != null ? (
-                  <>
-                    <span style={{ display: "block", fontSize: 16, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: ioColor(c.io_score) }}>
-                      {fmtScore(c.io_score)}
-                    </span>
-                    {c.final_score != null && (
-                      <span style={{ display: "block", fontSize: 10.5, color: "var(--pm-amber)", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>Auth. Score {fmtScore(c.final_score)}</span>
-                    )}
-                  </>
-                ) : (
-                  <span style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: (c.confidence ?? 0) >= 0.5 ? "var(--pm-slate)" : "#94a3b8" }}>
-                    {confBand(c.confidence)} match
-                  </span>
-                )}
-              </span>
-            </label>
-          );
-        })}
-        {cols && !gridPicks && <CompareGrid cols={cols} pickedCwid={pickedCwid} onPick={onPick} paged renderHead={gridHead} />}
-        {gridCands.length >= 2 && ev.status === "loading" && <div style={{ fontSize: 12, color: "#6b7484", margin: "0 0 8px" }}>Loading the comparison…</div>}
-        {!gridPicks && !showAll && unfolded.length > 0 && folded.length > 0 && (
-          <button onClick={(e) => { e.stopPropagation(); setShowAll(true); }} style={{ background: "none", border: "none", color: "var(--pm-slate)", fontSize: 12, cursor: "pointer", padding: "2px 0", marginBottom: 8 }}>
-            Show all {ranked.length} ({folded.length} never retrieved, IO unavailable)
-          </button>
-        )}
-        {/* #1012: what the retired-cwid filter above removed, and what replaced it. The card's
-            own "N candidates" badge counts the produced list, so a removal that said nothing
-            would read as a miscount. When the replacement is already on this card — the common
-            case — this line is also the explanation that the two "homonyms" are one person. */}
-        {retiredCandidates.length > 0 && (
-          <div style={{ fontSize: 11.5, color: "var(--pm-amber)", background: "var(--pm-amber-tint)", border: "1px solid var(--pm-amber-tint-border)",
-                        borderRadius: 6, padding: "5px 8px", marginBottom: 8, lineHeight: 1.45 }}>
-            {retiredCandidates.map((c) => {
-              const alsoHere = c.superseded_by && candidates.some(
-                (k) => k.cwid.toLowerCase() === String(c.superseded_by).toLowerCase());
-              return (
-                <div key={c.cwid}>
-                  <strong>{c.cwid}</strong>{c.name ? ` (${c.name})` : ""} is a retired CWID
-                  {c.superseded_by
-                    ? <> — {alsoHere ? "the same person as " : "replaced by "}<strong>{c.superseded_by}</strong>
-                        {alsoHere ? ", listed above" : ""}.</>
-                    : <> with no replacement on record.</>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
-        <button style={btn("accept", acting || !pickedCwid)}
-          disabled={acting || !pickedCwid}
-          onClick={(e) => { e.stopPropagation(); pickedCwid && onAction("assign", { cwid: pickedCwid }); }}>
-          <IconCheck /> Assign selected
-        </button>
-        <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
-          <IconX /> Reject all
-        </button>
-      </div>
     </>
   );
 };
@@ -4949,12 +4882,13 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
 // ponytail: the "lookup route feeding the box" upgrade path landed — #948 built POST
 // /api/db/authorships/lookup for the bulk dialog, so the box debounces into it and a resolved
 // Assign/Enter writes in one click; unresolved (debouncing/errored) falls back to the plain call.
-const AssignOther = ({ rowId, acting, onAction, prefill, autoPrefill, authorName, affiliation }: {
+const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName, affiliation, note }: {
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
-  prefill?: string;
-  autoPrefill?: boolean; // the prefill was the card's own doing (weak row on expand), not a curator's click
-  authorName?: string; // the byline name — one click looks it up instead of retyping it
+  prefill?: string; // a name to look up straight away (the ⋯ menu's "Assign to someone else…")
+  autoSearch?: boolean; // the row was simply opened: look up the byline name, WCM first
+  authorName?: string; // the byline name — "Look up <name>" searches it instead of retyping it
   affiliation?: string; // the byline's affiliation — ranks directory hits in that department first
+  note?: ReactNode; // what assigning also records, beside the controls
 }) => {
   const [otherCwid, setOtherCwid] = useState("");
   // What the debounced POST /api/db/authorships/lookup has found for the CURRENT otherCwid —
@@ -4968,6 +4902,9 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoPrefill, authorName
   // [] = searched and nobody matched. Cleared on every keystroke alongside lookupState, for the
   // same reason: a stale list must never outlive the string that produced it.
   const [matches, setMatches] = useState<any[] | null>(null);
+  // The name the hit list below answers, when it came from "Look up <byline>" or the search an
+  // opened row runs by itself rather than from the box.
+  const [searched, setSearched] = useState<string | null>(null);
   const requestSeq = useRef(0);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // True only for the lookup the card seeded itself; any keystroke or "Lookup <name>" click
@@ -5021,10 +4958,13 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoPrefill, authorName
   // Same trust boundary the bulk confirm dialog enforces. When the bridge says this Cornell
   // person already holds a WCM identity, the box takes THAT identifier — the one the write
   // will land on.
+  // The hit list stays up with the picked row marked, as in the prototype's radio table; the
+  // next keystroke clears both.
+  const [pickedHit, setPickedHit] = useState<string | null>(null);
   const pick = useCallback((m: any) => {
     const id = m.wcmCwidHasIdentity && m.wcmCwid ? String(m.wcmCwid) : String(m.id);
     setOtherCwid(id);
-    setMatches(null);
+    setPickedHit(`${m.source}:${m.id}`);
     requestSeq.current += 1;
     runLookup(id, requestSeq.current);
   }, [runLookup]);
@@ -5052,12 +4992,13 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoPrefill, authorName
     requestSeq.current += 1; // invalidate any in-flight/pending lookup for the old value
     setLookupState({ status: "idle" }); // EVERY keystroke — a resolved answer never outlives its string
     setMatches(null);
+    setPickedHit(null);
     const q = val.trim();
+    setSearched(q.length < 3 ? null : q);
     if (q.length < 3) return;
     const seq = requestSeq.current;
     debounceTimer.current = setTimeout(() => runLookup(q, seq), 350);
   }, [runLookup]);
-  useEffect(() => { if (prefill) setValue(prefill, !!autoPrefill); }, [prefill, autoPrefill, setValue]);
 
   const submittable = /^[A-Za-z0-9]{1,32}$/.test(otherCwid.trim()) && !typedPreview?.blocked;
 
@@ -5083,184 +5024,187 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoPrefill, authorName
     }
   }, [otherCwid, acting, lookupState, onAction, submittable]);
 
-  // every handler stops propagation: the card is click-to-expand, so an unguarded click or
-  // Enter inside this input collapses the card out from under the curator mid-type.
+  // The search an opened row runs by itself (and the ⋯ menu's "Assign to someone else…"): a
+  // directory NAME search for the byline that leaves the box empty, as the prototype's strip
+  // opens. `auto` lets the server apply its WCM-first / Cornell-fallback narrowing to the
+  // routine search alone. "Look up <byline>" instead puts the name in the box (setValue).
+  const [autoPending, setAutoPending] = useState(false);
+  const search = useCallback((term: string, auto: boolean) => {
+    const q = term.trim();
+    if (!q) return;
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    requestSeq.current += 1;
+    const seq = requestSeq.current;
+    setOtherCwid("");
+    setLookupState({ status: "idle" });
+    setMatches(null);
+    setPickedHit(null);
+    setSearched(q);
+    setAutoPending(true);
+    post({ q, affil: affiliation || "", auto: auto ? "1" : "" })
+      .then((d: any) => { if (requestSeq.current === seq) setMatches(d.matches || []); })
+      .catch(() => { if (requestSeq.current === seq) setMatches([]); })
+      .finally(() => { if (requestSeq.current === seq) setAutoPending(false); });
+  }, [post, affiliation]);
+  useEffect(() => {
+    if (prefill) search(prefill, false);
+    else if (autoSearch && authorName) search(authorName, true);
+  }, [prefill, autoSearch, authorName, search]);
+  const cancel = () => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    requestSeq.current += 1;
+    setOtherCwid(""); setLookupState({ status: "idle" }); setMatches(null); setPickedHit(null); setSearched(null); setAutoPending(false);
+  };
+  const dirHead: CSSProperties = { fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--pm-muted-foreground)" };
+
+  // every handler stops propagation: the row is click-to-expand, so an unguarded click or
+  // Enter inside this input would collapse it out from under the curator mid-type.
   return (
-    <>
-      <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" }}>
-        {/* Offered whenever the box does not already hold the byline name — including on rows
-            that DO have suggestions, since the suggestion being wrong is exactly when a curator
-            reaches for the directory (owner request 2026-09-15). */}
-        {authorName && otherCwid.trim() !== authorName && (
-          <button style={btn("ghost", acting)} disabled={acting}
-            onClick={(e) => { e.stopPropagation(); setValue(authorName); }}>
-            Lookup {authorName}
-          </button>
+    <div data-assign-other onClick={(e) => e.stopPropagation()} style={{
+      padding: "10px 12px", borderRadius: 8, background: "var(--pm-surface-2)", border: "1px solid var(--pm-border)",
+      display: "flex", flexDirection: "column", gap: 8, minWidth: 0, cursor: "default",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {authorName && (
+          <Button size="sm" disabled={acting} onClick={() => { setAutoPending(false); setValue(authorName); }} sx={{ height: 30 }}>
+            Look up {authorName}
+          </Button>
         )}
-        <label htmlFor={`otherCwid-${rowId}`} style={{ fontSize: 11.5, color: "#94a3b8" }}>
+        <label htmlFor={`otherCwid-${rowId}`} style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>
           Someone else:
         </label>
-        <input id={`otherCwid-${rowId}`} value={otherCwid} placeholder="cwid or name"
-          onClick={(e) => e.stopPropagation()}
+        <input id={`otherCwid-${rowId}`} value={otherCwid} placeholder="Name or CWID"
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
+            if (e.key === "Escape") { e.stopPropagation(); cancel(); return; }
             if (e.key !== "Enter" || !otherCwid.trim() || acting) return;
             e.preventDefault(); e.stopPropagation();
             submitOther();
           }}
           style={{
-            width: 168, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
-            borderRadius: 4, color: "#334155",
+            width: 220, height: 30, boxSizing: "border-box", padding: "0 9px", border: "1px solid var(--pm-border-strong)",
+            borderRadius: 6, fontSize: 13, fontFamily: "inherit", background: "#fff", color: "var(--pm-foreground)",
           }} />
         {/* never disabled on lookupState — a slow/errored lookup must not block the button,
             it only changes which onAction call submitOther makes. */}
-        <button style={btn("accept", acting || !submittable)} disabled={acting || !submittable}
-          onClick={(e) => { e.stopPropagation(); submitOther(); }}>
+        <Button variant="primary" size="sm" disabled={acting || !submittable} onClick={() => submitOther()} sx={{ height: 30 }}>
           Assign
-        </button>
+        </Button>
+        {(otherCwid || matches !== null || searched) && (
+          <button type="button" onClick={cancel}
+            style={{ border: 0, background: "none", padding: "0 4px", fontSize: 12.5, color: "var(--pm-muted-foreground)", cursor: "pointer", fontFamily: "inherit" }}>
+            Cancel
+          </button>
+        )}
+        {typedPreview && (
+          <span style={{ fontSize: 12, color: typedPreview.tone === "warn" ? "var(--pm-amber)" : "var(--pm-muted-foreground)" }}>
+            {typedPreview.text}
+          </span>
+        )}
+        <span style={{ marginLeft: "auto" }}>{note}</span>
       </div>
-      {typedPreview && (
-        <div onClick={(e) => e.stopPropagation()} style={{
-          textAlign: "right", fontSize: 11, marginTop: 2,
-          color: typedPreview.tone === "warn" ? "var(--pm-amber)" : "#64748b",
-        }}>
-          {typedPreview.text}
-        </div>
+      {searched && matches === null && (autoPending || lookupState.status === "loading") && (
+        <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>Looking up {searched} in the directory…</span>
       )}
-      {matches !== null && (
-        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 6, textAlign: "left" }}>
-          {matches.length === 0 ? (
-            <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "right" }}>no directory match</div>
-          ) : (
-            // Wide content scrolls inside its own box rather than widening the card.
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, color: "#334155" }}>
-                <thead>
-                  <tr style={{ color: "#6b7484", textAlign: "left" }}>
-                    {["Name", "ID", "Org", "Title", "Department(s)", "Created", ""].map((h, i) => (
-                      <th key={h || `c${i}`} style={{
-                        fontWeight: 600, fontSize: 10, letterSpacing: ".05em", textTransform: "uppercase",
-                        padding: "0 8px 3px 0", borderBottom: "1px solid #e8edf2", whiteSpace: "nowrap",
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {matches.map((m) => (
-                    // Was a <button> per result; a table cannot nest one per row and stay a table,
-                    // so the row carries the same affordances explicitly — focusable, and Enter or
-                    // Space activates it. Do not drop these to tidy the markup: the keyboard path
-                    // is the only one a curator not using a mouse has.
-                    // #1012: a cwid ED has RETIRED is SHOWN but not pickable — the opposite of
-                    // the candidate picker above, which hides it. A curator typed this name and
-                    // has to be told what became of the person; dropping the row would read as
-                    // "no such person" and send them looking again. So it stays, greyed, labelled,
-                    // with its replacement named — and with the row's click/Enter/role/tabIndex
-                    // handlers removed rather than merely styled away, so keyboard and mouse are
-                    // blocked by the same fact. aria-disabled says it out loud for a screen reader.
-                    // The assign route refuses it independently; this only saves the round-trip.
-                    <tr key={`${m.source}:${m.id}`}
-                      {...((m.retiredCwid ? { "aria-disabled": true } : {
-                        tabIndex: 0,
-                        role: "button",
-                        onClick: (e) => { e.stopPropagation(); pick(m); },
-                        onKeyDown: (e) => {
-                          if (e.key !== "Enter" && e.key !== " ") return;
-                          e.preventDefault(); e.stopPropagation(); pick(m);
-                        },
-                      }) as HTMLAttributes<HTMLTableRowElement>)}
-                      style={{ cursor: m.retiredCwid ? "not-allowed" : "pointer",
-                               borderBottom: "1px solid #f1f5f9",
-                               background: m.retiredCwid ? "#fafafa" : undefined,
-                               color: m.retiredCwid ? "#94a3b8" : undefined }}>
-                      <td style={dirCell}>
-                        <span style={{ fontWeight: 600, textDecoration: m.retiredCwid ? "line-through" : undefined }}>{m.name}</span>
-                        {/* the assembled legal name, only when it says something displayName does not */}
-                        {m.fullName && (
-                          <span style={{ display: "block", color: "#94a3b8" }}>{m.fullName}</span>
-                        )}
-                        {m.retiredCwid && (
-                          <span style={{ display: "block", color: "var(--pm-amber)", fontWeight: 600 }}>
-                            Retired CWID{m.supersededBy ? <> — use <strong>{m.supersededBy}</strong></> : " — no replacement on record"}
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ ...dirCell, color: m.retiredCwid ? "#94a3b8" : "var(--pm-slate)", whiteSpace: "nowrap" }}>
-                        {m.id}
-                        {/* #1020: the same human's identifier in the other directory. Picking
-                            the row still assigns to m.id above. */}
-                        {m.alsoId && <span style={{ display: "block", color: "#94a3b8" }}>also {m.alsoId}</span>}
-                      </td>
-                      {/* ONE org column, and `weillCornellEduPrimaryOrg` wins it.
-                          There used to be a separate "Src" column here showing which directory
-                          answered, and for gallric the row then read "WCM" and "NYP" side by
-                          side — the WCM being the louder, leftmost, and wrong signal.
-                          ou=people carries NewYork-Presbyterian people, so "found in WCM ED" is
-                          not "works at WCM", and attributing an NYP author's paper to WCM is the
-                          whole mistake this column exists to prevent. The directory that answered
-                          is an implementation detail of the search, not a fact about the person;
-                          it stays on the title attribute, along with the institution a mint would
-                          write and the full person-type list — a WCM code
-                          ("academic-faculty-weillfulltime") is long enough to own the table. */}
-                      <td style={{ ...dirCell, color: "#4a5262" }}
-                        title={[
-                          `found in ${m.source === "wcm" ? "WCM ED" : "Cornell directory"}`,
-                          m.primaryInstitution ? `mints as ${m.primaryInstitution}` : null,
-                          m.personTypes?.length ? m.personTypes.join(", ") : null,
-                        ].filter(Boolean).join(" · ")}>
-                        <span style={{ fontWeight: 600 }}>
-                          {m.primaryOrg || (m.source === "wcm" ? "WCM" : "Cornell")}
+      {matches !== null && matches.length === 0 && (
+        <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>No directory match{searched ? ` for ${searched}` : ""}. Type a CWID or another name.</span>
+      )}
+      {matches !== null && matches.length > 0 && (
+        <>
+          {/* Wide content scrolls inside its own box rather than widening the row. */}
+          <div style={{ overflowX: "auto" }}>
+            <div role="radiogroup" aria-label="Directory matches" style={{ minWidth: 640, border: "1px solid var(--pm-border)", borderRadius: 8, background: "#fff", overflow: "hidden" }}>
+              <div style={{ display: "grid", gridTemplateColumns: DIR_GRID, gap: 12, alignItems: "start", padding: "8px 12px 6px" }}>
+                <span /><span style={dirHead}>Name · ID</span><span style={dirHead}>Org</span><span style={dirHead}>Title</span>
+                <span style={dirHead}>Department(s)</span><span style={{ ...dirHead, textAlign: "right" }}>ReCiter</span>
+              </div>
+              {matches.map((m) => {
+                // #1012: a cwid ED has RETIRED is SHOWN but not pickable — the opposite of the
+                // candidate picker, which hides it. A curator typed this name and has to be told
+                // what became of the person. Its click/Enter handlers are removed, not styled
+                // away, so keyboard and mouse are blocked by the same fact. The assign route
+                // refuses it independently; this only saves the round-trip.
+                const on = pickedHit === `${m.source}:${m.id}`;
+                const status = m.retiredCwid ? "cannot assign"
+                  : m.hasIdentity ? "in ReCiter"
+                    : m.wcmCwidHasIdentity ? `same person as ${m.wcmCwid}`
+                      : "will create identity";
+                return (
+                  <div key={`${m.source}:${m.id}`} data-dir-hit={m.id}
+                    {...((m.retiredCwid ? { "aria-disabled": true } : {
+                      tabIndex: 0, role: "radio", "aria-checked": on,
+                      onClick: (e) => { e.stopPropagation(); pick(m); },
+                      onKeyDown: (e) => {
+                        if (e.key !== "Enter" && e.key !== " ") return;
+                        e.preventDefault(); e.stopPropagation(); pick(m);
+                      },
+                    }) as HTMLAttributes<HTMLDivElement>)}
+                    className={m.retiredCwid ? undefined : "pm-dir-hit"}
+                    style={{ display: "grid", gridTemplateColumns: DIR_GRID, gap: 12, alignItems: "start", padding: "8px 12px",
+                      borderTop: "1px solid var(--pm-border)", fontSize: 12.5, lineHeight: 1.45,
+                      background: on ? "var(--pm-slate-tint)" : undefined, cursor: m.retiredCwid ? "not-allowed" : "pointer",
+                      color: m.retiredCwid ? "var(--pm-muted-foreground)" : undefined }}>
+                    <span aria-hidden="true" style={{ marginTop: 3, width: 13, height: 13, borderRadius: "50%", boxSizing: "border-box", background: "#fff",
+                      border: on ? "4px solid var(--pm-slate)" : "1.5px solid var(--pm-muted-foreground)", visibility: m.retiredCwid ? "hidden" : "visible" }} />
+                    <span style={{ display: "flex", flexDirection: "column", minWidth: 0, overflowWrap: "anywhere" }}>
+                      <span style={{ fontWeight: 600, textDecoration: m.retiredCwid ? "line-through" : undefined }}>{m.name}</span>
+                      {/* the assembled legal name, only when it says something displayName does not */}
+                      {m.fullName && <span style={{ color: "var(--pm-muted-foreground)" }}>{m.fullName}</span>}
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: m.retiredCwid ? "var(--pm-muted-foreground)" : "var(--pm-slate)" }}>{m.id}</span>
+                      {/* #1020: the same human's identifier in the other directory. Picking still assigns to m.id. */}
+                      {m.alsoId && <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>also {m.alsoId}</span>}
+                      {m.retiredCwid && (
+                        <span style={{ color: "var(--pm-amber)", fontWeight: 600 }}>
+                          Retired CWID{m.supersededBy ? <> — use <strong>{m.supersededBy}</strong></> : " — no replacement on record"}
                         </span>
-                        {m.personTypes?.length > 0 && (
-                          <span style={{ display: "block", color: "#94a3b8" }}>
-                            {m.personTypes[0]}
-                            {m.personTypes.length > 1 ? ` +${m.personTypes.length - 1}` : ""}
-                          </span>
-                        )}
-                        {m.active === false && <span style={{ display: "block", color: "#94a3b8" }}>expired</span>}
-                      </td>
-                      <td style={{ ...dirCell, color: "#4a5262" }}>{m.title || "—"}</td>
-                      <td style={{ ...dirCell, color: "#4a5262" }}>
-                        {m.depts?.length ? m.depts.join(" · ") : (m.dept || "—")}
-                        {/* same chip the candidate card uses: this department is named in the
-                            byline's affiliation, which is why the row sorted to the top */}
-                        {m.deptMatch && <Chip kind="ok" style={{ marginLeft: 6 }}>Dept match</Chip>}
-                      </td>
-                      {/* Blank is a real answer here — the directory may not serve operational
-                          attributes to this bind — so it reads as unknown, not as "brand new". */}
-                      <td style={{ ...dirCell, color: "#6f7889", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                        {m.created || "—"}
-                      </td>
-                      {/* Says what picking this row will actually do, before it is picked: land on an
-                          identity that already exists, redirect to the same person's WCM identifier, or
-                          create a new identity. */}
-                      <td style={{ ...dirCell, whiteSpace: "nowrap", textAlign: "right", color: m.retiredCwid ? "#94a3b8" : m.hasIdentity ? "var(--pm-slate)" : "var(--pm-amber)" }}>
-                        {/* A retired cwid's ReCiter state is not the useful fact — it may well
-                            still have an identity, and saying "in ReCiter" beside a row that
-                            cannot be picked reads as an invitation. Say why it cannot instead. */}
-                        {m.retiredCwid ? "cannot assign"
-                          : m.hasIdentity ? "in ReCiter"
-                            : m.wcmCwidHasIdentity ? `same person as ${m.wcmCwid} in ReCiter`
-                              : "will create identity"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      )}
+                    </span>
+                    {/* ONE org column, and `weillCornellEduPrimaryOrg` wins it: ou=people carries
+                        NewYork-Presbyterian people, so "found in WCM ED" is not "works at WCM".
+                        The directory that answered, the institution a mint would write and the
+                        full person-type list stay on the title attribute. */}
+                    <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
+                      title={[
+                        `found in ${m.source === "wcm" ? "WCM ED" : "Cornell directory"}`,
+                        m.primaryInstitution ? `mints as ${m.primaryInstitution}` : null,
+                        m.personTypes?.length ? m.personTypes.join(", ") : null,
+                      ].filter(Boolean).join(" · ")}>
+                      <span style={{ fontWeight: 600 }}>{m.primaryOrg || (m.source === "wcm" ? "WCM" : "Cornell")}</span>
+                      {m.personTypes?.length > 0 && (
+                        <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", overflowWrap: "anywhere" }}>
+                          {m.personTypes[0]}{m.personTypes.length > 1 ? ` +${m.personTypes.length - 1}` : ""}
+                        </span>
+                      )}
+                      {m.active === false && <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>expired</span>}
+                    </span>
+                    <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{m.title || "—"}</span>
+                    <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, overflowWrap: "anywhere" }}>
+                      <span>{m.depts?.length ? m.depts.join(" · ") : (m.dept || "—")}</span>
+                      {m.deptMatch && <span style={{ fontSize: 11, fontWeight: 600, color: "var(--pm-slate)" }}>Named in byline</span>}
+                    </span>
+                    {/* What picking this row will do: land on an existing identity, redirect to the
+                        same person's WCM identifier, or create one. Blank "since" is a real answer —
+                        the directory may not serve that attribute to this bind. */}
+                    <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1, textAlign: "right" }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+                        color: m.retiredCwid ? "var(--pm-muted-foreground)" : m.hasIdentity || m.wcmCwidHasIdentity ? "var(--pm-slate)" : "var(--pm-amber)" }}>{status}</span>
+                      {m.created && <span style={{ fontSize: 11, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>since {m.created}</span>}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+          <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>
+            {matches.length} match{matches.length === 1 ? "" : "es"}{searched ? ` for ${searched}` : ""} · department named in the byline first, then people already in ReCiter, then active
+          </span>
+        </>
       )}
-    </>
+    </div>
   );
 };
 
-// One cell of the directory name-search results table. `verticalAlign: top` matters: the Name
-// cell can run to two lines when a legal name differs from the display name, and without it every
-// other cell in that row floats to the middle.
-const dirCell: CSSProperties = { padding: "4px 8px 4px 0", verticalAlign: "top" };
-
-const factLabel: CSSProperties = { fontSize: 10.5, color: "#94a3b8", textTransform: "uppercase", letterSpacing: ".04em", marginTop: 1 };
+const DIR_GRID = "16px minmax(0,1.2fr) minmax(0,0.75fr) minmax(0,1.4fr) minmax(0,1.3fr) 136px";
 
 const counterpartBox: CSSProperties = {
   border: "1px solid #dde3ea", borderRadius: 8, padding: "10px 12px", marginBottom: 10, background: "#fafbfc",

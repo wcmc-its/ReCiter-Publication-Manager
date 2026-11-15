@@ -98,6 +98,7 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
         label: 'Given name',
         kind: c.given_match === 'full' ? 'match' : c.given_match === 'initial' ? 'partial' : 'nodata',
         mine: byline.split(/\s+/)[0] || undefined,
+        theirs: (c.name || '').trim().split(/\s+/)[0] || undefined,
         why: c.given_match === 'full' ? 'Full given name agrees' : c.given_match === 'initial' ? 'Initial only, so many people fit' : '',
     })
 
@@ -187,7 +188,8 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
         ? { label: 'Identity-Only Score', kind: 'nodata', why: 'Scopus and OpenAlex rows are not scored' }
         : c.io_score == null
             ? { label: 'Identity-Only Score', kind: 'nodata', why: 'Not scored: ReCiter never retrieved this paper for them' }
-            : { label: 'Identity-Only Score', kind: ioBand(c.io_score), theirs: String(Math.round(c.io_score)) })
+            // "99 · High": floored like the row's IO badge, so the two never disagree.
+            : { label: 'Identity-Only Score', kind: ioBand(c.io_score), theirs: `${Math.floor(c.io_score)} · ${c.io_score >= 90 ? 'High' : c.io_score >= 50 ? 'Medium' : 'Low'}` })
 
     return rows
 }

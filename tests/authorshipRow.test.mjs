@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
     ioBand, ioBadgeText, ioBadge, shortInstitution, roleLine, formatRowDate,
     splitAffiliation, sourceBadgeText, shortcutsLine,
+    ioScoreText, fgLine, bylineParts, rankCandidates, compareHint, shareLine,
 } from '../src/utils/authorshipRow.ts'
 
 test('ioBand uses the page bands (90 / 50)', () => {
@@ -65,4 +66,57 @@ test('sourceBadgeText and shortcutsLine', () => {
     assert.equal(sourceBadgeText('openalex'), 'OpenAlex · not in PubMed')
     assert.deepEqual(shortcutsLine(true), ['J/K move', 'Y accept', 'N reject', 'S snooze', 'X select', 'U undo', '? all shortcuts'])
     assert.deepEqual(shortcutsLine(false), ['J/K move', 'U undo', '? all shortcuts'])
+})
+
+test('ioScoreText floors and names the band', () => {
+    assert.equal(ioScoreText(99.8), '99 · High')
+    assert.equal(ioScoreText(71.2), '71 · Medium')
+    assert.equal(ioScoreText(12), '12 · Low')
+    assert.equal(ioScoreText(null), '—')
+})
+
+test('fgLine says which side of the 30 cut, and why there is none', () => {
+    assert.equal(fgLine(89.4, 'pubmed'), '89 · at or above the 30 cut')
+    assert.equal(fgLine(30, 'pubmed'), '30 · at or above the 30 cut')
+    assert.equal(fgLine(29.99, 'pubmed'), '29 · below the 30 cut')
+    assert.equal(fgLine(null, 'pubmed'), 'None · production never scored this person')
+    assert.equal(fgLine(55, 'scopus'), 'None · Scopus rows are not scored by production')
+    assert.equal(fgLine(undefined, 'openalex'), 'None · OpenAlex rows are not scored by production')
+})
+
+test('bylineParts highlights the target and elides long lists around it', () => {
+    assert.deepEqual(bylineParts(['Mei Lin', 'Michael Bales', 'Paul J Albert'], 1),
+        { pre: 'Mei Lin, ', tgt: 'Michael Bales', post: ', Paul J Albert' })
+    assert.deepEqual(bylineParts(['A B'], 0), { pre: '', tgt: 'A B', post: '' })
+    // not found: the whole list, no highlight
+    assert.deepEqual(bylineParts(['A', 'B'], -1), { pre: 'A, B', tgt: '', post: '' })
+    const many = Array.from({ length: 30 }, (_, i) => `N${i}`)
+    const p = bylineParts(many, 15)
+    assert.equal(p.tgt, 'N15')
+    assert.equal(p.pre, 'N0, N1, N2, …, N14, ')
+    assert.equal(p.post, ', N16, …, N29')
+    // target at the end of a long list
+    const q = bylineParts(many, 29)
+    assert.equal(q.pre, 'N0, N1, N2, …, N28, ')
+    assert.equal(q.post, '')
+    assert.deepEqual(bylineParts([], 0), { pre: '', tgt: '', post: '' })
+})
+
+test('rankCandidates: full name, then IO, then confidence; rejected last; retired out', () => {
+    const c = [
+        { cwid: 'a', io_score: 98, given_match: 'initial' },
+        { cwid: 'b', io_score: 40, given_match: 'full' },
+        { cwid: 'c', io_score: 99, already_rejected: true },
+        { cwid: 'd', io_score: 99.5, retired_cwid: true },
+        { cwid: 'e', io_score: null, confidence: 0.9 },
+        { cwid: 'f', io_score: null, confidence: 0.2 },
+    ]
+    assert.deepEqual(rankCandidates(c).map((x) => x.cwid), ['b', 'a', 'e', 'f', 'c'])
+})
+
+test('compareHint and shareLine', () => {
+    assert.equal(compareHint(null), 'Click a column to pick who gets this authorship.')
+    assert.equal(compareHint('Michael Jones'), 'Accept assigns to Michael Jones. Click another column to switch.')
+    assert.equal(shareLine(5, false), '5 people share this name · pick one')
+    assert.equal(shareLine(5, true), '5 people share this name')
 })
