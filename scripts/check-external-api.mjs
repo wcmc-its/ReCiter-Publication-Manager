@@ -2,7 +2,8 @@
 /**
  * The 3c API layer (plan 3b-3e P2) against a real reciterdb: controllers/db/external.controller.ts
  * in both EXTERNAL_STORE modes, the legacy-route mappings, re-accept, merge, verdicts, dupcheck,
- * edit, and the supersede reconcile (PMID and DOI paths, revive, skip-on-error).
+ * edit, the supersede reconcile (PMID and DOI paths, revive, skip-on-error), and the 3d manual
+ * entry rules (refused without the store, body checks, server-minted id, edit checks, excludeId).
  * Run: node scripts/check-external-api.mjs
  *
  * Prerequisites: .env.local pointing at the DEV reciterdb, with ReCiterDB
@@ -96,6 +97,9 @@ try {
     ['record', () => api.getExternalRecord(1, me)],
     ['dupcheck', () => api.dupCheckExternal(UID, {}, me)],
     ['dup-verdict', () => api.dupVerdictExternal('GET', UID, {}, me)],
+    // 3d: a manual add is refused before any Java call (Java has no MANUAL source).
+    ['manual add', () => api.addExternal(UID, { sourceType: 'MANUAL', pubType: 'Book', title: 'x', pubDate: '2020' }, me, false)],
+    ['manual add by articleId', () => api.addExternal(UID, { articleId: 'MANUAL:abc', pubType: 'Book', title: 'x', pubDate: '2020' }, me, false)],
   ]) {
     const r = await call()
     check(r.status === 409 && r.body.store === 'reciter', `${name} -> 409 store reciter`)
@@ -110,7 +114,7 @@ try {
   const A = add.body.external.id
   const sA = await status(A)
   check(sA.provenance === 'ADD_SEARCH' && add.body.external.addedBy === 'zzcurator', 'provenance ADD_SEARCH from the server, addedBy from the session (client values ignored)')
-  const manual = await api.addExternal(UID, { sourceType: 'MANUAL', title: 'A manual work', pubDate: '2020' }, me, false)
+  const manual = await api.addExternal(UID, { sourceType: 'MANUAL', pubType: 'Book', title: 'A manual work', pubDate: '2020' }, me, false)
   check(manual.status === 201 && /^MANUAL:/.test(manual.body.external.articleId) && (await status(manual.body.external.id)).provenance === 'MANUAL', 'manual add -> MANUAL:<uuid>, provenance MANUAL')
   const M = manual.body.external.id
   const dup = await api.addExternal(UID, scopus, me, false)
@@ -198,6 +202,51 @@ try {
   gsr.getKnownPmidsStrict = async () => { throw new Error('simulated DynamoDB outage') }
   const skipped = await store.reconcileSupersedeAfterGoldStandard(UID).finally(() => { gsr.getKnownPmidsStrict = saved })
   check(skipped === null && (await status(A)).status === 'SUPERSEDED', 'GoldStandard read error -> reconcile skipped, nothing revived')
+
+  console.log('\n8. manual entry (3d)')
+  for (const [label, body] of [
+    ['no type', { sourceType: 'MANUAL', title: 'T', pubDate: '2021' }],
+    ['no title', { sourceType: 'MANUAL', pubType: 'Book', title: ' ', pubDate: '2021' }],
+    ['no year', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '' }],
+    ['bad DOI', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '2021', doi: 'nope' }],
+    ['bad ISBN', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '2021', isbn: '978-0-00-000000-1' }],
+    ['month 13', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '2021-13' }],
+    ['Feb 30', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '2021-02-30' }],
+    ['a PMID', { sourceType: 'MANUAL', pubType: 'Book', title: 'T', pubDate: '2021', pmid: 12345678 }],
+    ['peer-reviewed NPRW', { sourceType: 'MANUAL', pubType: 'Non-Peer-Reviewed Writing', title: 'T', pubDate: '2021', peerReviewed: true }],
+  ]) check((await api.addExternal(UID, body, me, false)).status === 400, `manual add, ${label} -> 400`)
+  const man = await api.addExternal(UID, {
+    sourceType: 'MANUAL', articleId: 'MANUAL:client-chosen', pubType: 'Book Chapter', title: 'A chapter entered by hand',
+    pubDate: '2024-05', authors: ['Mei Lin', 'Ann Zed'], targetAuthorIndex: 2, journalOrVenue: 'The Book', publisher: 'Facet',
+    doi: '10.9999/zz_api.manual', fields: { editors: ['E One'], place: 'London', detailsFrom: 'Crossref' }, role: 'Translator', peerReviewed: true,
+  }, me, false)
+  const X = man.body.external?.id
+  check(man.status === 201 && /^MANUAL:[0-9a-f-]{36}$/.test(man.body.external.articleId), 'manual add -> 201 with a server-minted MANUAL:<uuid> (client articleId ignored)', JSON.stringify(man.body).slice(0, 300))
+  const xr = (await q('SELECT provenance, status, source_type, date_precision, target_author_index, byline, pub_type, role, peer_reviewed, fields_json FROM external_record WHERE id = :id', { id: X }))[0]
+  check(xr.provenance === 'MANUAL' && xr.status === 'ACCEPTED' && xr.source_type === 'MANUAL', 'row: provenance MANUAL, ACCEPTED, source MANUAL')
+  check(xr.date_precision === 'MONTH' && Number(xr.target_author_index) === 2 && xr.byline === 'Lin M, ((Zed A))', 'row: date precision MONTH, position 2, byline built server-side', JSON.stringify(xr))
+  check(xr.pub_type === 'Book Chapter' && xr.role === 'Translator' && Number(xr.peer_reviewed) === 1, 'row: type, role and peer review as entered')
+  const ev = await lastEvent(X)
+  check(ev.action === 'ADD' && ev.to_status === 'ACCEPTED' && ev.actor === 'zzcurator', 'ADD event by the session curator')
+  const dupDoi = await api.addExternal(UID, { sourceType: 'MANUAL', pubType: 'Book', title: 'Other', pubDate: '2024', doi: '10.9999/ZZ_API.MANUAL' }, me, false)
+  check(dupDoi.status === 409 && dupDoi.body.message.status === 'BLOCKED', 'same DOI again -> 409 BLOCKED')
+  const warn = await api.addExternal(UID, { sourceType: 'MANUAL', pubType: 'Book', title: 'A chapter entered by hand.', pubDate: '2024' }, me, false)
+  check(warn.status === 409 && warn.body.message.status === 'WARNING', 'same title and year -> 409 WARNING')
+  let dc = await api.dupCheckExternal(UID, { sourceType: 'MANUAL', doi: '10.9999/zz_api.manual', title: 'A chapter entered by hand', pubDate: '2024' }, me)
+  check(dc.status === 200 && dc.body.level === 'BLOCKED', 'dupcheck of its own DOI -> BLOCKED')
+  dc = await api.dupCheckExternal(UID, { sourceType: 'MANUAL', doi: '10.9999/zz_api.manual', title: 'A chapter entered by hand', pubDate: '2024' }, me, X)
+  check(dc.status === 200 && dc.body.level === 'OK', 'dupcheck with excludeId (its Edit) -> OK', JSON.stringify(dc.body).slice(0, 300))
+  let ed = await api.editExternal(X, { title: '' }, me)
+  check(ed.status === 400, 'edit a manual record to no title -> 400')
+  ed = await api.editExternal(X, { pubDate: 'n.d.' }, me)
+  check(ed.status === 400, 'edit a manual record to no year -> 400')
+  ed = await api.editExternal(X, { title: 'A chapter, edited', pubDate: '2024-05-02', targetAuthorIndex: 1 }, me)
+  const xe = (await q('SELECT article_id, title, date_precision, byline FROM external_record WHERE id = :id', { id: X }))[0]
+  check(ed.status === 200 && xe.article_id === man.body.external.articleId && xe.title === 'A chapter, edited' && xe.date_precision === 'DAY' && xe.byline === '((Lin M)), Zed A', 'edit keeps the article_id, changes title, precision and position', JSON.stringify(xe))
+  check((await lastEvent(X)).action === 'EDIT', 'EDIT event')
+  check((await api.editExternal(X, { title: 'x' }, stranger)).status === 403, 'edit without canCurate -> 403')
+  check((await api.editExternal(X, { title: '' }, stranger)).status === 403, 'edit without canCurate -> 403 before the body checks')
+  check((await api.editExternal(X, { pubDate: '2024-13' }, me)).status === 400, 'edit a manual record to month 13 -> 400')
 } catch (e) {
   failures++
   console.error(`  ${FAIL} unexpected error: ${e.stack || e}`)

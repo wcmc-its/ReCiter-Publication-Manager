@@ -2,6 +2,7 @@ import React, { FunctionComponent, useCallback, useEffect, useRef, useState } fr
 import { toast } from "react-toastify"
 import { reciterConfig } from "../../../../config/local"
 import ExternalPublicationCard, { AddState } from "./ExternalPublicationCard"
+import styles from "./CurateIndividual.module.css"
 import {
     AddSource, decideCrossrefOutcome, decideScopusOutcome, enrichScopusResults,
     normalizeDoiInput, normalizeIsbnInput, scopusSearchFor, seedAddedStates,
@@ -47,6 +48,8 @@ interface FuncProps {
     // Shows only the search messages and results; the record's external works are listed in
     // the All sources tab instead.
     embedded?: boolean,
+    // 3d (embedded, external record store only): the no-results row offers manual entry.
+    onEnterManually?: () => void,
 }
 
 const apiHeaders = {
@@ -419,9 +422,16 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                     {searching ? (
                         <div style={emptyText}>Searching {SOURCE_NAME[searchingSource]}…</div>
                     ) : results.length === 0 ? (
-                        <div style={emptyText}>
-                            {resultSource ? `No results found in ${SOURCE_NAME[resultSource]}.` : "No results."}
-                        </div>
+                        props.onEnterManually ? (
+                            <div className={styles.apNoRows}>
+                                <span>{resultSource ? `No results found in ${SOURCE_NAME[resultSource]}.` : "No results."} Try a surname, a title phrase, or a DOI.</span>
+                                <button type="button" className={styles.apNoRowsBtn} onClick={props.onEnterManually}>Enter it manually</button>
+                            </div>
+                        ) : (
+                            <div style={emptyText}>
+                                {resultSource ? `No results found in ${SOURCE_NAME[resultSource]}.` : "No results."}
+                            </div>
+                        )
                     ) : (
                         <>
                         {resultSource === "SCOPUS" && scopusTotal > results.length && (
