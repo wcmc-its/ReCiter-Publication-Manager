@@ -343,6 +343,17 @@ h1:where(:not(.pm-page-title)) {
   outline: 2px solid var(--pm-ring);
   outline-offset: -2px;
 }
+/* The bulk "Assign to…" popover's candidate list (Authorships PR 5). */
+.pm-assign-opt {
+  background: none;
+}
+.pm-assign-opt:not(:disabled):hover {
+  background: var(--pm-surface-2);
+}
+.pm-assign-opt:focus-visible {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: -2px;
+}
 
 .table {
   vertical-align: middle !important;

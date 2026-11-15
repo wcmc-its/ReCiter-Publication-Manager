@@ -354,3 +354,92 @@ export function typedCwidPreview(state: TypedCwidLookupState): TypedCwidPreview 
       return { text: `→ ${state.name}`, tone: "neutral" };
   }
 }
+
+// ---- UI refresh PR 5: parked queues and the bulk-assign popover ------------------------------
+
+// Snoozed and Dismissed: every row can be selected, and the only bulk action is Reopen. Kept
+// apart from isBulkSelectable (open-queue only, and pinned by check-authorships-no-suggestion.mjs)
+// so nothing that reads that predicate, the accept gates above all, can see a parked row.
+export function isParkedQueue(statusView: string): boolean {
+  return statusView === "snoozed" || statusView === "dismissed";
+}
+
+// The page's IO bands (90 / 50), the same cut points as src/utils/authorshipRow.ts's ioBand.
+// Repeated here, not imported, because this module stays free of the UI utilities.
+export type AssignBand = "High" | "Medium" | "Low";
+export function assignBand(v?: number | null): AssignBand | null {
+  return v == null || Number.isNaN(v) ? null : v >= 90 ? "High" : v >= 50 ? "Medium" : "Low";
+}
+
+// One line of the "Assign N selected to" list: the IO range, a count per band, and the amber
+// warning ("Not a candidate on 12 selected rows · 1 low-confidence match"). `scores` holds this
+// candidate's IO on each selected row that proposes them; `matches` is how many rows do.
+export function assignOptionSummary(scores: number[], selectedCount: number, matches: number): {
+  ioText: string; bands: Array<{ band: AssignBand; n: number }>; warn: string;
+} {
+  const floor = (v: number) => String(Math.floor(v));
+  const lo = scores.length ? Math.min(...scores) : null;
+  const hi = scores.length ? Math.max(...scores) : null;
+  const ioText = lo == null || hi == null ? "No IO score" : floor(lo) === floor(hi) ? `IO ${floor(lo)}` : `IO ${floor(lo)}–${floor(hi)}`;
+  const count: Record<AssignBand, number> = { High: 0, Medium: 0, Low: 0 };
+  for (const s of scores) { const b = assignBand(s); if (b) count[b] += 1; }
+  const bands = (["High", "Medium", "Low"] as AssignBand[]).filter((b) => count[b]).map((band) => ({ band, n: count[band] }));
+  const miss = Math.max(0, selectedCount - matches);
+  const warn = [
+    miss ? `Not a candidate on ${miss} selected row${miss === 1 ? "" : "s"}` : "",
+    count.Low ? `${count.Low} low-confidence match${count.Low === 1 ? "" : "es"}` : "",
+  ].filter(Boolean).join(" · ");
+  return { ioText, bands, warn };
+}
+
+// The confirm step's per-row preview for one chosen person: each selected row with this
+// person's IO on it (null when they are not one of the row's candidates), strongest first,
+// "not a candidate" last. A row is SAFE when this person is its candidate at High confidence;
+// "Assign the N high-confidence only" sends just those. The note says what the rest are.
+export function assignPreview<T>(
+  rows: T[], candidatesOf: (row: T) => CandidateLite[], cwid: string,
+): {
+  items: Array<{ row: T; io: number | null; band: AssignBand | null; onCandidate: boolean; safe: boolean }>;
+  safe: T[]; weak: number; offCandidate: number; note: string;
+} {
+  const items = rows.map((row) => {
+    const c = candidatesOf(row).find((x) => x.cwid === cwid);
+    const io = c ? (c.score ?? null) : null;
+    const band = assignBand(io);
+    return { row, io, band, onCandidate: !!c, safe: !!c && band === "High" };
+  });
+  // Array sort is stable, so equal rows keep the page's order.
+  items.sort((a, b) => (b.io ?? -1) - (a.io ?? -1) || Number(b.onCandidate) - Number(a.onCandidate));
+  const offCandidate = items.filter((x) => !x.onCandidate).length;
+  const weak = items.filter((x) => x.onCandidate && !x.safe).length;
+  const note = [
+    weak ? `${weak} row${weak === 1 ? " is" : "s are"} below high confidence.` : "",
+    offCandidate ? `${offCandidate} row${offCandidate === 1 ? " doesn't" : "s don't"} list this person as a candidate, so you'd be overriding the match.` : "",
+    !weak && !offCandidate ? "Every selected row is a high-confidence match." : "",
+  ].filter(Boolean).join(" ");
+  return {
+    items,
+    safe: items.filter((x) => x.safe).map((x) => x.row),
+    weak, offCandidate, note,
+  };
+}
+
+// The bulk "Someone else" box takes a CWID or a full name. A CWID has no spaces and at least one
+// digit (abc1234, ml3392); anything else is searched as a name in the directory.
+export function looksLikeCwid(q: string): boolean {
+  const s = q.trim();
+  return /^[A-Za-z0-9]{1,32}$/.test(s) && /\d/.test(s);
+}
+
+// The popover lists people in the prototype's order: most matches first, then the higher mean
+// IO across the selected rows that propose them (no score sorts last), then cwid. Only the
+// display order; unionCandidates' own order is left as check-bulk-assign.mjs pins it.
+export function orderAssignOptions<T extends { cwid: string; matches: number }>(
+  opts: T[], scoresOf: (cwid: string) => number[],
+): T[] {
+  const mean = (cwid: string) => {
+    const s = scoresOf(cwid);
+    return s.length ? s.reduce((a, b) => a + b, 0) / s.length : -Infinity;
+  };
+  return [...opts].sort((a, b) => b.matches - a.matches || mean(b.cwid) - mean(a.cwid) || a.cwid.localeCompare(b.cwid));
+}

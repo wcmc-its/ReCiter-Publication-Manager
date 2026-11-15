@@ -69,11 +69,18 @@ export const splitAffiliation = (text: string, re: RegExp): { pre: string; hit: 
 export const sourceBadgeText = (source?: string | null): string =>
   source === "scopus" ? "Scopus · not in PubMed" : source === "openalex" ? "OpenAlex · not in PubMed" : "PubMed";
 
-// The muted line at the foot of the table. Accept, reject, snooze and selecting rows only work
-// in the Open queue, so the parked queues list just moving, undo and the legend.
-export const shortcutsLine = (openQueue: boolean): string[] => (openQueue
+// The muted line at the foot of the table. Accept, reject and snooze only work in the Open
+// queue. Selecting works there and in Snoozed / Dismissed (for bulk Reopen), not in the two
+// review queues.
+export const shortcutsLine = (openQueue: boolean, canSelect = openQueue): string[] => (openQueue
   ? ["J/K move", "Y accept", "N reject", "S snooze", "X select", "U undo", "? all shortcuts"]
-  : ["J/K move", "U undo", "? all shortcuts"]);
+  : ["J/K move", ...(canSelect ? ["X select"] : []), "U undo", "? all shortcuts"]);
+
+// The muted note above a parked row's Reopen: "Snoozed until 2027 Jan 28" / "Dismissed".
+export const parkedNote = (statusView: string, snoozeUntil?: string | null): string =>
+  statusView === "dismissed" ? "Dismissed"
+    : statusView === "snoozed" ? (snoozeUntil ? `Snoozed until ${formatRowDate(snoozeUntil)}` : "Snoozed")
+      : "";
 
 // ---- expanded row (UI refresh PR 4) --------------------------------------------------------
 

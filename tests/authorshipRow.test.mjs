@@ -3,7 +3,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
     ioBand, ioBadgeText, ioBadge, shortInstitution, roleLine, formatRowDate,
-    splitAffiliation, sourceBadgeText, shortcutsLine,
+    splitAffiliation, sourceBadgeText, shortcutsLine, parkedNote,
     ioScoreText, fgLine, bylineParts, rankCandidates, compareHint, shareLine,
 } from '../src/utils/authorshipRow.ts'
 
@@ -66,6 +66,16 @@ test('sourceBadgeText and shortcutsLine', () => {
     assert.equal(sourceBadgeText('openalex'), 'OpenAlex · not in PubMed')
     assert.deepEqual(shortcutsLine(true), ['J/K move', 'Y accept', 'N reject', 'S snooze', 'X select', 'U undo', '? all shortcuts'])
     assert.deepEqual(shortcutsLine(false), ['J/K move', 'U undo', '? all shortcuts'])
+    // Snoozed / Dismissed can select rows for bulk Reopen.
+    assert.deepEqual(shortcutsLine(false, true), ['J/K move', 'X select', 'U undo', '? all shortcuts'])
+})
+
+test('parkedNote: the note above a parked row\'s Reopen', () => {
+    assert.equal(parkedNote('snoozed', '2027-01-28'), 'Snoozed until 2027 Jan 28')
+    assert.equal(parkedNote('snoozed', '2027-01-28T05:00:00.000Z'), 'Snoozed until 2027 Jan 28')
+    assert.equal(parkedNote('snoozed', null), 'Snoozed')
+    assert.equal(parkedNote('dismissed', '2027-01-28'), 'Dismissed')
+    assert.equal(parkedNote('open', '2027-01-28'), '')
 })
 
 test('ioScoreText floors and names the band', () => {
