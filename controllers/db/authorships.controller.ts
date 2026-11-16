@@ -102,11 +102,27 @@ function personInstitutionInclude(required: boolean, attributes: string[] = []) 
       // the same 26 buckets). Collating the non-indexed side keeps the index usable.
       // Results are unaffected because cwids are ASCII, where general_ci and unicode_ci
       // agree; this was verified, not assumed.
-      col: sqlWhere(
-        literal("`AuthorshipReview`.`top_cwid` COLLATE utf8mb4_unicode_ci"),
-        "=",
-        col("Person.personIdentifier"),
-      ),
+      [Op.and]: [
+        sqlWhere(
+          literal("`AuthorshipReview`.`top_cwid` COLLATE utf8mb4_unicode_ci"),
+          "=",
+          col("Person.personIdentifier"),
+        ),
+        // ONE person row per review row: the lowest-id one for that cwid. person.personIdentifier
+        // is not unique (PRIMARY KEY is (id, personIdentifier); 13 duplicated values on dev, all
+        // case variants such as dlamb/DLAMB, which unicode_ci treats as equal), so without this
+        // the LEFT JOIN fanned a review row out once per matching person row: the list returned
+        // the same id twice (duplicate React keys, an orphaned card after accept), and
+        // findAndCountAll's count and the facet SUMs over-counted. Pinning the join here fixes
+        // every caller at once. NOT EXISTS on Person.personIdentifier (unicode_ci on both sides,
+        // so no COLLATE and the index stays usable): measured on dev over the open queue, 3 runs,
+        // 222-283 ms without it, 232-251 ms with it; a correlated ORDER BY ... LIMIT 1 instead
+        // cost ~460 ms.
+        literal(
+          "NOT EXISTS (SELECT 1 FROM `person` AS `p1` " +
+          "WHERE `p1`.`personIdentifier` = `Person`.`personIdentifier` AND `p1`.`id` < `Person`.`id`)",
+        ),
+      ],
     },
   } as any;
 }
@@ -1125,6 +1141,10 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       order,
       offset,
       limit,
+      // Belt and braces with the one-row join in personInstitutionInclude(): count review rows,
+      // not joined rows, so "Showing N of M" can never exceed the queue count.
+      distinct: true,
+      col: "id",
     });
 
     // Per-document sibling count, scoped to the active status-view. Two grouped COUNTs —
