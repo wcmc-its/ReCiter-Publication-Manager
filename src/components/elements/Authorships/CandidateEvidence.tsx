@@ -3,11 +3,17 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { reciterConfig } from "../../../../config/local";
-import { MATCH_COLORS } from "../../../utils/identityEvidence";
-import { tallyOf } from "../../../utils/candidateEvidence";
+import { mostEvidenceCwid, tallyOf } from "../../../utils/candidateEvidence";
 import type { CandidateFacts, EvidenceCandidate, EvidenceKind, EvidenceRow } from "../../../utils/candidateEvidence";
 
-export interface CandidateEvidenceData { coauthors: string[] | null; facts: Record<string, CandidateFacts> }
+export interface CandidateEvidenceData {
+  coauthors: string[] | null;
+  // The whole byline in order and this row's author's index in it (-1 = not found); null when
+  // the paper's author list isn't available. For the expanded row's "Authors" line.
+  authors?: string[] | null;
+  target?: number;
+  facts: Record<string, CandidateFacts>;
+}
 
 // One request per row id, tagged with the candidate set it was asked for: when the row's
 // candidates change (a re-run moved top_cwid) the tag no longer matches and it refetches. The
@@ -54,65 +60,92 @@ export const useCandidateEvidence = (id: number, tag: string): State => {
 
 export const KIND_SYM: Record<EvidenceKind, string> = { match: "✓", partial: "~", mismatch: "✕", nodata: "?" };
 const KIND_TEXT: Record<EvidenceKind, string> = { match: "Match", partial: "Partial", mismatch: "Mismatch", nodata: "No data" };
+// The prototype's evidence palette (app_logic KIND): slate for for, amber for partial, red for
+// against, grey for nothing to go on. Text and dot share the colour; the fill is its tint.
+export const KIND_TONE: Record<EvidenceKind, { c: string; bg: string }> = {
+  match: { c: "var(--pm-slate)", bg: "var(--pm-slate-tint)" },
+  partial: { c: "var(--pm-amber)", bg: "var(--pm-amber-tint)" },
+  mismatch: { c: "var(--pm-red)", bg: "var(--pm-red-tint)" },
+  nodata: { c: "var(--pm-muted-foreground)", bg: "var(--pm-surface-2)" },
+};
 
 export const KindPill = ({ kind }: { kind: EvidenceKind }) => (
-  <span style={{
-    display: "inline-flex", alignItems: "center", gap: 4, width: "fit-content", padding: "0 7px", height: 18,
-    borderRadius: 999, fontSize: 11, fontWeight: 600, background: MATCH_COLORS[kind].bg, color: "#1f2937",
-    border: `1px solid ${MATCH_COLORS[kind].border}`,
+  <span data-kindpill={kind} style={{
+    display: "inline-flex", alignItems: "center", gap: 5, width: "fit-content", padding: "0 7px", height: 18,
+    borderRadius: 999, fontSize: 11, fontWeight: 600, background: KIND_TONE[kind].bg, color: KIND_TONE[kind].c, whiteSpace: "nowrap",
   }}>
-    <span aria-hidden="true">{KIND_SYM[kind]}</span>{KIND_TEXT[kind]}
+    <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: KIND_TONE[kind].c, flex: "none" }} />{KIND_TEXT[kind]}
   </span>
 );
 
-// Bar + "N match · N partial · N mismatch · N no data", Curate's identity tally (2b). The bar's
-// base is the scored rows only, so "no data" never dilutes it.
-export const TallyBar = ({ rows, width = 150, compact }: { rows: EvidenceRow[]; width?: number; compact?: boolean }) => {
+const tallyText = (rows: EvidenceRow[]) => {
+  const t = tallyOf(rows);
+  return [`${t.match} match`, t.partial && `${t.partial} partial`, t.mismatch && `${t.mismatch} mismatch`, t.nodata && `${t.nodata} no data`]
+    .filter(Boolean).join(" · ");
+};
+
+// The match / partial / mismatch bar. Its base is the scored rows only, so "no data" never
+// dilutes it.
+const Bar = ({ rows, width, height, track }: { rows: EvidenceRow[]; width: number | string; height: number; track: string }) => {
   const t = tallyOf(rows);
   const base = t.match + t.partial + t.mismatch || 1;
-  const text = [`${t.match} match`, t.partial && `${t.partial} partial`, t.mismatch && `${t.mismatch} mismatch`, t.nodata && `${t.nodata} no data`]
-    .filter(Boolean).join(" · ");
   return (
-    <span style={{ display: "inline-flex", flexDirection: compact ? "column" : "row", alignItems: compact ? "flex-start" : "center", gap: compact ? 3 : 8, fontSize: compact ? 11 : 12.5, color: "#5c6474" }}>
-      <span aria-hidden="true" style={{ display: "flex", width, height: 7, borderRadius: 4, overflow: "hidden", background: "#eef0f3" }}>
-        {(["match", "partial", "mismatch"] as const).map((k) => (
-          <span key={k} style={{ width: `${(100 * t[k]) / base}%`, background: MATCH_COLORS[k].border }} />
-        ))}
-      </span>
-      {text}
+    <span aria-hidden="true" style={{ display: "flex", width, height, borderRadius: height / 2, overflow: "hidden", background: track, flex: "none" }}>
+      {(["match", "partial", "mismatch"] as const).map((k) => (
+        <span key={k} style={{ width: `${(100 * t[k]) / base}%`, background: KIND_TONE[k].c }} />
+      ))}
     </span>
   );
 };
 
-const GRID = "minmax(140px,0.8fr) minmax(0,1fr) minmax(0,1.25fr)";
-const HEAD: CSSProperties = { fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "#6b7484" };
-const MUTED: CSSProperties = { fontSize: 11.5, color: "#6b7484" };
+// Bar + "N match · N partial · N mismatch · N no data", the prototype's identity tally.
+export const TallyBar = ({ rows, width = 150 }: { rows: EvidenceRow[]; width?: number }) => (
+  <span style={{ display: "inline-flex", alignItems: "center", gap: 12, fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>
+    <Bar rows={rows} width={width} height={7} track="var(--pm-surface-2)" />
+    {tallyText(rows)}
+  </span>
+);
 
-export const EvidenceTable = ({ rows, who }: { rows: EvidenceRow[]; who: string }) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }} data-testid="candidate-evidence">
+const GRID = "minmax(150px,0.85fr) minmax(0,1fr) minmax(0,1.25fr)";
+export const HEAD: CSSProperties = { fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--pm-muted-foreground)" };
+const MUTED: CSSProperties = { fontSize: 11.5, color: "var(--pm-muted-foreground)" };
+const TABLE: CSSProperties = { border: "1px solid var(--pm-border)", borderRadius: 10, background: "#fff" };
+const ROW: CSSProperties = { padding: "9px 12px", borderTop: "1px solid var(--pm-border)", fontSize: 12.5, lineHeight: 1.45, alignItems: "start", color: "var(--pm-foreground)" };
+const IO_LABEL = "Identity-Only Score";
+
+// One candidate's evidence (prototype markup ~1117-1133). The Identity-Only Score belongs to the
+// article ("99 · High" under This article), so its row shows "—" under the person.
+export const EvidenceTable = ({ rows, who, note }: { rows: EvidenceRow[]; who: string; note?: ReactNode }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 10 }} data-testid="candidate-evidence">
     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
       <span style={HEAD}>Identity match</span>
       <TallyBar rows={rows} />
+      {note}
     </div>
-    <div role="table" aria-label={`Evidence for ${who}`} style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
-      <div role="row" style={{ display: "grid", gridTemplateColumns: GRID, gap: 12, padding: "8px 12px", background: "#f7f7f5", ...HEAD }}>
-        <span role="columnheader">Evidence</span><span role="columnheader" style={{ textTransform: "none", letterSpacing: 0 }}>{who}</span><span role="columnheader">This article</span>
+    <div role="table" aria-label={`Evidence for ${who}`} style={{ ...TABLE, overflow: "hidden" }}>
+      <div role="row" style={{ display: "grid", gridTemplateColumns: GRID, gap: 12, padding: "8px 12px", background: "var(--pm-surface-2)", ...HEAD }}>
+        <span role="columnheader">Evidence</span><span role="columnheader">{who}</span><span role="columnheader">This article</span>
       </div>
-      {rows.map((e) => (
-        <div role="row" key={e.label} data-kind={e.kind}
-          style={{ display: "grid", gridTemplateColumns: GRID, gap: 12, padding: "9px 12px", borderTop: "1px solid #e5e7eb", fontSize: 12.5, lineHeight: 1.45, alignItems: "start", color: "#1f2937" }}>
-          <span role="cell" style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-            <span style={{ fontWeight: 600 }}>{e.label}</span>
-            <KindPill kind={e.kind} />
-          </span>
-          <span role="cell" style={{ minWidth: 0, overflowWrap: "anywhere", color: "#5c6474" }}>{e.theirs || "—"}</span>
-          <span role="cell" style={{ minWidth: 0, overflowWrap: "anywhere", display: "flex", flexDirection: "column", gap: 2 }}>
-            {/* a long affiliation is clamped to 3 lines; the full text is the tooltip */}
-            <span title={e.mine} style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{e.mine || "—"}</span>
-            {e.why && <span style={MUTED}>{e.why}</span>}
-          </span>
-        </div>
-      ))}
+      {rows.map((e) => {
+        const io = e.label === IO_LABEL;
+        const theirs = io ? undefined : e.theirs;
+        const mine = io ? e.theirs || e.why : e.mine;
+        const why = io ? undefined : e.why;
+        return (
+          <div role="row" key={e.label} data-kind={e.kind} style={{ display: "grid", gridTemplateColumns: GRID, gap: 12, ...ROW }}>
+            <span role="cell" style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+              <span style={{ fontWeight: 600 }}>{e.label}</span>
+              <KindPill kind={e.kind} />
+            </span>
+            <span role="cell" style={{ minWidth: 0, overflowWrap: "anywhere", color: "var(--pm-muted-foreground)" }}>{theirs || "—"}</span>
+            <span role="cell" style={{ minWidth: 0, overflowWrap: "anywhere", display: "flex", flexDirection: "column", gap: 2 }}>
+              {/* a long affiliation is clamped to 3 lines; the full text is the tooltip */}
+              <span title={mine} style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{mine || "—"}</span>
+              {why && <span style={MUTED}>{why}</span>}
+            </span>
+          </div>
+        );
+      })}
     </div>
   </div>
 );
@@ -120,85 +153,111 @@ export const EvidenceTable = ({ rows, who }: { rows: EvidenceRow[]; who: string 
 // ---- 4d-4: comparison grid --------------------------------------------------------------
 // One column per candidate, the same evidence rows lined up, this article's value first. Columns
 // are ordered by evidenceStrength then IO; already-rejected candidates go last and never carry
-// "Most evidence". A header click calls onPick, the same pick the radio list makes; Assign stays
-// gated on that explicit pick. `paged` (4+ candidates) shows two columns at a time with a chip
-// strip to jump.
+// "Most evidence". A header click calls onPick, the same pick the row's radios make; Accept stays
+// gated on that explicit pick. Two or three candidates show side by side; four or more page two
+// at a time (prototype authCompare: K = n <= 3 ? n : 2), wrapping round, with a chip per person.
 export interface GridCandidate extends EvidenceCandidate { cwid: string }
 export { orderByEvidence } from "../../../utils/candidateEvidence";
 
-export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick, paged, renderHead }: {
-  cols: Array<{ c: C; rows: EvidenceRow[] }>; pickedCwid?: string; onPick: (cwid: string) => void; paged: boolean;
+const stripPx = (n: number) => (n >= 3 ? "var(--pm-slate)" : n >= 0 ? "var(--pm-amber)" : "var(--pm-red)");
+
+export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick, renderHead, hint }: {
+  // undefined = read-only (a parked queue): the headers are not a picker.
+  cols: Array<{ c: C; rows: EvidenceRow[] }>; pickedCwid?: string; onPick?: (cwid: string) => void;
   renderHead: (c: C) => ReactNode;   // name, badges, hover card: owned by the caller
+  hint: string;
 }) => {
+  const n = cols.length;
+  const per = n <= 3 ? n : 2;
   const [start, setStart] = useState(0);
-  const per = paged ? 2 : cols.length;
-  const from = Math.min(start, Math.max(0, cols.length - per));
-  const shown = cols.slice(from, from + per);
-  const bestCwid = cols.find((x) => !x.c.already_rejected)?.c.cwid;
-  // The builder's row order; a label shows when any candidate has it (Prior decisions is per candidate).
-  const labels = LABEL_ORDER.filter((l) => cols.some((x) => x.rows.some((e) => e.label === l)));
-  const mineOf = (l: string) => cols.map((x) => x.rows.find((e) => e.label === l)?.mine).find(Boolean);
-  const grid = `minmax(100px,0.6fr) minmax(0,1fr) repeat(${shown.length}, minmax(0,1.1fr))`;
+  const off = ((start % n) + n) % n;
+  const shown = Array.from({ length: per }, (_, j) => cols[(off + j) % n]);
+  const score = (rows: EvidenceRow[]) => rows.reduce((t, e) => t + ({ match: 1, partial: 0.4, mismatch: -1, nodata: 0 })[e.kind], 0);
+  // "Most evidence" only when one candidate leads outright, on the same strength the columns are
+  // ordered by, and has not already rejected the paper.
+  const bestCwid = mostEvidenceCwid(cols);
+  // The builder's row order; a label shows when any shown candidate has it (Prior decisions is per candidate).
+  const labels = LABEL_ORDER.filter((l) => shown.some((x) => x.rows.some((e) => e.label === l)));
+  const mineOf = (l: string) => (l === IO_LABEL ? "Scored per person →" : cols.map((x) => x.rows.find((e) => e.label === l)?.mine).find(Boolean));
+  const grid = `minmax(96px,0.7fr) minmax(0,1fr) repeat(${per}, minmax(0,1fr))`;
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "4px 0 10px" }} data-testid="compare-grid" onClick={stop}>
-      <span style={HEAD}>Compare {cols.length} candidates</span>
-      {paged && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <button type="button" aria-label="Previous candidate" disabled={from === 0} onClick={() => setStart(from - 1)} style={pageBtn}>‹</button>
-          <button type="button" aria-label="Next candidate" disabled={from + per >= cols.length} onClick={() => setStart(from + 1)} style={pageBtn}>›</button>
-          <span style={{ ...MUTED, marginRight: 4, fontVariantNumeric: "tabular-nums" }}>{from + 1}–{from + shown.length} of {cols.length}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }} data-testid="compare-grid" onClick={stop}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={HEAD}>Compare {n} candidates</span>
+        <span data-compare-hint style={{ fontSize: 12.5, color: !onPick ? "var(--pm-muted-foreground)" : pickedCwid ? "var(--pm-slate)" : "var(--pm-amber)" }}>{hint}</span>
+      </div>
+      {per < n && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" aria-label="Previous candidate" title="Previous candidate" onClick={() => setStart(off - 1)} className="pm-cmp-page" style={pageBtn}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+          <button type="button" aria-label="Next candidate" title="Next candidate" onClick={() => setStart(off + 1)} className="pm-cmp-page" style={pageBtn}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+          </button>
+          <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums", marginRight: 4 }}>
+            Showing {shown.map((_, j) => ((off + j) % n) + 1).join(" and ")} of {n} · strongest first
+          </span>
           {cols.map((x, i) => {
-            const inView = i >= from && i < from + per;
+            const inView = shown.some((y) => y.c.cwid === x.c.cwid);
             return (
               <button type="button" key={x.c.cwid} onClick={() => setStart(i)} aria-current={inView || undefined}
-                style={{ height: 24, padding: "0 9px", borderRadius: 999, border: `1px solid ${inView ? "#94a3b8" : "#e5e7eb"}`, background: inView ? "#f1f5f9" : "#fff",
-                  fontSize: 12, fontWeight: inView ? 600 : 400, cursor: "pointer", fontFamily: "inherit", color: x.c.already_rejected ? "var(--pm-red)" : "#1f2937" }}>
-                {x.c.name || x.c.cwid}{x.c.cwid === pickedCwid ? " ✓" : ""}
+                title={`${x.c.name || x.c.cwid} · ${x.c.cwid} · ${tallyText(x.rows)}`}
+                style={{ height: 26, padding: "0 9px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
+                  border: `1px solid ${inView ? "var(--pm-slate-tint-border)" : "var(--pm-border-strong)"}`, background: inView ? "var(--pm-slate-tint)" : "#fff",
+                  fontSize: 12, fontWeight: inView ? 600 : 500, fontFamily: "inherit", color: "var(--pm-foreground)" }}>
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: x.c.already_rejected ? "var(--pm-red)" : stripPx(score(x.rows)) }} />
+                {x.c.name || x.c.cwid}
+                {x.c.cwid === pickedCwid && (
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--pm-slate)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                )}
               </button>
             );
           })}
         </div>
       )}
       {/* no overflow:hidden here: it would clip the identity hover card in the headers */}
-      <div role="table" style={{ border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-        <div role="row" style={{ display: "grid", gridTemplateColumns: grid, gap: 10, padding: "10px 12px", background: "#f7f7f5", alignItems: "stretch", borderRadius: "10px 10px 0 0" }}>
+      <div role="table" style={TABLE}>
+        <div role="row" style={{ display: "grid", gridTemplateColumns: grid, gap: 12, padding: "10px 12px", background: "var(--pm-surface-2)", alignItems: "stretch", borderRadius: "10px 10px 0 0" }}>
           <span role="columnheader" style={{ ...HEAD, alignSelf: "end" }}>Evidence</span>
           <span role="columnheader" style={{ ...HEAD, alignSelf: "end" }}>This article</span>
           {shown.map(({ c, rows }) => {
             const picked = c.cwid === pickedCwid;
             return (
-              <div role="columnheader" key={c.cwid} aria-pressed={picked} tabIndex={0}
-                onClick={() => onPick(c.cwid)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(c.cwid); } }}
-                title={`Pick ${c.name || c.cwid}`}
-                style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, padding: "7px 9px", borderRadius: 8, cursor: "pointer",
-                  border: `1px solid ${picked ? "var(--pm-slate)" : c.already_rejected ? "var(--pm-red-tint-border)" : "#e5e7eb"}`,
-                  background: picked ? "var(--pm-slate-tint)" : c.already_rejected ? "var(--pm-red-tint)" : "#fff" }}>
+              <div role="columnheader" key={c.cwid} aria-pressed={onPick ? picked : undefined} tabIndex={onPick ? 0 : undefined} data-cmp-head={c.cwid}
+                onClick={() => onPick?.(c.cwid)} onKeyDown={(e) => { if (onPick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onPick(c.cwid); } }}
+                title={onPick ? `Assign to ${c.name || c.cwid}` : undefined}
+                style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, padding: "7px 9px", borderRadius: 8, cursor: onPick ? "pointer" : "default", boxSizing: "border-box",
+                  border: `1px solid ${picked ? "var(--pm-slate)" : "var(--pm-border)"}`, background: picked ? "var(--pm-slate-tint)" : "#fff" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                   <span aria-hidden="true" style={{ width: 13, height: 13, flex: "none", borderRadius: "50%", boxSizing: "border-box", background: "#fff",
-                    border: picked ? "4px solid var(--pm-slate)" : "1.5px solid #94a3b8" }} />
+                    border: picked ? "4px solid var(--pm-slate)" : "1.5px solid var(--pm-muted-foreground)", visibility: onPick ? "visible" : "hidden" }} />
                   {renderHead(c)}
                 </span>
-                <span style={{ ...MUTED, fontVariantNumeric: "tabular-nums" }}>IO {c.io_score == null ? "—" : Math.round(c.io_score)}</span>
-                <TallyBar rows={rows} width={110} compact />
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--pm-muted-foreground)" }}>
+                  {c.cwid} · IO {c.io_score == null ? "—" : Math.floor(c.io_score)}
+                </span>
+                <Bar rows={rows} width="100%" height={6} track="var(--pm-border)" />
+                <span style={{ fontSize: 11, color: "var(--pm-muted-foreground)" }}>{tallyText(rows)}</span>
                 {c.cwid === bestCwid && <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.03em", color: "var(--pm-slate)" }}>MOST EVIDENCE</span>}
               </div>
             );
           })}
         </div>
         {labels.map((l) => (
-          <div role="row" key={l} style={{ display: "grid", gridTemplateColumns: grid, gap: 10, padding: "8px 12px", borderTop: "1px solid #e5e7eb", fontSize: 12.5, lineHeight: 1.45, alignItems: "start", color: "#1f2937" }}>
+          <div role="row" key={l} style={{ display: "grid", gridTemplateColumns: grid, gap: 12, ...ROW }}>
             <span role="rowheader" style={{ fontWeight: 600 }}>{l}</span>
             <span role="cell" title={mineOf(l)} style={{ minWidth: 0, overflowWrap: "anywhere", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{mineOf(l) || "—"}</span>
             {shown.map(({ c, rows }) => {
               const e = rows.find((x) => x.label === l);
+              // The header already names the person, so the name rows show only the verdict and why.
+              const val = !e ? undefined : l === "Name" || l === "Given name" ? undefined : e.theirs;
               return (
-                <span role="cell" key={c.cwid} data-kind={e?.kind} style={{ minWidth: 0, overflowWrap: "anywhere", display: "flex", flexDirection: "column", gap: 3 }}>
-                  {e ? <>
-                    <KindPill kind={e.kind} />
-                    {e.theirs && <span style={{ color: "#5c6474" }}>{e.theirs}</span>}
-                    {e.why && <span style={MUTED}>{e.why}</span>}
-                  </> : <span style={MUTED}>—</span>}
+                <span role="cell" key={c.cwid} data-kind={e?.kind} style={{ minWidth: 0, overflowWrap: "anywhere", display: "flex", flexDirection: "column", gap: 3,
+                  padding: "5px 7px", margin: "-5px -7px", borderRadius: 6, background: c.cwid === pickedCwid ? "var(--pm-slate-tint)" : "transparent" }}>
+                  <KindPill kind={e?.kind || "nodata"} />
+                  {val && <span style={{ color: "var(--pm-muted-foreground)" }}>{val}</span>}
+                  {e?.why && <span style={MUTED}>{e.why}</span>}
                 </span>
               );
             })}
@@ -210,4 +269,4 @@ export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick,
 };
 
 const LABEL_ORDER = ["Name", "Given name", "Email", "Institution", "Department", "Co-authors", "Journal", "Career window", "Prior decisions", "Identity-Only Score"];
-const pageBtn: CSSProperties = { width: 26, height: 26, borderRadius: 6, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: 0 };
+const pageBtn: CSSProperties = { width: 28, height: 28, borderRadius: 6, border: "1px solid var(--pm-border-strong)", background: "#fff", display: "grid", placeItems: "center", cursor: "pointer", padding: 0, color: "var(--pm-foreground)" };

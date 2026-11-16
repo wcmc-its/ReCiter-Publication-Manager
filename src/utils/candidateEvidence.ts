@@ -98,6 +98,7 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
         label: 'Given name',
         kind: c.given_match === 'full' ? 'match' : c.given_match === 'initial' ? 'partial' : 'nodata',
         mine: byline.split(/\s+/)[0] || undefined,
+        theirs: (c.name || '').trim().split(/\s+/)[0] || undefined,
         why: c.given_match === 'full' ? 'Full given name agrees' : c.given_match === 'initial' ? 'Initial only, so many people fit' : '',
     })
 
@@ -187,7 +188,8 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
         ? { label: 'Identity-Only Score', kind: 'nodata', why: 'Scopus and OpenAlex rows are not scored' }
         : c.io_score == null
             ? { label: 'Identity-Only Score', kind: 'nodata', why: 'Not scored: ReCiter never retrieved this paper for them' }
-            : { label: 'Identity-Only Score', kind: ioBand(c.io_score), theirs: String(Math.round(c.io_score)) })
+            // "99 · High": floored like the row's IO badge, so the two never disagree.
+            : { label: 'Identity-Only Score', kind: ioBand(c.io_score), theirs: `${Math.floor(c.io_score)} · ${c.io_score >= 90 ? 'High' : c.io_score >= 50 ? 'Medium' : 'Low'}` })
 
     return rows
 }
@@ -207,3 +209,14 @@ export const evidenceStrength = (rows: EvidenceRow[]): number =>
 export const orderByEvidence = <C extends EvidenceCandidate>(cands: C[], rowsOf: (c: C) => EvidenceRow[]) =>
     cands.map((c) => { const rows = rowsOf(c); return { c, rows, s: evidenceStrength(rows) } })
         .sort((a, b) => Number(!!a.c.already_rejected) - Number(!!b.c.already_rejected) || b.s - a.s || (b.c.io_score ?? -1) - (a.c.io_score ?? -1))
+
+// The grid's "Most evidence" column: the one candidate who leads outright on the same
+// evidenceStrength the columns are ordered by (so the label always sits on the first column when
+// it shows at all), never one who already rejected the paper. A tie at the top marks nobody.
+export const mostEvidenceCwid = <C extends EvidenceCandidate & { cwid: string }>(cols: Array<{ c: C; rows: EvidenceRow[] }>): string | undefined => {
+    const live = cols.filter((x) => !x.c.already_rejected)
+    if (!live.length) return undefined
+    const s = live.map((x) => evidenceStrength(x.rows))
+    const top = Math.max(...s)
+    return s.filter((v) => v === top).length === 1 ? live[s.indexOf(top)].c.cwid : undefined
+}

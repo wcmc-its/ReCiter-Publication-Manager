@@ -144,15 +144,17 @@ const { ioBadge } = await import("../src/utils/authorshipRow.ts");
 check("the IO badge of a no-suggestion row is a dash even with a stale top_io_score",
   ioBadge({ top_cwid: null, top_io_score: 97.4, single_candidate: true }).text, "—");
 
-// SingleEvidence: the noSuggestion arm (the true-branch only — the false branch is the
-// pre-existing scopusNote/ioFgNote choice, still correct for every other row) must not call
-// either evidence-note helper.
-const noteStart = tabsSrc.lastIndexOf("<span>{noSuggestion");
-const noteFalseBranchStart = tabsSrc.indexOf(': r.source === "scopus" ? scopusNote(r) : ioFgNote(r)', noteStart);
-assert.ok(noteStart > 0 && noteFalseBranchStart > noteStart, "SingleEvidence note ternary located");
-const noteTrueBranch = tabsSrc.slice(noteStart, noteFalseBranchStart);
-check("the no-suggestion note's true branch never calls ioFgNote", noteTrueBranch.includes("ioFgNote("), false);
-check("the no-suggestion note's true branch never calls scopusNote", noteTrueBranch.includes("scopusNote("), false);
+// The expanded row (UI refresh PR 4): a no-suggestion row gets a plain sentence where the
+// evidence table goes, never the table itself, which is built from top_* fields that
+// ReCiterDB#177 has nulled. The evidence-note helpers that assumed a matched candidate are gone.
+const panelStart = tabsSrc.indexOf("const ExpandedPanel");
+const noSugArm = tabsSrc.indexOf(") : noSuggestion ? (", panelStart);
+const tableArm = tabsSrc.indexOf("<SingleEvidenceTable", noSugArm);
+assert.ok(panelStart > 0 && noSugArm > panelStart && tableArm > noSugArm, "ExpandedPanel's no-suggestion arm located");
+const noSugBranch = tabsSrc.slice(noSugArm, tabsSrc.lastIndexOf(") : (", tableArm));
+check("the no-suggestion arm renders no evidence table", noSugBranch.includes("<SingleEvidenceTable") || noSugBranch.includes("<EvidenceTable"), false);
+check("the no-suggestion arm says there is nobody to compare against", noSugBranch.includes("No suggested identity to compare against"), true);
+check("no evidence-note helper that assumes a candidate survives", /\b(ioFgNote|scopusNote)\(/.test(tabsSrc), false);
 
 // AssignOther ("Someone else") is rendered unconditionally for every non-multi row, including
 // no-suggestion ones — this asserts the call site carries no noSuggestion/noIdentity guard.
