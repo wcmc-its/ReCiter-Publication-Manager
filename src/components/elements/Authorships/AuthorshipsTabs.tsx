@@ -4791,9 +4791,13 @@ const ConflictKeepList = ({ row: r, acting, onAction }: {
             marginLeft: 16, display: "flex", gap: 8, alignItems: "center", padding: "6px 9px", borderRadius: 8,
             border: "1px solid var(--pm-border)", background: "#fff", fontSize: 12.5, minWidth: 0,
           }}>
-            <span style={{ fontWeight: 600, minWidth: 0, flexShrink: 1, lineHeight: 1.3 }}>{i.name}</span>
-            <a href={`/curate/${i.cwid}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "var(--pm-slate)", textDecoration: "none", flexShrink: 0 }}>{i.cwid}</a>
-            <span style={{ flex: "1 0 auto", fontSize: 11.5, color: "var(--pm-muted-foreground)", whiteSpace: "nowrap" }}>
+            {/* name and cwid flow as one line of text, so a narrow column wraps them instead of
+                overlapping them */}
+            <span style={{ flex: "1 1 auto", minWidth: 0, lineHeight: 1.35 }}>
+              <span style={{ fontWeight: 600 }}>{i.name}</span>{" "}
+              <a href={`/curate/${i.cwid}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "var(--pm-slate)", textDecoration: "none", whiteSpace: "nowrap" }}>{i.cwid}</a>
+            </span>
+            <span style={{ flex: "0 0 auto", fontSize: 11.5, color: "var(--pm-muted-foreground)", whiteSpace: "nowrap" }}>
               {i.io != null ? `IO ${Math.floor(i.io)}` : ""}{i.accepted ? `${i.io != null ? " · " : ""}accepted` : ""}
             </span>
             <button type="button" disabled={acting} title={keepTitle(i)}
