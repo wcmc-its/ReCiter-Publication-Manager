@@ -69,3 +69,13 @@ test('authorLine: splits the byline around the target and shortens long sides', 
     assert.deepEqual(authorLine({ reCiterArticleAuthorFeatures: [a('A', 'X'), a('B', 'X'), a('C', 'X'), a('D', 'X')] }), { pre: 'A X, B X, …, D X', tgt: '', post: '' })
     assert.deepEqual(authorLine({}), { pre: '', tgt: '', post: '' })
 })
+
+test('hand-added PubMed articles: unscored, dated from displayDate', async () => {
+    const { isScored } = await import('../src/utils/curateGroups.ts')
+    const { toReciterArticle } = await import('../src/utils/toReciterArticle.ts')
+    const a = toReciterArticle({ pmid: 38442177, title: 'T', authors: [], journal: 'PNAS', displayDate: '2024 Mar 01' })
+    assert.equal(isScored(a), false)
+    assert.equal(yearOf(a), '2024')
+    assert.equal(a.journalTitleVerbose, 'PNAS')
+    assert.equal(isScored({ authorshipLikelihoodScore: 0 }), true)
+})

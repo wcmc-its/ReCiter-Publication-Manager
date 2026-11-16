@@ -16,7 +16,7 @@ import { toast } from "react-toastify";
 import Popover from "@mui/material/Popover";
 import { buildEvidenceRows, determineMatchType, MATCH_COLORS as matchColors, knownCoauthorsOf, identityChips, tallyOf, affiliationParts, chipDetail } from "../../../utils/identityEvidence";
 import type { CoauthorIndex } from "../../../utils/identityEvidence";
-import { BANDS, BAND_NOTES, bandOf } from "../../../utils/curateGroups";
+import { BANDS, BAND_NOTES, bandOf, isScored } from "../../../utils/curateGroups";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -513,7 +513,9 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
     const isActionedInSuggested = props.activekey === 'NULL' && isActioned;
     const evDefault = expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault;
     const coauthors = knownCoauthorsOf(reciterArticle, props.coauthorIndex);
-    const idChips = identityChips(reciterArticle.evidence, coauthors);
+    const scored = isScored(reciterArticle);
+    const hasEvidence = scored && reciterArticle.evidence !== undefined;
+    const idChips = scored ? identityChips(reciterArticle.evidence, coauthors) : [];
     const tally = tallyOf(idChips);
     const tallyBase = (tally.match + tally.partial + tally.mismatch) || 1;
     const affil = affiliationParts(reciterArticle.evidence);
@@ -657,7 +659,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
               <div className={styles.titleRow}>
                 <span className={styles.scoreTip}>
                   <span className={scoreNum >= 70 ? styles.scoreInlineHigh : scoreNum >= 40 ? styles.scoreInlineMedium : styles.scoreInlineLow}>
-                    {score !== null ? score : "N/A"}
+                    {score !== null ? score : '\u2013'}
                   </span>
                   {score !== null && (
                     <span className={styles.scoreTooltip}>
@@ -711,7 +713,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                   )}
                 </div>
                 <div className={styles.detailEvidence}>
-                  {reciterArticle.evidence !== undefined && (
+                  {hasEvidence && (
                     <button type="button" className={styles.detailEvHead} data-evidence-toggle aria-expanded={evOpen} onClick={() => setShowEvidence((v) => !v)}>
                       <span className={styles.detailEvTitle}>Supporting evidence</span>
                       <span className={styles.detailKbdKey}>E</span>
@@ -722,7 +724,9 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                     </button>
                   )}
                   <div className={styles.detailSummary}>
-                    <div className={styles.detailScore}>{score !== null ? score : 'N/A'}</div>
+                    {scored
+                      ? <div className={styles.detailScore}>{score}</div>
+                      : <div className={styles.detailVerdict}><strong>Not scored</strong><span>Added by hand. ReCiter hasn&apos;t scored this article for this person.</span></div>}
                     {score !== null && (
                       <div className={styles.detailVerdict}>
                         <strong>{BANDS.find((b) => b.key === band)?.label}</strong>
@@ -751,7 +755,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
               )}
               <div className={styles.articleLinks}>
                 {linksLeft}
-                {reciterArticle.evidence !== undefined && (
+                {hasEvidence && (
                   <button className={styles.evidenceBtnPrimary} data-evidence-toggle onClick={() => toogleEvidence(props.index)}>
                     Supporting evidence
                   </button>
@@ -760,7 +764,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
               </>)}
 
               {/* Evidence panel */}
-              {reciterArticle.evidence !== undefined && (
+              {hasEvidence && (
                 <div className={`${styles.publicationShowEvidenceContainer} ${evOpen ? styles.publicationShowEvidenceContainerOpen : ""}`}>
 
                   {/* Feedback-based scores panel */}

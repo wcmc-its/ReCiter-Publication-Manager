@@ -14,6 +14,8 @@ export const BANDS: { key: Band; label: string; range: string }[] = [
 // Grouping only pays off on a long list; short ones stay flat.
 export const GROUP_MIN = 25
 
+// Hand-added articles (and the no-run Cornell page's) carry no ReCiter score until a run scores them.
+export const isScored = (p: any): boolean => p?.authorshipLikelihoodScore != null
 export const scoreOf = (p: any): number => Math.round(Number(p?.authorshipLikelihoodScore) || 0)
 export const bandOf = (p: any): Band => { const s = scoreOf(p); return s >= 70 ? 'strong' : s >= 40 ? 'moderate' : 'weak' }
 export const yearOf = (p: any): string => {

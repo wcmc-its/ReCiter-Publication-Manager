@@ -16,6 +16,7 @@ import { AddDialogSource, AddSource, routeAddQuery } from "../../../utils/extern
 export type AddDialogInitial = { query?: string, source?: AddSource, autoSearch?: boolean, invalidDoi?: boolean }
 
 interface FuncProps {
+    noRun?: boolean,
     open: boolean,
     onClose: () => void,
     fullName: string,
@@ -74,7 +75,7 @@ const AddPublicationDialog: FunctionComponent<FuncProps> = (props) => {
     }
 
     const srcNote = src === 'PUBMED'
-        ? 'Search PubMed by author, title, or PMID. Results are scored by ReCiter.'
+        ? `Search PubMed by author, title, or PMID.${props.noRun ? '' : ' Results are scored by ReCiter.'}`
         : `For articles not in PubMed. Search ${NAME[src]} by keyword, DOI or ISBN.${src === 'SCOPUS' ? ' A DOI Scopus does not hold is tried in OpenAlex, then Crossref.' : src === 'OPENALEX' ? ' A DOI OpenAlex does not hold is tried in Crossref.' : ''}`
     const placeholder = src === 'PUBMED' ? 'Author (Bales M), title words, or PMID' : 'Keyword, DOI (10.xxxx/…) or ISBN'
 
