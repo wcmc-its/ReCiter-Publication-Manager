@@ -28,7 +28,7 @@ import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } fro
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import {
   bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
-  parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation,
+  conflictIdentities, conflictKeep, emptyState, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation,
 } from "../../../utils/authorshipRow";
 
 // ---- types ---------------------------------------------------------------
@@ -2179,7 +2179,13 @@ const AuthorshipsTabs = () => {
         // verdict ("Different papers") sets matched_pmid_verdict, not a status a Snackbar
         // undo could sensibly reverse either — suppress the toast for both.
         if (action !== "reopen" && action !== "verdict") {
-          setUndo({ rows: [row], label: actionToast(action, [row], targetNameOf(row, action, extra?.cwid)) });
+          // The duplicates queue's "Keep PubMed record" is a dismiss; its toast says what it kept.
+          const label = action === "dismiss" && extra?.reason === "dup_of_matched_pmid"
+            ? `Kept PubMed record: ${row.wcm_author || stripHtml(row.title || "")}`
+            : actionToast(action, [row], targetNameOf(row, action, extra?.cwid));
+          setUndo({ rows: [row], label });
+        } else if (action === "verdict") {
+          toast(`Marked not duplicates: ${row.wcm_author || stripHtml(row.title || "")}`, { autoClose: 5000 });
         }
         topUp();      // refill so the next pending authorship slides into the freed slot
         fetchSummary();
@@ -2889,6 +2895,39 @@ const AuthorshipsTabs = () => {
 
   const totalPages = Math.max(1, Math.ceil(count / pageSize));
 
+  // PR 6: the in-card empty state says how many rows of this queue the filters hide ("23
+  // unassigned authorships fall outside the current source, filters, or search."). That needs the
+  // queue's size with every filter and the search cleared: one extra read of the summary route,
+  // made only while the list is empty, with the like-view's widest filters and the real queue.
+  const listEmpty = !loading && !listError && rows.length === 0 && !bulkProgress && !reportView;
+  const widenedSummaryBody = useMemo(
+    () => JSON.stringify(buildSummaryBody({ ...filters, ...LIKE_WIDEN_PATCH, likeAuthor: "", statusView: filters.statusView })),
+    [filters],
+  );
+  const [queueTotal, setQueueTotal] = useState<{ body: string; n: number } | null>(null);
+  useEffect(() => {
+    if (!listEmpty) return;
+    let cancelled = false;
+    const body = widenedSummaryBody, view = filters.statusView;
+    fetch("/api/db/authorships/summary", { credentials: "same-origin", method: "POST", headers: apiHeaders, body })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d: Summary) => {
+        const n = view === "conflicts" ? d.conflicts : view === "duplicates" ? d.duplicates : d.total;
+        if (!cancelled && typeof n === "number") setQueueTotal({ body, n });
+      })
+      .catch(() => { /* the empty state falls back to wording without a number */ });
+    return () => { cancelled = true; };
+  }, [listEmpty, widenedSummaryBody, filters.statusView]);
+  const queueTotalNow = queueTotal && queueTotal.body === widenedSummaryBody ? queueTotal.n : null;
+  // The empty state's "Reset filters": every filter back to its default but the queue the
+  // curator is in, as in the prototype (clearAuthFilters keeps af.queue). One patch, one refetch.
+  const resetFiltersKeepQueue = () => {
+    likeFilterStash.current = null;
+    patchFilters({ ...filterResetPatch(), statusView: filters.statusView });
+    setSearchInput("");
+    applyDatePreset(DEFAULT_DATE_PRESET);
+  };
+
   // What is off its default, computed in ONE place (filterChips, pure and checked by
   // scripts/check-authorships-filter-body.mjs). The chip row shows every filter all the time
   // now; this list is what decides whether "Reset all" is offered.
@@ -2986,7 +3025,8 @@ const AuthorshipsTabs = () => {
   // The prototype's "Reset all" shows once anything differs from the defaults, the source tab
   // and the search box included.
   const canReset = chips.length > 0 || !!search.trim() || !!searchInput.trim() || source !== FILTER_DEFAULTS.source;
-  const banner = reportView ? null : drillBanner({ likeAuthor, count: loading || listError ? null : count, expected: likeExpected, statusView });
+  // The duplicates queue carries its own grey band (DuplicatesView), so the slate one would repeat it.
+  const banner = reportView || statusView === "duplicates" ? null : drillBanner({ likeAuthor, count: loading || listError ? null : count, expected: likeExpected, statusView });
   // Queue counts the summary actually has: the queue on screen (its total) and the two review
   // queues, which the server counts over the open queue whatever is being browsed. The other
   // queues' totals would need a new summary field, so their rows show no number.
@@ -3300,7 +3340,18 @@ const AuthorshipsTabs = () => {
             and its "Showing N of M" describes the feed still loaded underneath — a true number
             about something the curator is not looking at, which is the worst kind. The report
             panel carries its own "N rows across M people" instead. */}
-        {!reportView && (
+        {/* PR 6: the duplicates queue renders as PubMed / Scopus pairs (DuplicatesView), not
+            authorship rows. The filter chips above stay: that queue keeps the curator's
+            filters (Decision 2 / #988), so they must stay visible and changeable. */}
+        {!reportView && statusView === "duplicates" && (
+          <DuplicatesView rows={rows} loading={loading} listError={listError} actingId={actingId}
+            onRetry={() => fetchData()} onAction={(r, action, extra) => doAction(r, action, extra)}
+            onBack={() => setStatusView("open")}
+            empty={listEmpty ? emptyState({ statusView, queueTotal: queueTotalNow, filtersOn: canReset }) : null}
+            onReset={resetFiltersKeepQueue}
+            pager={count > rows.length ? { page, totalPages, count, setPage } : null} />
+        )}
+        {!reportView && statusView !== "duplicates" && (
         <>
         {/* The bar (prototype markup ~877-951): a warm surface-2 band. One checkbox selects the
             page or clears it, then the queue's actions: Accept N (primary), Assign to… with its
@@ -3395,9 +3446,9 @@ const AuthorshipsTabs = () => {
           )}
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-            {!listError && (
+            {!listError && !loading && (
             <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>
-              Showing {rows.length.toLocaleString()} of {count.toLocaleString()}
+              {count === 0 ? "Showing 0" : `Showing ${rows.length.toLocaleString()} of ${count.toLocaleString()}`}
             </span>
             )}
             {/* Stays up while rows are selected, as in the prototype; it acts on its own set
@@ -3405,9 +3456,10 @@ const AuthorshipsTabs = () => {
             {statusView === "open" && (
               <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only, not on the selection" placement="top" arrow>
                 <span>
-                  <Button variant="secondary" size="sm" disabled={nearCertain.length === 0 || !!bulkProgress} onClick={() => doBulkAccept(nearCertain)}>
+                  <Button variant="secondary" size="sm" disabled={nearCertain.length === 0 || !!bulkProgress || loading} onClick={() => doBulkAccept(nearCertain)}>
                     Accept near-certain · IO ≥ 95
-                    <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{nearCertain.length}</span>
+                    {/* While a list is loading, the rows behind this count are not on screen. */}
+                    <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{loading ? "" : nearCertain.length}</span>
                   </Button>
                 </span>
               </Tip>
@@ -3427,7 +3479,7 @@ const AuthorshipsTabs = () => {
           <span /><span title="Identity-Only Score">IO</span><span>Author → suggested identity</span><span>Article</span><span style={{ width: 104 }} />
         </div>
         <div>
-        {loading && <div style={{ padding: 24, textAlign: "center", color: "var(--pm-muted-foreground)" }}>Loading…</div>}
+        {loading && <div role="status" style={{ padding: "48px 24px", textAlign: "center", fontSize: 13.5, color: "var(--pm-muted-foreground)" }}>Loading authorships…</div>}
         {/* During a bulk run every selected row leaves the page at once and the refill waits for
             the whole batch, so an empty list here means "working", not "nothing matches" — the
             old message read as a dead page and invited the reload that abandons the run. */}
@@ -3449,17 +3501,14 @@ const AuthorshipsTabs = () => {
             <button type="button" onClick={() => fetchData()} style={btn("ghost")}>Retry</button>
           </div>
         )}
-        {!loading && !listError && rows.length === 0 && !bulkProgress && (
-          <div style={{ padding: 24, textAlign: "center", color: "var(--pm-muted-foreground)" }}>No authorships match these filters.</div>
-        )}
+        {listEmpty && <EmptyState {...emptyState({ statusView, queueTotal: queueTotalNow, filtersOn: canReset })} onReset={resetFiltersKeepQueue} />}
         {!loading && rows.map((r) => (
           <AuthorshipCard
             key={r.id}
             row={r}
-            // Both review queues (see STATUS_VIEW_LABEL above) hand the card "open": their rows
-            // ARE open rows, so the card must offer the same per-row actions, including Force.
-            // Spelled out rather than routed through a helper so the type narrows here.
-            statusView={statusView === "duplicates" || statusView === "conflicts" ? "open" : statusView}
+            // The conflicts review queue hands the card "open": its rows ARE open rows. (The
+            // duplicates queue never reaches here since PR 6; it renders DuplicatesView.)
+            statusView={statusView === "conflicts" ? "open" : statusView}
             // …but the checkbox must NOT follow that substitution, and this is why it is a prop
             // rather than something the card recomputes from the statusView it was handed. Bulk
             // actions are open-queue only (isBulkSelectable returns false for every other view,
@@ -3499,6 +3548,7 @@ const AuthorshipsTabs = () => {
               wcm_author: r.wcm_author, top_name: r.top_name, ts: 0,
             } : undefined)}
             onClearConflict={() => clearConflict(r.id)}
+            conflictQueue={statusView === "conflicts"}
           />
         ))}
         </div>
@@ -3506,7 +3556,7 @@ const AuthorshipsTabs = () => {
           {shortcutsLine(statusView === "open", isParkedView).map((s) => <span key={s}>{s}</span>)}
           {/* pagination — the feed's. A like view is the whole pile on one page (LIKE_PILE_CAP),
               so it has nothing to page. */}
-          {!likeAuthor.trim() && !listError && (
+          {!likeAuthor.trim() && !listError && !loading && count > 0 && (
             <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontVariantNumeric: "tabular-nums" }}>{count.toLocaleString()} authorships · page {page + 1} of {totalPages}</span>
               <button type="button" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} style={pagerBtn(page === 0)}>Previous</button>
@@ -4258,13 +4308,16 @@ interface CardProps {
   onHoverIdentity: (cwid?: string | null) => void;
   conflict?: ConflictEntry;
   onClearConflict: () => void;
+  // PR 6: the row is shown in the Identity-conflicts queue — a red "!" badge, one sub-row per
+  // identity with its own Keep, and no ✓ / ✕ / ⋯.
+  conflictQueue?: boolean;
 }
 
 const AuthorshipCard = ({
   row: r, statusView, selectable, isExpanded, isSelected, isFocused, acting, pickedCwid, assignPrefill,
   registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onAssignOther, onNarrowPmid,
   onFindOthers, priorNamesByCwid, onHoverIdentity,
-  conflict, onClearConflict,
+  conflict, onClearConflict, conflictQueue = false,
 }: CardProps) => {
   // Matches the server accept gate (`!row.single_candidate`) and the sibling gates below
   // (toggleSelect, nearCertain, eligibleRows) — the n_candidates>1 clause let a card keep
@@ -4331,9 +4384,9 @@ const AuthorshipCard = ({
     outline: "none",
     scrollMarginTop: "calc(var(--header-height, 52px) + 12px)", // see the expand-anchoring effect
   };
-  const badge = ioBadge(r);
+  const badge = conflictQueue ? { text: "!", tone: "red" as const, band: null } : ioBadge(r);
   const badgeTone = IO_TONES[badge.tone];
-  const badgeTitle = !r.top_cwid ? "No suggested identity"
+  const badgeTitle = conflictQueue ? "Identity conflict" : !r.top_cwid ? "No suggested identity"
     : isMulti ? `Best of ${r.n_candidates ?? candidates.length} candidates · Identity-Only Score ${fmtScore(r.top_io_score)}`
       : isAbsent ? (isExternalSource(r) ? `Not in PubMed, so there is no Identity-Only Score · match confidence ${confBand(r.top_confidence)}`
         : `Never retrieved by ReCiter, so there is no Identity-Only Score · match confidence ${confBand(r.top_confidence)}`)
@@ -4422,7 +4475,9 @@ const AuthorshipCard = ({
             )}
           </div>
 
-          {isMulti ? (
+          {conflictQueue ? (
+            <ConflictKeepList row={r} acting={acting} onAction={onAction} />
+          ) : isMulti ? (
             <>
               <span data-share style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>
                 {nothingToPick ? "No WCM candidate proposed · look up the directory" : shareLine(ranked.length || (r.n_candidates ?? candidates.length), !!pick || statusView !== "open")}
@@ -4533,7 +4588,7 @@ const AuthorshipCard = ({
           )}
 
           {/* #990: another WCM identity already holds ACCEPTED at this row's exact byline slot. */}
-          {(r.accepted_by?.length ?? 0) > 0 && (
+          {!conflictQueue && (r.accepted_by?.length ?? 0) > 0 && (
             <span style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-amber)", paddingLeft: 16 }}>
               Already accepted by {r.accepted_by!.map((a) => `${a.name} (${a.cwid})`).join(", ")}
             </span>
@@ -4541,7 +4596,7 @@ const AuthorshipCard = ({
 
           {/* T5: "Show N others like this" — only once the server-side like_count says there IS
               someone, on every open row. */}
-          {statusView === "open" && likeCount > 0 && (
+          {statusView === "open" && !conflictQueue && likeCount > 0 && (
             <a href="#" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onFindOthers(); }}
               title={`Filter the queue to ${likeCount} other open row${likeCount === 1 ? "" : "s"} for "${r.wcm_author}" (matches middle-initial and similar byline variants)`}
               style={{ fontSize: 12, marginLeft: 16, width: "fit-content", color: "var(--pm-slate)", textDecoration: "none" }}>
@@ -4609,7 +4664,7 @@ const AuthorshipCard = ({
         {/* actions: ✓ ✕ ⋯ in the open queue, Reopen in the parked ones */}
         {/* 104px in the Open queue; the parked note may run wider ("Snoozed until 2027 Jan 28"). */}
         <div data-actions style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, ...(statusView === "open" ? { width: 104 } : { minWidth: 104 }) }}>
-          {statusView === "open" ? (
+          {conflictQueue ? null : statusView === "open" ? (
             <>
               <button type="button" className="pm-arow-accept" aria-label={isMulti ? (pick ? `Assign to ${pick.name || pick.cwid}` : "Assign") : "Accept"}
                 title={acceptBlock || (isMulti && pick ? `Assign to ${pick.name || pick.cwid} (Y)` : "Accept (Y)")} disabled={acting || !!acceptBlock}
@@ -4703,6 +4758,57 @@ const AuthorshipCard = ({
     </article>
   );
 };
+
+// Identity-conflicts row (prototype markup ~1072-1080): a red "Claimed by two people · keep one"
+// line, then one bordered sub-row per identity — the row's proposed identity and each WCM person
+// who already accepted this byline slot — each with its own Keep. conflictKeep() decides what
+// Keep sends, from the row actions that already exist; see its comment for why keeping the
+// proposed identity leaves the other person's acceptance in place, which the note says.
+const ConflictKeepList = ({ row: r, acting, onAction }: {
+  row: AuthorshipRow; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
+}) => {
+  const cands = parseCandidates(r.candidate_cwids_json);
+  const candCwids = [r.top_cwid, ...cands.map((c) => c.cwid)].filter(Boolean) as string[];
+  const ids = conflictIdentities(r, cands);
+  const accepted = ids.filter((i) => i.accepted);
+  const proposed = ids.find((i) => !i.accepted);
+  const keepTitle = (i: ConflictIdentityView) => {
+    const k = conflictKeep(r, i.cwid, candCwids);
+    if (!i.accepted) return `Add this authorship to ${i.name}'s record. ${accepted.map((a) => a.name).join(", ")} keep${accepted.length === 1 ? "s" : ""} it until it is removed from their own record.`;
+    return k.action === "dismiss"
+      ? `${i.name} keeps it. Closes this row without recording "not mine" for anyone, since ${i.name} is one of its candidates.`
+      : `${i.name} keeps it. Records "not mine" for ${proposed?.name || "the proposed identity"} and closes this row.`;
+  };
+  return (
+    <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      <span data-conflict-note style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-red)", paddingLeft: 16 }}>
+        Claimed by {ids.length === 2 ? "two" : ids.length} people · keep one
+      </span>
+      {ids.map((i) => {
+        const k = conflictKeep(r, i.cwid, candCwids);
+        return (
+          <div key={i.cwid} data-conflict-id={i.cwid} style={{
+            marginLeft: 16, display: "flex", gap: 8, alignItems: "center", padding: "6px 9px", borderRadius: 8,
+            border: "1px solid var(--pm-border)", background: "#fff", fontSize: 12.5, minWidth: 0,
+          }}>
+            <span style={{ fontWeight: 600, minWidth: 0, flexShrink: 1, lineHeight: 1.3 }}>{i.name}</span>
+            <a href={`/curate/${i.cwid}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "var(--pm-slate)", textDecoration: "none", flexShrink: 0 }}>{i.cwid}</a>
+            <span style={{ flex: "1 0 auto", fontSize: 11.5, color: "var(--pm-muted-foreground)", whiteSpace: "nowrap" }}>
+              {i.io != null ? `IO ${Math.floor(i.io)}` : ""}{i.accepted ? `${i.io != null ? " · " : ""}accepted` : ""}
+            </span>
+            <button type="button" disabled={acting} title={keepTitle(i)}
+              onClick={() => onAction(k.action, k.extra)}
+              style={{
+                height: 24, padding: "0 9px", borderRadius: 6, border: "1px solid var(--pm-border-strong)", background: "#fff", flexShrink: 0,
+                font: "inherit", fontSize: 12, fontWeight: 500, color: "var(--pm-foreground)", cursor: acting ? "default" : "pointer", opacity: acting ? 0.5 : 1,
+              }}>Keep</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+type ConflictIdentityView = ReturnType<typeof conflictIdentities>[number];
 
 // The expanded row (prototype markup ~1115-1185): the evidence (one candidate's table, or the
 // comparison grid on a multi-candidate row), the grey record footer, then the "someone else"
@@ -5357,6 +5463,173 @@ const CounterpartActions = ({ row: r, acting, onAction }: {
       Different papers
     </button>
   </div>
+  );
+};
+
+// The in-card empty state (prototype markup ~1222-1229): serif title, a muted line, and an
+// outline "Reset filters" when a filter is on.
+const EmptyState = ({ title, body, canReset, onReset }: { title: string; body: string; canReset: boolean; onReset: () => void }) => (
+  <div data-empty style={{ padding: "64px 24px", textAlign: "center", display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+    <div style={{ fontFamily: "var(--font-display-serif)", fontSize: 22, fontWeight: 600, color: "var(--pm-foreground)" }}>{title}</div>
+    <div style={{ fontSize: 13.5, color: "var(--pm-muted-foreground)", maxWidth: 460, textWrap: "pretty" } as CSSProperties}>{body}</div>
+    {canReset && <div style={{ marginTop: 8 }}><Button variant="secondary" onClick={onReset}>Reset filters</Button></div>}
+  </div>
+);
+
+const DuplicatesView = ({ rows, loading, listError, actingId, onRetry, onAction, onBack, empty, onReset, pager }: {
+  rows: AuthorshipRow[]; loading: boolean; listError: boolean; actingId: number | null;
+  onRetry: () => void; onAction: (r: AuthorshipRow, action: string, extra?: Record<string, any>) => void; onBack: () => void;
+  empty: { title: string; body: string; canReset: boolean } | null; onReset: () => void;
+  pager: { page: number; totalPages: number; count: number; setPage: (f: (p: number) => number) => void } | null;
+}) => (
+  <div data-dups-view>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 16px", borderBottom: "1px solid var(--pm-border)", background: "var(--pm-surface-2)" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: "1 1 320px", minWidth: 0 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--pm-foreground)" }}>Duplicate records</span>
+        <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>The same paper came in from both PubMed and Scopus. Keep one record so the authorship is counted once.</span>
+      </div>
+      <Button variant="ghost" size="sm" onClick={onBack}>Back to open queue</Button>
+    </div>
+    {loading && <div role="status" style={{ padding: "48px 24px", textAlign: "center", fontSize: 13.5, color: "var(--pm-muted-foreground)" }}>Loading duplicate records…</div>}
+    {!loading && listError && (
+      <div role="alert" style={{ padding: "40px 24px", textAlign: "center" }}>
+        <div style={{ fontFamily: "var(--font-display-serif)", fontSize: 20, fontWeight: 600, color: "var(--pm-foreground)", marginBottom: 6 }}>Couldn&rsquo;t load authorships</div>
+        <div style={{ fontSize: 13.5, color: "var(--pm-muted-foreground)", marginBottom: 14 }}>The server didn&rsquo;t answer. Your filters are kept; try again in a moment.</div>
+        <Button variant="secondary" onClick={onRetry}>Retry</Button>
+      </div>
+    )}
+    {!loading && !listError && rows.map((r) => (
+      <DupPair key={r.id} row={r} acting={actingId === r.id} onAction={(action, extra) => onAction(r, action, extra)} />
+    ))}
+    {!loading && empty && <EmptyState {...empty} onReset={onReset} />}
+    {!loading && !listError && pager && (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, padding: "8px 16px", fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>{pager.count.toLocaleString()} pairs · page {pager.page + 1} of {pager.totalPages}</span>
+        <button type="button" disabled={pager.page === 0} onClick={() => pager.setPage((p) => Math.max(0, p - 1))} style={pagerBtn(pager.page === 0)}>Previous</button>
+        <button type="button" disabled={pager.page + 1 >= pager.totalPages} onClick={() => pager.setPage((p) => p + 1)} style={pagerBtn(pager.page + 1 >= pager.totalPages)}>Next</button>
+      </div>
+    )}
+  </div>
+);
+
+// ---- Duplicate records (UI refresh PR 6, prototype markup ~1237-1268) ----------------------
+// The duplicates queue as pairs instead of authorship rows: a grey band with the queue's title
+// and "Back to open queue", then one pair per row — the title and "Suggested identity", two
+// buttons, and the two records side by side. Every button is one of the writes the row already
+// had (CounterpartActions / the dup-conflict banner); nothing new reaches the server.
+//  - PubMed-twin rows (matched_pmid, no verdict yet): "Not duplicates" = verdict distinct,
+//    "Keep PubMed record" = dismiss as dup_of_matched_pmid, and, where the server allows it, the
+//    "same paper, and theirs" accept of the PMID.
+//  - Rows parked by a dup-check 409 on Accept (accept_conflict): "Not duplicates" re-sends the
+//    accept (or the assign to the proposed identity) with force, "Keep the existing record"
+//    dismisses the row.
+const dupRecBox: CSSProperties = {
+  padding: "10px 12px", borderRadius: 8, border: "1px solid var(--pm-border)", background: "var(--pm-page)",
+  display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, minWidth: 0,
+};
+const DupRecord = ({ src, id, author, line }: { src: string; id: string; author?: string; line?: string }) => (
+  <div style={dupRecBox}>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+      <span style={{ height: 20, padding: "0 6px", display: "inline-flex", alignItems: "center", borderRadius: 4, background: "var(--pm-slate-tint)", color: "var(--pm-slate)", fontSize: 11, fontWeight: 600, letterSpacing: "0.03em", flexShrink: 0 }}>{src}</span>
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--pm-muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{id}</span>
+    </div>
+    {author && <span style={{ fontWeight: 600 }}>{author}</span>}
+    {line && <span style={{ color: "var(--pm-muted-foreground)", lineHeight: 1.45 }}>{line}</span>}
+  </div>
+);
+
+// The PubMed side of a twin pair comes from the read-only counterpart route, fetched per pair.
+const useCounterpart = (id: number, enabled: boolean) => {
+  const [state, setState] = useState<{ status: "loading" | "error" | "loaded"; data?: CounterpartResponse }>({ status: "loading" });
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    setState({ status: "loading" });
+    fetch("/api/db/authorships/counterpart", { credentials: "same-origin", method: "POST", headers: apiHeaders, body: JSON.stringify({ id }) })
+      .then(async (resp) => { if (!resp.ok) throw new Error(`HTTP ${resp.status}`); return resp.json(); })
+      .then((d: CounterpartResponse) => { if (!cancelled) setState({ status: "loaded", data: d }); })
+      .catch(() => { if (!cancelled) setState({ status: "error" }); });
+    return () => { cancelled = true; };
+  }, [id, enabled]);
+  return state;
+};
+
+const DupPair = ({ row: r, acting, onAction }: {
+  row: AuthorshipRow; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
+}) => {
+  const twin = r.matched_pmid != null && !r.matched_pmid_verdict;
+  const cp = useCounterpart(r.id, twin);
+  const srcLabel = externalSourceLabel(r);
+  const dateText = formatRowDate(r.entrez_date);
+  const canAcceptSame = twin && !!r.single_candidate && r.identity_in_reciter !== false;
+  const surname = (r.wcm_author || "").trim().split(/\s+/).pop()?.toLowerCase() || "";
+  const pm = cp.data?.pubmed;
+  const pmAuthor = pm?.authors.find((a) => (a.lastName || "").toLowerCase() === surname);
+  const extId = r.external_id ? String(r.external_id) : "";
+  return (
+    <div data-dup-pair={r.id} style={{ padding: "14px 16px", borderBottom: "1px solid var(--pm-border)", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 360px", minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.title) }} />
+          <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>
+            {r.journal && <em dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} />}
+            {dateText && <>{r.journal ? " · " : ""}{dateText}</>}
+            {r.top_cwid && (
+              <>{(r.journal || dateText) ? " · " : ""}Suggested identity{" "}
+                <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer" style={{ color: "var(--pm-slate)", textDecoration: "none" }}>{r.top_name || r.top_cwid}</a>
+              </>
+            )}
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {twin ? (
+            <>
+              {canAcceptSame && (
+                <Button variant="ghost" size="sm" disabled={acting}
+                  title={`Same paper, and ${r.top_name || r.top_cwid} wrote it: accept PMID ${r.matched_pmid} for them (the same write an Accept on the PubMed row makes)`}
+                  onClick={() => onAction("accept", { samePmid: true })}>
+                  Accept PMID {r.matched_pmid}
+                </Button>
+              )}
+              <Button variant="secondary" size="sm" disabled={acting}
+                title="Different papers. The row goes back to the open queue and won't be flagged again."
+                onClick={() => onAction("verdict", { verdict: "distinct" })}>Not duplicates</Button>
+              <Button variant="primary" size="sm" disabled={acting}
+                title={`Same paper. Closes this ${srcLabel} row as a duplicate of PMID ${r.matched_pmid}; says nothing about who wrote it.`}
+                onClick={() => onAction("dismiss", { reason: "dup_of_matched_pmid" })}>Keep PubMed record</Button>
+            </>
+          ) : (
+            <>
+              {r.top_cwid && r.identity_in_reciter !== false && (
+                <Button variant="secondary" size="sm" disabled={acting}
+                  title={`Not the same paper: add this ${srcLabel} record for ${r.top_name || r.top_cwid} anyway`}
+                  onClick={() => (r.single_candidate ? onAction("accept", { force: "true" }) : onAction("assign", { cwid: r.top_cwid, force: "true" }))}>
+                  Not duplicates
+                </Button>
+              )}
+              <Button variant="primary" size="sm" disabled={acting}
+                title={`Same paper: close this ${srcLabel} row and keep the record already there`}
+                onClick={() => onAction("dismiss")}>Keep the existing record</Button>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="pm-dup-recs" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+        {twin ? (
+          cp.status === "loaded" && pm ? (
+            <DupRecord src="PubMed" id={`PMID ${pm.pmid}`}
+              author={pmAuthor ? `${pmAuthor.lastName} ${pmAuthor.initials || ""}`.trim() : undefined}
+              line={[pm.journal, pm.year, cp.data?.inRecordFor.length ? `in the record of ${cp.data.inRecordFor.join(", ")}` : ""].filter(Boolean).join(" · ") || undefined} />
+          ) : (
+            <DupRecord src="PubMed" id={`PMID ${r.matched_pmid}`}
+              line={cp.status === "loading" ? "Loading the PubMed record…" : "The PubMed record could not be fetched."} />
+          )
+        ) : (
+          <DupRecord src="Existing record" id="" line={r.accept_conflict || undefined} />
+        )}
+        <DupRecord src={srcLabel} id={extId} author={r.wcm_author || undefined} line={r.author_affiliation || undefined} />
+      </div>
+    </div>
   );
 };
 
