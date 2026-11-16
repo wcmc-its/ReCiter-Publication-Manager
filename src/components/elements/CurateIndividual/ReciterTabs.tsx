@@ -517,6 +517,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, noRun = false, 
           onClose={closeAdd}
           fullName={fullName}
           personIdentifier={reciterData.reciter?.personIdentifier}
+          noRun={noRun}
           initial={addDeepLink && !addDeepLink.pmid
             ? { query: addDeepLink.doi, source: addDeepLink.source, autoSearch: !!addDeepLink.doi, invalidDoi: addDeepLink.invalidDoi }
             : null}

@@ -15,7 +15,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import { Dialog, Button } from "../../ui";
 import { showUndoToast } from "../ToastHost/ToastHost";
 import { sanitizeInlineHtml } from "../../../utils/htmlText";
-import { BANDS, groupModeFor, groupKeyOf, groupsOf, yearHistogram, spotCheckSample, scoreOf, yearOf, bandOf, authorLine } from "../../../utils/curateGroups";
+import { BANDS, groupModeFor, groupKeyOf, groupsOf, yearHistogram, spotCheckSample, isScored, scoreOf, yearOf, bandOf, authorLine } from "../../../utils/curateGroups";
 import type { Band } from "../../../utils/curateGroups";
 import { useNextPerson } from "../../../hooks/useNextPerson";
 import { useRouter } from "next/router";
@@ -603,7 +603,9 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
                   aria-current={index === detailIdx ? 'true' : undefined}
                 >
                   <button type="button" className={styles.splitSelect} onClick={() => setFocusedIndex(index)}>
-                    <span className={styles.splitScore} data-band={bandOf(p)}>{scoreOf(p)}</span>
+                    {isScored(p)
+                      ? <span className={styles.splitScore} data-band={bandOf(p)}>{scoreOf(p)}</span>
+                      : <span className={styles.splitScore} data-band="none" title="Not scored by ReCiter">{'\u2013'}</span>}
                     <span className={styles.splitText}>
                       <span className={styles.splitTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(p.articleTitleRTF || p.articleTitle) }} />
                       {(by.pre || by.tgt) && <span className={styles.splitAuthors}>{by.pre}{by.tgt && <strong>{by.tgt}</strong>}{by.post}</span>}

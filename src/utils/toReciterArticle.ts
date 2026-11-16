@@ -29,6 +29,9 @@ export const toReciterArticle = (article: any, userAssertion: string = 'ACCEPTED
         evidence: [],
         userAssertion,
         articleTitle: article.title,
+        // The fields the Curate list and card read; the Add tab's shape only has journal/displayDate.
+        journalTitleVerbose: article.journal,
+        publicationDateDisplay: article.displayDate,
         reCiterArticleAuthorFeatures: mapPubMedAuthorsToReciterAuthors(article.authors)
     })
 }
