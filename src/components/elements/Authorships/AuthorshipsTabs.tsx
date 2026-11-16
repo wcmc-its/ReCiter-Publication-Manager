@@ -7,8 +7,11 @@ import Popover from "@mui/material/Popover";
 import Checkbox from "@mui/material/Checkbox";
 import { toast } from "react-toastify";
 import { showUndoToast } from "../ToastHost/ToastHost";
-import { Input } from "../../ui";
+import { Button, Input, Select } from "../../ui";
 import { actionErrorToast, actionToast, plainReason } from "../../../utils/authorshipMessages";
+import { KEY_LEGEND, chipText, drillBanner, keyCommand, singleChipText } from "../../../utils/authorshipChips";
+import FilterChip, { Chevron, optionRowClass, popoverPaper } from "./FilterChip";
+import type { ChipOption } from "./FilterChip";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
 import {
@@ -622,6 +625,10 @@ const filterResetPatch = (): Partial<AuthorshipFilters> => {
 //
 // Nothing is silently lost: the prior filter set is stashed and restored when the "Like: …"
 // chip is dismissed, exactly as selectReport does for the report views.
+//
+// Authorships PR 2: the like drill no longer applies this (it keeps the curator's filters, as
+// the prototype does, and the drill banner names the pile). It is still what
+// /authorships?cwid=<uid> opens with, so a person link shows all of that person's rows.
 const LIKE_WIDEN_PATCH: Partial<AuthorshipFilters> = {
   lane: "all", classification: "all", search: "",
   selectedTypes: [], selectedInstitutions: [], selectedAuthorAffiliations: [],
@@ -655,24 +662,27 @@ type MatchClassOption = {
   label: string;
   lane: AuthorshipFilters["lane"];
   classification: AuthorshipFilters["classification"];
+  sub: string;    // the one-line description under the label (prototype's Match class list)
   hint: string;
   count: (s: Summary | null) => number | undefined;
 };
 const MATCH_CLASS_OPTIONS: MatchClassOption[] = [
-  { label: LANE_LABEL.all, lane: "all", classification: "all", hint: "Every unassigned authorship", count: (s) => s?.total },
+  { label: LANE_LABEL.all, lane: "all", classification: "all", sub: "Every unassigned authorship", hint: "Every unassigned authorship", count: (s) => s?.total },
   {
     label: LANE_LABEL.fullname, lane: "fullname", classification: "all",
+    sub: "Exactly one identity matches and the given name matches in full",
     hint: "Exactly one WCM identity matches AND the given name matches in full (not just the initial). Curators have accepted 4,723 of these and rejected none; the initial-only rows next door were rejected 373 times.",
     count: (s) => s?.fullname,
   },
   {
     label: LANE_LABEL.single, lane: "single", classification: "all",
+    sub: "Exactly one identity matches the name",
     hint: "Only authorships where exactly one WCM identity matches the name",
     count: (s) => s?.single_candidate,
   },
-  { label: CLASS_META.suggested.label, lane: "all", classification: "suggested", hint: CLASS_META.suggested.hint, count: (s) => s?.classes?.suggested },
-  { label: CLASS_META.buried.label, lane: "all", classification: "buried", hint: CLASS_META.buried.hint, count: (s) => s?.classes?.buried },
-  { label: CLASS_META.absent.label, lane: "all", classification: "absent", hint: CLASS_META.absent.hint, count: (s) => s?.classes?.absent },
+  { label: CLASS_META.suggested.label, lane: "all", classification: "suggested", sub: "Already in a curator's pending queue (Authorship Score ≥ 30)", hint: CLASS_META.suggested.hint, count: (s) => s?.classes?.suggested },
+  { label: CLASS_META.buried.label, lane: "all", classification: "buried", sub: "Production buried it (Authorship Score < 30)", hint: CLASS_META.buried.hint, count: (s) => s?.classes?.buried },
+  { label: CLASS_META.absent.label, lane: "all", classification: "absent", sub: "Production never scored this person", hint: CLASS_META.absent.hint, count: (s) => s?.classes?.absent },
   // SIX options, not the mockup's seven. Its 7th, "All classes", is the classification strip's
   // all-value and lands on exactly the same (lane:"all", classification:"all") state as
   // "All unassigned" at the top of this list — the mockup lists both only because it is today's
@@ -1432,16 +1442,15 @@ const AuthorshipsTabs = () => {
   // The default window is applied on mount (client-side, below) so the statically-prerendered
   // initial render stays date-free and hydrates cleanly; the first list fetch waits on this.
   const [datesReady, setDatesReady] = useState(false);
-  // One anchor per popover level (HANDOFF §2.2/§2.3). MUI positions a Popover from the element
-  // it is handed, so the two affiliation lists share ONE anchor only because they share one
-  // popover; a nested level would need its own.
-  const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
-  // 4b: one popover, two buttons — `which` says whose list it shows.
-  const [affilAnchor, setAffilAnchor] = useState<{ el: HTMLElement; which: "identity" | "article" } | null>(null);
+  // Which filter chip's list is open (queue | match | ptype | inst | ainst | pubType | date |
+  // hide), or null. One value for the whole chip row, so at most one list is ever up.
+  const [chipMenu, setChipMenu] = useState<string | null>(null);
+  // The search box inside the two affiliation lists. Cleared whenever a chip opens.
   const [affilQuery, setAffilQuery] = useState("");
-  const affilSearchRef = useRef<HTMLInputElement>(null);
-  const [filtersAnchor, setFiltersAnchor] = useState<HTMLElement | null>(null);
   const [keysAnchor, setKeysAnchor] = useState<HTMLElement | null>(null);
+  const keysBtnRef = useRef<HTMLButtonElement>(null);
+  // The sort Select's own menu. Tracked so the row shortcuts stand down while it is open.
+  const [sortOpen, setSortOpen] = useState(false);
   // §2.5: the bulk bar's round "i" — toggles today's always-on two-line caveat into a strip
   // under the bar instead of it holding a permanent row.
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -1691,11 +1700,13 @@ const AuthorshipsTabs = () => {
   // MUI menus (row overflow, bulk-assign picker, the two history panels), and the three
   // hand-rolled full-screen layers (lookup spinner, assign confirm, reject confirm). The
   // keyboard handler bails while any of them is up.
-  const overlayOpen = !!typeAnchor || !!affilAnchor || !!filtersAnchor || !!keysAnchor
+  const overlayOpen = !!chipMenu || !!keysAnchor || sortOpen
     || !!reportAnchor
     || !!menu || !!assignMenuAnchor || !!historyAnchor || !!activityAnchor
     || !!assignLookupCwid || !!assignConfirm || rejectConfirmOpen;
   useEffect(() => { overlayOpenRef.current = overlayOpen; }, [overlayOpen]);
+  const keysOpenRef = useRef(false);
+  useEffect(() => { keysOpenRef.current = !!keysAnchor; }, [keysAnchor]);
   // A report REPLACES the card list, and the keydown listener reads rowsRef, which the feed
   // keeps populated underneath. Without this the y/n/s keys would accept, reject or snooze a
   // row the curator cannot see. Its own ref rather than a term in overlayOpen above: a report
@@ -1846,14 +1857,14 @@ const AuthorshipsTabs = () => {
   //     LIKEs for the rest of the session.
   const [affilFacetKey, setAffilFacetKey] = useState<string | null>(null);
   useEffect(() => {
-    if (affilAnchor?.which === "article") setAffilFacetKey(baseSummaryBody);
-  }, [affilAnchor, baseSummaryBody]);
+    if (chipMenu === "ainst") setAffilFacetKey(baseSummaryBody);
+  }, [chipMenu, baseSummaryBody]);
   // Hide counts (4b) need absentCwidSet(), a DynamoDB sweep when its cache is cold, so they ride
-  // the same latch pattern, armed by the Filters popover where the Hide boxes live.
+  // the same latch pattern, armed by opening the Hide chip.
   const [hideCountsKey, setHideCountsKey] = useState<string | null>(null);
   useEffect(() => {
-    if (filtersAnchor) setHideCountsKey(baseSummaryBody);
-  }, [filtersAnchor, baseSummaryBody]);
+    if (chipMenu === "hide") setHideCountsKey(baseSummaryBody);
+  }, [chipMenu, baseSummaryBody]);
   const summaryBody = useMemo(
     () => JSON.stringify({
       ...buildSummaryBody(filters),
@@ -1987,6 +1998,11 @@ const AuthorshipsTabs = () => {
   // rather than a key list: LIKE_WIDEN_PATCH can grow a key and this needs no edit to match.
   const likeFilterStash = useRef<
     { filters: AuthorshipFilters; preset: string; searchInput: string; page: number } | null>(null);
+  // How many rows a like drill promised (the button's like_count, plus the row it was opened from
+  // when that row is itself open), for the banner's "Showing N of M". Every row the curator
+  // resolves inside the drill leaves the pile too, so doActionAsync takes one off it; otherwise
+  // the banner would blame the current filters for rows that were just accepted or rejected.
+  const [likeExpected, setLikeExpected] = useState<number | null>(null);
   // true for a visit that arrived via /authorships?cwid=<uid> (see the mount effect): that view
   // is one person's, not the curator's own, so it never overwrites their saved view.
   const personLink = useRef(false);
@@ -2153,6 +2169,7 @@ const AuthorshipsTabs = () => {
     });
     setRows((rs) => rs.filter((x) => x.id !== row.id));
     setCount((c) => Math.max(0, c - 1));
+    setLikeExpected((n) => (n == null ? n : Math.max(0, n - 1)));
     return fetch("/api/db/authorships/action", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ id: row.id, action, ...extra }),
@@ -2578,21 +2595,25 @@ const AuthorshipsTabs = () => {
   // it keeps working as its own independent filter. Page reset to 0 is already handled by the
   // pendingPageReset effect above, which watches filterBody (likeAuthor is now part of it).
   //
-  // #1011: it also WIDENS the list to the count's own scope (LIKE_WIDEN_PATCH), stashing the
-  // filters it clears so dismissing the "Like: …" chip puts them straight back. Without that
-  // widening the button promised N and delivered N ∩ (every other chip) — see LIKE_WIDEN_PATCH.
-  // One patch object, so the widening and the like filter land in a single refetch.
-  const findOthersLikeThis = useCallback((wcmAuthor?: string) => {
+  // It stashes the filters on entry so "← Back to previous filters" (and the auto-exit on an
+  // emptied view) puts them straight back. Since Authorships PR 2 it no longer widens them
+  // (#1011's LIKE_WIDEN_PATCH): the banner says "Showing N of M" when the filters hide part of
+  // the pile, using `expected` (see likeExpected).
+  const findOthersLikeThis = useCallback((wcmAuthor?: string, expected?: number | null) => {
     if (!wcmAuthor) return;
+    setLikeExpected(expected ?? null);
     // Stash only on ENTRY. Clicking the button again from inside a like view (a card for a
     // different name) must not overwrite the snapshot with the already-widened state — that
     // would restore the widening instead of the curator's chips.
     if (!likeFilterStash.current) {
       likeFilterStash.current = { filters: { ...filters }, preset: datePreset, searchInput, page };
     }
-    setDatePreset("any");
-    setSearchInput("");
-    patchFilters({ ...LIKE_WIDEN_PATCH, likeAuthor: wcmAuthor });
+    // Authorships PR 2 (the prototype's drill): the curator's other filters stay exactly as they
+    // are and stay visible on the chip row; the drill adds only the name, plus the Open queue the
+    // pile is counted over. It used to widen every other filter to its widest value
+    // (LIKE_WIDEN_PATCH), which changed five chips the curator never touched. The banner under
+    // the chip row names the pile and says how to get back.
+    patchFilters({ likeAuthor: wcmAuthor, statusView: "open" });
   }, [patchFilters, filters, datePreset, searchInput, page]);
 
   // Leaving the like view restores whatever it widened away. Used by BOTH exits — dismissing
@@ -2687,6 +2708,8 @@ const AuthorshipsTabs = () => {
   // one render, so this is a single refetch. Phase 3 wires it to the Filters popover's
   // "Reset all" and to the chip row's "Clear"; nothing else may reset a filter.
   const resetAll = useCallback(() => {
+    // Reset ends a like drill too; its stash would otherwise come back on the next drill's exit.
+    likeFilterStash.current = null;
     patchFilters(filterResetPatch());
     setSearchInput("");
     applyDatePreset(DEFAULT_DATE_PRESET);
@@ -2742,6 +2765,17 @@ const AuthorshipsTabs = () => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (tag === "input" || tag === "select" || tag === "textarea") return;
+      const cmd = keyCommand(e);
+      if (!cmd) return;
+      // "?" opens and closes the shortcut list itself, so it is the one key that works while that
+      // list (an overlay) is up; every other overlay still blocks it.
+      if (cmd === "legend") {
+        if (reportViewRef.current) return;
+        if (overlayOpenRef.current && !keysOpenRef.current) return;
+        setKeysAnchor((a) => (a ? null : keysBtnRef.current));
+        e.preventDefault();
+        return;
+      }
       // …and not while a popover, menu or confirm dialog is up. The tag test above is not enough:
       // MUI moves focus INTO the popover's paper (a div, not an input), so with the Filters or
       // Affiliation list open every keystroke still fell through to the row behind it — j/k moved
@@ -2762,25 +2796,25 @@ const AuthorshipsTabs = () => {
         const r = visible[Math.max(0, Math.min(visible.length - 1, i))];
         if (r) { setFocusedId(r.id); cardRefs.current[r.id]?.scrollIntoView({ block: "nearest" }); }
       };
-      const k = e.key.toLowerCase();
-      if (k === "j") { focus(idx + 1); e.preventDefault(); return; }
-      if (k === "k") { focus(idx < 0 ? 0 : idx - 1); e.preventDefault(); return; }
+      if (cmd === "next") { focus(idx + 1); e.preventDefault(); return; }
+      if (cmd === "prev") { focus(idx < 0 ? 0 : idx - 1); e.preventDefault(); return; }
       if (focusedId == null) return;
       const row = visible.find((r) => r.id === focusedId);
       if (!row) return;
       const doAction = doActionRef.current;
       const toggleSelect = toggleSelectRef.current;
-      if (k === "y") {
+      if (cmd === "evidence") { setExpanded((x) => (x === row.id ? null : row.id)); e.preventDefault(); }
+      else if (cmd === "accept") {
         if (row.single_candidate && statusView === "open") {
           if (row.identity_in_reciter === false) showError(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Dismiss it instead.`);
           else doAction?.(row, "accept");
         } else showError("Use Pick one ▾ to assign an authorship with several candidates.");
         e.preventDefault();
       }
-      else if (k === "n") { if (statusView === "open") doAction?.(row, "reject"); e.preventDefault(); }
-      else if (k === "s") { if (statusView === "open") doAction?.(row, "snooze"); e.preventDefault(); }
-      else if (k === "x") { toggleSelect?.(row); e.preventDefault(); }
-      else if (e.key === "Enter") {
+      else if (cmd === "reject") { if (statusView === "open") doAction?.(row, "reject"); e.preventDefault(); }
+      else if (cmd === "snooze") { if (statusView === "open") doAction?.(row, "snooze"); e.preventDefault(); }
+      else if (cmd === "select") { toggleSelect?.(row); e.preventDefault(); }
+      else if (cmd === "open") {
         const url = isExternalSource(row)
           ? (row.doi ? `https://doi.org/${row.doi}`
             : row.source === "openalex" ? openalexRecordUrl(row.external_id) : scopusRecordUrl(row.external_id))
@@ -2795,47 +2829,19 @@ const AuthorshipsTabs = () => {
 
   const totalPages = Math.max(1, Math.ceil(count / pageSize));
 
-  // Active filters, computed in ONE place (HANDOFF §2.4). `filterCount` is the number the
-  // Filters button's blue badge shows in phase 3 — it is chips.length by definition (mockup:666),
-  // so it can never drift from what the chip row lists. Both come from the pure filterChips()
-  // above; nothing here decides what counts as "active".
+  // What is off its default, computed in ONE place (filterChips, pure and checked by
+  // scripts/check-authorships-filter-body.mjs). The chip row shows every filter all the time
+  // now; this list is what decides whether "Reset all" is offered.
   const chips = filterChips(filters, datePreset);
-  // What the chip row and the Filters badge SHOW. While a report is up the chips for filters
-  // that report ignores are dropped from the display (isChipHiddenByReport) so the row lists
-  // only what is actually in force; `filters` itself is untouched, so leaving the report brings
-  // every chip and the badge count straight back.
-  const visibleChips = reportView ? chips.filter((c) => !isChipHiddenByReport(c.id)) : chips;
-  const filterCount = visibleChips.length;
   // §2.1's header line trails the active date window ("…, past 2 years"). Derived from the
   // preset, not from dateFrom/dateTo, everywhere except "custom" — the preset is a module
   // constant on the first render and the dates are not, so this is the one form of the phrase
   // that cannot diverge between the prerendered HTML and hydration.
   const headerDatePhrase = datePhrase(datePreset, dateFrom, dateTo);
-  // Removing one chip removes ONLY that filter. Two of them reach past the filter object:
-  // the search chip must also empty the text box that debounces into it, and the date chip goes
-  // through applyDatePreset because the preset recomputes dateFrom/dateTo.
-  const removeChip = (chip: FilterChip) => {
-    // #1011: the "like" chip is the third exception — clearing likeAuthor also has to put back
-    // the filters "Show N others like this" widened away, so it goes through clearLikeAuthor
-    // instead of its own patch. (Its patch stays {likeAuthor:""} so filterChips remains pure
-    // and the chip still reads as "remove this filter" everywhere else.)
-    if (chip.id === "like") { clearLikeAuthor(); return; }
-    if (Object.keys(chip.patch).length > 0) patchFilters(chip.patch);
-    if (chip.preset) applyDatePreset(chip.preset);
-  };
   // The MATCH CLASS entry currently in force. Compared by (lane, classification), never by
   // label — "All unassigned" and "All classes" are the same state, and only the first is ever
   // highlighted (matchClassLabel resolves that state to the default).
   const activeMatchClass = MATCH_CLASS_OPTIONS.find((o) => o.lane === lane && o.classification === classification);
-  // §2.2's affiliation button, transcribed from the mockup (mockup:636, :692-694): the identity
-  // list AT ITS DEFAULT contributes nothing, so "Affiliation" with no badge is the resting
-  // state; one value across both lists names that value; more than one shows the count badge.
-  // 4b splits it into one button per list, each with the same rule: at its default the list
-  // contributes nothing (plain label), one value names it, more shows the count badge.
-  const affilNamesOf = (sel: string[], dflt: string[]) =>
-    (sel.length === 1 && sel[0] === dflt[0] ? [] : sel).map((k) => INSTITUTION_LABELS[k] || k);
-  const identityNames = affilNamesOf(selectedInstitutions, FILTER_DEFAULTS.selectedInstitutions);
-  const articleNames = affilNamesOf(selectedAuthorAffiliations, FILTER_DEFAULTS.selectedAuthorAffiliations);
   const hideCountsReady = summaryFor === summaryBody && !!summary?.hidden;
   // Identity affiliation reads `institutions`, which the server computes on EVERY summary call
   // whether or not the popover is open — unchanged by the on-demand Article facet, and it must
@@ -2857,8 +2863,6 @@ const AuthorshipsTabs = () => {
     ...facets,
     ...chosen.filter((k) => !facets.some((f) => f.key === k)).map((k) => ({ key: k, n: 0 })),
   ];
-  const identityOptions = withSelected(identityFacets, selectedInstitutions);
-  const authorOptions = withSelected(authorFacets, selectedAuthorAffiliations);
   const personTypeOptions = withSelected(
     (summary?.personTypes || []).map((pt) => ({ key: pt.type, n: pt.n })), selectedTypes,
   );
@@ -2907,23 +2911,60 @@ const AuthorshipsTabs = () => {
     });
   }, [eligibleRows]);
 
+  // ---- the filter chip row (Authorships PR 2) ----------------------------------------------
+  // A snoozed or dismissed row is not in the open pile its like_count describes.
+  const isParkedView = statusView === "snoozed" || statusView === "dismissed";
+  const openChip = (key: string) => { setAffilQuery(""); setChipMenu(key); };
+  // The Hide chip's ticked boxes, in list order. Server-side filters, never a client-side cut.
+  const hideOn: string[] = [];
+  if (hideNoSuggestion) hideOn.push("noSuggestion");
+  if (hideNoIdentity) hideOn.push("noIdentity");
+  // The chips a canned report cannot honour go while it is up (REPORT_HIDDEN_CHIP_IDS).
+  const reportHides = (chipId: string) => !!reportView && isChipHiddenByReport(chipId);
+  const closeChip = () => setChipMenu(null);
+  // The prototype's "Reset all" shows once anything differs from the defaults, the source tab
+  // and the search box included.
+  const canReset = chips.length > 0 || !!search.trim() || !!searchInput.trim() || source !== FILTER_DEFAULTS.source;
+  const banner = reportView ? null : drillBanner({ likeAuthor, count: loading || listError ? null : count, expected: likeExpected, statusView });
+  // Queue counts the summary actually has: the queue on screen (its total) and the two review
+  // queues, which the server counts over the open queue whatever is being browsed. The other
+  // queues' totals would need a new summary field, so their rows show no number.
+  const queueCount = (k: AuthorshipFilters["statusView"]): number | undefined =>
+    k === "conflicts" ? summary?.conflicts : k === "duplicates" ? summary?.duplicates
+      : k === statusView ? summary?.total : undefined;
+  // Every known institution, the counted ones first (as the server orders them), then the rest
+  // at 0 and greyed, as in the prototype. Until a facet has answered, counts read "—", never 0.
+  const affilChipOptions = (facets: Array<{ key: string; n: number }>, chosen: string[], ready: boolean): ChipOption[] => {
+    const counted = new Map(facets.map((f) => [f.key, f.n]));
+    const keys = [
+      ...facets.map((f) => f.key),
+      ...Object.keys(INSTITUTION_LABELS).filter((k) => !counted.has(k)),
+      ...chosen.filter((k) => !counted.has(k) && !INSTITUTION_LABELS[k]),
+    ];
+    const q = affilQuery.trim().toLowerCase();
+    return keys
+      .filter((k) => !q || instLabel(k).toLowerCase().includes(q))
+      .map((k) => {
+        const n = counted.get(k) ?? 0;
+        return { value: k, label: instLabel(k), count: ready ? n.toLocaleString() : "—", dim: ready && n === 0 };
+      });
+  };
+
   return (
     <div style={{ fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif", color: "#0f172a" }}>
-      {/* ================= header band (HANDOFF §2.1, mockup:64-83) =========================
-          Title and one muted count line on the left, the two alert pills and Activity on the
-          right. Three always-on things collapse into it: the explanatory paragraph (now behind
-          "What am I looking at?"), the Recent-activity row (now a button beside the title), and
-          the multi-figure count strip — whose per-class numbers did not disappear, they are the
-          right-hand column of the Filters popover's MATCH CLASS list, which is also the only
-          place they were ever clickable. */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginBottom: 14 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 7, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+      {/* ================= header band (prototype markup ~722-775) ===========================
+          Title, "What am I looking at?" and one muted count line on the left. On the right, in
+          the prototype's order: the identity-conflicts and duplicate-records pills (each hidden
+          at zero and hidden while you are in its own queue), Reports, Activity · N and the "?"
+          shortcut legend. The cluster sits on the count line's baseline (flex-end). */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
             {/* .pm-page-title opts out of the global h1 rule (globals.css), whose !important
                 weight/size/colour used to beat the prototype's serif 30px/600 title. */}
             <h1 className="pm-page-title">Authorships</h1>
             <button type="button" onClick={() => setAboutOpen((v) => !v)} aria-expanded={aboutOpen}
-              style={{ font: "inherit", border: "none", background: "none", padding: 0, fontSize: 13, color: CTRL.accent, cursor: "pointer" }}>
+              style={{ font: "inherit", border: "none", background: "none", padding: 0, fontSize: 13, color: "var(--pm-slate)", cursor: "pointer" }}>
               What am I looking at?
             </button>
           </div>
@@ -2932,127 +2973,105 @@ const AuthorshipsTabs = () => {
               custom window names its own bounds. summary is null until the first response, so
               the line holds its height with a non-breaking space instead of appearing late and
               pushing the control band down. */}
-          <div style={{ fontSize: 14, color: CTRL.muted }}>
+          <div style={{ fontSize: 14, color: "var(--pm-muted-foreground)" }}>
             {summary ? (
               <>
-                <strong style={{ color: CTRL.ink, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+                <strong style={{ color: "var(--pm-foreground)", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
                   {summary.total.toLocaleString()}
                 </strong>{" "}
                 {SUMMARY_HEADLINE[statusView] || "authorships"}
                 {headerDatePhrase ? `, ${headerDatePhrase}` : ""}
               </>
-            ) : " "}
+            ) : "\u00a0"}
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none", flexWrap: "wrap" }}>
-          {/* Canned reports. ALWAYS VISIBLE, unlike the two pills after it: those are hidden at
-              zero on purpose (a "0 identity conflicts" pill is a permanent alarm for a condition
-              that is not there), but this is a navigation control, not an alarm — which also
-              means this band is never empty. Deliberately NOT a third alertPill: the red/amber
-              palettes are reserved for server counts that demand attention. It uses dropBtn +
-              Caret, the neutral treatment the person-type and affiliation dropdowns already
-              carry, so it reads as the control it is.
-              The counts live inside the popover, not on this button, so its label is a constant
-              string — summary landing late cannot reflow this band, the hazard the count line
-              above it is written to avoid. */}
-          <Tip title="Two saved curator/model disagreement reports over person_article. These articles are already curated, so there is nothing to action here — the report explains WHY the model and the curator disagreed, and links to each person's curate page." placement="bottom" arrow>
-            <button type="button" onClick={(ev) => setReportAnchor(ev.currentTarget)}
-              aria-haspopup="true" aria-expanded={!!reportAnchor}
-              style={dropBtn(!!reportView, !!reportAnchor)}>
-              {reportView ? REPORT_LABEL[reportView] : "Canned reports"}
-              <Caret />
-            </button>
-          </Tip>
-          {/* Both pills force statusView to the queue the pill opens (conflicts also forces
-              identityConflicts on) and honour every OTHER filter in the current body exactly
-              like the list does (#988), so the number shown is the row count that queue will
-              show once the pill is clicked — not an unfiltered queue-wide count. Hidden at
-              zero: a "0 identity conflicts" pill is a permanent alarm for a condition that
-              isn't there. */}
-          {/* Both stay visible while a canned report is up — they are server alarms, not filter
-              controls — but each must LEAVE the report on the way to the queue it names. statusView
-              is one of the keys a report ignores and one of the chips it hides, so setting it from
-              under a report would change the curator's queue with nothing on screen moving and no
-              chip to show it: they would return to the feed in a queue they never chose. Leaving
-              first is also what the tooltips already promise ("Opens the … queue"). selectReport
-              writes no filter, so this remains one filter write, exactly as it is on the feed. */}
-          {(summary?.conflicts ?? 0) > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* Both pills open their queue and honour every OTHER filter, exactly like the list
+              does (#988), so the number is the row count that queue will show. Hidden at zero (a
+              "0 identity conflicts" pill is a permanent alarm for a condition that isn't there)
+              and hidden inside its own queue, where the count line already says it. Each leaves
+              a canned report on the way: statusView is one of the keys a report hides, so
+              setting it from under a report would change the queue with nothing on screen
+              moving. */}
+          {(summary?.conflicts ?? 0) > 0 && statusView !== "conflicts" && (
             <Tip title="Two CWIDs assigned to one authorship — the same byline position on this paper is already accepted by a different WCM identity. Opens the Identity conflicts queue." placement="bottom" arrow>
               <button type="button" onClick={() => { selectReport(null); setStatusView("conflicts"); }} style={alertPill("red")}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--pm-red)", display: "block", flex: "none" }} />
                 {(summary?.conflicts ?? 0).toLocaleString()} identity conflict{summary?.conflicts === 1 ? "" : "s"}
               </button>
             </Tip>
           )}
-          {(summary?.duplicates ?? 0) > 0 && (
+          {(summary?.duplicates ?? 0) > 0 && statusView !== "duplicates" && (
             <Tip title="Same publication retrieved from PubMed and Scopus. Opens the Duplicate records queue." placement="bottom" arrow>
               <button type="button" onClick={() => { selectReport(null); setStatusView("duplicates"); }} style={alertPill("amber")}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--pm-amber)", display: "block", flex: "none" }} />
                 {(summary?.duplicates ?? 0).toLocaleString()} duplicate record{summary?.duplicates === 1 ? "" : "s"}
               </button>
             </Tip>
           )}
-          {/* Session-local conflict log — not in the mockup because it only exists once a
-              curator has hit a 409 this session. Kept, and deliberately NOT styled as a third
-              coloured alert: the two pills beside it are server counts, this is a private
-              history of what just happened in this tab. */}
+          {/* Session-local conflict log — not in the prototype because it only exists once a
+              curator has hit a 409 this session. Kept, as a plain outline button: the two pills
+              beside it are server counts, this is a private history of this tab. */}
           {conflictLog.length > 0 && (
             <Tip title="Duplicate-conflict prompts raised in THIS browser session (lost on reload) — not a server queue." placement="bottom" arrow>
-              <button type="button" onClick={(ev) => setHistoryAnchor(ev.currentTarget)} style={alertPill("plain")}>
-                <IconAlert size={13} /> Session conflicts ({conflictLog.length})
-              </button>
+              <Button size="sm" onClick={(ev) => setHistoryAnchor(ev.currentTarget)}>
+                Session conflicts · {conflictLog.length}
+              </Button>
             </Tip>
           )}
-          {/* The count is NOT filter-scoped and the server caps the feed at 15 — placing it
-              beside two filter-scoped pills would otherwise imply a scoping it does not have,
-              so the tooltip says so outright and the label carries no noun that suggests
-              "matching these filters". */}
-          <Tip title="The most recently resolved authorships across the whole queue and every curator — not scoped to the filters below. The server returns at most 15." placement="bottom" arrow>
-            <button type="button" onClick={(ev) => setActivityAnchor(ev.currentTarget)} style={alertPill("plain")}>
-              <IconClock size={13} /> Activity ({recentActivity.length})
-            </button>
-          </Tip>
+          {/* Canned reports. Always visible: a navigation control, not an alarm. The label is a
+              constant, so the summary landing late cannot reflow this band. */}
+          <Button size="sm" onClick={(ev) => setReportAnchor(ev.currentTarget)}
+            aria-haspopup="true" aria-expanded={!!reportAnchor}
+            sx={reportView ? { bgcolor: "var(--pm-slate-tint)", borderColor: "var(--pm-slate-tint-border)", color: "var(--pm-slate)" } : undefined}>
+            Reports<Chevron />
+          </Button>
+          {/* Not filter-scoped, and the server caps the feed at 15; the panel header says
+              "All curators" so it is not read as "matching these filters". */}
+          <Button size="sm" onClick={(ev) => setActivityAnchor(ev.currentTarget)}
+            aria-haspopup="true" aria-expanded={!!activityAnchor}>
+            Activity · {recentActivity.length}
+          </Button>
+          <Button ref={keysBtnRef} variant="ghost" size="sm" aria-label="Keyboard shortcuts" title="Keyboard shortcuts"
+            aria-haspopup="true" aria-expanded={!!keysAnchor}
+            onClick={(ev) => setKeysAnchor(keysAnchor ? null : ev.currentTarget)}
+            sx={{ width: 32, px: 0, fontSize: 14, fontWeight: 600 }}>
+            ?
+          </Button>
         </div>
       </div>
 
-      {/* §2.1's copy, verbatim from the canvas (mockup:87) — collapsed by default. */}
       {aboutOpen && (
-        <div style={{ border: `1px solid ${CTRL.border}`, borderLeft: `3px solid ${CTRL.accent}`, background: "#fff", borderRadius: 6, padding: "14px 16px", fontSize: 13.5, lineHeight: 1.6, color: "#4a5262", maxWidth: 720, marginBottom: 14 }}>
-          WCM-affiliated authorships not yet assigned to an identity. Each card is one decision: is this author the
-          proposed WCM person? <strong style={{ color: CTRL.ink, fontWeight: 600 }}>IO</strong> (identity-only, the trusted
-          signal) leads; <strong style={{ color: CTRL.ink, fontWeight: 600 }}>AS</strong> (ReCiter authorship score,
-          production model) is shown small beneath it as the diagnosis. Expand a card for the affiliation and evidence.
+        <div style={{ background: "var(--pm-surface)", border: "1px solid var(--pm-border)", borderRadius: "var(--radius-card)", padding: "14px 18px", fontSize: 13.5, lineHeight: 1.6, color: "var(--pm-foreground)", maxWidth: 860, marginBottom: 16, textWrap: "pretty" } as CSSProperties}>
+          Each row is an author on a PubMed or Scopus article whose affiliation matches an institution, but who
+          isn&rsquo;t yet linked to a person in ReCiter. Accept to assign the authorship to the suggested identity,
+          pick one when several people share the name, or reject if the suggestion is wrong. Snooze parks a row for
+          90 days; Dismiss removes it without a decision. IO is the Identity-Only Score: how strongly the
+          article&rsquo;s author record matches the person&rsquo;s identity. Match class says how production scored
+          it: Suggested rows are already in a curator&rsquo;s queue, Buried rows scored under 30, Never retrieved
+          rows were never scored.
         </div>
       )}
 
-      {/* ================= the single control row (HANDOFF §2.2, mockup:110-272) =================
-          Five always-on rows collapse into this one. Source, person type and affiliation stay in
-          the open on the left; search, sort, Filters and the keyboard legend sit right. Queue,
-          match class, date and the two hides moved into the Filters popover (§2.3); whatever is
-          in force is listed as a removable chip directly beneath (§2.4). The card wrapper holds
-          the control row, the chip row and the bulk bar together so they read as one band. */}
-      <div style={{ background: "#fff", border: `1px solid ${CTRL.border}`, borderRadius: 8, marginBottom: 18 }}>
+      {/* ================= the filter card (prototype markup ~814-874) ======================
+          Row 1: the source segment on the left, search and sort on the right. Row 2: one chip
+          per filter, always present, each showing its value and opening its own list; "Reset
+          all" at the end once anything is off its default. Then the drill banner, then the bulk
+          bar. While a canned report is up, every control the report cannot honour is hidden
+          (not disabled — a greyed control still reads as "this exists and is off"); the values
+          are kept and come straight back with the feed. */}
+      <div style={{ background: "var(--pm-surface)", border: "1px solid var(--pm-border)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", marginBottom: 16 }}>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 12px 10px 14px", borderBottom: `1px solid ${CTRL.rule}`, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-
-            {/* 1. source segment (prototype markup ~813). Each tab carries its lane's count in
-                   this queue ("All 15 · PubMed 6 …"), muted and tabular, as the prototype does.
-                   The count is left off until the summary lands, so nothing shows a false 0. */}
-            {/* Hidden while a canned report is up, not disabled: a greyed control still reads
-                as "this exists and is off". `source` is authorship_review's producer lane
-                (pubmed vs the Scopus AF-ID sweep); person_article has no counterpart, so the
-                report cannot honour it. The curator's choice is kept and comes straight back. */}
-            {!reportView && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--pm-border)", flexWrap: "wrap" }}>
+          {/* Source segment. Each tab carries its lane's count in this queue, muted and
+              tabular; the count is left off until the summary lands, so nothing shows a false 0.
+              Hidden under a report: `source` is authorship_review's producer lane and
+              person_article has no counterpart. */}
+          {!reportView && (
             <div style={{ display: "inline-flex", alignItems: "center", background: "var(--pm-surface-2)", border: "1px solid var(--pm-border)", borderRadius: 8, padding: 3 }}>
               {([["all", "All"], ["pubmed", "PubMed"], ["scopus", "Scopus"], ["openalex", "OpenAlex"]] as const).map(([key, label]) => {
-                // A lane missing from bySource has no rows: 0, once the summary has answered.
                 const n = !summary?.bySource ? undefined
                   : key === "all" ? Object.values(summary.bySource).reduce((a, b) => a + b, 0)
                     : summary.bySource[key] ?? 0;
-                // OpenAlex is always shown (UI refresh 4a), even with 0 rows: an empty lane reads
-                // as "nothing found there", a missing one as "never searched".
                 const what = key === "scopus" ? "WCM authorships found in Scopus but NOT in PubMed (no production score)"
                   : key === "openalex" ? "WCM conference abstracts and preprints found in OpenAlex but NOT in PubMed (no production score)"
                   : key === "pubmed" ? "Authorships from PubMed" : "All sources";
@@ -3066,147 +3085,147 @@ const AuthorshipsTabs = () => {
                 );
               })}
             </div>
-            )}
+          )}
 
-            {/* 2. person type (mockup:117-140) — the report honours this one, so it stays
-                exactly as it is. */}
-            <button type="button" onClick={(e) => setTypeAnchor(e.currentTarget)}
-              style={dropBtn(selectedTypes.length > 0, !!typeAnchor)}>
-              {selectedTypes.length === 0 ? "All person types"
-                : selectedTypes.length === 1 ? selectedTypes[0]
-                  : `Person type · ${selectedTypes.length}`}
-              <Caret />
-            </button>
-
-            {/* 3. affiliation — two independent lists, ANDed (mockup:141-183). Replaces #982's
-                   `match: either/person/byline` select: the identity list IS the person basis
-                   and the article list IS the byline basis, so the basis is no longer a choice. */}
-            {/* 4b: one button per list. The article one is hidden while a canned report is up
-                (the report cannot honour a byline affiliation); its selection survives. */}
-            {/* Short labels (the chip row's wording): the full ones wrap the row at 1280px. */}
-            {([["identity", "Identity affil.", "Identity affiliation", identityNames], ["article", "Article affil.", "Article affiliation", articleNames]] as const)
-              .filter(([which]) => which === "identity" || !reportView)
-              .map(([which, label, full, names]) => (
-                <button key={which} type="button" title={full} aria-label={full} onClick={(e) => { setAffilQuery(""); setAffilAnchor({ el: e.currentTarget, which }); }}
-                  style={dropBtn(names.length > 0, affilAnchor?.which === which)}>
-                  {names.length === 1 ? names[0] : label}
-                  {names.length > 1 && <span style={countBadgeStyle}>{names.length}</span>}
-                  <Caret />
-                </button>
-              ))}
-          </div>
-
-          {/* right group (mockup:186-198) */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
-            <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}>
-              {/* bound to searchInput, NOT search: the box debounces (300 ms) into the filter, so
-                  binding it to the filter would fight the debounce on every keystroke. */}
-              {/* 260px, as in the prototype, so the whole placeholder shows. */}
+            <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }} style={{ width: 260, maxWidth: "100%" }}>
+              {/* bound to searchInput, NOT search: the box debounces (300 ms) into the filter. */}
               <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} type="search"
                 placeholder="Name, CWID, PMID, or affiliation"
                 inputProps={{ "aria-label": "Filter by name, CWID, PMID, or affiliation" }}
-                sx={{ width: 260, maxWidth: "100%", height: 32, fontSize: 14, borderRadius: "8px", "& .MuiOutlinedInput-input": { py: 0, px: 1.25 } }} />
+                sx={{ width: "100%", height: 32, fontSize: 14, borderRadius: "8px", "& .MuiOutlinedInput-input": { py: 0, px: 1.25 } }} />
             </form>
-            {/* §2.2 uses the mockup's wording where it maps onto a sort the server actually
-                supports (SORTS in authorships.controller.ts: precision/confidence/io/fg/date).
-                Its "Oldest" and "Most candidates" have no server order and are NOT invented here;
-                the three sorts it omits are kept rather than dropped. Default is `io` (UI refresh 4a,
-                2026-11-09; was `date` from 2026-09-15) — sort is never a chip and never reset. */}
-            {/* A <select> is as wide as its widest option, so a long label here is what pushes
-                the whole right group onto a second line. The nuance the old "Match confidence
-                (name/affiliation, not IO)" label carried moves into the title instead of costing
-                ~150px of the row this step exists to fit on one line. */}
-            {/* Hidden while a canned report is up, on the same rule as the source segment and the
-                QUEUE list: `sort` is one of the keys reportFilterSql() explicitly ignores (a
-                report's order is its own — groupCount DESC, then the person's worst score), so a
-                live Sort control here would be visibly set and silently dropped. Worse than
-                cosmetic: sort IS part of the posted report body, so changing it would refetch the
-                report and collapse every open person group for an identical result. The choice
-                stays in `filters` and the control comes back with the feed. */}
+            {/* The UI-system Select. The seven sorts the server supports, in the prototype's
+                wording; never a chip and never reset. Hidden under a report, whose order is its
+                own (changing it would refetch the report for an identical result). */}
             {!reportView && (
-            <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort"
-              title={"Sort order — kept when any other control changes.\n“Match confidence” is the matcher's name/affiliation heuristic, not IO."}
-              style={{ font: "inherit", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 9px", fontSize: 13.5, background: "#fff", color: CTRL.ink, cursor: "pointer" }}>
-              <option value="io">Highest Identity-Only Score</option>
-              <option value="date">Newest</option>
-              <option value="date_asc">Oldest</option>
-              <option value="precision">Best match</option>
-              <option value="confidence">Match confidence</option>
-              <option value="fg">Authorship Score</option>
-              <option value="candidates">Most candidates</option>
-            </select>
+              <Select value={sort} onChange={(v) => setSort(v)}
+                options={SORT_OPTIONS}
+                onOpen={() => setSortOpen(true)} onClose={() => setSortOpen(false)}
+                inputProps={{ "aria-label": "Sort" }}
+                title={"Sort order — kept when any other control changes.\n“Match confidence” is the matcher's name/affiliation heuristic, not IO."}
+                MenuProps={{ MenuListProps: { sx: SORT_MENU_SX } }}
+                IconComponent={SortChevron}
+                sx={{ width: 224, maxWidth: "100%", height: 32, fontSize: 13.5, borderRadius: "8px", "& .MuiSelect-select": { py: 0.5, pl: 1.5, pr: "30px !important" }, "& .MuiSelect-icon": { top: "calc(50% - 7px)", right: 10, color: "var(--pm-muted-foreground)" } }} />
             )}
-            <button type="button" onClick={(e) => setFiltersAnchor(e.currentTarget)}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13.5,
-                border: `1px solid ${filtersAnchor || filterCount ? CTRL.accent : CTRL.border}`,
-                background: filtersAnchor ? CTRL.accentBg : "#fff", color: CTRL.ink,
-                borderRadius: 6, padding: "7px 12px", cursor: "pointer",
-              }}>
-              Filters
-              {/* the badge is chips.length by definition (mockup:666), so it can never drift
-                  from what the chip row below actually lists */}
-              {filterCount > 0 && <span style={countBadgeStyle}>{filterCount}</span>}
-            </button>
-            <button type="button" onClick={(e) => setKeysAnchor(e.currentTarget)} title="Keyboard shortcuts"
-              aria-label="Keyboard shortcuts"
-              style={{ font: "inherit", width: 32, height: 32, border: `1px solid ${CTRL.border}`, background: keysAnchor ? CTRL.accentBg : "#fff", borderRadius: 6, fontSize: 13.5, color: CTRL.muted, cursor: "pointer" }}>
-              ?
-            </button>
           </div>
         </div>
 
-        {/* scopus pub-type facet — a facet OF the source segment, so it stays beside it rather
-            than moving into the Filters popover. It is mounted only under Scopus and the
-            source effect empties the list on the way out, which is what keeps buildFilterBody's
-            `source === "scopus" ? … : []` ternary from ever hiding a live-looking selection. */}
-        {/* …and hidden with it while a report is up: pub_type is Scopus's subtypeDescription,
-            which person_article has no counterpart for. Its own gate rather than a consequence
-            of the segment being hidden — the selection survives, so a curator who was on the
-            Scopus segment would otherwise see a live-looking facet strip under a source control
-            that is no longer there. */}
-        {!reportView && source === "scopus" && (summary?.pubTypes?.length ?? 0) > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderBottom: `1px solid ${CTRL.rule}`, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, color: CTRL.soft, letterSpacing: ".06em" }}>PUBLICATION TYPE</span>
-            <button onClick={() => setSelectedPubTypes([])} style={pubChipStyle(selectedPubTypes.length === 0)}>All</button>
-            {(summary?.pubTypes || []).map((pt) => {
-              const on = selectedPubTypes.includes(pt.type);
-              return (
-                <button key={pt.type} style={pubChipStyle(on)}
-                  onClick={() => setSelectedPubTypes((s) => toggleInList(s, pt.type))}>
-                  {pt.type} ({pt.n.toLocaleString()})
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ---- active filter chips (§2.4, mockup:274-284) — directly beneath the control row.
-            Rendered only when something is off its default; the source segment is never a chip
-            and the search box is one, both transcribed in filterChips() rather than re-decided
-            here. Removing a chip removes ONLY that filter. */}
-        {/* visibleChips, not chips: while a canned report is up this row lists only the filters
-            the report actually honours (see isChipHiddenByReport). Nothing is reset — the hidden
-            chips come back, with the same values, the moment the curator returns to the feed. */}
-        {visibleChips.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: CTRL.band }}>
-            <span style={{ fontSize: 12, letterSpacing: ".06em", color: "#8b93a2" }}>FILTERS</span>
-            {visibleChips.map((chip) => (
-              <button key={chip.id} type="button" onClick={() => removeChip(chip)}
-                aria-label={`Remove filter ${chip.label}`} title="Remove this filter"
-                style={{ font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, border: `1px solid ${CTRL.chipBorder}`, background: CTRL.accentBg, color: CTRL.accentInk, borderRadius: 999, padding: "4px 8px 4px 11px", fontSize: 13, cursor: "pointer" }}>
-                {chip.label}<span style={{ color: "var(--pm-slate)", fontSize: 14, lineHeight: 1 }}>×</span>
-              </button>
-            ))}
-            {/* Clear still resets EVERY filter, the hidden ones included, so while a report is
-                up the title says so rather than naming only the chips on screen. */}
-            <button type="button" onClick={resetAll}
-              title={reportView
-                ? "Reset every filter to its defaults, including the ones this report hides (sort is left alone)"
-                : `Reset all ${filterCount} ${filterCount === 1 ? "filter" : "filters"} to their defaults (sort is left alone)`}
-              style={{ font: "inherit", border: "none", background: "none", fontSize: 13, color: CTRL.muted, cursor: "pointer", padding: "4px 6px" }}>
-              Clear
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: "1px solid var(--pm-border)", flexWrap: "wrap" }}>
+          {!reportHides("queue") && (
+            <FilterChip label="Queue" text={singleChipText("Queue", STATUS_VIEW_LABEL[statusView])}
+              active={statusView !== FILTER_DEFAULTS.statusView} single
+              open={chipMenu === "queue"} onOpen={() => openChip("queue")} onClose={closeChip}
+              options={QUEUE_OPTIONS.map((q) => ({ value: q.key, label: STATUS_VIEW_LABEL[q.key], sub: q.note, count: fmtCount(queueCount(q.key)) }))}
+              isChecked={(v) => v === statusView}
+              onPick={(v) => setStatusView(v as AuthorshipFilters["statusView"])} />
+          )}
+          {!reportHides("class") && (
+            <FilterChip label="Match class" text={singleChipText("Match class", matchClassLabel(filters))}
+              active={matchClassLabel(filters) !== MATCH_CLASS_DEFAULT} single
+              open={chipMenu === "match"} onOpen={() => openChip("match")} onClose={closeChip}
+              options={MATCH_CLASS_OPTIONS.map((o, i) => ({ value: String(i), label: o.label, sub: o.sub, title: o.hint, count: fmtCount(o.count(summary)) }))}
+              isChecked={(v) => MATCH_CLASS_OPTIONS[Number(v)] === activeMatchClass}
+              onPick={(v) => selectMatchClass(MATCH_CLASS_OPTIONS[Number(v)])} />
+          )}
+          <FilterChip label="Person type" text={chipText("Person type", selectedTypes)}
+            active={selectedTypes.length > 0}
+            open={chipMenu === "ptype"} onOpen={() => openChip("ptype")} onClose={closeChip}
+            options={personTypeOptions.map((pt) => ({ value: pt.key, label: pt.key, count: fmtCount(pt.n) }))}
+            empty={<div style={chipEmptyStyle}>{summary ? "No person types" : "Loading…"}</div>}
+            isChecked={(v) => selectedTypes.includes(v)}
+            onPick={(v) => setSelectedTypes((s) => toggleInList(s, v))}
+            onClear={() => setSelectedTypes([])} />
+          <FilterChip label="Identity affiliation"
+            text={chipText("Identity affiliation", selectedInstitutions, { allLabel: "Any", labelOf: instLabel })}
+            active={selectedInstitutions.length > 0}
+            open={chipMenu === "inst"} onOpen={() => openChip("inst")} onClose={closeChip}
+            search={{ value: affilQuery, onChange: setAffilQuery, placeholder: "Find an institution" }}
+            options={affilChipOptions(identityFacets, selectedInstitutions, !!summary?.institutions)}
+            empty={<div style={chipEmptyStyle}>No match</div>}
+            isChecked={(v) => selectedInstitutions.includes(v)}
+            onPick={(v) => setSelectedInstitutions((s) => toggleInList(s, v))}
+            onClear={() => setSelectedInstitutions([])} />
+          {/* The byline affiliation is an authorship_review column a report cannot honour. Its
+              counts are fetched on demand when this list opens (see affilFacetKey); until they
+              arrive they show "—", never 0. */}
+          {!reportHides("authorAffil:any") && (
+            <FilterChip label="Article affiliation"
+              text={chipText("Article affiliation", selectedAuthorAffiliations, { allLabel: "Any", labelOf: instLabel })}
+              active={selectedAuthorAffiliations.length > 0}
+              open={chipMenu === "ainst"} onOpen={() => openChip("ainst")} onClose={closeChip}
+              search={{ value: affilQuery, onChange: setAffilQuery, placeholder: "Find an institution" }}
+              options={affilChipOptions(authorFacets, selectedAuthorAffiliations, authorFacetsReady)}
+              empty={<div style={chipEmptyStyle}>No match</div>}
+              isChecked={(v) => selectedAuthorAffiliations.includes(v)}
+              onPick={(v) => setSelectedAuthorAffiliations((s) => toggleInList(s, v))}
+              onClear={() => setSelectedAuthorAffiliations([])} />
+          )}
+          {/* Scopus's own facet (pub_type = subtypeDescription), so the chip exists only on the
+              Scopus tab; the source effect empties the list on the way out. */}
+          {!reportView && source === "scopus" && (
+            <FilterChip label="Pub type" text={chipText("Pub type", selectedPubTypes)}
+              active={selectedPubTypes.length > 0}
+              open={chipMenu === "pubType"} onOpen={() => openChip("pubType")} onClose={closeChip}
+              options={withSelected((summary?.pubTypes || []).map((pt) => ({ key: pt.type, n: pt.n })), selectedPubTypes)
+                .map((pt) => ({ value: pt.key, label: pt.key, count: fmtCount(pt.n) }))}
+              empty={<div style={chipEmptyStyle}>{summary ? "No publication types" : "Loading…"}</div>}
+              isChecked={(v) => selectedPubTypes.includes(v)}
+              onPick={(v) => setSelectedPubTypes((s) => toggleInList(s, v))}
+              onClear={() => setSelectedPubTypes([])} />
+          )}
+          <FilterChip label="Date" text={singleChipText("Date", datePreset === "custom" ? "Custom" : DATE_PRESET_LABEL[datePreset] || datePreset)}
+            active={datePreset !== DEFAULT_DATE_PRESET} single
+            open={chipMenu === "date"} onOpen={() => openChip("date")} onClose={closeChip}
+            options={DATE_PRESET_ORDER.map((p) => ({ value: p, label: DATE_PRESET_LABEL[p] }))}
+            isChecked={(v) => v === datePreset}
+            onPick={(v) => applyDatePreset(v)} />
+          {/* Both Hide boxes are vacuous on a report (it INNER JOINs identity), so the chip goes. */}
+          {!reportHides("hideNoSuggestion") && (
+            <FilterChip label="Hide"
+              text={chipText("Hide", hideOn, { labelOf: (v) => HIDE_LABEL[v] })}
+              active={hideNoSuggestion || hideNoIdentity}
+              open={chipMenu === "hide"} onOpen={() => openChip("hide")} onClose={closeChip}
+              options={[
+                { value: "noSuggestion", label: HIDE_LABEL.noSuggestion, sub: "No identity in ReCiter matches the byline name", count: hideCountsReady ? summary!.hidden!.noSuggestion.toLocaleString() : "—" },
+                { value: "noIdentity", label: HIDE_LABEL.noIdentity, sub: "The suggested person has no ReCiter identity yet", count: hideCountsReady ? summary!.hidden!.noIdentity.toLocaleString() : "—" },
+              ]}
+              isChecked={(v) => (v === "noSuggestion" ? hideNoSuggestion : hideNoIdentity)}
+              onPick={(v) => (v === "noSuggestion" ? setHideNoSuggestion((x) => !x) : setHideNoIdentity((x) => !x))}
+              onClear={() => patchFilters({ hideNoSuggestion: false, hideNoIdentity: false })} />
+          )}
+          {datePreset === "custom" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>
+              <span>From</span>
+              <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} aria-label="From date"
+                style={dateInputStyle} />
+              <span>to</span>
+              <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} aria-label="To date"
+                style={dateInputStyle} />
+            </div>
+          )}
+          {/* Resets every filter, including any a report hides; sort is left alone. */}
+          {canReset && (
+            <button type="button" onClick={resetAll} title="Restore every filter to its default (sort is left alone)"
+              style={{ font: "inherit", marginLeft: "auto", border: 0, background: "none", padding: "0 4px", fontSize: 12.5, color: "var(--pm-slate)", cursor: "pointer" }}>
+              Reset all
             </button>
+          )}
+        </div>
+
+        {/* The drill banner (prototype markup ~938). A "Show N others like this" drill names the
+            pile and offers the way back to the filters it replaced; the conflicts and duplicates
+            queues name themselves only, because they keep the curator's filters (#988). */}
+        {banner && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 16px", borderBottom: "1px solid var(--pm-border)", background: "var(--pm-slate-tint)", color: "var(--pm-slate)", fontSize: 12.5 }}>
+            <span>{banner.label}</span>
+            {banner.note && <span style={{ color: "var(--pm-muted-foreground)" }}>{banner.note}</span>}
+            {banner.back && (
+              <button type="button" onClick={clearLikeAuthor}
+                style={{ font: "inherit", marginLeft: "auto", border: 0, background: "none", padding: 0, fontSize: 12.5, fontWeight: 600, color: "var(--pm-slate)", cursor: "pointer" }}>
+                ← Back to previous filters
+              </button>
+            )}
           </div>
         )}
 
@@ -3298,10 +3317,6 @@ const AuthorshipsTabs = () => {
           )}
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-            {/* 4c: the like view's explicit way back — same exit as the "Like: …" chip. */}
-            {likeAuthor.trim() && (
-              <button type="button" onClick={clearLikeAuthor} style={{ ...linkBtn, fontSize: 13 }}>← Back to previous filters</button>
-            )}
             {!listError && (
             <span style={{ fontSize: 13, color: CTRL.soft, fontVariantNumeric: "tabular-nums" }}>
               Showing {rows.length.toLocaleString()} of {count.toLocaleString()}
@@ -3336,291 +3351,53 @@ const AuthorshipsTabs = () => {
         )}
       </div>
 
-      {/* ---- person-type popover (§2.2, mockup:121-139) ---------------------------------- */}
-      <Popover open={!!typeAnchor} anchorEl={typeAnchor} onClose={() => setTypeAnchor(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }} transformOrigin={{ vertical: "top", horizontal: "left" }}
-        PaperProps={{ style: popPaper(250) }}>
-        <div style={popHeadRow}>
-          <div style={popHead}>PERSON TYPE <span style={popHeadCount}>{selectedTypes.length} of {personTypeOptions.length}</span></div>
-          <button type="button" onClick={() => setSelectedTypes([])} style={linkBtn}>All</button>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          {personTypeOptions.length === 0 && <div style={emptyOptStyle}>No types</div>}
-          {personTypeOptions.map((pt) => {
-            const on = selectedTypes.includes(pt.key);
-            return (
-              <label key={pt.key} style={optRow(on)}>
-                <Checkbox size="small" checked={on} style={{ padding: 0 }}
-                  onChange={() => setSelectedTypes((s) => toggleInList(s, pt.key))} />
-                <span style={{ flex: 1, minWidth: 0 }}>{pt.key}</span>
-                <span style={optCountStyle}>{pt.n.toLocaleString()}</span>
-              </label>
-            );
-          })}
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${CTRL.rule}`, marginTop: 11, paddingTop: 10 }}>
-          <button type="button" onClick={() => setTypeAnchor(null)} style={doneBtn}>Done</button>
-        </div>
-      </Popover>
-
-      {/* ---- affiliation popover: two independent multi-selects (§2.2, mockup:145-182) ----
-          Identity filters Person.primaryInstitution (#982's `person` basis), Article filters
-          AuthorshipReview.author_affiliation (its `byline` basis). Both selected = both must
-          match; the server ANDs them. Each list has its own facet counts, so the same bucket
-          key shows different numbers on the two sides — that is the point, not a bug. */}
-      {/* Focus the search box once the popover has entered; an autoFocus fires mid-transition and is lost. */}
-      <Popover open={!!affilAnchor} anchorEl={affilAnchor?.el} onClose={() => setAffilAnchor(null)}
-        TransitionProps={{ onEntered: () => affilSearchRef.current?.focus() }}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }} transformOrigin={{ vertical: "top", horizontal: "left" }}
-        PaperProps={{ style: { ...popPaper(320), display: "flex", flexDirection: "column", gap: 14 } }}>
-        {affilAnchor && (() => {
-          // 4b: the popover shows ONE list, the one whose button opened it. Identity filters
-          // Person.primaryInstitution, Article filters AuthorshipReview.author_affiliation; both
-          // set = both must match (server ANDs them). The two sides count the same bucket keys
-          // over different bases, so their numbers differ — that is the point, not a bug.
-          const isArticle = affilAnchor.which === "article";
-          const selected = isArticle ? selectedAuthorAffiliations : selectedInstitutions;
-          const setSelected = isArticle ? setSelectedAuthorAffiliations : setSelectedInstitutions;
-          const ready = !isArticle || authorFacetsReady;
-          const q = affilQuery.trim().toLowerCase();
-          const options = (isArticle ? authorOptions : identityOptions)
-            .filter((inst) => !q || (INSTITUTION_LABELS[inst.key] || inst.key).toLowerCase().includes(q));
-          const total = isArticle ? (authorFacetsReady ? authorOptions.length : "…") : identityOptions.length;
-          return (
-            <div>
-              <div style={popHeadRow}>
-                <div style={popHead}>{isArticle ? "ARTICLE" : "IDENTITY"} AFFILIATION <span style={popHeadCount}>{selected.length} of {total}</span></div>
-                <button type="button" onClick={() => setSelected([])} style={linkBtn}>Any</button>
-              </div>
-              <input type="search" ref={affilSearchRef} value={affilQuery} onChange={(e) => setAffilQuery(e.target.value)}
-                placeholder="Find an institution" aria-label="Find an institution"
-                style={{ font: "inherit", fontSize: 13, width: "100%", boxSizing: "border-box", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "6px 9px", margin: "4px 0 8px" }} />
-              <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {/* The Article counts are fetched on demand (see affilFacetKey), so that list has a
-                    not-yet-known state. Never render it as "No institutions" or as 0s; ticked
-                    boxes keep rendering (withSelected) with a blank count. */}
-                {!ready && <div style={emptyOptStyle}>Counting…</div>}
-                {ready && options.length === 0 && <div style={emptyOptStyle}>{q ? "No match" : "No institutions"}</div>}
-                {options.map((inst) => {
-                  const on = selected.includes(inst.key);
-                  return (
-                    <label key={inst.key} style={optRow(on)}>
-                      <Checkbox size="small" checked={on} style={{ padding: 0 }}
-                        onChange={() => setSelected((s) => toggleInList(s, inst.key))} />
-                      <span style={{ flex: 1, minWidth: 0 }}>{INSTITUTION_LABELS[inst.key] || inst.key}</span>
-                      <span style={optCountStyle}>{ready ? inst.n.toLocaleString() : "—"}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              <div style={helperStyle}>{isArticle ? "As printed on the article. Several may be selected." : "Where the proposed WCM person sits in the directory."}</div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${CTRL.rule}`, marginTop: 11, paddingTop: 11 }}>
-                {/* Reset restores only THIS list, not every filter — that is "Reset all". */}
-                <button type="button" onClick={() => patchFilters(isArticle
-                  ? { selectedAuthorAffiliations: FILTER_DEFAULTS.selectedAuthorAffiliations.slice() }
-                  : { selectedInstitutions: FILTER_DEFAULTS.selectedInstitutions.slice() })}
-                  style={{ ...linkBtn, color: CTRL.muted }}>Reset</button>
-                <button type="button" onClick={() => setAffilAnchor(null)} style={doneBtn}>Done</button>
-              </div>
-            </div>
-          );
-        })()}
-      </Popover>
-
-      {/* ---- Filters popover (§2.3, mockup:212-270): QUEUE / MATCH CLASS / DATE / HIDE ---- */}
-      <Popover open={!!filtersAnchor} anchorEl={filtersAnchor} onClose={() => setFiltersAnchor(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}
-        PaperProps={{ style: { ...popPaper(400), padding: "16px 18px 14px" } }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-          {/* QUEUE and MATCH CLASS are both hidden while a canned report is up — hidden, not
-              disabled, because a greyed control still reads as "this exists and is off". Both
-              are authorship_review concepts: QUEUE selects among that table's review states
-              (open/snoozed/dismissed and the two review branches), and MATCH CLASS is the
-              producer's own match-quality grading of a row it proposed. A report's rows were
-              curated long ago and mostly have no authorship_review row at all, so neither axis
-              has anything to select on. The values stay in `filters` and both lists come back
-              untouched with the feed. */}
-          {!reportView && (
-          <>
-          <div>
-            <div style={{ ...popHead, marginBottom: 8 }}>QUEUE</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              {QUEUE_OPTIONS.map((q) => {
-                const n = q.key === "conflicts" ? summary?.conflicts : q.key === "duplicates" ? summary?.duplicates : undefined;
-                return (
-                  <button key={q.key} type="button" onClick={() => setStatusView(q.key)}
-                    style={{ ...listBtn(statusView === q.key), flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-                    <span>{STATUS_VIEW_LABEL[q.key]}{n != null ? ` (${n.toLocaleString()})` : ""}</span>
-                    {q.note && <span style={{ fontSize: 12, fontWeight: 400, color: CTRL.soft }}>{q.note}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            {/* MATCH CLASS is the union of the two deleted chip strips (HANDOFF §3a): three lane
-                entries and four classification entries in ONE single-select list, mockup order.
-                selectMatchClass writes both axes in one patch, so picking a lane resets the
-                class and vice versa — the lane's old "single" default cannot be stranded. */}
-            <div style={{ ...popHead, marginBottom: 8 }}>MATCH CLASS</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              {MATCH_CLASS_OPTIONS.map((opt) => {
-                const n = opt.count(summary);
-                return (
-                  <Tip key={opt.label} title={opt.hint} placement="left" arrow>
-                    <button type="button" onClick={() => selectMatchClass(opt)}
-                      style={{ ...listBtn(activeMatchClass === opt), justifyContent: "space-between" }}>
-                      <span>{opt.label}</span>
-                      <span style={{ fontSize: 12, color: "#8b93a2", fontVariantNumeric: "tabular-nums" }}>
-                        {n != null ? n.toLocaleString() : ""}
-                      </span>
-                    </button>
-                  </Tip>
-                );
-              })}
-            </div>
-          </div>
-
-          </>
-          )}
-
-          {/* DATE is honoured by the reports endpoint, so it stays exactly as it is. */}
-          <div>
-            <div style={{ ...popHead, marginBottom: 7 }}>DATE</div>
-            <select value={datePreset} onChange={(e) => applyDatePreset(e.target.value)} aria-label="Article publication date"
-              style={{ font: "inherit", width: "100%", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 8px", fontSize: 13.5, background: "#fff", color: CTRL.ink, cursor: "pointer" }}>
-              {DATE_PRESET_ORDER.map((p) => <option key={p} value={p}>{DATE_PRESET_LABEL[p]}</option>)}
-            </select>
-            {datePreset === "custom" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <label style={{ fontSize: 12.5, color: CTRL.muted, display: "flex", alignItems: "center", gap: 6 }}>
-                  From
-                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                    style={{ font: "inherit", padding: "5px 8px", borderRadius: 6, border: `1px solid ${CTRL.border}`, fontSize: 13, color: CTRL.ink }} />
-                </label>
-                <label style={{ fontSize: 12.5, color: CTRL.muted, display: "flex", alignItems: "center", gap: 6 }}>
-                  To
-                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                    style={{ font: "inherit", padding: "5px 8px", borderRadius: 6, border: `1px solid ${CTRL.border}`, fontSize: 13, color: CTRL.ink }} />
-                </label>
-                {(dateFrom || dateTo) && (
-                  <button type="button" onClick={() => patchFilters({ dateFrom: "", dateTo: "" })} style={{ ...linkBtn, color: CTRL.muted }}>
-                    Clear dates
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* HIDE goes too, and for a different reason from QUEUE/MATCH CLASS above: both of
-              these boxes are VACUOUS on a report rather than unsupported. The report INNER JOINs
-              identity, so every row it can return already has a proposed person and a ReCiter
-              identity — ticking either box could only ever be a no-op, and a no-op checkbox that
-              changes nothing is exactly the "partially applied filter" this hide rule exists to
-              prevent. */}
-          {!reportView && (
-          <div>
-            <div style={{ ...popHead, marginBottom: 8 }}>HIDE</div>
-            <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows, where a person IS proposed but isn't in ReCiter yet — see the checkbox below."} placement="left" arrow>
-              <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13.5, color: CTRL.ink, padding: "4px 0", cursor: "pointer" }}>
-                <Checkbox size="small" checked={hideNoSuggestion}
-                  onChange={(e) => setHideNoSuggestion(e.target.checked)} style={{ padding: 0 }} />
-                <span style={{ flex: 1 }}>Rows with no suggested identity</span>
-                <span style={optCountStyle}>{hideCountsReady ? summary!.hidden!["noSuggestion"].toLocaleString() : "—"}</span>
-              </label>
-            </Tip>
-            <Tip title={"Hides rows proposing a person who has no ReCiter identity yet (the “No ReCiter identity” pill) — there is a proposal, just nothing in ReCiter to accept it into. The totals above reflect this filter when it's on."} placement="left" arrow>
-              <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13.5, color: CTRL.ink, padding: "4px 0", cursor: "pointer" }}>
-                <Checkbox size="small" checked={hideNoIdentity}
-                  onChange={(e) => setHideNoIdentity(e.target.checked)} style={{ padding: 0 }} />
-                <span style={{ flex: 1 }}>Rows with no ReCiter identity</span>
-                <span style={optCountStyle}>{hideCountsReady ? summary!.hidden!["noIdentity"].toLocaleString() : "—"}</span>
-              </label>
-            </Tip>
-          </div>
-          )}
-
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${CTRL.rule}`, paddingTop: 12 }}>
-            <button type="button" onClick={resetAll} style={{ ...linkBtn, color: CTRL.muted }}
-              title="Restore every filter to its default (sort is left alone)">Reset all</button>
-            <button type="button" onClick={() => setFiltersAnchor(null)} style={{ ...doneBtn, padding: "7px 16px" }}>Done</button>
-          </div>
-        </div>
-      </Popover>
-
-      {/* ---- canned reports popover -----------------------------------------------------
-          Same construction as the Filters popover's QUEUE list above — popPaper, listBtn, and
-          the 12px CTRL.soft note beneath each label — so this control needs no styling of its
-          own and looks native beside the ones it sits next to.
-
-          Two note lines per entry, not one: the first says what the report IS, the second says
-          which filters are in force. Stating the honoured/hidden split HERE, where the report is
-          chosen, is what stops it from being discovered afterwards by a curator wondering why a
-          control they set has no effect. */}
+      {/* ---- Reports (prototype markup ~741-753) ------------------------------------------
+          The two curator/model disagreement reports, each with a one-line note and its count,
+          and one shared footnote. The way back to the feed is "Close report" on the report
+          panel itself. The note says which filters a report honours, here where it is chosen,
+          so nobody has to discover afterwards why a control they set had no effect. */}
       <Popover open={!!reportAnchor} anchorEl={reportAnchor} onClose={() => setReportAnchor(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }} transformOrigin={{ vertical: "top", horizontal: "left" }}
-        PaperProps={{ style: { ...popPaper(376), padding: "16px 18px 14px" } }}>
-        <div style={{ ...popHead, marginBottom: 8 }}>CANNED REPORTS</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          {/* The way back to the feed, in the same menu the report was chosen from. It restores
-              the queue and every filter untouched — there is no state to put back, because
-              choosing a report never wrote any (see ReportView). */}
-          <button type="button" onClick={() => selectReport(null)}
-            style={{ ...listBtn(reportView === null), flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-            <span>Authorships feed</span>
-            <span style={reportNoteStyle}>The normal queue, with every filter exactly as you left it</span>
-          </button>
-          {REPORT_OPTIONS.map((r) => {
-            const n = r.count(summary);
-            return (
-              <button key={r.key} type="button" onClick={() => selectReport(r.key)}
-                style={{ ...listBtn(reportView === r.key), flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-                <span>
-                  {REPORT_LABEL[r.key]}
-                  {/* Fixed-width, so the count cannot reflow this row when the first summary
-                      response lands. summary is null on the first paint and these numbers
-                      arrive late; popping them in would shift the label they follow. */}
-                  <span style={reportCountStyle}>{n != null ? `(${n.toLocaleString()})` : " "}</span>
-                </span>
-                <span style={reportNoteStyle}>{r.note}</span>
-                <span style={reportNoteStyle}>{REPORT_FILTER_NOTE}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ ...helperStyle, borderTop: `1px solid ${CTRL.rule}`, marginTop: 11, paddingTop: 10 }}>
-          Where the curator and the model disagreed. These articles are already curated, so there
-          is nothing to accept or reject here — each person links to their curate page.
-          {/* Same control, different fact, and worth saying once: over the queue the date window
-              filters authorship_review.entrez_date (when ReCiter RETRIEVED the article); over a
-              report it filters person_article.publicationDateStandardized (when it was
-              PUBLISHED). A 2019 paper first retrieved last month is inside the queue's "Last 2
-              years" and outside the report's. */}
-          {" "}The date window here means the publication date, not the date ReCiter retrieved the
-          article as it does in the queue.
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}
+        PaperProps={{ style: { ...popoverPaper, width: 320, padding: 6, display: "flex", flexDirection: "column" } }}>
+        {REPORT_OPTIONS.map((r) => {
+          const n = r.count(summary);
+          return (
+            <button key={r.key} type="button" className={optionRowClass} onClick={() => selectReport(r.key)}
+              aria-current={reportView === r.key ? "true" : undefined}
+              style={{ font: "inherit", display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 10px", border: 0, borderRadius: 6, textAlign: "left", cursor: "pointer", color: "var(--pm-foreground)", background: reportView === r.key ? "var(--pm-slate-tint)" : "none" }}>
+              <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{REPORT_LABEL[r.key]}</span>
+                <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>{r.note}</span>
+              </span>
+              <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>
+                {n != null ? n.toLocaleString() : ""}
+              </span>
+            </button>
+          );
+        })}
+        {/* Over the queue the date window filters authorship_review.entrez_date (when ReCiter
+            RETRIEVED the article); over a report it filters the publication date. */}
+        <div style={{ borderTop: "1px solid var(--pm-border)", marginTop: 4, padding: "8px 10px 4px", fontSize: 11.5, color: "var(--pm-muted-foreground)", lineHeight: 1.45 }}>
+          {REPORT_FILTER_NOTE}. Here the date is the publication date, not the date ReCiter retrieved the article.
         </div>
       </Popover>
 
-      {/* ---- keyboard legend (§2.2, mockup:200-210) --------------------------------------
-          Transcribed from the HANDLER, not from the mockup's list: the mockup names J/K/Y/N/S/F,
-          but `f` is not implemented and `u`, `x` and Enter are. Documenting a shortcut that does
-          nothing is worse than omitting it, so the list below is exactly what the keydown
-          listener does, including the queue restrictions three of them carry. */}
+      {/* ---- keyboard legend (prototype markup ~765-775) -----------------------------------
+          Transcribed from the keydown handler (utils/authorshipChips KEY_LEGEND), in the
+          prototype's order, plus Enter, which this page also handles. */}
       <Popover open={!!keysAnchor} anchorEl={keysAnchor} onClose={() => setKeysAnchor(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}
-        PaperProps={{ style: { width: 250, maxWidth: "calc(100vw - 32px)", background: "#101c30", color: "#dbe2ee", borderRadius: 8, padding: "12px 14px", boxShadow: "0 12px 28px rgba(16,28,48,0.22)" } }}>
-        <div style={{ fontSize: 11, letterSpacing: ".1em", color: "#8b96aa", marginBottom: 9 }}>KEYBOARD</div>
+        PaperProps={{ style: { ...popoverPaper, width: 300, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 } }}>
+        <span style={{ fontSize: 13, fontWeight: 600, paddingBottom: 2, color: "var(--pm-foreground)" }}>Keyboard shortcuts</span>
         {KEY_LEGEND.map((k) => (
-          <div key={k.key} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "3px 0", fontSize: 13 }}>
-            <span style={{ minWidth: 22, textAlign: "center", border: "1px solid #3a4a66", borderRadius: 4, padding: "1px 0", fontSize: 12, flex: "none" }}>{k.key}</span>
-            <span>{k.label}</span>
+          <div key={k.key} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 12.5 }}>
+            <span style={{ minWidth: 52, fontFamily: "var(--font-mono)", fontSize: 11.5, fontWeight: 600, color: "var(--pm-foreground)" }}>{k.key}</span>
+            <span style={{ color: "var(--pm-muted-foreground)" }}>{k.label}</span>
           </div>
         ))}
-        <div style={{ fontSize: 11.5, color: "#8b96aa", marginTop: 9, lineHeight: 1.45 }}>
-          Inactive while a popover, menu or dialog is open, and while typing in a field.
-        </div>
+        <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", lineHeight: 1.45, borderTop: "1px solid var(--pm-border)", paddingTop: 6, marginTop: 2 }}>
+          Accept, reject and snooze work in the Open queue. Shortcuts pause while a list or dialog is open, or while you type.
+        </span>
       </Popover>
 
       {/* T4: "Assign selected (N) to…" picker — union of every candidate the selection
@@ -3852,6 +3629,7 @@ const AuthorshipsTabs = () => {
           error={reportError}
           expanded={expandedPeople}
           onToggle={toggleReportPerson}
+          onClose={() => selectReport(null)}
         />
       )}
 
@@ -3916,7 +3694,7 @@ const AuthorshipsTabs = () => {
             // Scopus/OpenAlex rows have no pmid; the server keys their siblings by external_id
             // (siblingKey), and the search box matches external_id, so narrow by that.
             onNarrowPmid={() => narrowToPmid(isExternalSource(r) ? r.external_id : r.pmid)}
-            onFindOthers={() => findOthersLikeThis(r.wcm_author)}
+            onFindOthers={() => findOthersLikeThis(r.wcm_author, (r.like_count ?? 0) + (isParkedView ? 0 : 1))}
             // §2.6 hover card: `undefined` means "not asked yet / still in flight", which the
             // card renders as a loading line. An answered cwid always has an entry.
             priorNamesByCwid={priorNames}
@@ -3975,7 +3753,7 @@ const AuthorshipsTabs = () => {
           </MenuItem>
         )}
         {menu && (menu.row.like_count ?? 0) > 0 && (
-          <MenuItem onClick={() => { findOthersLikeThis(menu.row.wcm_author); setMenu(null); }}>
+          <MenuItem onClick={() => { findOthersLikeThis(menu.row.wcm_author, (menu.row.like_count ?? 0) + (isParkedView ? 0 : 1)); setMenu(null); }}>
             Show {menu.row.like_count} other{menu.row.like_count === 1 ? "" : "s"} like this
           </MenuItem>
         )}
@@ -4015,13 +3793,20 @@ const AuthorshipsTabs = () => {
         })}
       </Menu>
 
-      {/* server-backed "Recent activity" — the 15 most-recently-resolved authorships across the
-          whole queue (global, cross-curator, cross-session; see authorshipRecentActivity).
-          Read-only lookback: resolved rows have no view left to jump to, so entries are
-          display-only, not clickable, unlike historyAnchor's jump-to-card entries above. */}
-      <Menu anchorEl={activityAnchor} open={!!activityAnchor} onClose={() => setActivityAnchor(null)}
-        PaperProps={{ style: { maxWidth: 420, maxHeight: 420 } }}>
-        {recentActivity.length === 0 && <MenuItem disabled>No recent activity</MenuItem>}
+      {/* server-backed "Recent activity" (prototype markup ~754-764) — the 15 most-recently-
+          resolved authorships across the whole queue (global, cross-curator, cross-session; see
+          authorshipRecentActivity). Read-only lookback with Undo: resolved rows have no view left
+          to jump to, so entries are not clickable. */}
+      <Popover open={!!activityAnchor} anchorEl={activityAnchor} onClose={() => setActivityAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}
+        PaperProps={{ style: { ...popoverPaper, width: 400, maxHeight: 440, overflow: "auto", display: "flex", flexDirection: "column" } }}>
+        <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--pm-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--pm-foreground)" }}>Recent activity</span>
+          <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>All curators</span>
+        </div>
+        {recentActivity.length === 0 && (
+          <div style={{ padding: "24px 14px", textAlign: "center", fontSize: 13, color: "var(--pm-muted-foreground)" }}>No recent activity</div>
+        )}
         {recentActivity.map((entry) => {
           const verb = STATUS_LABEL[entry.status || ""] || entry.status || "Resolved";
           const label = entry.title
@@ -4038,13 +3823,12 @@ const AuthorshipsTabs = () => {
             ? (entry.resolution_name || (entry.resolution_cwid === entry.top_cwid ? entry.top_name : undefined))
             : entry.top_name;
           return (
-            <MenuItem key={entry.id} dense disableRipple
-              style={{ whiteSpace: "normal", display: "block", padding: "8px 14px", cursor: "default" }}>
-              <div style={{ fontSize: 12.5, color: "#0f172a" }}>
-                <strong>{verb}</strong> — {label}
+            <div key={entry.id} style={{ padding: "10px 14px", borderBottom: "1px solid var(--pm-border)", display: "flex", flexDirection: "column", gap: 3 }}>
+              <div style={{ fontSize: 13, lineHeight: 1.4, color: "var(--pm-foreground)" }}>
+                <strong style={{ fontWeight: 600, color: /Rejected|Dismissed/.test(verb) ? "var(--pm-red)" : "var(--pm-foreground)" }}>{verb}</strong> · {label}
               </div>
               {(subjectName || subjectCwid) && (
-                <div style={{ fontSize: 11.5, color: "#475569", marginTop: 2 }}>
+                <div style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>
                   {subjectName || "—"}{" "}
                   {subjectCwid && (
                     <a href={`/curate/${subjectCwid}`} target="_blank" rel="noreferrer" style={{ color: "var(--pm-slate)", textDecoration: "none" }}>
@@ -4053,18 +3837,17 @@ const AuthorshipsTabs = () => {
                   )}
                 </div>
               )}
-              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2, display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--pm-muted-foreground)" }}>
                 <span>{entry.reviewer || "—"} · {formatActivityDate(entry.resolved_at)}</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); undoRecentActivity(entry); }}
-                  style={{ font: "inherit", marginLeft: "auto", background: "none", border: "none", color: "var(--pm-slate)", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}>
+                <button type="button" onClick={() => undoRecentActivity(entry)}
+                  style={{ font: "inherit", marginLeft: "auto", border: 0, background: "none", padding: 0, fontSize: 12, fontWeight: 600, color: "var(--pm-slate)", cursor: "pointer" }}>
                   Undo
                 </button>
               </div>
-            </MenuItem>
+            </div>
           );
         })}
-      </Menu>
+      </Popover>
     </div>
   );
 };
@@ -4099,12 +3882,47 @@ const CTRL = {
 // conflicts, amber for duplicate records, plain for Activity and the session conflict log.
 const alertPill = (kind: "red" | "amber" | "plain"): CSSProperties => ({
   font: "inherit",
-  display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 6, padding: "7px 12px",
-  fontSize: 13, cursor: "pointer", whiteSpace: "nowrap",
-  border: `1px solid ${kind === "red" ? "var(--pm-red-tint-border)" : kind === "amber" ? "var(--pm-amber-tint-border)" : CTRL.border}`,
+  display: "inline-flex", alignItems: "center", gap: 7, height: 32, boxSizing: "border-box", borderRadius: 6, padding: "0 12px",
+  fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap",
+  border: `1px solid ${kind === "red" ? "var(--pm-red-tint-border)" : kind === "amber" ? "var(--pm-amber-tint-border)" : "var(--pm-border-strong)"}`,
   background: kind === "red" ? "var(--pm-red-tint)" : kind === "amber" ? "var(--pm-amber-tint)" : "#fff",
-  color: kind === "red" ? "var(--pm-red)" : kind === "amber" ? "var(--pm-amber)" : "#4a5262",
+  color: kind === "red" ? "var(--pm-red)" : kind === "amber" ? "var(--pm-amber)" : "var(--pm-foreground)",
 });
+
+// The sort Select (UI system). Labels and order as in the prototype; values are the server's.
+const SORT_OPTIONS = [
+  { value: "io", label: "Highest Identity-Only Score" },
+  { value: "date", label: "Newest" },
+  { value: "date_asc", label: "Oldest" },
+  { value: "precision", label: "Best match" },
+  { value: "confidence", label: "Match confidence" },
+  { value: "fg", label: "Authorship Score" },
+  { value: "candidates", label: "Most candidates" },
+];
+// The prototype's sort list marks the current option with a check rather than a fill.
+const SORT_MENU_SX = {
+  py: 0.5,
+  "& .MuiMenuItem-root": { fontSize: 13.5, minHeight: 0, py: 0.75, mx: 0.5, borderRadius: "6px", gap: 1.5 },
+  "& .MuiMenuItem-root.Mui-selected, & .MuiMenuItem-root.Mui-selected:hover": { bgcolor: "var(--pm-surface-2)" },
+  "& .MuiMenuItem-root.Mui-selected::after": { content: '"✓"', ml: "auto", color: "var(--pm-muted-foreground)" },
+};
+// The sort Select's chevron: the thin stroked one the chips use, not MUI's solid triangle. MUI
+// hands it the className that positions it (MuiSelect-icon) and the open-state rotation.
+const SortChevron = ({ className }: { className?: string }) => (
+  <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"
+    style={{ position: "absolute", pointerEvents: "none" }}>
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+const HIDE_LABEL: Record<string, string> = { noSuggestion: "No suggested identity", noIdentity: "No ReCiter identity" };
+const chipEmptyStyle: CSSProperties = { fontSize: 13, color: "var(--pm-muted-foreground)", padding: "8px 10px" };
+const dateInputStyle: CSSProperties = {
+  font: "inherit", height: 32, boxSizing: "border-box", padding: "0 8px", border: "1px solid var(--pm-border-strong)",
+  borderRadius: 6, fontSize: 12.5, background: "#fff", color: "var(--pm-foreground)",
+};
+const fmtCount = (n?: number | null): string => (n == null ? "" : n.toLocaleString());
+const instLabel = (k: string): string => INSTITUTION_LABELS[k] || k;
 
 // source segment (prototype markup ~815): 28px tabs, 13px/500 in ink whether active or not;
 // the active one is white with a 1px shadow, not a border.
@@ -4120,76 +3938,6 @@ const segCount: CSSProperties = {
   fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums",
 };
 
-// the two dropdown buttons: border goes blue when the popover is open OR the filter is set, so
-// an active facet is visible without opening it (mockup:684-686, :695-696).
-const dropBtn = (active: boolean, open: boolean): CSSProperties => ({
-  display: "inline-flex", alignItems: "center", gap: 8, font: "inherit", fontSize: 13.5,
-  border: `1px solid ${open || active ? CTRL.accent : CTRL.border}`,
-  background: open ? CTRL.accentBg : "#fff", color: CTRL.ink,
-  borderRadius: 6, padding: "7px 11px", cursor: "pointer", whiteSpace: "nowrap",
-  maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis",
-});
-// A stroked chevron, so the two popover buttons match the native <select> arrow Chrome draws on
-// the sort control beside them. The old "▾" glyph rendered as a small solid triangle at a
-// font-dependent size, which read as a different kind of control sitting in the same row.
-const Caret = () => (
-  <svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true" focusable="false"
-    style={{ flexShrink: 0, marginLeft: 1 }}>
-    <path d="M1 1l4 4 4-4" fill="none" stroke={CTRL.soft} strokeWidth="1.5"
-      strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const countBadgeStyle: CSSProperties = {
-  minWidth: 19, textAlign: "center", fontSize: 12, fontVariantNumeric: "tabular-nums",
-  background: CTRL.accent, color: "#fff", borderRadius: 999, padding: "1px 6px",
-};
-
-const popPaper = (width: number): CSSProperties => ({
-  width, maxWidth: "calc(100vw - 32px)", border: `1px solid ${CTRL.border}`, borderRadius: 8,
-  boxShadow: "0 16px 40px rgba(27,36,50,0.16)", padding: "14px 14px 12px",
-});
-const popHead: CSSProperties = { fontSize: 11, letterSpacing: ".1em", color: CTRL.muted };
-const popHeadCount: CSSProperties = { color: "#9aa2b1", fontVariantNumeric: "tabular-nums" };
-const popHeadRow: CSSProperties = {
-  display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 6,
-};
-const linkBtn: CSSProperties = {
-  font: "inherit",
-  border: "none", background: "none", padding: 0, fontSize: 12.5, color: CTRL.accent,
-  cursor: "pointer",
-};
-const doneBtn: CSSProperties = {
-  font: "inherit",
-  border: `1px solid ${CTRL.accent}`, background: CTRL.accent, color: "#fff", borderRadius: 6,
-  padding: "6px 14px", fontSize: 13.5, cursor: "pointer",
-};
-// a checkbox row in a multiselect popover
-const optRow = (on: boolean): CSSProperties => ({
-  display: "flex", alignItems: "center", gap: 9, fontSize: 13.5, padding: "5px 7px",
-  borderRadius: 5, cursor: "pointer",
-  background: on ? CTRL.accentBg : "transparent", color: on ? CTRL.accentInk : "#3d4756",
-});
-const optCountStyle: CSSProperties = { fontSize: 12, color: "#8b93a2", fontVariantNumeric: "tabular-nums" };
-const emptyOptStyle: CSSProperties = { fontSize: 13, color: "#9aa2b1", padding: "5px 7px" };
-const helperStyle: CSSProperties = { fontSize: 12.5, color: CTRL.soft, marginTop: 5, lineHeight: 1.45 };
-// a single-select list row in the Filters popover (QUEUE, MATCH CLASS)
-const listBtn = (active: boolean): CSSProperties => ({
-  font: "inherit",
-  display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
-  border: "none", cursor: "pointer", borderRadius: 5, padding: "7px 9px", fontSize: 13.5,
-  background: active ? CTRL.accentBg : "transparent",
-  color: active ? CTRL.accentInk : "#3d4756",
-  fontWeight: active ? 600 : 400,
-});
-// the sub-label under a canned-report menu entry — QUEUE_OPTIONS' note treatment exactly
-const reportNoteStyle: CSSProperties = { fontSize: 12, fontWeight: 400, color: CTRL.soft };
-// …and the count that follows the label. A reserved width, unlike the QUEUE list's inline
-// count, because summary.reports arrives after the first paint: without it the numbers would
-// pop in and shove their own labels sideways as they landed.
-const reportCountStyle: CSSProperties = {
-  display: "inline-block", minWidth: 62, marginLeft: 6, fontVariantNumeric: "tabular-nums",
-};
-
 // the bulk bar's buttons (mockup:292-301): Accept is the only coloured one.
 const barBtn = (kind: "accept" | "plain"): CSSProperties => ({
   font: "inherit",
@@ -4197,28 +3945,6 @@ const barBtn = (kind: "accept" | "plain"): CSSProperties => ({
   background: kind === "accept" ? "var(--pm-slate-tint)" : "#fff",
   color: kind === "accept" ? "var(--pm-slate)" : CTRL.ink,
   borderRadius: 6, padding: "6px 13px", fontSize: 13.5, cursor: "pointer",
-});
-
-// The `?` legend (§2.2). Transcribed from the keydown handler in this file, not from the
-// mockup's fixture: the mockup lists J/K/Y/N/S/F, but `f` (open filters) is not implemented and
-// `u`, `x` and Enter are. Three of these only fire on the Open queue, which the handler enforces
-// and the labels therefore say.
-const KEY_LEGEND: Array<{ key: string; label: string }> = [
-  { key: "J", label: "Next row" },
-  { key: "K", label: "Previous row" },
-  { key: "Y", label: "Accept (single-candidate, Open queue)" },
-  { key: "N", label: "Reject (Open queue)" },
-  { key: "S", label: "Snooze (Open queue)" },
-  { key: "X", label: "Select / deselect the row" },
-  { key: "U", label: "Undo the last action" },
-  { key: "↵", label: "Open the record in a new tab" },
-];
-
-const pubChipStyle = (active: boolean): CSSProperties => ({
-  font: "inherit",
-  border: `1px solid ${active ? CTRL.chipBorder : CTRL.border}`, background: active ? CTRL.accentBg : "#fff",
-  color: active ? CTRL.accentInk : CTRL.muted, borderRadius: 999, padding: "3px 10px", fontSize: 12,
-  fontWeight: 600, cursor: "pointer",
 });
 
 // ---- the canned report panel ---------------------------------------------
@@ -4339,7 +4065,34 @@ const ReportPersonGroup = ({ group, view, open, onToggle }: {
   );
 };
 
-const CannedReportPanel = ({ view, response, loading, error, expanded, onToggle }: {
+const CannedReportPanel = ({ view, response, loading, error, expanded, onToggle, onClose }: {
+  view: ReportKey;
+  response: ReportResponse | null;
+  loading: boolean;
+  error: string;
+  expanded: Set<string>;
+  onToggle: (cwid: string) => void;
+  onClose: () => void;
+}) => (
+  // The prototype's report card: a grey header band naming the report, with "Close report" as
+  // the way back to the feed (the Reports menu now lists only the two reports).
+  <div style={{ background: "var(--pm-surface)", border: "1px solid var(--pm-border)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 16px", borderBottom: "1px solid var(--pm-border)", background: "var(--pm-surface-2)", borderRadius: "var(--radius-card) var(--radius-card) 0 0" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: "1 1 320px", minWidth: 0 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--pm-foreground)" }}>{REPORT_LABEL[view]}</span>
+        <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>
+          {REPORT_OPTIONS.find((r) => r.key === view)?.note} · grouped by person
+        </span>
+      </div>
+      <Button variant="ghost" size="sm" onClick={onClose}>Close report</Button>
+    </div>
+    <div style={{ padding: "12px 16px" }}>
+      <CannedReportBody view={view} response={response} loading={loading} error={error} expanded={expanded} onToggle={onToggle} />
+    </div>
+  </div>
+);
+
+const CannedReportBody = ({ view, response, loading, error, expanded, onToggle }: {
   view: ReportKey;
   response: ReportResponse | null;
   loading: boolean;

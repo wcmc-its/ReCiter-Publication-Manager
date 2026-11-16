@@ -294,6 +294,16 @@ h1:where(:not(.pm-page-title)) {
   color: var(--pm-foreground);
 }
 
+/* /authorships: rows in the filter-chip, Reports and Activity popovers. */
+.pm-auth-opt:hover,
+.pm-auth-opt:focus-visible {
+  background: var(--pm-surface-2) !important;
+}
+.pm-auth-opt:focus-visible {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: -2px;
+}
+
 .table {
   vertical-align: middle !important;
   border-radius: var(--radius-md);
