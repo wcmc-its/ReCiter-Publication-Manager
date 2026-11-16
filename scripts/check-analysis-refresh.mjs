@@ -8,15 +8,23 @@
  *   2. A write that lands while a run is in flight yields exactly one more run — not zero
  *      (the accept would be missed) and not one per write (the race this exists to prevent).
  *   3. Two uids never share a timer or an in-flight slot.
- *   4. A Cornell-only uid is never run.
+ *   4. A Cornell-only uid is run only once it has CORNELL_RECITER_MIN_PUBMED accepted PubMed
+ *      papers (the real rule from src/utils/cornellOnly.ts, with its lookups stubbed); a failed
+ *      knownPmids lookup keeps it blocked, a failed Cornell lookup runs as before.
  */
 
 import assert from "node:assert/strict";
 import { scheduleAnalysisRefresh, __test } from "../controllers/analysisRefresh.ts";
+import { reciterRunStatus, CORNELL_RECITER_MIN_PUBMED } from "../src/utils/cornellOnly.ts";
 
 const { timers, running, dirty, run, guard } = __test;
-const cornellOnly = new Set(["jma7"]);
-guard.isCornellOnly = async (uid) => cornellOnly.has(uid);
+// Cornell-only uids -> accepted PubMed count (null: the GoldStandard read fails). "flaky" makes
+// the Cornell lookup itself fail.
+const known = new Map([["jma7", 0], ["corn2", CORNELL_RECITER_MIN_PUBMED - 1], ["corn3", CORNELL_RECITER_MIN_PUBMED], ["cornErr", null]]);
+guard.blocked = async (uid) => (await reciterRunStatus(uid, {
+  isCornellOnly: async (u) => { if (u === "flaky") throw new Error("reciterdb down"); return known.has(u); },
+  knownPmidCount: async (u) => { const n = known.get(u); if (n === null) throw new Error("DynamoDB down"); return n; },
+})).blocked;
 const tick = () => new Promise((r) => setImmediate(r)); // the guard lookup is async
 
 // A fetch whose completion the test controls, so a "write mid-run" can be staged.
@@ -55,9 +63,19 @@ assert.equal(calls.length, 2, "and nothing further");
 assert.match(calls[0], /uid=abc1234&analysisRefreshFlag=true$/);
 assert.ok(!/retrievalRefreshFlag/.test(calls[0]), "never a PubMed refetch");
 
-// 4. Cornell-only: no ReCiter call, slot released
-await run("jma7");
-assert.equal(calls.length, 2, "Cornell-only uid is not run");
-assert.ok(!running.has("jma7"));
+// 4. Cornell-only below the threshold (or with an unreadable GoldStandard): no ReCiter call,
+//    slot released. At the threshold, and on a failed Cornell lookup, it runs.
+for (const uid of ["jma7", "corn2", "cornErr"]) {
+  await run(uid);
+  assert.equal(calls.length, 2, `${uid} is not run`);
+  assert.ok(!running.has(uid));
+}
+for (const [uid, n] of [["corn3", 3], ["flaky", 4]]) {
+  const p = run(uid);
+  await tick();
+  assert.equal(calls.length, n, `${uid} is run`);
+  assert.match(calls[n - 1], new RegExp(`uid=${uid}&`));
+  release(); await p;
+}
 
 console.log("ok — analysisRefresh debounce/coalesce");

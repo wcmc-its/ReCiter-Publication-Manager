@@ -148,3 +148,27 @@ export async function getKnownPmidsStrict(uid: string): Promise<Set<number>> {
   }
   return out
 }
+
+/**
+ * Both lists for one uid, in stored order, strongly consistent and NOT best-effort: it throws on
+ * any AWS error. For the no-run /curate page of a Cornell-only person (src/lib/cornellReciter.ts),
+ * whose Accepted and Rejected tabs are these lists. Consistent so a reload right after an accept
+ * shows it; strict so an outage is an error, not an empty record. No record -> two empty lists.
+ */
+export async function getGoldStandardStrict(uid: string): Promise<{ known: number[], rejected: number[] }> {
+  const resp = await getClient().send(new GetItemCommand({
+    TableName: TABLE,
+    Key: { uid: { S: uid } },
+    ProjectionExpression: 'knownpmids, rejectedpmids',
+    ConsistentRead: true,
+  }))
+  const list = (attr: any): number[] => {
+    const out: number[] = []
+    for (const entry of attr?.L ?? []) {
+      const n = Number(entry?.N)
+      if (entry?.N !== undefined && Number.isFinite(n) && !out.includes(n)) out.push(n)
+    }
+    return out
+  }
+  return { known: list(resp.Item?.knownpmids), rejected: list(resp.Item?.rejectedpmids) }
+}

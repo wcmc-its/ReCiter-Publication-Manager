@@ -2,6 +2,7 @@ import { reciterConfig } from '../config/local'
 import { NextApiRequest } from 'next'
 import dayjs from 'dayjs'
 import {getPublications} from './featuregenerator.controller';
+import { cornellReciterStatus, storedAssertions } from '../src/lib/cornellReciter';
 
 // Hardening follow-up to the 2026-09-01 stuck-spinner incident — neither upstream fetch
 // carried a timeout, so a hung PubMed tool (e.g. an NCBI connection reset with no upstream
@@ -19,6 +20,18 @@ function logPubmedFailure(hop: string, req: NextApiRequest, detail: string) {
     const strategyQuery = req.body && req.body['strategy-query']
     const personIdentifier = req.body && req.body.personIdentifier
     console.error(`[search/pubmed] ${hop} failed for query="${strategyQuery}" person=${personIdentifier}: ${detail}`)
+}
+
+// The Add tab's PubMed search leaves out papers the person has already accepted or rejected, and
+// reads those from their feature-generator result. For a Cornell-only person who isn't
+// ReCiter-eligible yet (src/utils/cornellOnly.ts) that call would run ReCiter on them
+// (getPublications has no guard of its own), so their GoldStandard stands in, in the same shape.
+async function curatedFor(req: NextApiRequest): Promise<any> {
+    const uid = String(req.body.personIdentifier || '')
+    if (!(await cornellReciterStatus(uid).catch(() => null))?.blocked) return getPublications(req.body.personIdentifier, req)
+    const features = await storedAssertions(uid).catch(() => [])
+    // undefined, not []: retrieveFirstNew100PubMedArticles returns nothing for an empty array.
+    return { statusCode: 200, statusText: { reciterData: { reCiterArticleFeatures: features.length ? features : undefined } } }
 }
 
 export async function searchPubmed(req: NextApiRequest)  {
@@ -58,7 +71,7 @@ export async function searchPubmed(req: NextApiRequest)  {
                     })
                     .then(async (res) => {
                         let data: any = await res.json()
-                        let featureGeneratorData = await getPublications(req.body.personIdentifier,req);
+                        let featureGeneratorData = await curatedFor(req);
                          let first100PubData = retrieveFirstNew100PubMedArticles(data,featureGeneratorData)
                         return {
                             statusCode: res.status,

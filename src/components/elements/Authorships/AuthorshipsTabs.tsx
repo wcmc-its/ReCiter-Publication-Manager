@@ -2782,8 +2782,8 @@ const AuthorshipsTabs = () => {
   // A saved view (see SAVED_VIEW_KEY) replaces the default here, in the same render that releases
   // datesReady, so the first list fetch is for the restored view — never default-then-restored.
   //
-  // /authorships?cwid=<uid> (Find People's link for a Cornell-only person, who has no /curate
-  // page) opens on that person instead: the free-text search on their cwid, widened like a like
+  // /authorships?cwid=<uid> (Find People's Authorships link for a Cornell-only person) opens on
+  // that person instead: the free-text search on their cwid, widened like a like
   // view so no default chip hides their rows, and the saved view left alone (personLink).
   useEffect(() => {
     const cwid = (new URLSearchParams(window.location.search).get("cwid") || "").trim();

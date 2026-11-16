@@ -116,9 +116,10 @@ test('peopleRowActions: Report only when the viewer cannot curate the row', () =
     assert.deepEqual(peopleRowActions({ cornellOnly: false, canCurate: false, canOpenAuthorships: true }), { primary: 'report', secondary: null })
 })
 
-test('peopleRowActions: Cornell-only rows get Authorships or nothing, never Curate or Report', () => {
-    assert.deepEqual(peopleRowActions({ cornellOnly: true, canCurate: true, canOpenAuthorships: true }), { primary: 'authorships', secondary: null })
-    assert.deepEqual(peopleRowActions({ cornellOnly: true, canCurate: true, canOpenAuthorships: false }), { primary: null, secondary: null })
+test('peopleRowActions: Cornell-only rows get Curate (when in scope) and Authorships, never Report', () => {
+    assert.deepEqual(peopleRowActions({ cornellOnly: true, canCurate: true, canOpenAuthorships: true }), { primary: 'curate', secondary: 'authorships' })
+    assert.deepEqual(peopleRowActions({ cornellOnly: true, canCurate: true, canOpenAuthorships: false }), { primary: 'curate', secondary: null })
+    assert.deepEqual(peopleRowActions({ cornellOnly: true, canCurate: false, canOpenAuthorships: true }), { primary: 'authorships', secondary: null })
     assert.deepEqual(peopleRowActions({ cornellOnly: true, canCurate: false, canOpenAuthorships: false }), { primary: null, secondary: null })
 })
 

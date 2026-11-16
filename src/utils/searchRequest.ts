@@ -73,14 +73,18 @@ export function reportHandoffCapped(searchFilters: Record<string, any> | null | 
 
 // Which buttons a Find People row shows, per the plan's row-action table. View profile is always
 // in the row's "⋯" menu. `canCurate` is Search.js's canCuratePerson for the row (role logic stays
-// there); `canOpenAuthorships` is Curator_All/Superuser. Cornell-only people have no /curate page
-// and are left out of the reports person picker (#1136), so they get Authorships or nothing.
+// there); `canOpenAuthorships` is Curator_All/Superuser. Cornell-only people have a /curate page
+// (built from the stores until ReCiter runs them) but are left out of the reports person picker
+// (#1136), so Authorships takes Report's place.
 export type PeopleRowAction = 'curate' | 'report' | 'authorships';
 export function peopleRowActions(opts: { cornellOnly: boolean; canCurate: boolean; canOpenAuthorships: boolean }): {
   primary: PeopleRowAction | null;
   secondary: PeopleRowAction | null;
 } {
-  if (opts.cornellOnly) return { primary: opts.canOpenAuthorships ? 'authorships' : null, secondary: null };
+  if (opts.cornellOnly) {
+    const authorships = opts.canOpenAuthorships ? 'authorships' : null;
+    return opts.canCurate ? { primary: 'curate', secondary: authorships } : { primary: authorships, secondary: null };
+  }
   if (opts.canCurate) return { primary: 'curate', secondary: 'report' };
   return { primary: 'report', secondary: null };
 }

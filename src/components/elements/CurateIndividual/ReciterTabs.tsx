@@ -21,12 +21,19 @@ import { reciterConfig } from "../../../../config/local";
 import { toReciterArticle } from "../../../utils/toReciterArticle";
 import { AddDeepLink } from "../../../utils/externalAddSearch";
 import { Button } from "../../ui";
+import { CORNELL_RECITER_MIN_PUBMED } from "../../../utils/cornellOnly";
 
 
-const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: incomingDeepLink = null, onAddDeepLinkConsumed }: { reciterData: any, fullName: string, fetchOriginalData: any, addDeepLink?: AddDeepLink | null, onAddDeepLinkConsumed?: () => void }) => {
+// noRun: a Cornell-only person not yet run through ReCiter (src/utils/cornellOnly.ts). reciterData
+// then holds only their GoldStandard papers, read from the stores, so there is no Suggested tab
+// and no re-run; Accepted, Rejected, All sources and Add work as for anyone.
+const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, noRun = false, addDeepLink: incomingDeepLink = null, onAddDeepLinkConsumed }: { reciterData: any, fullName: string, fetchOriginalData: any, noRun?: boolean, addDeepLink?: AddDeepLink | null, onAddDeepLinkConsumed?: () => void }) => {
   //default tab; a deep link (parsed by CurateIndividual) opens the PubMed add view (pmid) or
-  //All sources with the Add publication dialog searching the DOI (add=external)
-  const [key, setKey] = useState(incomingDeepLink?.pmid ? 'AddPub' : incomingDeepLink ? 'AllSources' : 'NULL');
+  //All sources with the Add publication dialog searching the DOI (add=external). Without
+  //Suggested, a no-run page opens on Accepted, or on All sources when it has no PubMed papers.
+  const [key, setKey] = useState(incomingDeepLink?.pmid ? 'AddPub' : incomingDeepLink ? 'AllSources'
+    : !noRun ? 'NULL'
+    : (reciterData?.reciter?.reCiterArticleFeatures || []).some((a: any) => a.userAssertion === 'ACCEPTED') ? 'ACCEPTED' : 'AllSources');
   const dispatch = useDispatch();
   const [filteredData, setFilteredData] = useState([])
   const [pubKey, setPubKey] = useState(false);
@@ -322,7 +329,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
   // CurateIndividual shows its "Loading publications…" skeleton; the tabs remount
   // with the new suggestions (and reset change tracking) on completion.
   const handleRefresh = () => {
-    if (reciterFetching) return;
+    if (reciterFetching || noRun) return;
     const uid = reciterData?.reciter?.personIdentifier;
     if (uid) dispatch(reciterFetchData(uid, true));
   };
@@ -391,7 +398,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
       {/* Custom tab bar */}
       <div className={styles.tabsBar} ref={barRef} data-compact={compact || undefined}>
         <span className={styles.tabGroupLabel}>PubMed</span>
-        {['NULL', 'ACCEPTED', 'REJECTED'].map((value) => {
+        {(noRun ? ['ACCEPTED', 'REJECTED'] : ['NULL', 'ACCEPTED', 'REJECTED']).map((value) => {
           const label = value === 'NULL' ? 'Suggested' : value === 'ACCEPTED' ? 'Accepted' : 'Rejected';
           return (
             <button
@@ -425,7 +432,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
         </button>
         <div className={styles.tabSpacer} />
         <div className={styles.tabBarActions}>
-          {netChangedCount > 0 && (
+          {!noRun && netChangedCount > 0 && (
             <button
               className={styles.refreshBtn}
               onClick={handleRefresh}
@@ -445,6 +452,12 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           )}
         </div>
       </div>
+
+      {noRun && (
+        <div className={styles.noRunNote}>
+          Suggestions start once {fullName || 'this person'} has {CORNELL_RECITER_MIN_PUBMED} accepted PubMed papers.
+        </div>
+      )}
 
       {/* Tab content */}
       {key === 'AddPub' ? (
@@ -492,7 +505,8 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, addDeepLink: in
           toolbarSlot={toolbarSlot}
           acceptedCount={getCount('ACCEPTED')}
           rejectedCount={getCount('REJECTED')}
-          onRefresh={handleRefresh}
+          onRefresh={noRun ? undefined : handleRefresh}
+          noSuggested={noRun}
         />
       ) : null}
       </div>
