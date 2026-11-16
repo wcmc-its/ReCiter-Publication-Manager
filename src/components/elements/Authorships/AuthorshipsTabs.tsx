@@ -25,6 +25,8 @@ import {
 import type { CandidateLite, TypedCwidLookupState } from "../../../lib/bulkAssign";
 import { externalSourceLabel, isExternalSource, openalexRecordUrl } from "../../../lib/externalSource";
 import type { AuthorshipSource } from "../../../lib/externalSource";
+import { curatorConflictMessage, matchIdText, matchWhereText, parseStoredConflict } from "../../../lib/acceptConflictMatches";
+import type { StoredConflict } from "../../../lib/acceptConflictMatches";
 import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } from "./CandidateEvidence";
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import {
@@ -105,6 +107,9 @@ interface AuthorshipRow {
   dup_flag?: boolean;
   dup_reason?: string;
   accept_conflict?: string;   // persisted ExternalArticleDupCheck 409 from a previous Accept
+  // What that 409 matched (ReCiterDB v3.12), as stored JSON; parseStoredConflict reads it. NULL
+  // for rows parked before the column existed and not yet backfilled.
+  accept_conflict_matches?: string | Record<string, any> | null;
   // Producer-flagged PubMed twin for a scopus row (ReCiterDB v2.7). 'title' = heuristic
   // unquoted title+surname PubMed search (row stays open for a curator); 'doi' = exact DOI
   // match (producer auto-dismisses these itself); 'scopus' = reserved. matched_pmid_verdict
@@ -130,6 +135,14 @@ interface DupMatch {
   journal?: string;
   pubYear?: string;
 }
+
+// The persisted matches of a parked Accept (accept_conflict_matches), in the shape the conflict
+// prompt lists, so a refresh or another curator sees what the check matched, not just that it did.
+const storedDupMatches = (r: { accept_conflict_matches?: unknown }): DupMatch[] =>
+  (parseStoredConflict(r.accept_conflict_matches) as StoredConflict | null)?.matches.map((m) => ({
+    type: m.type ?? undefined, matchedId: matchIdText(m) || undefined, detail: m.detail ?? undefined,
+    title: m.title ?? undefined, journal: m.journal ?? undefined, pubYear: m.pubYear ?? undefined,
+  })) ?? [];
 
 // A duplicate-conflict prompt for one row: rendered inline on that row's own card (never a
 // global toast — a fixed-position Snackbar can drift over an unrelated card while the
@@ -3548,7 +3561,7 @@ const AuthorshipsTabs = () => {
             // persisted on the row, so a refresh (or a different curator) still sees why.
             conflict={conflicts[r.id] ?? (r.accept_conflict ? {
               kind: "dup" as const,
-              id: r.id, action: "accept", message: r.accept_conflict, matches: [],
+              id: r.id, action: "accept", message: r.accept_conflict, matches: storedDupMatches(r),
               wcm_author: r.wcm_author, top_name: r.top_name, ts: 0,
             } : undefined)}
             onClearConflict={() => clearConflict(r.id)}
@@ -3891,7 +3904,7 @@ const AuthorshipsTabs = () => {
                   {stillActive ? "unresolved" : "resolved/cleared"}
                 </span>
               </div>
-              <div style={{ fontSize: 12, color: "#475569", marginTop: 2 }}>{entry.message}</div>
+              <div style={{ fontSize: 12, color: "#475569", marginTop: 2 }}>{curatorConflictMessage(entry.message)}</div>
               <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
                 {new Date(entry.ts).toLocaleTimeString()}
               </div>
@@ -4742,7 +4755,7 @@ const ConflictPrompt = ({ conflict, fallbackAuthor, onAction, onClear, margin }:
             : "Possible duplicate"}
       {" — "}{conflict.wcm_author || conflict.top_name || fallbackAuthor}
     </div>
-    <div style={{ marginBottom: 6 }}>{conflict.message}</div>
+    <div style={{ marginBottom: 6 }}>{conflict.kind === "dup" ? curatorConflictMessage(conflict.message) : conflict.message}</div>
     {conflict.matches.length > 0 && (
       <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
         {conflict.matches.map((m, i) => (
@@ -5550,16 +5563,77 @@ const dupRecBox: CSSProperties = {
   padding: "10px 12px", borderRadius: 8, border: "1px solid var(--pm-border)", background: "var(--pm-page)",
   display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, minWidth: 0,
 };
+const dupSrcBadge: CSSProperties = { height: 20, padding: "0 6px", display: "inline-flex", alignItems: "center", borderRadius: 4, background: "var(--pm-slate-tint)", color: "var(--pm-slate)", fontSize: 11, fontWeight: 600, letterSpacing: "0.03em", flexShrink: 0 };
+const dupIdText: CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--pm-muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const DupRecord = ({ src, id, author, line }: { src: string; id: string; author?: string; line?: string }) => (
   <div style={dupRecBox}>
     <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
-      <span style={{ height: 20, padding: "0 6px", display: "inline-flex", alignItems: "center", borderRadius: 4, background: "var(--pm-slate-tint)", color: "var(--pm-slate)", fontSize: 11, fontWeight: 600, letterSpacing: "0.03em", flexShrink: 0 }}>{src}</span>
-      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--pm-muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{id}</span>
+      <span style={dupSrcBadge}>{src}</span>
+      <span style={dupIdText}>{id}</span>
     </div>
     {author && <span style={{ fontWeight: 600 }}>{author}</span>}
     {line && <span style={{ color: "var(--pm-muted-foreground)", lineHeight: 1.45 }}>{line}</span>}
   </div>
 );
+
+// The "Existing record" side of a pair parked by a dup-check 409 on Accept: what the check matched
+// (accept_conflict_matches), not its message, which names an API flag and nothing a curator can
+// act on. Rows parked before the column existed, and not backfilled yet, get a plain sentence.
+const PARKED_MATCHES_SHOWN = 3;
+const ParkedConflictRecord = ({ row: r }: { row: AuthorshipRow }) => {
+  const stored = parseStoredConflict(r.accept_conflict_matches);
+  const who = stored?.name || (stored?.uid && stored.uid === r.top_cwid ? r.top_name : stored?.uid) || r.top_name || r.top_cwid;
+  if (!stored) {
+    return (
+      <div style={dupRecBox} data-parked-conflict="none">
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={dupSrcBadge}>Existing record</span>
+        </div>
+        <span style={{ color: "var(--pm-muted-foreground)", lineHeight: 1.45 }}>
+          The duplicate check flagged a possible match already in {who ? `${who}'s` : "this person's"} record or PubMed
+          candidates, but which one was not saved. Compare on their{" "}
+          {r.top_cwid
+            ? <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer" style={{ color: "var(--pm-slate)" }}>curation page</a>
+            : "curation page"} before deciding.
+        </span>
+      </div>
+    );
+  }
+  const shown = stored.matches.slice(0, PARKED_MATCHES_SHOWN);
+  const more = stored.matches.length - shown.length;
+  return (
+    <div style={{ ...dupRecBox, gap: 10 }} data-parked-conflict={stored.matches.length}>
+      {shown.map((m, i) => {
+        const idText = matchIdText(m);
+        const doiText = m.doi && m.idLabel !== "DOI" ? `DOI ${m.doi}` : "";
+        return (
+          <div key={i} data-parked-match style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, ...(i ? { paddingTop: 10, borderTop: "1px solid var(--pm-border)" } : {}) }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+              <span style={dupSrcBadge}>{m.source}</span>
+              {idText && (
+                m.idLabel === "PMID"
+                  ? <a href={`https://pubmed.ncbi.nlm.nih.gov/${m.id}/`} target="_blank" rel="noreferrer" style={{ ...dupIdText, color: "var(--pm-slate)", textDecoration: "none" }}>{idText}</a>
+                  : <span style={dupIdText}>{idText}</span>
+              )}
+            </div>
+            {doiText && <span style={{ ...dupIdText, fontSize: 11.5 }}>{doiText}</span>}
+            {m.title
+              ? <span style={{ fontWeight: 600, lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(m.title) }} />
+              : <span style={{ color: "var(--pm-muted-foreground)" }}>Title not recorded</span>}
+            {(m.journal || m.pubYear) && (
+              <span style={{ color: "var(--pm-muted-foreground)" }}>
+                {m.journal && <em dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(m.journal) }} />}
+                {m.journal && m.pubYear ? " · " : ""}{m.pubYear}
+              </span>
+            )}
+            <span style={{ color: "var(--pm-muted-foreground)", fontSize: 12 }}>{matchWhereText(m, who)}</span>
+          </div>
+        );
+      })}
+      {more > 0 && <span style={{ color: "var(--pm-muted-foreground)", fontSize: 12 }}>and {more} more possible match{more === 1 ? "" : "es"}</span>}
+    </div>
+  );
+};
 
 // The PubMed side of a twin pair comes from the read-only counterpart route, fetched per pair.
 const useCounterpart = (id: number, enabled: boolean) => {
@@ -5649,7 +5723,7 @@ const DupPair = ({ row: r, acting, onAction, conflict, onClearConflict }: {
               line={cp.status === "loading" ? "Loading the PubMed record…" : "The PubMed record could not be fetched."} />
           )
         ) : (
-          <DupRecord src="Existing record" id="" line={r.accept_conflict || undefined} />
+          <ParkedConflictRecord row={r} />
         )}
         <DupRecord src={srcLabel} id={extId} author={r.wcm_author || undefined} line={r.author_affiliation || undefined} />
       </div>

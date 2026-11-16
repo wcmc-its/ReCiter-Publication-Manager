@@ -47,6 +47,7 @@ export interface DupMatch {
   journal: string | null
   pubYear: string | null
   recordId?: number | null // external_record.id of the matched row, when there is one
+  doi?: string | null // the matched record's DOI, when it has one (shown in the Authorships duplicates queue)
   rejectedBy?: string | null // REJECTION_MEMORY only
   rejectedAt?: string | null
   reason?: 'REJECTED' | 'REMOVED' // REJECTION_MEMORY only
@@ -148,7 +149,7 @@ export function checkExternalDup(c: DupCandidate, ctx: DupContext): DupResult {
   for (const e of ctx.existing || []) {
     const live = (LIVE_STATUSES as readonly string[]).includes(e.status)
     const merged = MERGED.includes(e.status)
-    const base = { title: e.title ?? null, journal: e.container_title ?? null, pubYear: yearOf(e.pub_date), recordId: e.id }
+    const base = { title: e.title ?? null, journal: e.container_title ?? null, pubYear: yearOf(e.pub_date), recordId: e.id, doi: e.doi ?? null }
     const from = sourceName(e.source_type)
     if (e.article_id === c.article_id) {
       // Rejected/removed: rejection memory speaks for it (below); the store revives the row.
@@ -190,7 +191,7 @@ export function checkExternalDup(c: DupCandidate, ctx: DupContext): DupResult {
 
   for (const a of ctx.candidates || []) {
     const year = yearOf(a.publicationDateStandardized) || (a.articleYear ? String(a.articleYear) : null)
-    const base = { matchedId: String(a.pmid), title: a.articleTitle ?? null, journal: a.journalTitleVerbose ?? null, pubYear: year }
+    const base = { matchedId: String(a.pmid), title: a.articleTitle ?? null, journal: a.journalTitleVerbose ?? null, pubYear: year, doi: a.doi ?? null }
     if (pmid && Number(a.pmid) === pmid) {
       blocked.push({ type: 'PMID_IN_CANDIDATES', ...base, detail: "This PMID exists in the person's PubMed candidate set; adjudicate it via normal feedback instead." })
     } else if (doi && doi === normDoi(a.doi)) {
