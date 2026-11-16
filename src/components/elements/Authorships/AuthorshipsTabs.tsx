@@ -1600,6 +1600,10 @@ const AuthorshipsTabs = () => {
   const [assignLookupCwid, setAssignLookupCwid] = useState<string | null>(null);
   // PR 5: the "Someone else" box's one-line answer ("3 people match …"), shown in the popover.
   const [assignErr, setAssignErr] = useState("");
+  // Bumped whenever the popover opens or closes, so a lookup still in flight from a popover the
+  // curator has since closed lands nowhere. Without it a late answer set assignConfirm with the
+  // popover shut, and overlayOpen then held every row shortcut off until it was reopened.
+  const assignSeqRef = useRef(0);
   const [assignConfirm, setAssignConfirm] = useState<{
     cwid: string; name?: string | null; hasIdentity: boolean;
     onCandidate: AuthorshipRow[]; offCandidate: AuthorshipRow[];
@@ -2420,6 +2424,7 @@ const AuthorshipsTabs = () => {
   });
 
   const openAssignPicker = useCallback((anchor: HTMLElement) => {
+    assignSeqRef.current += 1;
     setAssignOtherCwid("");
     setAssignErr("");
     setAssignConfirm(null);
@@ -2428,6 +2433,7 @@ const AuthorshipsTabs = () => {
   // The popover holds the list, the lookup and the confirm step (PR 5), so closing it drops all
   // three. A lookup already in flight still lands, but with the popover shut it shows nothing.
   const closeAssignPicker = useCallback(() => {
+    assignSeqRef.current += 1;
     setAssignMenuAnchor(null);
     setAssignConfirm(null);
     setAssignErr("");
@@ -2446,6 +2452,7 @@ const AuthorshipsTabs = () => {
   const chooseAssignTarget = useCallback((rawCwid: string) => {
     const typed = rawCwid.trim();
     if (!typed) return;
+    const seq = assignSeqRef.current;
     setAssignErr("");
     setAssignLookupCwid(typed);
     fetch("/api/db/authorships/lookup", {
@@ -2457,11 +2464,12 @@ const AuthorshipsTabs = () => {
         return r.json();
       })
       .then((d) => {
+        if (assignSeqRef.current !== seq) return;
         const cwid = String(d.cwid || typed);
         const { onCandidate, offCandidate } = partitionForAssign(selectedRows, rowCandidateLites, cwid);
         setAssignConfirm({ cwid, name: d.name ?? null, hasIdentity: !!d.hasIdentity, onCandidate, offCandidate });
       })
-      .catch((e) => setAssignErr(`Couldn't look up ${typed}. ${plainReason(e)}`))
+      .catch((e) => { if (assignSeqRef.current === seq) setAssignErr(`Couldn't look up ${typed}. ${plainReason(e)}`); })
       .finally(() => setAssignLookupCwid(null));
   }, [selectedRows]);
 
@@ -2473,6 +2481,7 @@ const AuthorshipsTabs = () => {
     const q = assignOtherCwid.trim();
     if (!q || assignLookupCwid) return;
     if (looksLikeCwid(q)) { chooseAssignTarget(q); return; }
+    const seq = assignSeqRef.current;
     setAssignErr("");
     setAssignLookupCwid(q);
     fetch("/api/db/authorships/lookup", {
@@ -2486,6 +2495,7 @@ const AuthorshipsTabs = () => {
       .then((d) => {
         const hits: any[] = (Array.isArray(d?.matches) ? d.matches : []).filter((m: any) => !m.retiredCwid);
         setAssignLookupCwid(null);
+        if (assignSeqRef.current !== seq) return;
         if (hits.length === 1) {
           const m = hits[0];
           chooseAssignTarget(m.wcmCwidHasIdentity && m.wcmCwid ? String(m.wcmCwid) : String(m.id));
@@ -2493,7 +2503,7 @@ const AuthorshipsTabs = () => {
           setAssignErr(hits.length ? `${hits.length} people match “${q}”. Enter a CWID.` : `Nobody in the directory matches “${q}”.`);
         }
       })
-      .catch((e) => { setAssignLookupCwid(null); setAssignErr(`Couldn't search for ${q}. ${plainReason(e)}`); });
+      .catch((e) => { setAssignLookupCwid(null); if (assignSeqRef.current === seq) setAssignErr(`Couldn't search for ${q}. ${plainReason(e)}`); });
   }, [assignOtherCwid, assignLookupCwid, chooseAssignTarget]);
 
   // F5 for assign: mirrors doBulkAccept's chunking/allSettled shape, same doActionAsync call,
