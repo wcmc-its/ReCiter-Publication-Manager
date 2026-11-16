@@ -38,6 +38,7 @@ export interface AuthorshipReviewAttributes {
   dup_flag?: boolean;
   dup_reason?: string;
   accept_conflict?: string;
+  accept_conflict_matches?: string | null;
   // Producer-flagged PubMed twin for a scopus review row (ReCiterDB v2.7). 'title' = heuristic
   // unquoted title+surname PubMed search (row stays open for a curator); 'doi' = exact DOI match
   // (producer auto-dismisses these itself); 'scopus' = reserved. matched_pmid_verdict is written
@@ -60,7 +61,7 @@ export interface AuthorshipReviewAttributes {
 
 export type AuthorshipReviewPk = "id";
 export type AuthorshipReviewId = AuthorshipReview[AuthorshipReviewPk];
-export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "authors_json" | "dup_flag" | "dup_reason" | "accept_conflict" | "matched_pmid" | "matched_pmid_source" | "matched_pmid_at" | "matched_pmid_verdict" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
+export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "authors_json" | "dup_flag" | "dup_reason" | "accept_conflict" | "accept_conflict_matches" | "matched_pmid" | "matched_pmid_source" | "matched_pmid_at" | "matched_pmid_verdict" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
 export type AuthorshipReviewCreationAttributes = Optional<AuthorshipReviewAttributes, AuthorshipReviewOptionalAttributes>;
 
 export class AuthorshipReview extends Model<AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes> implements AuthorshipReviewAttributes {
@@ -97,6 +98,7 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
   dup_flag?: boolean;
   dup_reason?: string;
   accept_conflict?: string;
+  accept_conflict_matches?: string | null;
   matched_pmid?: number;
   matched_pmid_source?: 'scopus' | 'doi' | 'title';
   matched_pmid_at?: Date;
@@ -149,6 +151,9 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
       // WARNING). Distinct from dup_flag/dup_reason, which are the AAR producer's exact-DOI
       // precheck: different mechanism, different provenance, and the producer refreshes those.
       accept_conflict: { type: DataTypes.STRING(500), allowNull: true },
+      // ReCiterDB v3.12: what that 409 matched, as JSON (src/lib/acceptConflictMatches.ts). MariaDB's
+      // JSON is LONGTEXT, so it reads back as a string; written as a string too. NULL = nothing kept.
+      accept_conflict_matches: { type: DataTypes.TEXT({ length: 'long' }), allowNull: true },
       matched_pmid: { type: DataTypes.BIGINT, allowNull: true },
       matched_pmid_source: { type: DataTypes.ENUM('scopus', 'doi', 'title'), allowNull: true },
       matched_pmid_at: { type: DataTypes.DATE, allowNull: true },

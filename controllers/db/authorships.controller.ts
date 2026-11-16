@@ -16,6 +16,7 @@ import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assi
 import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
 import { externalSourceLabel, isExternalSource, openalexWorkId } from "../../src/lib/externalSource";
+import { storedConflictJson } from "../../src/lib/acceptConflictMatches";
 import {
   lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured, cornellFallback,
   affiliationDeptMatch,
@@ -34,7 +35,7 @@ const LIST_ATTRIBUTES = [
   "top_cwid", "top_name", "top_person_type", "top_dept",
   "top_fg_score", "top_io_score", "top_confidence", "top_cohort_size",
   "top_given_match", "top_affil_match", "n_candidates", "single_candidate",
-  "candidate_cwids_json", "authors_json", "dup_flag", "dup_reason", "accept_conflict",
+  "candidate_cwids_json", "authors_json", "dup_flag", "dup_reason", "accept_conflict", "accept_conflict_matches",
   "matched_pmid", "matched_pmid_source", "matched_pmid_at", "matched_pmid_verdict",
   "status", "snooze_until", "reviewer", "resolved_at",
 ];
@@ -2687,6 +2688,18 @@ function dupConflict(body: any): { blocked: boolean; message: string; matches: a
   };
 }
 
+// The columns that park an Accept in the "Duplicate records" queue: the check's message, and what
+// it matched (source, id, title, journal, year, whose record), so the queue can show the curator
+// the record this one supposedly duplicates. Needs ReCiterDB v3.12 (accept_conflict_matches).
+// The matches are overwritten with the latest 409's, like the message; a 409 with no matches
+// leaves the column NULL, and the queue then says plainly that nothing was kept.
+function parkedConflict(row: any, uid: string, dup: ReturnType<typeof dupConflict>) {
+  return {
+    accept_conflict: String(dup.message).slice(0, 500),
+    accept_conflict_matches: storedConflictJson(uid, row.top_name, "accept", dup.matches),
+  };
+}
+
 // Full byline from authors_json ([{given,surname}, ...], every author on the document) as
 // "Given Surname" strings — undefined if the field is empty/absent, unparseable, or parses
 // to a non-array/empty array, so the ExternalArticle payload just omits `authors` rather
@@ -2937,7 +2950,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           const out = await storeExternalAccept(cwid, row, reviewer, force, { status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() });
           if (out.kind === "warning") {
             // As the Java path below: the WARNING leaves the open queue for "Possible duplicates".
-            await models.AuthorshipReview.update({ accept_conflict: String(out.dup.message).slice(0, 500) }, { where: { id } });
+            await models.AuthorshipReview.update(parkedConflict(row, cwid, out.dup), { where: { id } });
             return res.status(409).json({ message: out.dup.message, matches: out.dup.matches });
           }
           break;
@@ -2952,8 +2965,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
               // duplicates" view instead of sitting back in the feed to be re-attempted.
               // Session-scoped conflictLog state already showed this to the curator who hit
               // it; the column is what survives a refresh, another curator, and a bulk run.
-              await models.AuthorshipReview.update(
-                { accept_conflict: String(dup.message).slice(0, 500) }, { where: { id } });
+              await models.AuthorshipReview.update(parkedConflict(row, cwid, dup), { where: { id } });
               return res.status(409).json({ message: dup.message, matches: dup.matches });
             }
           } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
