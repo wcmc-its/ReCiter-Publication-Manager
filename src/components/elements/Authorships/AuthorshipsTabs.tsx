@@ -4,11 +4,11 @@ import Tooltip from "@mui/material/Tooltip";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Popover from "@mui/material/Popover";
-import Snackbar from "@mui/material/Snackbar";
-import Alert from "@mui/material/Alert";
 import Checkbox from "@mui/material/Checkbox";
 import { toast } from "react-toastify";
 import { showUndoToast } from "../ToastHost/ToastHost";
+import { Input } from "../../ui";
+import { actionErrorToast, actionToast, plainReason } from "../../../utils/authorshipMessages";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
 import {
@@ -402,17 +402,25 @@ const INSTITUTION_LABELS: Record<string, string> = {
 };
 
 const CLASS_META: Record<string, { label: string; color: string; hint: string }> = {
-  buried: { label: "Buried", color: "#b42318", hint: "Production buried it (Authorship Score < 30)" },
-  absent: { label: "Never retrieved", color: "#8a5a00", hint: "Production never scored this person" },
+  buried: { label: "Buried", color: "var(--pm-red)", hint: "Production buried it (Authorship Score < 30)" },
+  absent: { label: "Never retrieved", color: "var(--pm-amber)", hint: "Production never scored this person" },
   suggested: { label: "Suggested", color: "#475467", hint: "Already in a curator's pending queue (Authorship Score ≥ 30)" },
-  assigned: { label: "Assigned", color: "#067647", hint: "Accepted by a WCM person" },
+  assigned: { label: "Assigned", color: "var(--pm-slate)", hint: "Accepted by a WCM person" },
 };
 
-const ACTION_LABEL: Record<string, string> = {
-  accept: "Accepted", reject: "Rejected", snooze: "Snoozed for 90 days", dismiss: "Dismissed", assign: "Assigned",
+// Every /authorships message, errors included, goes through the app's one toast host (the dark
+// pill at bottom centre), worded as plain sentences by utils/authorshipMessages. Errors stay up a
+// little longer than the 5s default because they usually carry a reason worth reading.
+const showError = (message: string) => { toast.error(message, { autoClose: 8000 }); };
+
+// The identity an accept or assign lands on, for the toast's "→ Name". Falls back to the cwid.
+const targetNameOf = (row: AuthorshipRow, action: string, cwid?: string): string | null => {
+  if (action === "accept") return row.top_name || row.top_cwid || null;
+  if (action !== "assign" || !cwid) return null;
+  return rowCandidateLites(row).find((c) => c.cwid === cwid)?.name || cwid;
 };
 
-// row STATUS -> display verb for the "Recent activity" panel. Distinct from ACTION_LABEL above
+// row STATUS -> display verb for the "Recent activity" panel. Distinct from actionToast's verbs
 // (action verbs the curator clicked, e.g. "accept") — these are the terminal values persisted
 // in authorship_review.status once resolved_at is set (never "open"/"snoozed" here).
 const STATUS_LABEL: Record<string, string> = {
@@ -745,7 +753,7 @@ const buildSummaryBody = (f: AuthorshipFilters) => {
 };
 
 // Active-filter chips (HANDOFF §2.4). A transcription of the mockup's chipsFor (mockup:607-624),
-// including its two quirks: the source segment is never a chip, and the search box IS one.
+// except that neither the source segment nor the search box is a chip.
 // `patch` is what removing the chip writes back — a plain object rather than a closure, so the
 // rule set stays pure and testable. `preset` accompanies the date chip, whose removal has to go
 // through applyDatePreset (it recomputes dateFrom/dateTo) rather than a direct patch.
@@ -783,7 +791,8 @@ const filterChips = (f: AuthorshipFilters, datePreset: string): FilterChip[] => 
     out.push({ id: "date", label: `Date: ${DATE_PRESET_LABEL[datePreset] || datePreset}`, patch: {}, preset: DEFAULT_DATE_PRESET });
   if (f.hideNoSuggestion) out.push({ id: "hideNoSuggestion", label: "Hiding no suggested identity", patch: { hideNoSuggestion: false } });
   if (f.hideNoIdentity) out.push({ id: "hideNoIdentity", label: "Hiding no ReCiter identity", patch: { hideNoIdentity: false } });
-  if (f.search.trim()) out.push({ id: "search", label: `“${f.search.trim()}”`, patch: { search: "" } });
+  // The search box is NOT a chip (the prototype's chipsFor never listed it): the box itself
+  // shows what is typed, and a chip repeating it only crowded the row. "Reset all" still clears it.
   // likeAuthor ("Show N others like this") has no counterpart in the mockup, which never saw
   // the filter. It used to render its own dismissible "Like: …" pill beside the search box;
   // phase 3 folds it in here, because the row's whole promise (§2.2 point 2) is that the
@@ -857,14 +866,14 @@ const highlightAffiliation = (text?: string): ReactNode => {
   return (
     <>
       {before}
-      <mark style={{ background: "#f0fdf4", color: "#15803d", padding: "0 3px", borderRadius: 3, fontWeight: 600 }}>{matched}</mark>
+      <mark style={{ background: "var(--pm-slate-tint)", color: "var(--pm-slate)", padding: "0 3px", borderRadius: 3, fontWeight: 600 }}>{matched}</mark>
       {after}
     </>
   );
 };
 
 // IO color band (F2): >=90 green, 50-89 amber, <50 muted grey
-const ioColor = (v?: number) => (v == null ? "#94a3b8" : v >= 90 ? "#15803d" : v >= 50 ? "#b45309" : "#94a3b8");
+const ioColor = (v?: number) => (v == null ? "#94a3b8" : v >= 90 ? "var(--pm-slate)" : v >= 50 ? "var(--pm-amber)" : "#94a3b8");
 const fmtScore = (v?: number) => (v == null ? "—" : Number.isInteger(v) ? String(v) : v.toFixed(1));
 // confidence band (F10): >=0.8 High, 0.5-0.79 Medium, <0.5 Low
 const confBand = (c?: number) => (c == null ? "—" : c >= 0.8 ? "High" : c >= 0.5 ? "Medium" : "Low");
@@ -978,9 +987,9 @@ const btn = (variant: "accept" | "reject" | "soft" | "ghost", disabled?: boolean
     font: "inherit", fontSize: 13, fontWeight: 600, cursor: disabled ? "default" : "pointer",
     border: "1px solid transparent", whiteSpace: "nowrap", opacity: disabled ? 0.5 : 1,
   };
-  if (variant === "accept") return { ...base, background: "#16a34a", color: "#fff" };
-  if (variant === "reject") return { ...base, background: "#fff", color: "#b91c1c", borderColor: "#fecaca" };
-  if (variant === "soft") return { ...base, background: "#f0fdf4", color: "#15803d", borderColor: "#bbf7d0" };
+  if (variant === "accept") return { ...base, background: "var(--pm-slate)", color: "#fff" };
+  if (variant === "reject") return { ...base, background: "#fff", color: "var(--pm-red)", borderColor: "var(--pm-red-tint-border)" };
+  if (variant === "soft") return { ...base, background: "var(--pm-slate-tint)", color: "var(--pm-slate)", borderColor: "var(--pm-slate-tint-border)" };
   return { ...base, background: "#fff", color: "#475569", borderColor: "#dde3ea" };
 };
 const iconBtn = (disabled?: boolean): CSSProperties => ({
@@ -991,8 +1000,8 @@ const iconBtn = (disabled?: boolean): CSSProperties => ({
 // signal chips (F7)
 const Chip = ({ kind, children, style }: { kind: "ok" | "warn" | "neutral"; children: ReactNode; style?: CSSProperties }) => {
   const styles: Record<string, CSSProperties> = {
-    ok: { background: "#f0fdf4", color: "#15803d", borderColor: "transparent" },
-    warn: { background: "#fffbeb", color: "#b45309", borderColor: "transparent" },
+    ok: { background: "var(--pm-slate-tint)", color: "var(--pm-slate)", borderColor: "transparent" },
+    warn: { background: "var(--pm-amber-tint)", color: "var(--pm-amber)", borderColor: "transparent" },
     neutral: { background: "#fff", color: "#475569", borderColor: "#dde3ea" },
   };
   return (
@@ -1019,7 +1028,7 @@ const nameSourceBadge = (c?: { name_source?: string; name_n?: number }) => {
 
 const outLinkStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 600,
-  color: "#2563eb", textDecoration: "none",
+  color: "var(--pm-slate)", textDecoration: "none",
 };
 
 // N-line ellipsis clamp. A one-line clamp on a shared line is the worst of both worlds —
@@ -1046,7 +1055,7 @@ const PmidCite = ({ pmid }: { pmid: number }) => {
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
       <a href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noreferrer"
         onClick={(e) => e.stopPropagation()}
-        style={{ color: "#2563eb", textDecoration: "none", fontVariantNumeric: "tabular-nums" }}>
+        style={{ color: "var(--pm-slate)", textDecoration: "none", fontVariantNumeric: "tabular-nums" }}>
         PMID {pmid}
       </a>
       <button
@@ -1059,7 +1068,7 @@ const PmidCite = ({ pmid }: { pmid: number }) => {
         style={{
           display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22,
           border: "1px solid #e6e1d9", background: "#fff", borderRadius: 4, padding: 0, cursor: "pointer",
-          color: copied ? "#146c39" : "#6f7889", flex: "none" }}>
+          color: copied ? "var(--pm-slate)" : "#6f7889", flex: "none" }}>
         {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
       </button>
     </span>
@@ -1072,11 +1081,11 @@ const scopusRecordUrl = (externalId?: string) =>
 
 const scopusBadgeStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", fontSize: 10.5, fontWeight: 700, letterSpacing: ".04em",
-  padding: "2px 7px", borderRadius: 5, background: "#eef2ff", color: "#4338ca", textTransform: "uppercase",
+  padding: "2px 7px", borderRadius: 5, background: "var(--pm-slate-tint)", color: "var(--pm-slate)", textTransform: "uppercase",
 };
 const notInPubmedPillStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "2px 8px",
-  borderRadius: 20, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", whiteSpace: "nowrap",
+  borderRadius: 20, background: "var(--pm-amber-tint)", color: "var(--pm-amber)", border: "1px solid var(--pm-amber-tint-border)", whiteSpace: "nowrap",
 };
 // replaces the Accept button when the proposed identity has no ReCiter Identity record
 const noIdentityPillStyle: CSSProperties = {
@@ -1087,7 +1096,7 @@ const noIdentityPillStyle: CSSProperties = {
 // replaces the Accept button when the proposed identity already rejected this exact pmid
 const alreadyRejectedPillStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "5px 10px",
-  borderRadius: 20, background: "#fef2f2", color: "#b42318", border: "1px solid #fecaca", whiteSpace: "nowrap",
+  borderRadius: 20, background: "var(--pm-red-tint)", color: "var(--pm-red)", border: "1px solid var(--pm-red-tint-border)", whiteSpace: "nowrap",
   cursor: "help",
 };
 
@@ -1308,7 +1317,7 @@ const IdentityHoverCard = ({ subject, priorNames, byline }: {
             <span style={{ fontSize: 12.5, color: "#4a5262", fontVariantNumeric: "tabular-nums", marginBottom: 3 }}>{recordLine(priorNames.counts)}</span>
           )}
           {bylineMiss && (
-            <span style={{ fontSize: 12.5, color: "#b45309", marginBottom: 3 }}>This byline (“{byline}”) isn’t one of the names on their accepted papers.</span>
+            <span style={{ fontSize: 12.5, color: "var(--pm-amber)", marginBottom: 3 }}>This byline (“{byline}”) isn’t one of the names on their accepted papers.</span>
           )}
           {!priorNames ? (
             <span style={{ fontSize: 13, color: "#6f7889" }}>Loading…</span>
@@ -1607,7 +1616,9 @@ const AuthorshipsTabs = () => {
   const [menu, setMenu] = useState<{ anchor: HTMLElement; row: AuthorshipRow } | null>(null);
   // F4: undo holds a BATCH of rows (single-row actions push a 1-element batch)
   const [undo, setUndo] = useState<{ rows: AuthorshipRow[]; label: string } | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string>("");
+  // The list request failed (HTTP error or network). Shown in the list card with a Retry instead
+  // of the empty state, which would claim nothing matches. Cleared by the next good response.
+  const [listError, setListError] = useState(false);
   // selection (bulk) — T4: single-candidate accept-eligible rows AND (now) open, non-scopus
   // multi-candidate rows (see isBulkSelectable) — the latter for bulk-ASSIGN only.
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -1740,18 +1751,29 @@ const AuthorshipsTabs = () => {
     fetch("/api/db/authorships", {
       credentials: "same-origin", method: "POST", headers: apiHeaders, body,
     })
-      .then((r) => r.json())
+      // A 500 (e.g. the RDS pool out of connections) still has a JSON-ish body; reading it as a
+      // list showed "No authorships match these filters" for a list that never loaded.
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => {
         if (myId !== seqRef.current) return; // superseded by a newer request — drop this response
         if (body !== liveListBody.current) {         // filters moved on while this was in flight
           refetchLatest.current?.(true);              // ...and re-run, or nothing ever lands
           return;
         }
+        setListError(false);
         // never show a row whose removal is still in flight (race protection, same as topUp)
         setRows((d.rows || []).filter((row: AuthorshipRow) => !pendingRemoved.current.has(row.id)));
         setCount(d.count || 0);
       })
-      .catch((e) => console.error("[authorships]", e))
+      .catch((e) => {
+        // warn, not error: the failure is handled on the page, and Next's dev overlay would
+        // otherwise cover the very Retry button that handles it.
+        console.warn("[authorships] list request failed:", String(e?.message || e));
+        if (myId !== seqRef.current) return;
+        // A silent refetch (after an action) keeps the rows on screen; it only says so.
+        if (silent) showError("Couldn't refresh the list. What you see may be out of date.");
+        else { setListError(true); setRows([]); setCount(0); }
+      })
       .finally(() => { if (!silent) setLoading(false); });
   }, [listBody]);
   useEffect(() => { refetchLatest.current = fetchData; }, [fetchData]);
@@ -1770,7 +1792,9 @@ const AuthorshipsTabs = () => {
     fetch("/api/db/authorships", {
       credentials: "same-origin", method: "POST", headers: apiHeaders, body,
     })
-      .then((r) => r.json())
+      // An error body is not an empty page: without this check a failed refill zeroed the count
+      // and stepped back a page. Failing quietly leaves the rows on screen as they are.
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => {
         if (myId !== seqRef.current) return; // a newer fetch/topUp started — don't merge stale rows
         if (body !== liveListBody.current) {         // filters moved on — this refill is for a dead view
@@ -1788,7 +1812,7 @@ const AuthorshipsTabs = () => {
           return [...current, ...additions].slice(0, pageSize);
         });
       })
-      .catch((e) => console.error("[authorships]", e));
+      .catch((e) => console.warn("[authorships] refill failed:", String(e?.message || e)));
   }, [listBody, page, pageSize]);
 
   // DERIVED from the filter object, never hand-listed — the same rule filterBody follows, and
@@ -2047,7 +2071,7 @@ const AuthorshipsTabs = () => {
         fetchData(true);
         fetchSummary();
       })
-      .catch((e) => setErrorMsg(`Couldn't undo "${entry.title || entry.wcm_author || entry.id}" — ${String(e?.message || e)}`));
+      .catch((e) => showError(`Couldn't undo ${entry.wcm_author || entry.title || `row ${entry.id}`}. ${plainReason(e)}`));
   }, [fetchRecentActivity, fetchData, fetchSummary]);
 
   // live-filter: debounce the search box so the queue narrows as you type (no Enter needed)
@@ -2174,7 +2198,9 @@ const AuthorshipsTabs = () => {
         // reopen has nothing meaningful to undo (it's already the undo of a resolution);
         // verdict ("Different papers") sets matched_pmid_verdict, not a status a Snackbar
         // undo could sensibly reverse either — suppress the toast for both.
-        if (action !== "reopen" && action !== "verdict") setUndo({ rows: [row], label: ACTION_LABEL[action] || "Done" });
+        if (action !== "reopen" && action !== "verdict") {
+          setUndo({ rows: [row], label: actionToast(action, [row], targetNameOf(row, action, extra?.cwid)) });
+        }
         topUp();      // refill so the next pending authorship slides into the freed slot
         fetchSummary();
         fetchRecentActivity();
@@ -2213,8 +2239,8 @@ const AuthorshipsTabs = () => {
         }
         // e.local (the #938 backstop above) rejects before the optimistic remove ever runs, so
         // unlike every other rejection here the row never left the list — say so accurately.
-        else if (e?.local) setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}`);
-        else setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}. The row is back in the list — nothing was saved.`);
+        else if (e?.local) showError(actionErrorToast(action, row, e, { rowRestored: false }));
+        else showError(actionErrorToast(action, row, e));
         // silent: this is the dupe/no-identity/off-candidate/error recovery path — put the row
         // back in place (React reconciles by key) without the loading-gate flash that used to
         // unmount the whole card list and throw the reader's scroll position to the top.
@@ -2254,7 +2280,7 @@ const AuthorshipsTabs = () => {
       .then((results) => {
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
-        if (ok.length > 0) setUndo({ rows: ok, label: `Accepted ${ok.length}` });
+        if (ok.length > 0) setUndo({ rows: ok, label: actionToast("accept", ok, ok.length === 1 ? targetNameOf(ok[0], "accept") : null) });
         // success: silently refill the queue to the next batch ("accept 20 → next 20").
         // failure: refresh to restore the optimistically-removed rows (silently -- see below),
         // with the failures broken down by cause so the same rows don't fail opaquely forever.
@@ -2266,7 +2292,7 @@ const AuthorshipsTabs = () => {
           if (dups) parts.push(`${dups} possible duplicate${dups > 1 ? "s" : ""} — moved to Possible duplicates`);
           if (noId) parts.push(`${noId} with no ReCiter identity`);
           if (other) parts.push(`${other} failed`);
-          setErrorMsg(`${failures.length} of ${batch.length} accepts skipped: ${parts.join("; ")} — refreshing`);
+          showError(`Skipped ${failures.length} of ${batch.length} accepts: ${parts.join("; ")}. Refreshing the list.`);
           // silent — a partial bulk-accept failure is still "acted on rows in place", not a
           // navigation event; the curator is mid-review of this same page.
           fetchData(true);
@@ -2305,7 +2331,7 @@ const AuthorshipsTabs = () => {
       .then((results) => {
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
-        if (ok.length > 0) setUndo({ rows: ok, label: `Rejected ${ok.length}` });
+        if (ok.length > 0) setUndo({ rows: ok, label: actionToast("reject", ok) });
         if (failures.length) {
           const { noProposal, writeFailed, other } = bucketRejectFailures(
             failures.map((f) => (f.reason as any) || {}));
@@ -2313,7 +2339,7 @@ const AuthorshipsTabs = () => {
           if (noProposal) parts.push(`${noProposal} had nothing to reject`);
           if (writeFailed) parts.push(`${writeFailed} failed to write`);
           if (other) parts.push(`${other} failed`);
-          setErrorMsg(`Rejected ${ok.length} of ${batch.length} selected: ${parts.join("; ")} — refreshing`);
+          showError(`Rejected ${ok.length} of ${batch.length} selected: ${parts.join("; ")}. Refreshing the list.`);
           // silent — same as doBulkAccept/doBulkAssign: still mid-review of this same page.
           fetchData(true);
         }
@@ -2354,9 +2380,9 @@ const AuthorshipsTabs = () => {
       .then((results) => {
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
-        if (ok.length > 0) setUndo({ rows: ok, label: `${done} ${ok.length}` });
+        if (ok.length > 0) setUndo({ rows: ok, label: actionToast(action, ok) });
         if (failures.length) {
-          setErrorMsg(`${done} ${ok.length} of ${batch.length} selected; ${failures.length} failed — refreshing`);
+          showError(`${done} ${ok.length} of ${batch.length} selected; ${failures.length} failed. Refreshing the list.`);
           // silent — same as every other bulk path: still mid-review of this same page.
           fetchData(true);
         }
@@ -2416,7 +2442,7 @@ const AuthorshipsTabs = () => {
         const { onCandidate, offCandidate } = partitionForAssign(selectedRows, rowCandidateLites, cwid);
         setAssignConfirm({ cwid, name: d.name ?? null, hasIdentity: !!d.hasIdentity, onCandidate, offCandidate });
       })
-      .catch((e) => setErrorMsg(`Couldn't look up "${typed}" — ${String(e?.message || e)}`))
+      .catch((e) => showError(`Couldn't look up ${typed}. ${plainReason(e)}`))
       .finally(() => setAssignLookupCwid(null));
   }, [selectedRows]);
 
@@ -2455,7 +2481,7 @@ const AuthorshipsTabs = () => {
       .then((results) => {
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
-        if (ok.length > 0) setUndo({ rows: ok, label: `Assigned ${ok.length}` });
+        if (ok.length > 0) setUndo({ rows: ok, label: actionToast("assign", ok, assignConfirm?.name || cwid) });
         const parts: string[] = [];
         if (failures.length) {
           const { offCandidate: offC, noIdentity, conflict409, other } = bucketAssignFailures(
@@ -2465,7 +2491,7 @@ const AuthorshipsTabs = () => {
           if (conflict409) parts.push(`${conflict409} conflict${conflict409 > 1 ? "s" : ""}`);
           if (other) parts.push(`${other} failed`);
         }
-        if (parts.length) setErrorMsg(`Assigned ${ok.length} of ${batch.length} selected to ${cwid}: ${parts.join("; ")}`);
+        if (parts.length) showError(`Assigned ${ok.length} of ${batch.length} selected to ${cwid}: ${parts.join("; ")}.`);
         // success: silently refill the queue, same as doBulkAccept. failure: refresh so
         // the optimistically-removed-then-failed rows come back — silent, still mid-review.
         if (failures.length) fetchData(true);
@@ -2492,9 +2518,9 @@ const AuthorshipsTabs = () => {
         const matched: AuthorshipRow[] = d.rows || [];
         setAllMatching(matched);
         setSelected(new Set(matched.map((r) => r.id)));
-        if (d.capped) setErrorMsg(`Selected the first ${d.cap.toLocaleString()} matching rows — narrow the filters to reach the rest.`);
+        if (d.capped) showError(`Selected the first ${d.cap.toLocaleString()} matching rows — narrow the filters to reach the rest.`);
       })
-      .catch((e) => setErrorMsg(`Couldn't select all matching — ${String(e?.message || e)}`))
+      .catch((e) => showError(`Couldn't select all matching rows. ${plainReason(e)}`))
       .finally(() => setSelectingAll(false));
   }, [filterBody]);
 
@@ -2509,7 +2535,7 @@ const AuthorshipsTabs = () => {
         body: JSON.stringify({ id: row.id, action: "reopen" }),
       }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
     )).then((results) => {
-      if (results.some((r) => r.status === "rejected")) setErrorMsg("Undo failed for one or more rows");
+      if (results.some((r) => r.status === "rejected")) showError("Undo failed for one or more rows.");
       // silent — undo restores rows in place, same as the action-catch path above.
     }).finally(() => { fetchData(true); fetchSummary(); fetchRecentActivity(); });
   }, [undo, fetchData, fetchSummary, fetchRecentActivity]);
@@ -2746,9 +2772,9 @@ const AuthorshipsTabs = () => {
       const toggleSelect = toggleSelectRef.current;
       if (k === "y") {
         if (row.single_candidate && statusView === "open") {
-          if (row.identity_in_reciter === false) setErrorMsg(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
+          if (row.identity_in_reciter === false) showError(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Dismiss it instead.`);
           else doAction?.(row, "accept");
-        } else setErrorMsg("Use Pick one ▾ to assign a multi-candidate authorship");
+        } else showError("Use Pick one ▾ to assign an authorship with several candidates.");
         e.preventDefault();
       }
       else if (k === "n") { if (statusView === "open") doAction?.(row, "reject"); e.preventDefault(); }
@@ -2796,7 +2822,6 @@ const AuthorshipsTabs = () => {
     if (chip.id === "like") { clearLikeAuthor(); return; }
     if (Object.keys(chip.patch).length > 0) patchFilters(chip.patch);
     if (chip.preset) applyDatePreset(chip.preset);
-    if (chip.id === "search") setSearchInput("");
   };
   // The MATCH CLASS entry currently in force. Compared by (lane, classification), never by
   // label — "All unassigned" and "All classes" are the same state, and only the first is ever
@@ -2894,14 +2919,9 @@ const AuthorshipsTabs = () => {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginBottom: 14 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 7, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-            {/* §2.1 asks for 30px/600, which an inline style cannot deliver here: globals.css
-                pins `h1 { font-size:28px !important; font-weight:500 !important; color:#1a2133
-                !important }` app-wide, and an !important rule beats a non-important inline one.
-                The title therefore keeps the app's house heading — 28px/500, and it already
-                carries the -0.02em tracking the canvas asks for. What IS overridable is the
-                global's `padding-bottom:10px`, which is dead space now that the count line sits
-                directly beneath. */}
-            <h1 style={{ margin: 0, paddingBottom: 0 }}>Authorships</h1>
+            {/* .pm-page-title opts out of the global h1 rule (globals.css), whose !important
+                weight/size/colour used to beat the prototype's serif 30px/600 title. */}
+            <h1 className="pm-page-title">Authorships</h1>
             <button type="button" onClick={() => setAboutOpen((v) => !v)} aria-expanded={aboutOpen}
               style={{ font: "inherit", border: "none", background: "none", padding: 0, fontSize: 13, color: CTRL.accent, cursor: "pointer" }}>
               What am I looking at?
@@ -2912,7 +2932,7 @@ const AuthorshipsTabs = () => {
               custom window names its own bounds. summary is null until the first response, so
               the line holds its height with a non-breaking space instead of appearing late and
               pushing the control band down. */}
-          <div style={{ fontSize: 13.5, color: CTRL.muted }}>
+          <div style={{ fontSize: 14, color: CTRL.muted }}>
             {summary ? (
               <>
                 <strong style={{ color: CTRL.ink, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
@@ -2960,7 +2980,7 @@ const AuthorshipsTabs = () => {
           {(summary?.conflicts ?? 0) > 0 && (
             <Tip title="Two CWIDs assigned to one authorship — the same byline position on this paper is already accepted by a different WCM identity. Opens the Identity conflicts queue." placement="bottom" arrow>
               <button type="button" onClick={() => { selectReport(null); setStatusView("conflicts"); }} style={alertPill("red")}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#b1483c", display: "block", flex: "none" }} />
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--pm-red)", display: "block", flex: "none" }} />
                 {(summary?.conflicts ?? 0).toLocaleString()} identity conflict{summary?.conflicts === 1 ? "" : "s"}
               </button>
             </Tip>
@@ -2968,7 +2988,7 @@ const AuthorshipsTabs = () => {
           {(summary?.duplicates ?? 0) > 0 && (
             <Tip title="Same publication retrieved from PubMed and Scopus. Opens the Duplicate records queue." placement="bottom" arrow>
               <button type="button" onClick={() => { selectReport(null); setStatusView("duplicates"); }} style={alertPill("amber")}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c07f11", display: "block", flex: "none" }} />
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--pm-amber)", display: "block", flex: "none" }} />
                 {(summary?.duplicates ?? 0).toLocaleString()} duplicate record{summary?.duplicates === 1 ? "" : "s"}
               </button>
             </Tip>
@@ -3017,22 +3037,20 @@ const AuthorshipsTabs = () => {
         <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 12px 10px 14px", borderBottom: `1px solid ${CTRL.rule}`, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
 
-            {/* 1. source segment (mockup:112-116). Selecting a source behaves exactly as it did.
-                   The per-lane counts moved off the labels and into the tooltips each segment
-                   already had: at 13.5px they cost ~190px of a row whose whole purpose is to fit
-                   on one line (measured — with them the row needs a 1,220px content width, without
-                   them ~1,030px, and the common 1440px laptop with the sidebar expanded gives
-                   1,140px). §2.2 names the labels as bare `All` / `PubMed` / `Scopus`. */}
+            {/* 1. source segment (prototype markup ~813). Each tab carries its lane's count in
+                   this queue ("All 15 · PubMed 6 …"), muted and tabular, as the prototype does.
+                   The count is left off until the summary lands, so nothing shows a false 0. */}
             {/* Hidden while a canned report is up, not disabled: a greyed control still reads
                 as "this exists and is off". `source` is authorship_review's producer lane
                 (pubmed vs the Scopus AF-ID sweep); person_article has no counterpart, so the
                 report cannot honour it. The curator's choice is kept and comes straight back. */}
             {!reportView && (
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 2, background: CTRL.track, borderRadius: 7, padding: 3 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", background: "var(--pm-surface-2)", border: "1px solid var(--pm-border)", borderRadius: 8, padding: 3 }}>
               {([["all", "All"], ["pubmed", "PubMed"], ["scopus", "Scopus"], ["openalex", "OpenAlex"]] as const).map(([key, label]) => {
-                const n = key === "all"
-                  ? (summary?.bySource ? Object.values(summary.bySource).reduce((a, b) => a + b, 0) : undefined)
-                  : summary?.bySource?.[key];
+                // A lane missing from bySource has no rows: 0, once the summary has answered.
+                const n = !summary?.bySource ? undefined
+                  : key === "all" ? Object.values(summary.bySource).reduce((a, b) => a + b, 0)
+                    : summary.bySource[key] ?? 0;
                 // OpenAlex is always shown (UI refresh 4a), even with 0 rows: an empty lane reads
                 // as "nothing found there", a missing one as "never searched".
                 const what = key === "scopus" ? "WCM authorships found in Scopus but NOT in PubMed (no production score)"
@@ -3040,7 +3058,10 @@ const AuthorshipsTabs = () => {
                   : key === "pubmed" ? "Authorships from PubMed" : "All sources";
                 return (
                   <Tip key={key} title={n != null ? `${what} — ${n.toLocaleString()} in this queue` : what} placement="top" arrow>
-                    <button onClick={() => setSource(key)} style={segBtn(source === key)}>{label}</button>
+                    <button onClick={() => setSource(key)} style={segBtn(source === key)} aria-pressed={source === key}>
+                      {label}
+                      {n != null && <span style={segCount}>{n.toLocaleString()}</span>}
+                    </button>
                   </Tip>
                 );
               })}
@@ -3080,9 +3101,11 @@ const AuthorshipsTabs = () => {
             <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}>
               {/* bound to searchInput, NOT search: the box debounces (300 ms) into the filter, so
                   binding it to the filter would fight the debounce on every keystroke. */}
-              <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Name, CWID, PMID, or affiliation" aria-label="Filter by name, CWID, PMID, or affiliation"
-                style={{ font: "inherit", width: 160, border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 11px", fontSize: 13.5, color: CTRL.ink, background: "#fff" }} />
+              {/* 260px, as in the prototype, so the whole placeholder shows. */}
+              <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} type="search"
+                placeholder="Name, CWID, PMID, or affiliation"
+                inputProps={{ "aria-label": "Filter by name, CWID, PMID, or affiliation" }}
+                sx={{ width: 260, maxWidth: "100%", height: 32, fontSize: 14, borderRadius: "8px", "& .MuiOutlinedInput-input": { py: 0, px: 1.25 } }} />
             </form>
             {/* §2.2 uses the mockup's wording where it maps onto a sort the server actually
                 supports (SORTS in authorships.controller.ts: precision/confidence/io/fg/date).
@@ -3172,7 +3195,7 @@ const AuthorshipsTabs = () => {
               <button key={chip.id} type="button" onClick={() => removeChip(chip)}
                 aria-label={`Remove filter ${chip.label}`} title="Remove this filter"
                 style={{ font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, border: `1px solid ${CTRL.chipBorder}`, background: CTRL.accentBg, color: CTRL.accentInk, borderRadius: 999, padding: "4px 8px 4px 11px", fontSize: 13, cursor: "pointer" }}>
-                {chip.label}<span style={{ color: "#6f8cbe", fontSize: 14, lineHeight: 1 }}>×</span>
+                {chip.label}<span style={{ color: "var(--pm-slate)", fontSize: 14, lineHeight: 1 }}>×</span>
               </button>
             ))}
             {/* Clear still resets EVERY filter, the hidden ones included, so while a report is
@@ -3199,7 +3222,7 @@ const AuthorshipsTabs = () => {
             panel carries its own "N rows across M people" instead. */}
         {!reportView && (
         <>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, rowGap: 8, flexWrap: "wrap", padding: "9px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: hasSelection ? "#f3f7fd" : "#fff" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, rowGap: 8, flexWrap: "wrap", padding: "9px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: hasSelection ? "var(--pm-slate-tint)" : "#fff" }}>
           {statusView === "open" && (
             <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign/reject, multi-candidate rows and single-candidate no-ReCiter-identity rows for bulk assign/reject" placement="top" arrow>
               <label style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: 13.5, color: eligibleRows.length === 0 ? "#9aa2b1" : "#4a5262", cursor: eligibleRows.length === 0 ? "default" : "pointer" }}>
@@ -3279,9 +3302,11 @@ const AuthorshipsTabs = () => {
             {likeAuthor.trim() && (
               <button type="button" onClick={clearLikeAuthor} style={{ ...linkBtn, fontSize: 13 }}>← Back to previous filters</button>
             )}
+            {!listError && (
             <span style={{ fontSize: 13, color: CTRL.soft, fontVariantNumeric: "tabular-nums" }}>
               Showing {rows.length.toLocaleString()} of {count.toLocaleString()}
             </span>
+            )}
             {!hasSelection && statusView === "open" && (
               <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only (bounded blast radius)" placement="top" arrow>
                 <span>
@@ -3632,7 +3657,7 @@ const AuthorshipsTabs = () => {
                   {bands.map((b) => (
                     <span key={b.label} style={{ color: ioColor(b.min === -Infinity ? 0 : b.min), fontWeight: 600 }}>{b.n} {b.label}</span>
                   ))}
-                  {miss > 0 && <span style={{ color: "#b45309" }}>· not a candidate on {miss}</span>}
+                  {miss > 0 && <span style={{ color: "var(--pm-amber)" }}>· not a candidate on {miss}</span>}
                 </div>
               );
             })()}
@@ -3721,13 +3746,13 @@ const AuthorshipsTabs = () => {
               );
             })()}
             {!assignConfirm.hasIdentity ? (
-              <div style={{ fontSize: 12.5, color: "#b45309", marginBottom: 12, lineHeight: 1.45 }}>
+              <div style={{ fontSize: 12.5, color: "var(--pm-amber)", marginBottom: 12, lineHeight: 1.45 }}>
                 {assignConfirm.cwid} has no ReCiter identity. Confirming records your decision on each row
                 only — it will NOT be added to the person’s publication record, because there is no
                 identity to add it to.
               </div>
             ) : !assignConfirm.name ? (
-              <div style={{ fontSize: 12.5, color: "#b45309", marginBottom: 12, lineHeight: 1.45 }}>
+              <div style={{ fontSize: 12.5, color: "var(--pm-amber)", marginBottom: 12, lineHeight: 1.45 }}>
                 No name on file anywhere for {assignConfirm.cwid} — check the identifier.
               </div>
             ) : null}
@@ -3786,7 +3811,7 @@ const AuthorshipsTabs = () => {
                     </div>
                   )}
                   {noIdentityCount > 0 && (
-                    <div style={{ fontSize: 12.5, color: "#b45309", marginBottom: 10, lineHeight: 1.45 }}>
+                    <div style={{ fontSize: 12.5, color: "var(--pm-amber)", marginBottom: 10, lineHeight: 1.45 }}>
                       {noIdentityCount} propose someone with no ReCiter identity. The rejection is still
                       written against that identifier and applies to their profile once ReCiter has an
                       identity for them.
@@ -3843,7 +3868,19 @@ const AuthorshipsTabs = () => {
             The queue refills when the batch finishes — keep this tab open.
           </div>
         )}
-        {!loading && rows.length === 0 && !bulkProgress && (
+        {/* A failed list request is not an empty result: say so, in the card, with a Retry. */}
+        {!loading && listError && (
+          <div role="alert" style={{ padding: "40px 24px", textAlign: "center", background: "var(--pm-surface)", border: "1px solid var(--pm-border)", borderRadius: "var(--radius-card)" }}>
+            <div style={{ fontFamily: "var(--font-display-serif)", fontSize: 20, fontWeight: 600, color: "var(--pm-foreground)", marginBottom: 6 }}>
+              Couldn&rsquo;t load authorships
+            </div>
+            <div style={{ fontSize: 13.5, color: "var(--pm-muted-foreground)", marginBottom: 14 }}>
+              The server didn&rsquo;t answer. Your filters are kept; try again in a moment.
+            </div>
+            <button type="button" onClick={() => fetchData()} style={btn("ghost")}>Retry</button>
+          </div>
+        )}
+        {!loading && !listError && rows.length === 0 && !bulkProgress && (
           <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>No authorships match these filters.</div>
         )}
         {!loading && rows.map((r) => (
@@ -3899,7 +3936,7 @@ const AuthorshipsTabs = () => {
 
       {/* pagination — the feed's, so it goes with the feed. A report is capped, not paged, and
           a like view is the whole pile on one page (LIKE_PILE_CAP), so it has nothing to page. */}
-      {!reportView && !likeAuthor.trim() && (
+      {!reportView && !likeAuthor.trim() && !listError && (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 18, color: "#475569", fontSize: 13 }}>
         <span style={{ fontVariantNumeric: "tabular-nums" }}>{count.toLocaleString()} authorships · page {page + 1} of {totalPages}</span>
         <span style={{ display: "flex", gap: 8 }}>
@@ -3924,7 +3961,7 @@ const AuthorshipsTabs = () => {
           hidden entirely (proactive) once there's nobody else to gather. */}
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
         {menu && !menu.row.single_candidate && (
-          <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "#b91c1c" }}>
+          <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "var(--pm-red)" }}>
             <IconX size={14} style={{ marginRight: 8 }} /> Reject all
           </MenuItem>
         )}
@@ -3946,13 +3983,6 @@ const AuthorshipsTabs = () => {
         <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")}>Dismiss</MenuItem>
       </Menu>
 
-      {/* error */}
-      <Snackbar open={!!errorMsg} autoHideDuration={10000} onClose={() => setErrorMsg("")}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}>
-        <Alert severity="error" variant="filled" onClose={() => setErrorMsg("")} sx={{ maxWidth: 460 }}>
-          {errorMsg}
-        </Alert>
-      </Snackbar>
 
       {/* recent duplicate-conflicts history — each entry's real prompt lives inline on its own
           card (see ConflictEntry); this is read-only look-back plus a jump-to-card shortcut for
@@ -3972,7 +4002,7 @@ const AuthorshipsTabs = () => {
               }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, fontWeight: 600, color: "#0f172a" }}>
                 <span>{entry.wcm_author || entry.top_name || "—"}</span>
-                <span style={{ color: stillActive ? "#b45309" : "#94a3b8", fontWeight: 500 }}>
+                <span style={{ color: stillActive ? "var(--pm-amber)" : "#94a3b8", fontWeight: 500 }}>
                   {stillActive ? "unresolved" : "resolved/cleared"}
                 </span>
               </div>
@@ -4017,7 +4047,7 @@ const AuthorshipsTabs = () => {
                 <div style={{ fontSize: 11.5, color: "#475569", marginTop: 2 }}>
                   {subjectName || "—"}{" "}
                   {subjectCwid && (
-                    <a href={`/curate/${subjectCwid}`} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "none" }}>
+                    <a href={`/curate/${subjectCwid}`} target="_blank" rel="noreferrer" style={{ color: "var(--pm-slate)", textDecoration: "none" }}>
                       {subjectCwid}
                     </a>
                   )}
@@ -4027,7 +4057,7 @@ const AuthorshipsTabs = () => {
                 <span>{entry.reviewer || "—"} · {formatActivityDate(entry.resolved_at)}</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); undoRecentActivity(entry); }}
-                  style={{ font: "inherit", marginLeft: "auto", background: "none", border: "none", color: "#2563eb", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}>
+                  style={{ font: "inherit", marginLeft: "auto", background: "none", border: "none", color: "var(--pm-slate)", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}>
                   Undo
                 </button>
               </div>
@@ -4058,11 +4088,11 @@ const CTRL = {
   ink: "#1b2432",
   muted: "#6b7484",
   soft: "#6f7889",
-  accent: "#2563c9",       // active border / primary button
-  accentBg: "#eef4fd",     // active row + open-popover button fill
-  accentInk: "#1c3f7d",
+  accent: "var(--pm-slate)",       // active border / primary button
+  accentBg: "var(--pm-slate-tint)",     // active row + open-popover button fill
+  accentInk: "var(--pm-slate)",
   band: "#fbfaf8",         // chip row + the "i" strip
-  chipBorder: "#c8d8f4",
+  chipBorder: "var(--pm-slate-tint-border)",
 };
 
 // §2.1's three header-band buttons (mockup:76-81). One shape, three palettes: red for identity
@@ -4071,21 +4101,24 @@ const alertPill = (kind: "red" | "amber" | "plain"): CSSProperties => ({
   font: "inherit",
   display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 6, padding: "7px 12px",
   fontSize: 13, cursor: "pointer", whiteSpace: "nowrap",
-  border: `1px solid ${kind === "red" ? "#dcb4b0" : kind === "amber" ? "#e6c99a" : CTRL.border}`,
-  background: kind === "red" ? "#fdf3f2" : kind === "amber" ? "#fdf6e8" : "#fff",
-  color: kind === "red" ? "#9a3128" : kind === "amber" ? "#8a5a08" : "#4a5262",
+  border: `1px solid ${kind === "red" ? "var(--pm-red-tint-border)" : kind === "amber" ? "var(--pm-amber-tint-border)" : CTRL.border}`,
+  background: kind === "red" ? "var(--pm-red-tint)" : kind === "amber" ? "var(--pm-amber-tint)" : "#fff",
+  color: kind === "red" ? "var(--pm-red)" : kind === "amber" ? "var(--pm-amber)" : "#4a5262",
 });
 
-// source segment (mockup:601-605): active segment is white with a 1px shadow, not a border.
+// source segment (prototype markup ~815): 28px tabs, 13px/500 in ink whether active or not;
+// the active one is white with a 1px shadow, not a border.
 const segBtn = (active: boolean): CSSProperties => ({
   font: "inherit",
-  border: "none", cursor: "pointer", borderRadius: 5, padding: "7px 14px", fontSize: 13.5,
-  whiteSpace: "nowrap",
+  display: "inline-flex", alignItems: "center", gap: 6,
+  height: 28, border: "none", cursor: "pointer", borderRadius: 6, padding: "0 12px", fontSize: 13,
+  fontWeight: 500, whiteSpace: "nowrap", color: "var(--pm-foreground)",
   background: active ? "#fff" : "transparent",
-  color: active ? CTRL.ink : CTRL.muted,
-  fontWeight: active ? 600 : 400,
-  boxShadow: active ? "0 1px 2px rgba(27,36,50,0.12)" : "none",
+  boxShadow: active ? "0 1px 2px rgba(34,30,28,0.08)" : "none",
 });
+const segCount: CSSProperties = {
+  fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums",
+};
 
 // the two dropdown buttons: border goes blue when the popover is open OR the filter is set, so
 // an active facet is visible without opening it (mockup:684-686, :695-696).
@@ -4160,9 +4193,9 @@ const reportCountStyle: CSSProperties = {
 // the bulk bar's buttons (mockup:292-301): Accept is the only coloured one.
 const barBtn = (kind: "accept" | "plain"): CSSProperties => ({
   font: "inherit",
-  border: `1px solid ${kind === "accept" ? "#9dc4a8" : CTRL.border}`,
-  background: kind === "accept" ? "#eef7f0" : "#fff",
-  color: kind === "accept" ? "#146c39" : CTRL.ink,
+  border: `1px solid ${kind === "accept" ? "var(--pm-slate-tint-border)" : CTRL.border}`,
+  background: kind === "accept" ? "var(--pm-slate-tint)" : "#fff",
+  color: kind === "accept" ? "var(--pm-slate)" : CTRL.ink,
   borderRadius: 6, padding: "6px 13px", fontSize: 13.5, cursor: "pointer",
 });
 
@@ -4257,7 +4290,7 @@ const ReportArticleRow = ({ row, view }: { row: ReportRow; view: ReportKey }) =>
             title={view === "lowScoringAccepts"
               ? "Nothing in this person's feedback history pulls the paper up: institution, journal, organization and co-author evidence are all non-positive. 75% of the accepts in this report look like this — it is the burial mechanism, not a coincidence."
               : "Institution, journal, organization and co-author evidence are all non-positive, yet the model still scored this 90 or above — the identity signal carried it on its own."}>
-            <span style={{ fontSize: 12, color: "#b45309", cursor: "help" }}>All four non-positive</span>
+            <span style={{ fontSize: 12, color: "var(--pm-amber)", cursor: "help" }}>All four non-positive</span>
           </Tip>
         )}
       </div>
@@ -4286,7 +4319,7 @@ const ReportPersonGroup = ({ group, view, open, onToggle }: {
             <a> inside a <button> is invalid, and both need to stay independently clickable. */}
         <a href={`/curate/${group.cwid}`} target="_blank" rel="noreferrer"
           title={`Open ${group.person || group.cwid}'s curate page`}
-          style={{ color: "#2563eb", textDecoration: "none", fontSize: 13 }}>{group.cwid}</a>
+          style={{ color: "var(--pm-slate)", textDecoration: "none", fontSize: 13 }}>{group.cwid}</a>
         {/* The count stays visible while collapsed — it is the whole reason to group. groupCount
             is the person's own total in this report; when the row cap has cut into their tail,
             say how many actually arrived rather than let the header overpromise. */}
@@ -4319,7 +4352,7 @@ const CannedReportPanel = ({ view, response, loading, error, expanded, onToggle 
   // arriving at a different page. A failed load says so here rather than in the error Snackbar:
   // it is a persistent state of the thing on screen, not a notice that should time out.
   if (loading) return <div style={reportNoticeStyle}>Loading…</div>;
-  if (error) return <div style={{ ...reportNoticeStyle, color: "#b42318" }}>Couldn’t load this report — {error}</div>;
+  if (error) return <div style={{ ...reportNoticeStyle, color: "var(--pm-red)" }}>Couldn’t load this report — {error}</div>;
   if (!response) return null;
   const groups = groupReportRows(response.rows);
   if (groups.length === 0) return <div style={reportNoticeStyle}>No rows in this report match these filters.</div>;
@@ -4341,7 +4374,7 @@ const CannedReportPanel = ({ view, response, loading, error, expanded, onToggle 
       {/* Never truncate silently. A capped report is a different claim from a complete one, and
           a curator working down it needs to know the tail exists. */}
       {response.capped && (
-        <div style={{ border: "1px solid #e6c99a", background: "#fdf6e8", color: "#8a5a08", borderRadius: 6, padding: "9px 12px", fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}>
+        <div style={{ border: "1px solid var(--pm-amber-tint-border)", background: "var(--pm-amber-tint)", color: "var(--pm-amber)", borderRadius: 6, padding: "9px 12px", fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}>
           This report hit the server’s row cap — the {response.total.toLocaleString()} rows below are
           the top of the list, not all of it. Narrow the date window, the person type or the
           institution to see the rest.
@@ -4444,11 +4477,11 @@ const AuthorshipCard = ({
   const closeIdentityHover = () => { cancelHover(); setIdentityHover(false); };
 
   const cardStyle: CSSProperties = {
-    background: isSelected ? "#eff6ff" : "#fff",
+    background: isSelected ? "var(--pm-slate-tint)" : "#fff",
     border: "1px solid #e8edf2",
     borderRadius: 10,
     marginBottom: 11,
-    boxShadow: isFocused ? "0 0 0 2px #2563eb" : "0 1px 2px rgba(15,23,42,.04)",
+    boxShadow: isFocused ? "0 0 0 2px var(--pm-slate)" : "0 1px 2px rgba(15,23,42,.04)",
     transition: "box-shadow 150ms, background 150ms",
     cursor: "pointer",
     scrollMarginTop: "calc(var(--header-height, 52px) + 12px)", // see the expand-anchoring effect
@@ -4462,7 +4495,7 @@ const AuthorshipCard = ({
         <input type="checkbox" disabled={!selectable}
           checked={isSelected} onChange={onToggleSelect} onClick={(e) => e.stopPropagation()}
           aria-label={`select ${r.wcm_author || ""}`}
-          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: selectable ? "pointer" : "default", flex: "none", opacity: selectable ? 1 : 0.3 }} />
+          style={{ width: 16, height: 16, marginTop: 3, accentColor: "var(--pm-slate)", cursor: selectable ? "pointer" : "default", flex: "none", opacity: selectable ? 1 : 0.3 }} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* L1 — WCM author + position */}
@@ -4479,8 +4512,8 @@ const AuthorshipCard = ({
             {(r.pmid_sibling_count ?? 1) > 1 && (
               <Tip title="Other authorship rows for this paper still sitting in the queue you're viewing. Co-authors already assigned to an identity are NOT counted, so this is not the paper's full WCM author list. Click to narrow the queue to this PMID." placement="top" arrow>
                 <button onClick={(e) => { e.stopPropagation(); onNarrowPmid(); }} style={{
-                  display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid #e2e9f3", background: "#f4f7fc",
-                  color: "#2563eb", borderRadius: 12, padding: "1px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid var(--pm-slate-tint-border)", background: "var(--pm-slate-tint)",
+                  color: "var(--pm-slate)", borderRadius: 12, padding: "1px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer",
                 }}>
                   <IconUsers size={12} /> +{(r.pmid_sibling_count as number) - 1} more in this queue
                 </button>
@@ -4507,7 +4540,7 @@ const AuthorshipCard = ({
                     <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
                       title={`Open ${r.top_name || r.top_cwid}'s curate profile`}
-                      style={{ color: "#2563eb", textDecoration: "none" }}>{r.top_cwid}</a>
+                      style={{ color: "var(--pm-slate)", textDecoration: "none" }}>{r.top_cwid}</a>
                   )}
                   {identityHover && (
                     <IdentityHoverCard
@@ -4579,7 +4612,7 @@ const AuthorshipCard = ({
               multi-candidate, since accepted_by is computed per (pmid, author_position), not
               per n_candidates. */}
           {(r.accepted_by?.length ?? 0) > 0 && (
-            <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "#fffbeb", color: "#b45309", marginTop: 5 }}>
+            <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "var(--pm-amber-tint)", color: "var(--pm-amber)", marginTop: 5 }}>
               <IconAlert size={15} style={{ marginTop: 1 }} />
               <span>Already accepted by {r.accepted_by!.map((a) => `${a.name} (${a.cwid})`).join(", ")}</span>
             </div>
@@ -4627,7 +4660,7 @@ const AuthorshipCard = ({
             </span>
             <button onClick={(e) => { e.stopPropagation(); onToggleExpand(); }} aria-expanded={isExpanded} style={{
               display: "inline-flex", alignItems: "center", gap: 4, marginLeft: "auto", background: "none", border: "none",
-              font: "inherit", fontSize: 12, fontWeight: 600, color: isExpanded ? "#2563eb" : "#475569", cursor: "pointer",
+              font: "inherit", fontSize: 12, fontWeight: 600, color: isExpanded ? "var(--pm-slate)" : "#475569", cursor: "pointer",
               padding: "2px 4px", borderRadius: 5, flex: "none",
             }}>
               {nothingToPick ? "Look up" : isMulti ? "Pick one" : "Evidence"} {isExpanded ? <IconChevD size={13} /> : <IconChevR size={13} />}
@@ -4738,7 +4771,7 @@ const AuthorshipCard = ({
       {conflict && (
         <div onClick={(e) => e.stopPropagation()} style={{
           margin: "0 15px 12px 43px", padding: "10px 12px", borderRadius: 8,
-          background: "#fffbeb", border: "1px solid #fde68a", fontSize: 12.5, color: "#78350f",
+          background: "var(--pm-amber-tint)", border: "1px solid var(--pm-amber-tint-border)", fontSize: 12.5, color: "var(--pm-amber)",
         }}>
           <div style={{ fontWeight: 700, marginBottom: 3 }}>
             {conflict.kind === "no_identity" ? "No ReCiter identity"
@@ -4754,9 +4787,9 @@ const AuthorshipCard = ({
                 <li key={i} style={{ marginBottom: 2 }}>
                   {m.title || m.detail || m.type || "conflicting record"}
                   {(m.journal || m.pubYear) && (
-                    <span style={{ color: "#92400e" }}> ({[m.journal, m.pubYear].filter(Boolean).join(", ")})</span>
+                    <span style={{ color: "var(--pm-amber)" }}> ({[m.journal, m.pubYear].filter(Boolean).join(", ")})</span>
                   )}
-                  {m.matchedId && <span style={{ color: "#a16207" }}> — {m.matchedId}</span>}
+                  {m.matchedId && <span style={{ color: "var(--pm-amber)" }}> — {m.matchedId}</span>}
                 </li>
               ))}
             </ul>
@@ -4837,8 +4870,8 @@ const AuthorshipCard = ({
 // today still reads green — the redesign restyles the block, it does not re-grade the queue.
 const ioBadgeColors = (v?: number): { bg: string; fg: string } => (
   v == null ? { bg: "#f2f0ec", fg: "#6b7484" }
-    : v >= 90 ? { bg: "#eaf5ed", fg: "#146c39" }
-      : v >= 50 ? { bg: "#fdf3e2", fg: "#8a5a08" }
+    : v >= 90 ? { bg: "var(--pm-slate-tint)", fg: "var(--pm-slate)" }
+      : v >= 50 ? { bg: "var(--pm-amber-tint)", fg: "var(--pm-amber)" }
         : { bg: "#f2f0ec", fg: "#6b7484" }
 );
 const scoreBadgeStyle = (bg: string, fg: string): CSSProperties => ({
@@ -4864,7 +4897,7 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates, resolved }: { row: A
     const total = r.n_candidates ?? candidates.length;
     return (
       <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={scoreBadgeStyle("#fdf3e2", "#8a5a08")}>{total} candidates</span>
+        <span style={scoreBadgeStyle("var(--pm-amber-tint)", "var(--pm-amber)")}>{total} candidates</span>
         {r.top_io_score != null && (
           <span style={{ display: "block", fontSize: 11.5, color: "#5c6474", marginTop: 2, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
             top IO {fmtScore(r.top_io_score)}
@@ -4877,7 +4910,7 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates, resolved }: { row: A
     const scopus = isExternalSource(r);
     return (
       <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={scoreBadgeStyle(scopus ? "#eef2ff" : "#fdf3e2", scopus ? "#4338ca" : "#8a5a08")}>
+        <span style={scoreBadgeStyle(scopus ? "var(--pm-slate-tint)" : "var(--pm-amber-tint)", scopus ? "var(--pm-slate)" : "var(--pm-amber)")}>
           {scopus ? "Not in PubMed" : "Never retrieved"}
         </span>
         <span style={{ display: "block", fontSize: 11.5, color: "#5c6474", marginTop: 2, textAlign: "right" }}>
@@ -4897,7 +4930,7 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates, resolved }: { row: A
           decision left for it to inform. */}
       {!resolved && r.top_fg_score != null && (
         <Tip title="AS — ReCiter authorship score (production model), 0-100. Below 30 means production buried this person." placement="left" arrow>
-          <span style={{ fontSize: 11.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", cursor: "help", color: r.top_fg_score < 70 ? "#8a5a08" : "#5c6474" }}>
+          <span style={{ fontSize: 11.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", cursor: "help", color: r.top_fg_score < 70 ? "var(--pm-amber)" : "#5c6474" }}>
             AS {fmtScore(r.top_fg_score)}
           </span>
         </Tip>
@@ -4943,14 +4976,14 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
         no-suggestion rows get neither, since both notes assume a matched candidate */}
     <div style={{
       display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px",
-      background: noSuggestion ? "#f8fafc" : isExternalSource(r) ? "#eef2ff" : isAbsent ? "#fffbeb" : "#eff6ff",
-      color: noSuggestion ? "#64748b" : isExternalSource(r) ? "#4338ca" : isAbsent ? "#b45309" : "#475569",
+      background: noSuggestion ? "#f8fafc" : isExternalSource(r) ? "var(--pm-slate-tint)" : isAbsent ? "var(--pm-amber-tint)" : "var(--pm-slate-tint)",
+      color: noSuggestion ? "#64748b" : isExternalSource(r) ? "var(--pm-slate)" : isAbsent ? "var(--pm-amber)" : "#475569",
     }}>
       {noSuggestion
         ? <IconInfo size={15} style={{ marginTop: 1, color: "#64748b" }} />
         : isExternalSource(r)
-          ? <IconInfo size={15} style={{ marginTop: 1, color: "#4338ca" }} />
-          : isAbsent ? <IconAlert size={15} style={{ marginTop: 1, color: "#b45309" }} /> : <IconInfo size={15} style={{ marginTop: 1, color: "#2563eb" }} />}
+          ? <IconInfo size={15} style={{ marginTop: 1, color: "var(--pm-slate)" }} />
+          : isAbsent ? <IconAlert size={15} style={{ marginTop: 1, color: "var(--pm-amber)" }} /> : <IconInfo size={15} style={{ marginTop: 1, color: "var(--pm-slate)" }} />}
       <span>{noSuggestion
         ? "No proposed identity — the matcher no longer matches this byline to any WCM identity. Assign it to someone below, or leave it open."
         : r.source === "openalex" ? openalexNote(r)
@@ -4967,7 +5000,7 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
 const SingleEvidenceTable = ({ row: r }: { row: AuthorshipRow }) => {
   const ev = useCandidateEvidence(r.id, r.top_cwid || "");
   if (ev.status === "loading") return <div style={{ marginTop: 10, fontSize: 12.5, color: "#6b7484" }}>Loading evidence…</div>;
-  if (ev.status === "error") return <div style={{ marginTop: 10, fontSize: 12.5, color: "#b45309" }}>Couldn’t load the evidence table. Collapse and reopen the row to retry.</div>;
+  if (ev.status === "error") return <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--pm-amber)" }}>Couldn’t load the evidence table. Collapse and reopen the row to retry.</div>;
   const year = Number((r.entrez_date || "").slice(0, 4)) || null;
   const rows = buildCandidateEvidence(
     { byline: r.wcm_author, affiliation: r.author_affiliation, journal: r.journal, year, source: r.source, coauthors: ev.data.coauthors },
@@ -5006,7 +5039,7 @@ const HomonymNote = ({ listed, typed }: { listed: number; typed: number }) => ty
       {" "}Reopening the row undoes both.
     </>}>
       <button type="button" onClick={(e) => e.stopPropagation()} aria-label="What assigning also records"
-        style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: "2px 4px", font: "inherit", fontSize: 11.5, color: "#b45309", cursor: "help" }}>
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: "2px 4px", font: "inherit", fontSize: 11.5, color: "var(--pm-amber)", cursor: "help" }}>
         <IconInfo size={13} /> also records “not mine” for the others
       </button>
     </Tip>
@@ -5109,7 +5142,7 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
       style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 13.5, fontWeight: 600, color: "#0f172a", minWidth: 0 }}>
       {c.name}{" "}
       {nameSourceBadge(c)}
-      {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
+      {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--pm-slate)", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
       {hoverCwid === c.cwid && (
         <IdentityHoverCard subject={{ name: c.name, cwid: c.cwid, dept: c.dept, name_source: c.name_source, name_n: c.name_n }}
           priorNames={c.cwid ? priorNamesByCwid[c.cwid] : undefined} byline={r.wcm_author} />
@@ -5137,7 +5170,7 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
       {r.source === "scopus" && <div><ScopusLinks row={r} /></div>}
       {r.source === "openalex" && <div><OpenAlexLinks row={r} /></div>}
       {!anyDeptMatch && (
-        <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "#fffbeb", color: "#b45309", marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "var(--pm-amber-tint)", color: "var(--pm-amber)", marginBottom: 10 }}>
           <IconAlert size={15} style={{ marginTop: 1 }} />
           <span>The affiliation names Weill Cornell but no department — ranked by identity-only (IO).</span>
         </div>
@@ -5152,9 +5185,9 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
           return (
             <label key={c.cwid || i} onClick={(e) => e.stopPropagation()} style={{
               display: "flex", alignItems: "center", gap: 11, padding: "9px 11px",
-              border: `1px solid ${isLead ? "#bbf7d0" : rejected ? "#fecaca" : "#e8edf2"}`, borderRadius: 7, marginBottom: 7,
+              border: `1px solid ${isLead ? "var(--pm-slate-tint-border)" : rejected ? "var(--pm-red-tint-border)" : "#e8edf2"}`, borderRadius: 7, marginBottom: 7,
               cursor: "pointer",
-              background: isLead ? "#f0fdf4" : rejected ? "#fef2f2" : "#fff",
+              background: isLead ? "var(--pm-slate-tint)" : rejected ? "var(--pm-red-tint)" : "#fff",
               opacity: rejected ? 0.8 : 1,
             }}>
               {/* A rejected candidate is WARNED about, not blocked. GoldStandard rejection is
@@ -5167,7 +5200,7 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
                   -- so the fix belongs here, and the curator adjudicates the pill. */}
               <input type="radio" name={`m${r.id}`} checked={checked} onChange={() => onPick(c.cwid)}
                 onClick={(e) => e.stopPropagation()}
-                style={{ accentColor: "#2563eb", flex: "none" }} />
+                style={{ accentColor: "var(--pm-slate)", flex: "none" }} />
               <span style={{ flex: 1, minWidth: 0 }}>
                 {nameLine(c)}
                 <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>
@@ -5192,11 +5225,11 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
                       {fmtScore(c.io_score)}
                     </span>
                     {c.final_score != null && (
-                      <span style={{ display: "block", fontSize: 10.5, color: "#c2410c", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>Auth. Score {fmtScore(c.final_score)}</span>
+                      <span style={{ display: "block", fontSize: 10.5, color: "var(--pm-amber)", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>Auth. Score {fmtScore(c.final_score)}</span>
                     )}
                   </>
                 ) : (
-                  <span style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: (c.confidence ?? 0) >= 0.5 ? "#15803d" : "#94a3b8" }}>
+                  <span style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: (c.confidence ?? 0) >= 0.5 ? "var(--pm-slate)" : "#94a3b8" }}>
                     {confBand(c.confidence)} match
                   </span>
                 )}
@@ -5207,7 +5240,7 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
         {cols && !gridPicks && <CompareGrid cols={cols} pickedCwid={pickedCwid} onPick={onPick} paged renderHead={gridHead} />}
         {gridCands.length >= 2 && ev.status === "loading" && <div style={{ fontSize: 12, color: "#6b7484", margin: "0 0 8px" }}>Loading the comparison…</div>}
         {!gridPicks && !showAll && unfolded.length > 0 && folded.length > 0 && (
-          <button onClick={(e) => { e.stopPropagation(); setShowAll(true); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: 12, cursor: "pointer", padding: "2px 0", marginBottom: 8 }}>
+          <button onClick={(e) => { e.stopPropagation(); setShowAll(true); }} style={{ background: "none", border: "none", color: "var(--pm-slate)", fontSize: 12, cursor: "pointer", padding: "2px 0", marginBottom: 8 }}>
             Show all {ranked.length} ({folded.length} never retrieved, IO unavailable)
           </button>
         )}
@@ -5216,7 +5249,7 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, acting, 
             would read as a miscount. When the replacement is already on this card — the common
             case — this line is also the explanation that the two "homonyms" are one person. */}
         {retiredCandidates.length > 0 && (
-          <div style={{ fontSize: 11.5, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a",
+          <div style={{ fontSize: 11.5, color: "var(--pm-amber)", background: "var(--pm-amber-tint)", border: "1px solid var(--pm-amber-tint-border)",
                         borderRadius: 6, padding: "5px 8px", marginBottom: 8, lineHeight: 1.45 }}>
             {retiredCandidates.map((c) => {
               const alsoHere = c.superseded_by && candidates.some(
@@ -5431,7 +5464,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoPrefill, authorName
       {typedPreview && (
         <div onClick={(e) => e.stopPropagation()} style={{
           textAlign: "right", fontSize: 11, marginTop: 2,
-          color: typedPreview.tone === "warn" ? "#b45309" : "#64748b",
+          color: typedPreview.tone === "warn" ? "var(--pm-amber)" : "#64748b",
         }}>
           {typedPreview.text}
         </div>
@@ -5489,12 +5522,12 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoPrefill, authorName
                           <span style={{ display: "block", color: "#94a3b8" }}>{m.fullName}</span>
                         )}
                         {m.retiredCwid && (
-                          <span style={{ display: "block", color: "#b45309", fontWeight: 600 }}>
+                          <span style={{ display: "block", color: "var(--pm-amber)", fontWeight: 600 }}>
                             Retired CWID{m.supersededBy ? <> — use <strong>{m.supersededBy}</strong></> : " — no replacement on record"}
                           </span>
                         )}
                       </td>
-                      <td style={{ ...dirCell, color: m.retiredCwid ? "#94a3b8" : "#2563eb", whiteSpace: "nowrap" }}>
+                      <td style={{ ...dirCell, color: m.retiredCwid ? "#94a3b8" : "var(--pm-slate)", whiteSpace: "nowrap" }}>
                         {m.id}
                         {/* #1020: the same human's identifier in the other directory. Picking
                             the row still assigns to m.id above. */}
@@ -5543,7 +5576,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoPrefill, authorName
                       {/* Says what picking this row will actually do, before it is picked: land on an
                           identity that already exists, redirect to the same person's WCM identifier, or
                           create a new identity. */}
-                      <td style={{ ...dirCell, whiteSpace: "nowrap", textAlign: "right", color: m.retiredCwid ? "#94a3b8" : m.hasIdentity ? "#059669" : "#b45309" }}>
+                      <td style={{ ...dirCell, whiteSpace: "nowrap", textAlign: "right", color: m.retiredCwid ? "#94a3b8" : m.hasIdentity ? "var(--pm-slate)" : "var(--pm-amber)" }}>
                         {/* A retired cwid's ReCiter state is not the useful fact — it may well
                             still have an identity, and saying "in ReCiter" beside a row that
                             cannot be picked reads as an invitation. Say why it cannot instead. */}
@@ -5582,8 +5615,8 @@ type CompareState = "equal" | "differ" | "missing";
 const compareState = (a: unknown, b: unknown, equal: boolean): CompareState => (!a || !b ? "missing" : equal ? "equal" : "differ");
 const compareCellStyle = (state: CompareState): CSSProperties => ({
   padding: "4px 8px", borderRadius: 4,
-  background: state === "equal" ? "#f0fdf4" : state === "differ" ? "#fffbeb" : "transparent",
-  color: state === "equal" ? "#15803d" : state === "differ" ? "#b45309" : "#94a3b8",
+  background: state === "equal" ? "var(--pm-slate-tint)" : state === "differ" ? "var(--pm-amber-tint)" : "transparent",
+  color: state === "equal" ? "var(--pm-slate)" : state === "differ" ? "var(--pm-amber)" : "#94a3b8",
 });
 const emDash = <span style={{ color: "#94a3b8" }}>—</span>;
 
@@ -5668,7 +5701,7 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
   if (state.status === "error") {
     return (
       <div style={counterpartBox}>
-        <div style={{ display: "flex", gap: 7, fontSize: 12.5, color: "#b45309", marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 7, fontSize: 12.5, color: "var(--pm-amber)", marginBottom: 10 }}>
           <IconAlert size={15} style={{ marginTop: 1 }} />
           <span>PubMed record {pmid} could not be fetched ({state.message}).</span>
         </div>
@@ -5695,7 +5728,7 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
           this is a heads-up that the right-hand column below is blank because of a fetch
           failure, not because PubMed genuinely has no data for those fields. */}
       {fetchError && (
-        <div style={{ display: "flex", gap: 7, fontSize: 12.5, marginBottom: 10, color: "#b45309", background: "#fffbeb", borderRadius: 7, padding: "8px 10px" }}>
+        <div style={{ display: "flex", gap: 7, fontSize: 12.5, marginBottom: 10, color: "var(--pm-amber)", background: "var(--pm-amber-tint)", borderRadius: 7, padding: "8px 10px" }}>
           <IconAlert size={15} style={{ marginTop: 1 }} />
           <span>PubMed record {pmid} could not be fetched ({fetchError}).</span>
         </div>
@@ -5746,7 +5779,7 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
           <>
             PubMed record {pmid} was never proposed for a WCM person — add it from{" "}
             <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
-              onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb" }}>
+              onClick={(e) => e.stopPropagation()} style={{ color: "var(--pm-slate)" }}>
               /curate/{r.top_cwid}
             </a>{" "}
             if it belongs to them

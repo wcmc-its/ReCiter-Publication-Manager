@@ -270,13 +270,28 @@ html {
   transition: none;
 }
 
-h1 {
+/* The house heading. A page title that opts out with .pm-page-title gets the prototype's serif
+   title instead; :where() keeps this selector at plain-h1 specificity, so CSS-module title classes
+   still win for the properties not marked !important here. */
+h1:where(:not(.pm-page-title)) {
   font-weight: 500 !important;
   color: #1a2133 !important;
   font-size: 28px !important;
   font-family: var(--font-serif);
   letter-spacing: -0.02em;
   padding-bottom: 10px;
+}
+
+/* Prototype page title: serif 30px/600 (the same values as the /search and /reports titles). */
+.pm-page-title {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-display-serif);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--pm-foreground);
 }
 
 .table {
