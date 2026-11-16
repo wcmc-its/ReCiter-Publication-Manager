@@ -157,3 +157,72 @@ export const compareHint = (pickedName?: string | null): string => (pickedName
   : "Click a column to pick who gets this authorship.");
 export const shareLine = (n: number, picked: boolean): string =>
   `${n} people share this name${picked ? "" : " · pick one"}`;
+
+// ---- review queues and empty states (UI refresh PR 6) --------------------------------------
+
+// One identity in an Identity-conflicts row: the row's proposed identity, and each WCM person
+// who already holds ACCEPTED at the same byline slot (accepted_by). `io` is the IO score when the
+// row knows one for that person.
+export type ConflictIdentity = { cwid: string; name: string; io: number | null; accepted: boolean };
+
+export const conflictIdentities = (r: {
+  top_cwid?: string | null; top_name?: string | null; top_io_score?: number | null;
+  accepted_by?: Array<{ cwid: string; name: string }>;
+}, candidates: Array<{ cwid?: string; io_score?: number | null }> = []): ConflictIdentity[] => {
+  const ioOf = (cwid: string) => {
+    const c = candidates.find((x) => String(x.cwid || "").toLowerCase() === cwid.toLowerCase());
+    return c && c.io_score != null ? c.io_score : null;
+  };
+  const out: ConflictIdentity[] = [];
+  if (r.top_cwid) out.push({ cwid: r.top_cwid, name: r.top_name || r.top_cwid, io: r.top_io_score ?? ioOf(r.top_cwid), accepted: false });
+  for (const a of r.accepted_by || []) {
+    if (!a?.cwid || out.some((o) => o.cwid.toLowerCase() === a.cwid.toLowerCase())) continue;
+    out.push({ cwid: a.cwid, name: a.name || a.cwid, io: ioOf(a.cwid), accepted: true });
+  }
+  return out;
+};
+
+// What "Keep" on one identity of a conflict row sends, using only the row actions that already
+// exist (no new server semantics):
+//  - the proposed identity: accept (single-candidate row) or assign to it (multi-candidate row).
+//    The server never records "not mine" for a candidate who has already accepted the paper, so
+//    the other person's acceptance is left alone, and the UI says so.
+//  - a person who already accepted it: reject, which records "not mine" for the row's
+//    candidates and closes the row. Except when that person is ALSO one of this multi-candidate
+//    row's candidates: reject would then write "not mine" over their own acceptance, so the row
+//    is dismissed instead (a status write only), which leaves their acceptance as it is.
+export const conflictKeep = (
+  r: { top_cwid?: string | null; single_candidate?: boolean },
+  keepCwid: string,
+  candidateCwids: string[] = [],
+): { action: "accept" | "assign" | "reject" | "dismiss"; extra?: Record<string, string> } => {
+  const same = (a?: string | null) => String(a || "").toLowerCase() === keepCwid.toLowerCase();
+  if (same(r.top_cwid)) return r.single_candidate ? { action: "accept" } : { action: "assign", extra: { cwid: r.top_cwid as string } };
+  if (!r.single_candidate && candidateCwids.some(same)) return { action: "dismiss" };
+  return { action: "reject" };
+};
+
+const QUEUE_NOUN: Record<string, string> = {
+  open: "unassigned authorships", conflicts: "authorships with an identity conflict",
+  duplicates: "possible duplicate authorships", snoozed: "snoozed authorships", dismissed: "dismissed authorships",
+};
+
+// The in-card empty state (prototype aEmptyTitle / aEmptyBody). `queueTotal` is the queue's size
+// with every filter and the search cleared; null while that count is unknown.
+export const emptyState = (args: { statusView: string; queueTotal: number | null; filtersOn: boolean }): { title: string; body: string; canReset: boolean } => {
+  const { statusView, queueTotal, filtersOn } = args;
+  const noun = QUEUE_NOUN[statusView] || "authorships";
+  if (queueTotal === 0) {
+    if (statusView === "duplicates") return { title: "No duplicates left", body: "Every PubMed and Scopus pair has been resolved.", canReset: false };
+    return statusView === "open"
+      ? { title: "Queue is clear", body: "Every open authorship has been assigned, rejected, snoozed, or dismissed.", canReset: false }
+      : { title: `No ${noun}`, body: "Nothing is waiting in this queue.", canReset: false };
+  }
+  return {
+    title: "No rows match these filters",
+    body: queueTotal == null
+      ? "Nothing in this queue matches the current source, filters, or search."
+      : `${queueTotal.toLocaleString()} ${queueTotal === 1 ? noun.replace(/authorships/, "authorship") : noun} fall${queueTotal === 1 ? "s" : ""} outside the current source, filters, or search.`,
+    canReset: filtersOn,
+  };
+};
