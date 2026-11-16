@@ -3346,6 +3346,7 @@ const AuthorshipsTabs = () => {
         {!reportView && statusView === "duplicates" && (
           <DuplicatesView rows={rows} loading={loading} listError={listError} actingId={actingId}
             onRetry={() => fetchData()} onAction={(r, action, extra) => doAction(r, action, extra)}
+            conflicts={conflicts} onClearConflict={clearConflict}
             onBack={() => setStatusView("open")}
             empty={listEmpty ? emptyState({ statusView, queueTotal: queueTotalNow, filtersOn: canReset }) : null}
             onReset={resetFiltersKeepQueue}
@@ -4706,47 +4707,8 @@ const AuthorshipCard = ({
       {/* possible-duplicate conflict — anchored to THIS card (never a global toast that can
           drift over an unrelated one), stays up until the curator acts, names who it's for. */}
       {conflict && (
-        <div onClick={(e) => e.stopPropagation()} style={{
-          margin: "0 16px 12px 104px", padding: "10px 12px", borderRadius: 8,
-          background: "var(--pm-amber-tint)", border: "1px solid var(--pm-amber-tint-border)", fontSize: 12.5, color: "var(--pm-amber)",
-        }}>
-          <div style={{ fontWeight: 700, marginBottom: 3 }}>
-            {conflict.kind === "no_identity" ? "No ReCiter identity"
-              : conflict.kind === "off_candidate" ? "Not a proposed candidate — this writes their record"
-                : conflict.kind === "multi_candidate" ? "This row now has multiple candidates"
-                  : "Possible duplicate"}
-            {" — "}{conflict.wcm_author || conflict.top_name || r.wcm_author}
-          </div>
-          <div style={{ marginBottom: 6 }}>{conflict.message}</div>
-          {conflict.matches.length > 0 && (
-            <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
-              {conflict.matches.map((m, i) => (
-                <li key={i} style={{ marginBottom: 2 }}>
-                  {m.title || m.detail || m.type || "conflicting record"}
-                  {(m.journal || m.pubYear) && (
-                    <span style={{ color: "var(--pm-amber)" }}> ({[m.journal, m.pubYear].filter(Boolean).join(", ")})</span>
-                  )}
-                  {m.matchedId && <span style={{ color: "var(--pm-amber)" }}> — {m.matchedId}</span>}
-                </li>
-              ))}
-            </ul>
-          )}
-          <div style={{ display: "flex", gap: 8 }}>
-            {/* multi_candidate has no retry — the row's own re-render (fetchData(true) after
-                the 409) already replaced Accept with Pick-one, so there's nothing to confirm. */}
-            {conflict.kind !== "multi_candidate" && (
-              <button onClick={() => { onAction(conflict.action, conflict.extra); onClearConflict(); }}
-                style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>
-                {conflict.kind === "no_identity" ? "Assign anyway — record on this row only"
-                  : conflict.kind === "off_candidate" ? "Yes — add to their publication record"
-                    : "Force add anyway"}
-              </button>
-            )}
-            <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>
-              {conflict.kind === "multi_candidate" ? "Got it" : "Cancel"}
-            </button>
-          </div>
-        </div>
+        <ConflictPrompt conflict={conflict} fallbackAuthor={r.wcm_author} onAction={onAction} onClear={onClearConflict}
+          margin="0 16px 12px 104px" />
       )}
 
       {/* expanded evidence, the record footer and the "someone else" strip */}
@@ -4758,6 +4720,56 @@ const AuthorshipCard = ({
     </article>
   );
 };
+
+// The prompt a 409/422 action reply raises (possible duplicate, no ReCiter identity, off-candidate,
+// multi-candidate): anchored to the row it is about, up until the curator acts. Shared by the
+// authorship card and the duplicates view's pairs, so a confirmable failure is never silent there.
+const ConflictPrompt = ({ conflict, fallbackAuthor, onAction, onClear, margin }: {
+  conflict: ConflictEntry; fallbackAuthor?: string | null; margin: string;
+  onAction: (action: string, extra?: Record<string, any>) => void; onClear: () => void;
+}) => (
+  <div onClick={(e) => e.stopPropagation()} style={{
+    margin, padding: "10px 12px", borderRadius: 8,
+    background: "var(--pm-amber-tint)", border: "1px solid var(--pm-amber-tint-border)", fontSize: 12.5, color: "var(--pm-amber)",
+  }}>
+    <div style={{ fontWeight: 700, marginBottom: 3 }}>
+      {conflict.kind === "no_identity" ? "No ReCiter identity"
+        : conflict.kind === "off_candidate" ? "Not a proposed candidate — this writes their record"
+          : conflict.kind === "multi_candidate" ? "This row now has multiple candidates"
+            : "Possible duplicate"}
+      {" — "}{conflict.wcm_author || conflict.top_name || fallbackAuthor}
+    </div>
+    <div style={{ marginBottom: 6 }}>{conflict.message}</div>
+    {conflict.matches.length > 0 && (
+      <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
+        {conflict.matches.map((m, i) => (
+          <li key={i} style={{ marginBottom: 2 }}>
+            {m.title || m.detail || m.type || "conflicting record"}
+            {(m.journal || m.pubYear) && (
+              <span style={{ color: "var(--pm-amber)" }}> ({[m.journal, m.pubYear].filter(Boolean).join(", ")})</span>
+            )}
+            {m.matchedId && <span style={{ color: "var(--pm-amber)" }}> — {m.matchedId}</span>}
+          </li>
+        ))}
+      </ul>
+    )}
+    <div style={{ display: "flex", gap: 8 }}>
+      {/* multi_candidate has no retry — the row's own re-render (fetchData(true) after
+          the 409) already replaced Accept with Pick-one, so there's nothing to confirm. */}
+      {conflict.kind !== "multi_candidate" && (
+        <button onClick={() => { onAction(conflict.action, conflict.extra); onClear(); }}
+          style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>
+          {conflict.kind === "no_identity" ? "Assign anyway — record on this row only"
+            : conflict.kind === "off_candidate" ? "Yes — add to their publication record"
+              : "Force add anyway"}
+        </button>
+      )}
+      <button onClick={onClear} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>
+        {conflict.kind === "multi_candidate" ? "Got it" : "Cancel"}
+      </button>
+    </div>
+  </div>
+);
 
 // Identity-conflicts row (prototype markup ~1072-1080): a red "Claimed by two people · keep one"
 // line, then one bordered sub-row per identity — the row's proposed identity and each WCM person
@@ -5480,8 +5492,11 @@ const EmptyState = ({ title, body, canReset, onReset }: { title: string; body: s
   </div>
 );
 
-const DuplicatesView = ({ rows, loading, listError, actingId, onRetry, onAction, onBack, empty, onReset, pager }: {
+const DuplicatesView = ({ rows, loading, listError, actingId, onRetry, onAction, onBack, empty, onReset, pager, conflicts, onClearConflict }: {
   rows: AuthorshipRow[]; loading: boolean; listError: boolean; actingId: number | null;
+  // A 409/422 reply that asks the curator to confirm (doAction stores it here instead of
+  // toasting it) must show on the pair, or the click would fail with no word at all.
+  conflicts: Record<number, ConflictEntry>; onClearConflict: (id: number) => void;
   onRetry: () => void; onAction: (r: AuthorshipRow, action: string, extra?: Record<string, any>) => void; onBack: () => void;
   empty: { title: string; body: string; canReset: boolean } | null; onReset: () => void;
   pager: { page: number; totalPages: number; count: number; setPage: (f: (p: number) => number) => void } | null;
@@ -5503,7 +5518,8 @@ const DuplicatesView = ({ rows, loading, listError, actingId, onRetry, onAction,
       </div>
     )}
     {!loading && !listError && rows.map((r) => (
-      <DupPair key={r.id} row={r} acting={actingId === r.id} onAction={(action, extra) => onAction(r, action, extra)} />
+      <DupPair key={r.id} row={r} acting={actingId === r.id} onAction={(action, extra) => onAction(r, action, extra)}
+        conflict={conflicts[r.id]} onClearConflict={() => onClearConflict(r.id)} />
     ))}
     {!loading && empty && <EmptyState {...empty} onReset={onReset} />}
     {!loading && !listError && pager && (
@@ -5558,8 +5574,9 @@ const useCounterpart = (id: number, enabled: boolean) => {
   return state;
 };
 
-const DupPair = ({ row: r, acting, onAction }: {
+const DupPair = ({ row: r, acting, onAction, conflict, onClearConflict }: {
   row: AuthorshipRow; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
+  conflict?: ConflictEntry; onClearConflict: () => void;
 }) => {
   const twin = r.matched_pmid != null && !r.matched_pmid_verdict;
   const cp = useCounterpart(r.id, twin);
@@ -5633,6 +5650,7 @@ const DupPair = ({ row: r, acting, onAction }: {
         )}
         <DupRecord src={srcLabel} id={extId} author={r.wcm_author || undefined} line={r.author_affiliation || undefined} />
       </div>
+      {conflict && <ConflictPrompt conflict={conflict} fallbackAuthor={r.wcm_author} onAction={onAction} onClear={onClearConflict} margin="0" />}
     </div>
   );
 };
