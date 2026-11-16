@@ -14,6 +14,7 @@ import FilterChip, { Chevron, optionRowClass, popoverPaper } from "./FilterChip"
 import type { ChipOption } from "./FilterChip";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
+import { uniqueById } from "../../../utils/uniqueById";
 import {
   isAcceptEligible, isBulkSelectable,
   unionCandidates, partitionForAssign, assignConfirmFlags, bucketAssignFailures,
@@ -1735,7 +1736,9 @@ const AuthorshipsTabs = () => {
         }
         setListError(false);
         // never show a row whose removal is still in flight (race protection, same as topUp)
-        setRows((d.rows || []).filter((row: AuthorshipRow) => !pendingRemoved.current.has(row.id)));
+        // uniqueById: rows are keyed by id, so a repeated id (the list query once fanned out on
+        // duplicate `person` rows) gives React duplicate keys and leaves orphaned cards behind.
+        setRows(uniqueById<AuthorshipRow>(d.rows || []).filter((row) => !pendingRemoved.current.has(row.id)));
         setCount(d.count || 0);
       })
       .catch((e) => {
@@ -1774,8 +1777,8 @@ const AuthorshipsTabs = () => {
           refetchLatest.current?.(true);              // ...and re-run, or nothing ever lands
           return;
         }
-        const fetched: AuthorshipRow[] = (d.rows || []).filter(
-          (row: AuthorshipRow) => !pendingRemoved.current.has(row.id),
+        const fetched: AuthorshipRow[] = uniqueById<AuthorshipRow>(d.rows || []).filter(
+          (row) => !pendingRemoved.current.has(row.id),
         );
         setCount(d.count || 0);
         if (fetched.length === 0 && page > 0) { setPage((p) => Math.max(0, p - 1)); return; }
