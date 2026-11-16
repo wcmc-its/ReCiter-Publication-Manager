@@ -17,6 +17,7 @@ import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
 import {
   isAcceptEligible, isBulkSelectable,
   unionCandidates, partitionForAssign, assignConfirmFlags, bucketAssignFailures,
+  assignOptionSummary, assignPreview, isParkedQueue, looksLikeCwid, orderAssignOptions,
   bucketRejectFailures,
   typedCwidPreview,
 } from "../../../lib/bulkAssign";
@@ -27,7 +28,7 @@ import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } fro
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import {
   bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
-  shortcutsLine, sourceBadgeText, splitAffiliation,
+  parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation,
 } from "../../../utils/authorshipRow";
 
 // ---- types ---------------------------------------------------------------
@@ -1406,9 +1407,6 @@ const AuthorshipsTabs = () => {
   const keysBtnRef = useRef<HTMLButtonElement>(null);
   // The sort Select's own menu. Tracked so the row shortcuts stand down while it is open.
   const [sortOpen, setSortOpen] = useState(false);
-  // §2.5: the bulk bar's round "i" — toggles today's always-on two-line caveat into a strip
-  // under the bar instead of it holding a permanent row.
-  const [rulesOpen, setRulesOpen] = useState(false);
   // §2.1: the explanatory paragraph is always-on today; it becomes collapsed-by-default behind
   // the "What am I looking at?" link (mockup:576 — aboutOpen starts false). `false` on both the
   // server render and the client's first paint, so nothing here can diverge at hydration.
@@ -1600,6 +1598,12 @@ const AuthorshipsTabs = () => {
   const [assignMenuAnchor, setAssignMenuAnchor] = useState<HTMLElement | null>(null);
   const [assignOtherCwid, setAssignOtherCwid] = useState("");
   const [assignLookupCwid, setAssignLookupCwid] = useState<string | null>(null);
+  // PR 5: the "Someone else" box's one-line answer ("3 people match …"), shown in the popover.
+  const [assignErr, setAssignErr] = useState("");
+  // Bumped whenever the popover opens or closes, so a lookup still in flight from a popover the
+  // curator has since closed lands nowhere. Without it a late answer set assignConfirm with the
+  // popover shut, and overlayOpen then held every row shortcut off until it was reopened.
+  const assignSeqRef = useRef(0);
   const [assignConfirm, setAssignConfirm] = useState<{
     cwid: string; name?: string | null; hasIdentity: boolean;
     onCandidate: AuthorshipRow[]; offCandidate: AuthorshipRow[];
@@ -1655,8 +1659,8 @@ const AuthorshipsTabs = () => {
   useEffect(() => { focusedIdRef.current = focusedId; }, [focusedId]);
   useEffect(() => { statusViewRef.current = statusView; }, [statusView]);
   // Every overlay this component owns, in one expression: the four control popovers, the three
-  // MUI menus (row overflow, bulk-assign picker, the two history panels), and the three
-  // hand-rolled full-screen layers (lookup spinner, assign confirm, reject confirm). The
+  // MUI menus (row overflow, the two history panels), the bulk-assign popover (its lookup and
+  // confirm step live inside it), and the reject confirm layer. The
   // keyboard handler bails while any of them is up.
   const overlayOpen = !!chipMenu || !!keysAnchor || sortOpen
     || !!reportAnchor
@@ -2373,6 +2377,40 @@ const AuthorshipsTabs = () => {
   const doBulkSnooze = useCallback((batch: AuthorshipRow[]) => doBulkStatus(batch, "snooze"), [doBulkStatus]);
   const doBulkDismiss = useCallback((batch: AuthorshipRow[]) => doBulkStatus(batch, "dismiss"), [doBulkStatus]);
 
+  // PR 5: bulk Reopen on the Snoozed and Dismissed queues — the same per-row "reopen" the row's
+  // own Reopen button sends, BULK_CHUNK at a time. Like a single reopen it offers no Undo (it is
+  // itself the undo of a snooze or dismiss), so success is a plain toast.
+  const doBulkReopen = useCallback((batch: AuthorshipRow[]) => {
+    if (batch.length === 0) return;
+    setMenu(null);
+    setBulkProgress(batch.length > BULK_CHUNK ? { done: 0, total: batch.length } : null);
+    const runChunks = async () => {
+      const results: PromiseSettledResult<boolean>[] = [];
+      for (let i = 0; i < batch.length; i += BULK_CHUNK) {
+        const chunk = batch.slice(i, i + BULK_CHUNK);
+        results.push(...await Promise.allSettled(chunk.map((row) => doActionAsync(row, "reopen"))));
+        if (batch.length > BULK_CHUNK) setBulkProgress({ done: results.length, total: batch.length });
+      }
+      return results;
+    };
+    runChunks()
+      .then((results) => {
+        const failures = results.filter((r) => r.status === "rejected").length;
+        const ok = batch.filter((_, i) => results[i].status === "fulfilled");
+        if (ok.length > 0) toast(actionToast("reopen", ok), { autoClose: 5000 });
+        if (failures) {
+          showError(`Reopened ${ok.length} of ${batch.length} selected; ${failures} failed. Refreshing the list.`);
+          fetchData(true);
+        }
+        else topUp();
+        fetchSummary();
+        fetchRecentActivity();
+      })
+      .finally(() => setBulkProgress(null));
+    setSelected(new Set());
+    setAllMatching(null);
+  }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
+
   // T4: union of everything the current selection proposes, for the "Assign selected (N) to…"
   // picker — "Name (cwid) — matches k of N selected", ranked k desc. Recomputed on every
   // render off selectedRows; bulk-assign is a same-page/handful-of-rows tool (unlike
@@ -2386,8 +2424,19 @@ const AuthorshipsTabs = () => {
   });
 
   const openAssignPicker = useCallback((anchor: HTMLElement) => {
+    assignSeqRef.current += 1;
     setAssignOtherCwid("");
+    setAssignErr("");
+    setAssignConfirm(null);
     setAssignMenuAnchor(anchor);
+  }, []);
+  // The popover holds the list, the lookup and the confirm step (PR 5), so closing it drops all
+  // three. A lookup already in flight still lands, but with the popover shut it shows nothing.
+  const closeAssignPicker = useCallback(() => {
+    assignSeqRef.current += 1;
+    setAssignMenuAnchor(null);
+    setAssignConfirm(null);
+    setAssignErr("");
   }, []);
 
   // B-8: picking a candidate — from the union list or the typed "someone else" box — doesn't
@@ -2401,9 +2450,10 @@ const AuthorshipsTabs = () => {
   // the same "confirm against a server-looked-up name, not a typed string" trust boundary the
   // per-row OFF_CANDIDATE/NO_RECITER_IDENTITY 422 confirms already enforce for one row.
   const chooseAssignTarget = useCallback((rawCwid: string) => {
-    setAssignMenuAnchor(null);
     const typed = rawCwid.trim();
     if (!typed) return;
+    const seq = assignSeqRef.current;
+    setAssignErr("");
     setAssignLookupCwid(typed);
     fetch("/api/db/authorships/lookup", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
@@ -2414,13 +2464,47 @@ const AuthorshipsTabs = () => {
         return r.json();
       })
       .then((d) => {
+        if (assignSeqRef.current !== seq) return;
         const cwid = String(d.cwid || typed);
         const { onCandidate, offCandidate } = partitionForAssign(selectedRows, rowCandidateLites, cwid);
         setAssignConfirm({ cwid, name: d.name ?? null, hasIdentity: !!d.hasIdentity, onCandidate, offCandidate });
       })
-      .catch((e) => showError(`Couldn't look up ${typed}. ${plainReason(e)}`))
+      .catch((e) => { if (assignSeqRef.current === seq) setAssignErr(`Couldn't look up ${typed}. ${plainReason(e)}`); })
       .finally(() => setAssignLookupCwid(null));
   }, [selectedRows]);
+
+  // The popover's "Someone else" box takes a CWID or a full name (prototype: "CWID or full
+  // name"). A CWID goes straight to the lookup above. A name is searched in the directory with
+  // the same read-only `q` lookup the row's own strip uses; exactly one assignable person
+  // continues with their cwid, anything else asks for a CWID.
+  const assignOtherGo = useCallback(() => {
+    const q = assignOtherCwid.trim();
+    if (!q || assignLookupCwid) return;
+    if (looksLikeCwid(q)) { chooseAssignTarget(q); return; }
+    const seq = assignSeqRef.current;
+    setAssignErr("");
+    setAssignLookupCwid(q);
+    fetch("/api/db/authorships/lookup", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({ q }),
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => {
+        const hits: any[] = (Array.isArray(d?.matches) ? d.matches : []).filter((m: any) => !m.retiredCwid);
+        setAssignLookupCwid(null);
+        if (assignSeqRef.current !== seq) return;
+        if (hits.length === 1) {
+          const m = hits[0];
+          chooseAssignTarget(m.wcmCwidHasIdentity && m.wcmCwid ? String(m.wcmCwid) : String(m.id));
+        } else {
+          setAssignErr(hits.length ? `${hits.length} people match “${q}”. Enter a CWID.` : `Nobody in the directory matches “${q}”.`);
+        }
+      })
+      .catch((e) => { setAssignLookupCwid(null); if (assignSeqRef.current === seq) setAssignErr(`Couldn't search for ${q}. ${plainReason(e)}`); });
+  }, [assignOtherCwid, assignLookupCwid, chooseAssignTarget]);
 
   // F5 for assign: mirrors doBulkAccept's chunking/allSettled shape, same doActionAsync call,
   // just "assign"+{cwid,...flags} in place of "accept". B-8: EVERY selected row now submits —
@@ -2433,14 +2517,19 @@ const AuthorshipsTabs = () => {
   // flags are pre-set, not auto-confirmed blindly: a 422 bouncing back from a submitted row
   // would mean the derivation disagreed with the server, which bucketAssignFailures still
   // surfaces rather than silently swallowing.
-  const doBulkAssign = useCallback(() => {
+  // PR 5: `onlySafe` is the confirm step's "Assign the N high-confidence only" — just the rows
+  // that list this person as a candidate at High IO (assignPreview). "Assign all N" sends every
+  // row, as before.
+  const doBulkAssign = useCallback((onlySafe = false) => {
     const confirm = assignConfirm;
     if (!confirm) return;
     const { cwid, hasIdentity, onCandidate, offCandidate } = confirm;
     setAssignConfirm(null);
+    setAssignMenuAnchor(null);
     setMenu(null);
     const offIds = new Set(offCandidate.map((r) => r.id));
-    const batch = [...onCandidate, ...offCandidate];
+    const everyRow = [...onCandidate, ...offCandidate];
+    const batch = onlySafe ? assignPreview(everyRow, rowCandidateLites, cwid).safe : everyRow;
     if (batch.length === 0) { setSelected(new Set()); setAllMatching(null); return; }
     setBulkProgress(batch.length > BULK_CHUNK ? { done: 0, total: batch.length } : null);
     const runChunks = async () => {
@@ -2604,7 +2693,11 @@ const AuthorshipsTabs = () => {
   // bulk-assign: isBulkSelectable never lets a multi row satisfy isAcceptEligible, which is
   // what every accept-type bulk consumer below (eligibleRows, "Accept selected") filters on.
   const toggleSelect = useCallback((row: AuthorshipRow) => {
-    if (!isBulkSelectable(row, statusView)) return;
+    // PR 5: every row on Snoozed / Dismissed is selectable, for bulk Reopen only. Elsewhere
+    // the open-queue gate below (pinned by check-authorships-no-suggestion.mjs) decides.
+    if (!isParkedQueue(statusView)) {
+      if (!isBulkSelectable(row, statusView)) return;
+    }
     setSelected((s) => {
       const next = new Set(s);
       next.has(row.id) ? next.delete(row.id) : next.add(row.id);
@@ -2859,24 +2952,25 @@ const AuthorshipsTabs = () => {
   // reading. "Accept near-certain" is gated at its render site instead of on its own line: that
   // line is pinned byte-for-byte by scripts/check-authorships-no-suggestion.mjs.
   const eligibleRows = statusView === "open" && reportView === null ? rows.filter((r) => isBulkSelectable(r, statusView)) : [];
-  const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
-  const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
-  // §2.5: the bar's action cluster and its "N selected" label key off this; "Accept
-  // near-certain" is its complement (shown only when nothing is selected).
+  // PR 5: on Snoozed / Dismissed every row on the page can be selected, and Reopen is the only
+  // bulk action there. Kept off eligibleRows, whose line above check-authorships-*.mjs pins.
+  const selectableRows = isParkedQueue(statusView) && reportView === null ? rows : eligibleRows;
+  const allEligibleSelected = selectableRows.length > 0 && selectableRows.every((r) => selected.has(r.id));
+  const someEligibleSelected = selectableRows.some((r) => selected.has(r.id));
+  // The bar's action cluster and its "N selected" label key off this.
   const hasSelection = selectedRows.length > 0;
-  // One "Clear", whichever way the selection was made: a select-all-matching batch lives in
-  // allMatching, a page selection in `selected`, and dropping only one of the two leaves the
-  // other still driving every bulk button.
-  const clearSelection = useCallback(() => { setSelected(new Set()); setAllMatching(null); }, []);
+  // The prototype's one checkbox: all selected (or a select-all-matching batch) clears the
+  // selection, anything less selects every selectable row on the page.
   const toggleSelectAllEligible = useCallback(() => {
+    if (allMatching) { setSelected(new Set()); setAllMatching(null); return; }
     setSelected((s) => {
       const next = new Set(s);
-      const allSel = eligibleRows.length > 0 && eligibleRows.every((r) => next.has(r.id));
-      if (allSel) eligibleRows.forEach((r) => next.delete(r.id));
-      else eligibleRows.forEach((r) => next.add(r.id));
+      const allSel = selectableRows.length > 0 && selectableRows.every((r) => next.has(r.id));
+      if (allSel) selectableRows.forEach((r) => next.delete(r.id));
+      else selectableRows.forEach((r) => next.add(r.id));
       return next;
     });
-  }, [eligibleRows]);
+  }, [selectableRows, allMatching]);
 
   // ---- the filter chip row (Authorships PR 2) ----------------------------------------------
   // A snoozed or dismissed row is not in the open pile its like_count describes.
@@ -3208,112 +3302,119 @@ const AuthorshipsTabs = () => {
             panel carries its own "N rows across M people" instead. */}
         {!reportView && (
         <>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, rowGap: 8, flexWrap: "wrap", padding: "9px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: hasSelection ? "var(--pm-slate-tint)" : "#fff" }}>
-          {statusView === "open" && (
-            <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign/reject, multi-candidate rows and single-candidate no-ReCiter-identity rows for bulk assign/reject" placement="top" arrow>
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: 13.5, color: eligibleRows.length === 0 ? "#9aa2b1" : "#4a5262", cursor: eligibleRows.length === 0 ? "default" : "pointer" }}>
-                <Checkbox size="small" disabled={eligibleRows.length === 0}
-                  checked={allEligibleSelected}
-                  indeterminate={someEligibleSelected && !allEligibleSelected}
-                  onChange={toggleSelectAllEligible}
-                  style={{ padding: 0 }} />
-                <span>{hasSelection ? `${selectedRows.length.toLocaleString()} selected` : "Select all on page"}</span>
-              </label>
-            </Tip>
+        {/* The bar (prototype markup ~877-951): a warm surface-2 band. One checkbox selects the
+            page or clears it, then the queue's actions: Accept N (primary), Assign to… with its
+            popover, Reject N, Snooze, Dismiss on Open; Reopen N on Snoozed / Dismissed. Accept
+            still acts only on selectedAcceptRows and says how many. */}
+        <div data-bulk-bar style={{ display: "flex", alignItems: "center", gap: 12, rowGap: 8, flexWrap: "wrap", padding: "8px 16px", minHeight: 48, boxSizing: "border-box", borderBottom: "1px solid var(--pm-border)", background: "var(--pm-surface-2)" }}>
+          {(statusView === "open" || isParkedView) && (
+            <button type="button" role="checkbox" disabled={selectableRows.length === 0 && !allMatching}
+              aria-checked={allEligibleSelected || !!allMatching ? "true" : someEligibleSelected ? "mixed" : "false"}
+              onClick={toggleSelectAllEligible}
+              title={statusView === "open"
+                ? "Select every selectable row on this page. Accept acts on single-candidate rows; Assign, Reject, Snooze and Dismiss on every selected row."
+                : "Select every row on this page, to reopen them together."}
+              style={{ display: "flex", alignItems: "center", gap: 8, font: "inherit", fontSize: 13, border: 0, background: "none", padding: 0, color: "var(--pm-foreground)", cursor: selectableRows.length === 0 && !allMatching ? "default" : "pointer", opacity: selectableRows.length === 0 && !allMatching ? 0.5 : 1 }}>
+              {(() => {
+                const on = allEligibleSelected || !!allMatching, some = !on && someEligibleSelected;
+                return (
+                  <span style={{
+                    width: 16, height: 16, boxSizing: "border-box", borderRadius: 4, display: "grid", placeItems: "center", flexShrink: 0,
+                    color: "var(--pm-slate)", border: `1.5px solid ${on || some ? "var(--pm-slate)" : "var(--pm-muted-foreground)"}`,
+                    background: on || some ? "var(--pm-slate-tint)" : "#fff",
+                  }}>
+                    {on && <IconCheck size={11} style={{ strokeWidth: 3 }} />}
+                    {some && <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" aria-hidden="true"><path d="M6 12h12" /></svg>}
+                  </span>
+                );
+              })()}
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{hasSelection ? `${selectedRows.length.toLocaleString()} selected` : "Select all"}</span>
+            </button>
           )}
 
-          {hasSelection && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 4, flexWrap: "wrap" }}>
-              {/* Accept stays scoped to selectedAcceptRows and hides entirely once the selection
-                  is assign-only; the count is appended only when the two differ, so the curator
-                  is never told "Accept" will act on more rows than it will. */}
+          {hasSelection && statusView === "open" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              {/* Accept counts only the rows it will accept (single-candidate, with a ReCiter
+                  identity); it hides once the selection is assign-only. */}
               {selectedAcceptRows.length > 0 && (
-                <button style={barBtn("accept")} disabled={!!bulkProgress}
+                <Button variant="primary" size="sm" disabled={!!bulkProgress}
+                  title={selectedAcceptRows.length < selectedRows.length
+                    ? `Accepts the ${selectedAcceptRows.length.toLocaleString()} single-candidate rows. Rows with several candidates or no ReCiter identity need Assign to….`
+                    : undefined}
                   onClick={() => doBulkAccept(selectedAcceptRows)}>
-                  Accept{selectedAcceptRows.length < selectedRows.length ? ` (${selectedAcceptRows.length})` : ""}
-                </button>
+                  Accept {selectedAcceptRows.length.toLocaleString()}
+                </Button>
               )}
-              <button style={barBtn("plain")} disabled={!!bulkProgress}
-                onClick={(e) => openAssignPicker(e.currentTarget)}>
-                Assign to…
-              </button>
-              <button style={barBtn("plain")} disabled={!!bulkProgress}
+              <Button variant="secondary" size="sm" disabled={!!bulkProgress}
+                aria-haspopup="dialog" aria-expanded={!!assignMenuAnchor}
+                onClick={(e) => (assignMenuAnchor ? closeAssignPicker() : openAssignPicker(e.currentTarget))}>
+                Assign to…<Chevron />
+              </Button>
+              <Button variant="secondary" size="sm" disabled={!!bulkProgress}
                 onClick={() => setRejectConfirmOpen(true)}>
-                Reject
-              </button>
-              {/* §2.5's new bulk action. No confirm gate: snooze writes nothing but a wake date
-                  on the row, and the Undo snackbar reverses the batch. */}
-              <button style={barBtn("plain")} disabled={!!bulkProgress}
+                Reject {selectedRows.length.toLocaleString()}
+              </Button>
+              {/* No confirm on Snooze or Dismiss: they write only a status, and Undo reverses the batch. */}
+              <Button variant="secondary" size="sm" disabled={!!bulkProgress}
                 onClick={() => doBulkSnooze(selectedRows)}>
                 Snooze
-              </button>
-              <button style={barBtn("plain")} disabled={!!bulkProgress}
+              </Button>
+              <Button variant="secondary" size="sm" disabled={!!bulkProgress}
                 onClick={() => doBulkDismiss(selectedRows)}>
                 Dismiss
-              </button>
-              <button type="button" onClick={() => setRulesOpen((v) => !v)}
-                aria-label="What bulk actions act on" title="What bulk actions act on"
-                style={{ font: "inherit", width: 26, height: 26, border: `1px solid ${rulesOpen ? CTRL.accent : CTRL.border}`, background: rulesOpen ? CTRL.accentBg : "#fff", borderRadius: "50%", fontSize: 12, color: rulesOpen ? CTRL.accentInk : CTRL.muted, cursor: "pointer" }}>
-                i
-              </button>
-              <button type="button" onClick={clearSelection}
-                style={{ font: "inherit", border: "none", background: "none", fontSize: 13, color: CTRL.muted, cursor: "pointer" }}>
-                Clear
-              </button>
+              </Button>
               {/* Escape hatch from the page-scoped selection: offered only once this page is
                   fully selected and there is more behind it, with the count in the label. Hidden
                   whenever the selection holds multi-candidate rows — selectAllMatching REPLACES
                   the selection with the server's single-candidate-only set, which would drop them. */}
               {allEligibleSelected && selectedAcceptRows.length === selectedRows.length && !allMatching && count > eligibleRows.length && (
-                <button style={barBtn("plain")} disabled={selectingAll} onClick={selectAllMatching}>
+                <Button variant="ghost" size="sm" disabled={selectingAll} onClick={selectAllMatching}
+                  sx={{ color: "var(--pm-slate)" }}>
                   {selectingAll ? "Selecting…" : `Select all ${count.toLocaleString()} matching`}
-                </button>
+                </Button>
               )}
               {allMatching && (
-                <span style={{ color: CTRL.accentInk, fontWeight: 600, fontSize: 13 }}>
+                <span style={{ color: "var(--pm-slate)", fontWeight: 600, fontSize: 13 }}>
                   All {allMatching.length.toLocaleString()} matching rows selected
                 </span>
               )}
             </div>
           )}
 
+          {hasSelection && isParkedView && (
+            <Button variant="secondary" size="sm" disabled={!!bulkProgress}
+              onClick={() => doBulkReopen(selectedRows)}>
+              Reopen {selectedRows.length.toLocaleString()}
+            </Button>
+          )}
+
           {bulkProgress && (
-            <span style={{ color: "#4a5262", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ color: "var(--pm-muted-foreground)", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
               Working: {bulkProgress.done.toLocaleString()} of {bulkProgress.total.toLocaleString()}…
             </span>
           )}
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
             {!listError && (
-            <span style={{ fontSize: 13, color: CTRL.soft, fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>
               Showing {rows.length.toLocaleString()} of {count.toLocaleString()}
             </span>
             )}
-            {!hasSelection && statusView === "open" && (
-              <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only (bounded blast radius)" placement="top" arrow>
+            {/* Stays up while rows are selected, as in the prototype; it acts on its own set
+                (single-candidate rows on this page with IO ≥ 95), never on the selection. */}
+            {statusView === "open" && (
+              <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only, not on the selection" placement="top" arrow>
                 <span>
-                  <button disabled={nearCertain.length === 0} onClick={() => doBulkAccept(nearCertain)}
-                    style={{ ...barBtn("plain"), color: "#4a5262", opacity: nearCertain.length === 0 ? 0.5 : 1, cursor: nearCertain.length === 0 ? "default" : "pointer", whiteSpace: "nowrap" }}>
-                    Accept near-certain · IO ≥ 95 <span style={{ color: CTRL.soft, fontVariantNumeric: "tabular-nums" }}>({nearCertain.length})</span>
-                  </button>
+                  <Button variant="secondary" size="sm" disabled={nearCertain.length === 0 || !!bulkProgress} onClick={() => doBulkAccept(nearCertain)}>
+                    Accept near-certain · IO ≥ 95
+                    <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{nearCertain.length}</span>
+                  </Button>
                 </span>
               </Tip>
             )}
           </div>
         </div>
 
-        {/* the "i" strip (mockup:311-315) — today's always-on two-line caveat, verbatim, now
-            behind the round i on the bar. Wording follows the selection: a select-all-matching
-            batch is not page-scoped. */}
-        {/* Tied to hasSelection, like the `i` that toggles it: without that, clearing a selection
-            while the strip is open would leave it stranded with its own toggle gone. */}
-        {rulesOpen && hasSelection && (
-          <div style={{ padding: "11px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: CTRL.band, fontSize: 13, lineHeight: 1.55, color: CTRL.muted, maxWidth: 760 }}>
-            {allMatching
-              ? "Bulk accept acts on every matching single-candidate row."
-              : "Bulk accept acts on single-candidate rows on this page. Bulk assign and bulk reject also cover open multi-candidate rows and single-candidate rows with no ReCiter identity."}
-          </div>
-        )}
         {/* ---- the table (prototype markup ~957-1234) ---------------------------------------
             The rows live in this panel under one column header, separated by hairlines. The
             feed's pagination (Decision 3: kept, the prototype has none) and the shortcuts line
@@ -3366,7 +3467,8 @@ const AuthorshipsTabs = () => {
             // duplicates or conflicts queue rendered an enabled checkbox that did nothing when
             // clicked. Computed here, from the real queue, so the page and the card cannot
             // disagree about what is selectable.
-            selectable={isBulkSelectable(r, statusView)}
+            // PR 5: on Snoozed / Dismissed every row is selectable, for bulk Reopen.
+            selectable={isParkedQueue(statusView) || isBulkSelectable(r, statusView)}
             isExpanded={expanded === r.id}
             isSelected={selected.has(r.id)}
             isFocused={focusedId === r.id}
@@ -3401,7 +3503,7 @@ const AuthorshipsTabs = () => {
         ))}
         </div>
         <div data-arow-foot style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 14, rowGap: 8, padding: "8px 16px", fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>
-          {shortcutsLine(statusView === "open").map((s) => <span key={s}>{s}</span>)}
+          {shortcutsLine(statusView === "open", isParkedView).map((s) => <span key={s}>{s}</span>)}
           {/* pagination — the feed's. A like view is the whole pile on one page (LIKE_PILE_CAP),
               so it has nothing to page. */}
           {!likeAuthor.trim() && !listError && (
@@ -3465,156 +3567,142 @@ const AuthorshipsTabs = () => {
         </span>
       </Popover>
 
-      {/* T4: "Assign selected (N) to…" picker — union of every candidate the selection
-          proposes (rowCandidateLites: candidate_cwids_json for a multi row, the row's own
-          top_cwid for a single one), ranked by how many selected rows propose it, plus a
-          typed-cwid escape hatch for someone the union doesn't include. Choosing an option (B-8)
-          fires the server lookup rather than submitting or computing anything client-side. */}
-      {/* maxWidth was 380 with MenuItem's default white-space: nowrap, so a long name ran off
-          the paper and "matches 2 of 3 selected" was cut mid-word with no way to read it.
-          Wider, and the line wraps instead of clipping. */}
-      <Menu anchorEl={assignMenuAnchor} open={!!assignMenuAnchor} onClose={() => setAssignMenuAnchor(null)}
-        PaperProps={{ style: { maxWidth: 460 } }}>
-        {assignCandidateUnion.length === 0 && <MenuItem disabled>No candidates on the selected rows</MenuItem>}
-        {assignCandidateUnion.map((c) => (
-          <MenuItem key={c.cwid} dense onClick={() => chooseAssignTarget(c.cwid)}
-            style={{ whiteSpace: "normal", lineHeight: 1.35, paddingTop: 5, paddingBottom: 5, display: "block" }}>
-            {c.name ? `${c.name} ` : ""}({c.cwid}) — matches {c.matches} of {selectedRows.length} selected
-            {/* the same "Faculty · Medicine" line the card's Pick-one list shows — a homonym
-                picker without it is a list of identical names (owner request 2026-09-15) */}
-            {(c.person_type || c.dept) && (
-              <div style={{ fontSize: 11.5, color: "#64748b" }}>{[c.person_type, c.dept].filter(Boolean).join(" · ")}</div>
+      {/* The bulk "Assign to…" popover (prototype markup ~888-939), anchored under its button.
+          Two steps in one place: the list of everyone the selection proposes (unionCandidates —
+          strongest score first, then coverage) with a CWID-or-name box for anyone else, then the
+          confirm step for the person chosen. Choosing never submits: it fires the ONE server
+          lookup (B-8) and the confirm is built on what that returns, never on a typed string or
+          a possibly-stale candidate label. The confirm previews every selected row and offers
+          "Assign the N high-confidence only" beside "Assign all N". */}
+      <Popover open={!!assignMenuAnchor} anchorEl={assignMenuAnchor} onClose={closeAssignPicker}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }} transformOrigin={{ vertical: "top", horizontal: "left" }}
+        PaperProps={{
+          role: "dialog", "aria-label": "Assign selected authorships",
+          style: { ...popoverPaper, width: 470, maxWidth: "calc(100vw - 48px)", display: "flex", flexDirection: "column", fontSize: 13, color: "var(--pm-foreground)", boxShadow: "0 10px 28px rgba(34,30,28,0.14)" },
+        } as any}>
+        {!assignConfirm ? (
+          <>
+            <div style={{ padding: "10px 14px 6px", display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--pm-muted-foreground)" }}>
+                Assign {selectedRows.length.toLocaleString()} selected to
+              </span>
+              <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>Most matches first, then confidence</span>
+            </div>
+            {assignCandidateUnion.length > 0 ? (
+              <div style={{ maxHeight: 320, overflow: "auto", display: "flex", flexDirection: "column", padding: "0 6px 6px" }}>
+                {orderAssignOptions(assignCandidateUnion, assignScoresOf).map((c) => {
+                  const sum = assignOptionSummary(assignScoresOf(c.cwid), selectedRows.length, c.matches);
+                  const role = [c.person_type, c.dept].filter(Boolean).join(" · ");
+                  return (
+                    <button key={c.cwid} type="button" className="pm-assign-opt" disabled={!!assignLookupCwid}
+                      onClick={() => chooseAssignTarget(c.cwid)}
+                      style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: "4px 12px", alignItems: "start", padding: "9px 10px", border: 0, borderRadius: 7, textAlign: "left", cursor: assignLookupCwid ? "default" : "pointer", font: "inherit", fontSize: 13, color: "var(--pm-foreground)" }}>
+                      <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                        <span>
+                          {c.name && <span style={{ fontWeight: 600 }}>{c.name} </span>}
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--pm-muted-foreground)" }}>{c.cwid}</span>
+                          <span style={{ color: "var(--pm-muted-foreground)" }}> · matches {c.matches} of {selectedRows.length.toLocaleString()} selected</span>
+                        </span>
+                        {role && <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>{role}</span>}
+                        {sum.warn && <span style={{ fontSize: 12, color: "var(--pm-amber)", fontWeight: 500 }}>{sum.warn}</span>}
+                      </span>
+                      <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                        {sum.bands.length > 0 && (
+                          <span style={{ display: "flex", gap: 4 }}>
+                            {sum.bands.map((b) => <BandPill key={b.band} band={b.band}>{b.n} {b.band}</BandPill>)}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{sum.ioText}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <span style={{ padding: "4px 14px 10px", color: "var(--pm-muted-foreground)" }}>
+                None of the selected rows has a suggested identity. Use Someone else.
+              </span>
             )}
-            {(() => {
-              const sc = assignScoresOf(c.cwid);
-              if (!sc.length) return <div style={{ fontSize: 11.5, color: "#94a3b8" }}>No IO score</div>;
-              const lo = Math.min(...sc), hi = Math.max(...sc);
-              const bands = ([["high", 90, Infinity], ["medium", 50, 90], ["low", -Infinity, 50]] as const)
-                .map(([label, min, max]) => ({ label, min, n: sc.filter((v) => v >= min && v < max).length }))
-                .filter((b) => b.n);
-              const miss = selectedRows.length - c.matches;
-              return (
-                <div style={{ fontSize: 11.5, color: "#64748b", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: 2 }}>
-                  <span>IO {lo === hi ? fmtScore(lo) : `${fmtScore(lo)}–${fmtScore(hi)}`}</span>
-                  {bands.map((b) => (
-                    <span key={b.label} style={{ color: ioColor(b.min === -Infinity ? 0 : b.min), fontWeight: 600 }}>{b.n} {b.label}</span>
-                  ))}
-                  {miss > 0 && <span style={{ color: "var(--pm-amber)" }}>· not a candidate on {miss}</span>}
-                </div>
-              );
-            })()}
-          </MenuItem>
-        ))}
-        <div onClick={(e) => e.stopPropagation()} style={{
-          display: "flex", gap: 6, alignItems: "center", padding: "8px 12px",
-          borderTop: assignCandidateUnion.length ? "1px solid #e8edf2" : "none",
-        }}>
-          <label style={{ fontSize: 11.5, color: "#94a3b8" }}>Someone else:</label>
-          <input value={assignOtherCwid} placeholder="cwid"
-            onChange={(e) => setAssignOtherCwid(e.target.value.trim())}
-            // Every key except Escape stops here. This input is a DESCENDANT of the MUI <Menu>
-            // above, and MenuList binds its own onKeyDown on the <ul role="menu">
-            // (@mui/material/MenuList/MenuList.js:233) which fires on bubbled events regardless
-            // of what has focus. For any single printable character it runs type-ahead over the
-            // sibling MenuItems and calls preventDefault() — so the curator's first keystroke was
-            // being swallowed and focus yanked onto a candidate row, and the box could never be
-            // typed into at all. Escape is deliberately let through: the Modal's escape-to-close
-            // handler sits ABOVE MenuList, so stopping it too would trap the dropdown open.
-            // The per-row AssignOther box never had this problem because it is not inside a Menu.
-            onKeyDown={(e) => {
-              if (e.key !== "Escape") e.stopPropagation();
-              if (e.key === "Enter" && assignOtherCwid && !assignLookupCwid) chooseAssignTarget(assignOtherCwid);
-            }}
-            style={{ width: 90, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1", borderRadius: 4, color: "#334155" }} />
-          <button style={btn("accept", !assignOtherCwid || !!assignLookupCwid)} disabled={!assignOtherCwid || !!assignLookupCwid}
-            onClick={() => chooseAssignTarget(assignOtherCwid)}>
-            Go
-          </button>
-        </div>
-      </Menu>
-
-      {/* B-8: the ONE server lookup chooseAssignTarget fires before the confirm dialog can
-          render — a transient "Looking up…" step rather than a spinner glued onto the picker,
-          since the picker (a MUI Menu) is already closed by the time this fires. */}
-      {assignLookupCwid && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(15,23,42,.35)", display: "flex",
-          alignItems: "center", justifyContent: "center", zIndex: 1400,
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: 10, padding: "16px 20px", fontSize: 13,
-            color: "#475569", boxShadow: "0 8px 32px rgba(15,23,42,.25)",
-          }}>
-            Looking up {assignLookupCwid}…
-          </div>
-        </div>
-      )}
-
-      {/* B-8: bulk-assign confirm step — the bulk equivalent of the per-row
-          OFF_CANDIDATE/NO_RECITER_IDENTITY 422 confirms. Built entirely on the lookup's answer
-          (assignConfirm.name/hasIdentity), never on the typed string: the curator confirms
-          against a human name the server looked up, or an explicit "no name on file" notice,
-          exactly like the single-row confirm does. EVERY selected row is submitted on Assign
-          (see doBulkAssign) — onCandidate/offCandidate below are stated for transparency, not a
-          submit/skip choice, so the button is never disabled by a 0-to-submit count (the
-          sts2022 dead end this replaces). */}
-      {assignConfirm && (
-        <div onClick={() => setAssignConfirm(null)} style={{
-          position: "fixed", inset: 0, background: "rgba(15,23,42,.35)", display: "flex",
-          alignItems: "center", justifyContent: "center", zIndex: 1400,
-        }}>
-          <div onClick={(e) => e.stopPropagation()} style={{
-            background: "#fff", borderRadius: 10, padding: 20, maxWidth: 460,
-            boxShadow: "0 8px 32px rgba(15,23,42,.25)",
-          }}>
-            {(() => {
-              const total = assignConfirm.onCandidate.length + assignConfirm.offCandidate.length;
-              return (
-                <>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
-                    Assign {total} row{total === 1 ? "" : "s"} to{" "}
-                    {assignConfirm.name ? `${assignConfirm.name} ` : ""}({assignConfirm.cwid})
-                  </div>
-                  <div style={{ fontSize: 12.5, color: "#475569", marginBottom: 10, lineHeight: 1.45 }}>
-                    {assignConfirm.onCandidate.length} of {total} selected row{total === 1 ? "" : "s"} propose
-                    {assignConfirm.onCandidate.length === 1 ? "s" : ""} this person.
-                    {assignConfirm.offCandidate.length > 0 && (
-                      <> {assignConfirm.offCandidate.length} don’t — confirming assigns{" "}
-                        {assignConfirm.offCandidate.length === 1 ? "it" : "them"} anyway, the same write
-                        the per-row confirm makes.</>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-            {!assignConfirm.hasIdentity ? (
-              <div style={{ fontSize: 12.5, color: "var(--pm-amber)", marginBottom: 12, lineHeight: 1.45 }}>
-                {assignConfirm.cwid} has no ReCiter identity. Confirming records your decision on each row
-                only — it will NOT be added to the person’s publication record, because there is no
-                identity to add it to.
-              </div>
-            ) : !assignConfirm.name ? (
-              <div style={{ fontSize: 12.5, color: "var(--pm-amber)", marginBottom: 12, lineHeight: 1.45 }}>
-                No name on file anywhere for {assignConfirm.cwid} — check the identifier.
-              </div>
-            ) : null}
-            <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 14, lineHeight: 1.45 }}>
-              Each row also records “not mine” for its other proposed candidates that have a ReCiter
-              identity (the F-2 policy) — same as a per-row assign. Reopening a row undoes both.
-              {[...assignConfirm.onCandidate, ...assignConfirm.offCandidate].filter((r) => isExternalSource(r)).length > 0 && (
-                <> Scopus and OpenAlex rows are the exception: they carry no PMID, so gold standard has nothing to
-                record and their other candidates are left untouched — the same as a per-row Scopus or OpenAlex assign.</>
-              )}
+            {assignLookupCwid && (
+              <span role="status" style={{ padding: "0 14px 10px", fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>
+                Looking up {assignLookupCwid}…
+              </span>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderTop: "1px solid var(--pm-border)", background: "var(--pm-surface-2)", borderRadius: assignErr ? 0 : "0 0 10px 10px" }}>
+              <label htmlFor="bulk-assign-other" style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)", whiteSpace: "nowrap" }}>Someone else:</label>
+              <input id="bulk-assign-other" value={assignOtherCwid} placeholder="CWID or full name" autoComplete="off"
+                onChange={(e) => { setAssignOtherCwid(e.target.value); setAssignErr(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); assignOtherGo(); } }}
+                style={{ flex: 1, minWidth: 0, height: 30, boxSizing: "border-box", padding: "0 9px", border: "1px solid var(--pm-border-strong)", borderRadius: 6, font: "inherit", fontSize: 13, background: "#fff", color: "var(--pm-foreground)", outline: "none" }} />
+              <Button variant="secondary" size="sm" disabled={!assignOtherCwid.trim() || !!assignLookupCwid}
+                onClick={assignOtherGo} sx={{ height: 30 }}>
+                Go
+              </Button>
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button style={btn("ghost")} onClick={() => setAssignConfirm(null)}>Cancel</button>
-              <button style={btn("accept")} onClick={doBulkAssign}>
-                Assign
-              </button>
+            {assignErr && (
+              <span role="alert" style={{ padding: "0 14px 10px", fontSize: 12.5, color: "var(--pm-red)", background: "var(--pm-surface-2)", borderRadius: "0 0 10px 10px" }}>
+                {assignErr}
+              </span>
+            )}
+          </>
+        ) : (() => {
+          const everyRow = [...assignConfirm.onCandidate, ...assignConfirm.offCandidate];
+          const n = everyRow.length;
+          const pv = assignPreview(everyRow, rowCandidateLites, assignConfirm.cwid);
+          const external = everyRow.some((r) => isExternalSource(r));
+          return (
+            <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>
+                Assign to {assignConfirm.name ? `${assignConfirm.name} ` : ""}
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 400, color: "var(--pm-muted-foreground)" }}>{assignConfirm.cwid}</span>?
+              </span>
+              {!assignConfirm.hasIdentity ? (
+                <span style={{ fontSize: 12.5, color: "var(--pm-amber)", lineHeight: 1.45 }}>
+                  {assignConfirm.cwid} has no ReCiter identity. Assigning records your decision on each row only;
+                  nothing is added to a publication record, because there is no identity to add it to.
+                </span>
+              ) : !assignConfirm.name ? (
+                <span style={{ fontSize: 12.5, color: "var(--pm-amber)", lineHeight: 1.45 }}>
+                  No name on file anywhere for {assignConfirm.cwid}. Check the identifier.
+                </span>
+              ) : null}
+              <div style={{ display: "flex", flexDirection: "column", border: "1px solid var(--pm-border)", borderRadius: 8, overflow: "auto", maxHeight: 300 }}>
+                {pv.items.map((x, i) => (
+                  <div key={x.row.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "center", padding: "7px 10px", borderTop: i ? "1px solid var(--pm-border)" : 0, fontSize: 12.5, background: "#fff" }}>
+                    <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <span style={{ fontWeight: 500 }}>{x.row.wcm_author || "—"}</span>
+                      <span style={{ color: "var(--pm-muted-foreground)" }}> · {stripHtml(x.row.title || "")}</span>
+                    </span>
+                    {x.onCandidate && x.band
+                      ? <BandPill band={x.band}>IO {Math.floor(x.io as number)} · {x.band}</BandPill>
+                      : <BandPill band={null}>{x.onCandidate ? "No IO score" : "Not a candidate"}</BandPill>}
+                  </div>
+                ))}
+              </div>
+              <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)", lineHeight: 1.45 }}>{pv.note}</span>
+              <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", lineHeight: 1.45 }}>
+                Each row also records “not mine” for its other candidates who have a ReCiter identity, as a
+                single assign does; reopening a row undoes both.
+                {external && " Scopus and OpenAlex rows carry no PMID, so their other candidates are left untouched."}
+              </span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                {pv.safe.length > 0 && pv.safe.length < n && (
+                  <Button variant="primary" size="sm" onClick={() => doBulkAssign(true)}>
+                    Assign the {pv.safe.length.toLocaleString()} high-confidence only
+                  </Button>
+                )}
+                <Button variant="secondary" size="sm" onClick={() => doBulkAssign(false)}>
+                  Assign all {n.toLocaleString()}
+                </Button>
+                <button type="button" onClick={() => setAssignConfirm(null)}
+                  style={{ border: 0, background: "none", padding: "0 6px", font: "inherit", fontSize: 12.5, color: "var(--pm-muted-foreground)", cursor: "pointer" }}>
+                  Back
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
+      </Popover>
 
       {/* T-950: bulk-reject confirm — same overlay pattern as assignConfirm, but no lookup
           step in front of it: reject never targets a typed cwid, so the dialog only needs to
@@ -3903,15 +3991,6 @@ const segCount: CSSProperties = {
   fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums",
 };
 
-// the bulk bar's buttons (mockup:292-301): Accept is the only coloured one.
-const barBtn = (kind: "accept" | "plain"): CSSProperties => ({
-  font: "inherit",
-  border: `1px solid ${kind === "accept" ? "var(--pm-slate-tint-border)" : CTRL.border}`,
-  background: kind === "accept" ? "var(--pm-slate-tint)" : "#fff",
-  color: kind === "accept" ? "var(--pm-slate)" : CTRL.ink,
-  borderRadius: 6, padding: "6px 13px", fontSize: 13.5, cursor: "pointer",
-});
-
 // ---- the canned report panel ---------------------------------------------
 // It replaces the card list rather than sitting beside it, and it is GROUPED BY PERSON rather
 // than being a flat table: ~1,065 rows across 816 people means a flat list is mostly one-row
@@ -4118,6 +4197,16 @@ const IO_TONES: Record<"slate" | "amber" | "red" | "muted", { bg: string; fg: st
   amber: { bg: "var(--pm-amber-tint)", fg: "var(--pm-amber)", bd: "var(--pm-amber-tint-border)" },
   red: { bg: "var(--pm-red-tint)", fg: "var(--pm-red)", bd: "var(--pm-red-tint-border)" },
   muted: { bg: "var(--pm-surface-2)", fg: "var(--pm-muted-foreground)", bd: "var(--pm-border)" },
+};
+// The bulk-assign popover's confidence pill ("2 High", "IO 98 · High", "Not a candidate"):
+// the IO badge's tones, High slate, Medium amber, Low red, none muted.
+const BandPill = ({ band, children }: { band: "High" | "Medium" | "Low" | null; children: ReactNode }) => {
+  const t = IO_TONES[band === "High" ? "slate" : band === "Medium" ? "amber" : band === "Low" ? "red" : "muted"];
+  return (
+    <span style={{ height: 20, padding: "0 7px", display: "inline-flex", alignItems: "center", borderRadius: 999, fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap", background: t.bg, color: t.fg, border: `1px solid ${t.bd}` }}>
+      {children}
+    </span>
+  );
 };
 // A shortcut key at the right end of a menu item.
 const MenuKey = ({ k }: { k: string }) => (
@@ -4518,7 +4607,8 @@ const AuthorshipCard = ({
         </div>
 
         {/* actions: ✓ ✕ ⋯ in the open queue, Reopen in the parked ones */}
-        <div data-actions style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, width: 104 }}>
+        {/* 104px in the Open queue; the parked note may run wider ("Snoozed until 2027 Jan 28"). */}
+        <div data-actions style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, ...(statusView === "open" ? { width: 104 } : { minWidth: 104 }) }}>
           {statusView === "open" ? (
             <>
               <button type="button" className="pm-arow-accept" aria-label={isMulti ? (pick ? `Assign to ${pick.name || pick.cwid}` : "Assign") : "Accept"}
@@ -4540,18 +4630,23 @@ const AuthorshipCard = ({
               </button>
             </>
           ) : (
-            <button type="button" disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reopen"); }}
-              style={{
-                height: 26, padding: "0 10px", borderRadius: 6, border: "1px solid var(--pm-border-strong)", background: "#fff",
-                font: "inherit", fontSize: 12.5, fontWeight: 500, color: "var(--pm-foreground)", cursor: acting ? "default" : "pointer", opacity: acting ? 0.5 : 1,
-              }}>Reopen</button>
+            // Parked queues (prototype markup ~1107-1112): "Snoozed until 2027 Jan 28" or
+            // "Dismissed" right-aligned above an extra-small outline Reopen.
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+              {parkedNote(statusView, r.snooze_until) && (
+                <span data-parked-note style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", whiteSpace: "nowrap" }}>
+                  {parkedNote(statusView, r.snooze_until)}
+                </span>
+              )}
+              <button type="button" disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reopen"); }}
+                style={{
+                  height: 24, padding: "0 9px", borderRadius: 6, border: "1px solid var(--pm-border-strong)", background: "#fff",
+                  font: "inherit", fontSize: 12, fontWeight: 500, color: "var(--pm-foreground)", cursor: acting ? "default" : "pointer", opacity: acting ? 0.5 : 1,
+                }}>Reopen</button>
+            </div>
           )}
         </div>
       </div>
-      {/* snoozed wake-time hint */}
-      {statusView === "snoozed" && r.snooze_until && (
-        <div style={{ padding: "0 16px 10px 104px", fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>Wakes {r.snooze_until}</div>
-      )}
 
       {/* possible-duplicate conflict — anchored to THIS card (never a global toast that can
           drift over an unrelated one), stays up until the curator acts, names who it's for. */}
