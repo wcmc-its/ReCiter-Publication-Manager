@@ -4,7 +4,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
-import { cornellOnlySql } from '../src/utils/cornellOnly.ts'
+import { cornellOnlySql, reciterRunStatus, CORNELL_RECITER_MIN_PUBMED } from '../src/utils/cornellOnly.ts'
 
 test('cornellOnlySql: cornell-ithaca type AND no Analysis (dateAdded NULL)', () => {
     const db = new DatabaseSync(':memory:')
@@ -27,4 +27,46 @@ test('cornellOnlySql: cornell-ithaca type AND no Analysis (dateAdded NULL)', () 
     ).all()
     const flags = Object.fromEntries(rows.map((r) => [r.uid, Number(r.cornellOnly)]))
     assert.deepEqual(flags, { cfac1: 0, dual1: 0, jma7: 1, wcm1: 0, wcm2: 0 })
+})
+
+// reciterRunStatus with stubbed lookups: who is blocked from ReCiter.
+const stub = ({ cornell = [], known = {}, cornellFails = false, knownFails = false } = {}) => ({
+    isCornellOnly: async (uid) => { if (cornellFails) throw new Error('reciterdb down'); return cornell.includes(uid) },
+    knownPmidCount: async (uid) => { if (knownFails) throw new Error('DynamoDB down'); return known[uid] ?? 0 },
+})
+const quiet = async (fn) => { const log = console.log; console.log = () => {}; try { return await fn() } finally { console.log = log } }
+
+test('CORNELL_RECITER_MIN_PUBMED is 3 (approved 2026-11-16)', () => {
+    assert.equal(CORNELL_RECITER_MIN_PUBMED, 3)
+})
+
+test('reciterRunStatus: Cornell-only below 3 accepted PubMed papers is blocked', async () => {
+    for (const n of [0, 1, 2]) {
+        assert.deepEqual(await reciterRunStatus('jma7', stub({ cornell: ['jma7'], known: { jma7: n } })),
+            { cornellOnly: true, reciterEligible: false, blocked: true }, `known=${n}`)
+    }
+})
+
+test('reciterRunStatus: Cornell-only at or above 3 is allowed', async () => {
+    for (const n of [3, 4, 40]) {
+        assert.deepEqual(await reciterRunStatus('jma7', stub({ cornell: ['jma7'], known: { jma7: n } })),
+            { cornellOnly: true, reciterEligible: true, blocked: false }, `known=${n}`)
+    }
+})
+
+test('reciterRunStatus: WCM people are unaffected, whatever their GoldStandard holds', async () => {
+    let knownAsked = false
+    const lookups = { ...stub({ known: { wcm1: 0 } }), knownPmidCount: async () => { knownAsked = true; return 0 } }
+    assert.deepEqual(await reciterRunStatus('wcm1', lookups), { cornellOnly: false, reciterEligible: true, blocked: false })
+    assert.equal(knownAsked, false, 'no GoldStandard read for a non-Cornell person')
+})
+
+test('reciterRunStatus: a failed Cornell lookup fails open (runs, as before the rule)', async () => {
+    assert.deepEqual(await quiet(() => reciterRunStatus('jma7', stub({ cornell: ['jma7'], cornellFails: true }))),
+        { cornellOnly: false, reciterEligible: true, blocked: false })
+})
+
+test('reciterRunStatus: a failed GoldStandard read keeps a Cornell-only person blocked', async () => {
+    assert.deepEqual(await quiet(() => reciterRunStatus('jma7', stub({ cornell: ['jma7'], known: { jma7: 9 }, knownFails: true }))),
+        { cornellOnly: true, reciterEligible: false, blocked: true })
 })

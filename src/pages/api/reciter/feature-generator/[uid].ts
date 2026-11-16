@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getPublications } from "../../../../../controllers/featuregenerator.controller"
 import { reciterConfig } from '../../../../../config/local'
-import { isCornellOnlyUid } from '../../../../../controllers/db/person.controller'
+import { cornellReciterStatus } from '../../../../lib/cornellReciter'
+import { CORNELL_RECITER_MIN_PUBMED } from '../../../../utils/cornellOnly'
 
 type Error = {
     statusCode: number,
@@ -22,14 +23,15 @@ export default async function handler(
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
         const { uid } = req.query;
 
-        // Cornell-only people are never run through ReCiter: this call would retrieve and score
-        // them with the WCM models. /curate already checks first; this covers a direct call. A
-        // failed lookup lets the call through (the old behavior) so a reciterdb hiccup can't take
-        // /curate down for everyone.
-        if(await isCornellOnlyUid(String(uid)).catch((e) => { console.log(e); return false })) {
+        // Cornell-only people aren't run through ReCiter until they have enough accepted PubMed
+        // papers (src/utils/cornellOnly.ts): a run retrieves and scores them with the WCM models
+        // and leaves an Analysis that makes them ordinary scored people. /curate already checks
+        // first; this covers a direct call. A failed Cornell lookup lets the call through (the
+        // old behavior) so a reciterdb hiccup can't take /curate down for everyone.
+        if((await cornellReciterStatus(String(uid)).catch((e) => { console.log(e); return null }))?.blocked) {
             res.status(409).send({
                 statusCode: 409,
-                message: "Cornell Ithaca people aren't run through ReCiter"
+                message: `Cornell Ithaca people are run through ReCiter once they have ${CORNELL_RECITER_MIN_PUBMED} accepted PubMed papers`
             })
             return
         }

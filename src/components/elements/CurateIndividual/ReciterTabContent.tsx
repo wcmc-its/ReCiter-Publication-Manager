@@ -40,6 +40,9 @@ interface TabContentProps {
   acceptedCount?: number,
   rejectedCount?: number,
   onRefresh?: () => void,
+  // No Suggested tab (a Cornell-only person not yet run through ReCiter): the empty states
+  // don't point there.
+  noSuggested?: boolean,
 }
 
 const LIST_CHUNK = 50;
@@ -517,12 +520,14 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
             <svg viewBox="0 0 24 24" fill="none" stroke="#8a94a6" strokeWidth="2" strokeLinecap="round" width="22" height="22"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6M9 8h4"/></svg>
           </div>
           <div className={styles.emptyTitle}>No accepted publications yet</div>
-          <div className={styles.emptyBody}>Publications you accept will appear here. Review the suggested tab to get started.</div>
+          <div className={styles.emptyBody}>{props.noSuggested ? 'Publications you accept or add will appear here.' : 'Publications you accept will appear here. Review the suggested tab to get started.'}</div>
+          {!props.noSuggested && (
           <div className={styles.emptyActions}>
             <button className={styles.emptyActionPrimary} onClick={() => props.onTabChange?.('NULL')}>
               Go to Suggested
             </button>
           </div>
+          )}
         </div>
       );
     }
@@ -534,11 +539,13 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
           </div>
           <div className={styles.emptyTitle}>No rejected publications</div>
           <div className={styles.emptyBody}>Publications you reject will be recorded here. You can undo a rejection at any time.</div>
+          {!props.noSuggested && (
           <div className={styles.emptyActions}>
             <button className={styles.emptyActionSecondary} onClick={() => props.onTabChange?.('NULL')}>
               Go to Suggested
             </button>
           </div>
+          )}
         </div>
       );
     }

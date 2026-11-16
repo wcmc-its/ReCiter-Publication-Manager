@@ -247,14 +247,16 @@ export const identityFetchPaginatedData = (page, limit,filters) => dispatch => {
         })
 }
 
-export const reciterFetchData = (uid, refresh) => dispatch => {
+// stored: read the person's curated PubMed papers from the stores instead of running ReCiter, in
+// the same response shape (the no-run /curate page of a Cornell-only person, src/utils/cornellOnly.ts).
+export const reciterFetchData = (uid, refresh, stored = false) => dispatch => {
 
     dispatch({
         type: methods.RECITER_FETCH_DATA
     })
 
-    var url = '/api/reciter/feature-generator/' + uid
-    if (refresh) {
+    var url = (stored ? '/api/db/users/stored-publications/' : '/api/reciter/feature-generator/') + uid
+    if (refresh && !stored) {
         url += '?analysisRefreshFlag=true&retrievalRefreshFlag=ONLY_NEWLY_ADDED_PUBLICATIONS'
     }
     fetchWithTimeout(url, {
@@ -298,7 +300,7 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
         })
         .catch(error => {
 
-            toast.error("Feature generator api for " + uid + " failed - " + error.title);
+            toast.error((stored ? "Stored publications lookup" : "Feature generator api") + " for " + uid + " failed - " + error.title);
 
             dispatch(
                 addIdentityORFeatureGenError("Feature-Generator-Error")

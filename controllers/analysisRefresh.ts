@@ -23,13 +23,15 @@ import { reciterConfig } from '../config/local.js'
 // reporting_ad_hoc_feature_generator_execution table if PM ever scales past one replica.
 const QUIET_MS = 60_000
 
-// Cornell Ithaca people with no Analysis (src/utils/cornellOnly.ts) are never run: a run is
-// PubMed-first and finds little for most of them, yet leaves an Analysis that turns them into
-// ordinary scored people. An /authorships accept is a goldstandard write, so it lands here.
+// Cornell Ithaca people with no Analysis (src/utils/cornellOnly.ts) are not run until they have
+// CORNELL_RECITER_MIN_PUBMED accepted PubMed papers: a run is PubMed-first and finds little for
+// most of them, yet leaves an Analysis that turns them into ordinary scored people. An
+// /authorships accept or a manual PubMed add is a goldstandard write, so it lands here; the one
+// that reaches the threshold is the one whose refresh switches the person onto ReCiter.
 // Lazy import keeps the DB models out of the check script; a failed lookup runs as before.
 const guard = {
-  isCornellOnly: async (uid: string): Promise<boolean> =>
-    (await import('./db/person.controller')).isCornellOnlyUid(uid).catch(() => false),
+  blocked: async (uid: string): Promise<boolean> =>
+    (await (await import('../src/lib/cornellReciter')).cornellReciterStatus(uid)).blocked,
 }
 
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -46,7 +48,7 @@ async function run(uid: string) {
   if (running.has(uid)) { dirty.add(uid); return }
   running.add(uid)
   try {
-    if (await guard.isCornellOnly(uid)) return
+    if (await guard.blocked(uid).catch(() => false)) return
     // analysisRefreshFlag alone (no retrievalRefreshFlag) re-features and re-scores from the
     // existing PubMedArticle cache — sub-second for most people, seconds for a 300-article one.
     const res = await fetch(

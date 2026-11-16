@@ -66,10 +66,12 @@ const CurateIndividual = () => {
   // skeleton, so a tabs instance mounted before the fetches start would be thrown away along
   // with the link. Handed to the tabs that mount after loading, then cleared once they take it.
   const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(null);
-  // Cornell-only people (src/utils/cornellOnly.ts) are never run through ReCiter, so their page
-  // must not fire the feature-generator fetch, which would retrieve and score them. Checked
-  // before any fetch, which also covers a pasted /curate/<uid> URL. null while checking.
-  const [cornellOnly, setCornellOnly] = useState<boolean | null>(null);
+  // Cornell-only people (src/utils/cornellOnly.ts) aren't run through ReCiter until they have
+  // CORNELL_RECITER_MIN_PUBMED accepted PubMed papers, so until then their page must not fire the
+  // feature-generator fetch, which would retrieve and score them. It reads the stores instead
+  // (same response shape) and ReciterTabs drops Suggested. Checked before any fetch, which also
+  // covers a pasted /curate/<uid> URL. null while checking.
+  const [noRun, setNoRun] = useState<boolean | null>(null);
   // Grant Proxy hits Superuser-only API routes (see PM#849 / proxy.controller.ts) -- match
   // that gate here so the button isn't shown to someone who'd just get a 403.
   const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
@@ -92,24 +94,22 @@ const CurateIndividual = () => {
     fetchAllAdminSettings();
     let nextPersonIdentifier = "";
     setNewId(id);
-    setCornellOnly(null);
+    setNoRun(null);
     let cancelled = false;
     fetch(`/api/db/users/cornell-only/${encodeURIComponent(String(id))}`, {
       credentials: "same-origin",
       headers: { Accept: 'application/json', 'Authorization': reciterConfig.backendApiKey },
     })
-      .then((r) => (r.ok ? r.json() : { cornellOnly: false }))
+      .then((r) => (r.ok ? r.json() : { blocked: false }))
       // A failed check falls through to the normal page; the feature-generator route refuses a
-      // Cornell-only uid on its own.
-      .catch(() => ({ cornellOnly: false }))
+      // blocked uid on its own.
+      .catch(() => ({ blocked: false }))
       .then((d) => {
         if (cancelled) return;
         // Fetches first, so the loading state never drops out between the check and them.
-        if (!d.cornellOnly) {
-          dispatch(identityFetchData(id));
-          fetchData();
-        }
-        setCornellOnly(!!d.cornellOnly);
+        dispatch(identityFetchData(id));
+        fetchData(!!d.blocked);
+        setNoRun(!!d.blocked);
       });
     // The tabs stay unmounted while the Cornell check and then fetchData() run, so they only
     // see the link once this uid's data has loaded.
@@ -136,8 +136,8 @@ const CurateIndividual = () => {
     setShowNoPermitError(hasIdentityNotFoundError);
   }, [identityORFeatureGenError])
 
-  const fetchData = () => {
-    dispatch(reciterFetchData(id, false));
+  const fetchData = (stored: boolean = !!noRun) => {
+    dispatch(reciterFetchData(id, false, stored));
     dispatch(fetchFeedbacklog(id));
   }
 
@@ -241,17 +241,7 @@ const CurateIndividual = () => {
     });
   }, [feedbacklog, reciterData]);
 
-  if (cornellOnly) {
-    return (
-      <div className={appStyles.mainContainer}>
-        <div style={{ padding: '40px 24px', textAlign: 'center', color: '#8a94a6', fontSize: 14 }}>
-          Cornell Ithaca people aren&apos;t run through ReCiter, so {id} has no publications to curate here.
-        </div>
-      </div>
-    )
-  }
-
-  if (cornellOnly === null || identityFetching || reciterFetching) {
+  if (noRun === null || identityFetching || reciterFetching) {
     return (
       <div className={appStyles.mainContainer}>
         <div className={styles.loadingRow}>
@@ -406,6 +396,7 @@ const CurateIndividual = () => {
             reciterData={reciterData}
             fullName={personFullName}
             fetchOriginalData={fetchData}
+            noRun={noRun}
             addDeepLink={addDeepLink}
             onAddDeepLinkConsumed={() => setAddDeepLink(null)}
           />
