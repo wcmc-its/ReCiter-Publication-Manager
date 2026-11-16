@@ -79,7 +79,7 @@ console.log("\n3. overflow menu — a shortcut to the existing input, not a new 
 // have turned the "no text input in the menu" assertion into a false alarm — it did).
 const menuBlockEnd = tabsSrc.indexOf("{/* error */}");
 assert(menuBlockEnd > -1, "overflow menu's end marker (the error Snackbar) located");
-const menuBlock = tabsSrc.slice(tabsSrc.indexOf("{/* overflow menu:"), menuBlockEnd);
+const menuBlock = tabsSrc.slice(tabsSrc.indexOf("{/* the row's ⋯ menu"), menuBlockEnd);
 assert(menuBlock.length > 200, "overflow menu block located");
 assert(/Assign to someone else/.test(menuBlock), "menu item text present");
 assert(/focusAssignOther\(id\)/.test(menuBlock), "clicking it calls the shared focusAssignOther(id) helper");

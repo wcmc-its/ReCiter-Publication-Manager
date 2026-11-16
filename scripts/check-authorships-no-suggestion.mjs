@@ -98,12 +98,12 @@ check("header select-all-on-page excludes a no-suggestion row",
 check("header select-all-on-page still includes an ordinary row",
   isBulkSelectable({ single_candidate: true, identity_in_reciter: true, top_already_rejected: false, top_cwid: "aaa2014" }, "open"), true);
 
-// The row checkbox is `disabled={!selectable}` where `selectable = isBulkSelectable(r, statusView)`
-// (T4) — assert the delegation, then exercise isBulkSelectable directly (the same function
+// The table row renders its checkbox only when `selectable` (= isBulkSelectable(r, statusView),
+// T4) — assert the delegation, then exercise isBulkSelectable directly (the same function
 // toggleSelect above already covers) rather than re-deriving `selectable` via new Function.
-const checkboxLine = line(tabsSrc, "input type=\"checkbox\" disabled=", "checkbox disabled expression");
-check("the row checkbox delegates to !selectable (isBulkSelectable)",
-  checkboxLine.includes("disabled={!selectable}"), true);
+const checkboxLine = line(tabsSrc, "{selectable ? (", "row checkbox gate");
+check("the row checkbox delegates to selectable (isBulkSelectable)",
+  checkboxLine === "{selectable ? (", true);
 check("the row checkbox is disabled for a no-suggestion open row",
   !isBulkSelectable({ single_candidate: true, top_cwid: null }, "open"), true);
 check("the row checkbox stays enabled for an ordinary open row",
@@ -129,26 +129,20 @@ check("an ordinary row NOT known to ReCiter is still excluded (pre-existing, unc
 // ---------------------------------------------------------------------------------------
 console.log("\n4. rendering — the card itself:");
 
-// Right-rail actions: the noSuggestion branch of the isMulti/noSuggestion/noIdentity/
-// alreadyRejected chain must not be able to fire accept or reject.
-const rightRail = tabsSrc.slice(tabsSrc.indexOf('isMulti ? (\n              <button style={btn("ghost")}'), tabsSrc.indexOf(") : noIdentity ? ("));
-const noSuggestionBranch = rightRail.slice(rightRail.indexOf(": noSuggestion ? ("));
-check("right-rail no-suggestion branch found", noSuggestionBranch.length > 20, true);
-check("it never calls onAction(\"accept\")", noSuggestionBranch.includes('onAction("accept")'), false);
-check("it never calls onAction(\"reject\")", noSuggestionBranch.includes('onAction("reject")'), false);
-check("it reuses the existing noIdentityPillStyle rather than a new style object",
-  noSuggestionBranch.includes("noIdentityPillStyle"), true);
+// Row actions: the table row always draws ✓ and ✕, disabled whenever acceptBlock / rejectBlock
+// names a reason. A no-suggestion row must get a reason for both, so neither can fire.
+const acceptBlockSrc = tabsSrc.slice(tabsSrc.indexOf("const acceptBlock: string | null ="), tabsSrc.indexOf("const rejectBlock ="));
+check("acceptBlock has a no-suggestion reason", /: noSuggestion \? "No candidate to accept"/.test(acceptBlockSrc), true);
+const rejectBlockLine = line(tabsSrc, "const rejectBlock =", "rejectBlock");
+check("rejectBlock is set for a no-suggestion row", rejectBlockLine.includes("noSuggestion ?"), true);
+check("✓ is disabled by acceptBlock", tabsSrc.includes("disabled={acting || !!acceptBlock}"), true);
+check("✕ is disabled by rejectBlock", tabsSrc.includes("disabled={acting || !!rejectBlock}"), true);
 
-// ScoreRail: the top_cwid-null early return (code only, not its own explanatory comment, which
-// names top_io_score precisely to say why the branch exists) must not reference the score it's
-// suppressing, and must come before the isMulti/isAbsent checks that follow it.
-const scoreRailFnStart = tabsSrc.indexOf("const ScoreRail = ");
-const scoreRailBranchStart = tabsSrc.indexOf("if (!r.top_cwid) {", scoreRailFnStart);
-const scoreRailIsMultiStart = tabsSrc.indexOf("if (isMulti) {", scoreRailFnStart);
-check("ScoreRail's no-suggestion branch renders before the isMulti/isAbsent checks",
-  scoreRailBranchStart > scoreRailFnStart && scoreRailBranchStart < scoreRailIsMultiStart, true);
-const scoreRailBranchCode = tabsSrc.slice(scoreRailBranchStart, scoreRailIsMultiStart);
-check("...and its code never touches top_io_score", scoreRailBranchCode.includes("top_io_score"), false);
+// IO badge: a row with no top_cwid shows "—", never the score the producer left behind
+// (top_io_score is not part of ReCiterDB#177's null sweep).
+const { ioBadge } = await import("../src/utils/authorshipRow.ts");
+check("the IO badge of a no-suggestion row is a dash even with a stale top_io_score",
+  ioBadge({ top_cwid: null, top_io_score: 97.4, single_candidate: true }).text, "—");
 
 // SingleEvidence: the noSuggestion arm (the true-branch only — the false branch is the
 // pre-existing scopusNote/ioFgNote choice, still correct for every other row) must not call

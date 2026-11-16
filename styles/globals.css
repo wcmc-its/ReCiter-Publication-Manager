@@ -303,6 +303,34 @@ h1:where(:not(.pm-page-title)) {
   outline: 2px solid var(--pm-ring);
   outline-offset: -2px;
 }
+/* /authorships table row: the 30px ✓ / ✕ / ⋯ buttons fill on hover, as in the prototype, and
+   the evidence magnifier tints. !important because the resting colours are inline styles. */
+.pm-arow-accept:not(:disabled):hover {
+  background: var(--pm-slate) !important;
+  border-color: var(--pm-slate) !important;
+  color: #fff !important;
+}
+.pm-arow-reject:not(:disabled):hover {
+  background: var(--pm-red) !important;
+  border-color: var(--pm-red) !important;
+  color: #fff !important;
+}
+.pm-arow-more:not(:disabled):hover {
+  background: var(--pm-surface-2) !important;
+  color: var(--pm-foreground) !important;
+}
+.pm-arow-ev:hover {
+  background: var(--pm-slate-tint) !important;
+  border-color: var(--pm-slate-tint-border) !important;
+  color: var(--pm-slate) !important;
+}
+.pm-arow-accept:focus-visible,
+.pm-arow-reject:focus-visible,
+.pm-arow-more:focus-visible,
+.pm-arow-ev:focus-visible {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: 1px;
+}
 
 .table {
   vertical-align: middle !important;
