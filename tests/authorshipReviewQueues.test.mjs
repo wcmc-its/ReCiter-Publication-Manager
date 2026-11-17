@@ -1,8 +1,11 @@
 // Unit tests for the PR 6 helpers in src/utils/authorshipRow.ts: identity-conflict rows and the
-// in-card empty state. Run with `npm test`.
+// in-card empty state. Also the queue's sort table and precision-lane predicate
+// (controllers/db/authorshipQueueSql.ts). Run with `npm test`.
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { Sequelize } from 'sequelize'
 import { conflictIdentities, conflictKeep, emptyState } from '../src/utils/authorshipRow.ts'
+import { SORTS, precisionWhere } from '../controllers/db/authorshipQueueSql.ts'
 
 test('conflictIdentities lists the proposed identity, then each person who accepted it', () => {
     const ids = conflictIdentities({
@@ -56,4 +59,42 @@ test('emptyState: an empty queue says so, per queue, with no Reset', () => {
         { title: 'Queue is clear', body: 'Every open authorship has been assigned, rejected, snoozed, or dismissed.', canReset: false })
     assert.equal(emptyState({ statusView: 'snoozed', queueTotal: 0, filtersOn: false }).title, 'No snoozed authorships')
     assert.equal(emptyState({ statusView: 'duplicates', queueTotal: 0, filtersOn: false }).title, 'No duplicates left')
+})
+
+// The predicates as MySQL text. The query generator needs no connection, and none is opened.
+const whereSql = (w) => new Sequelize({ dialect: 'mysql' }).getQueryInterface().queryGenerator.getWhereConditions(w)
+
+test('precisionWhere: single and fullname lanes are unchanged, anything else adds nothing', () => {
+    assert.deepEqual(precisionWhere('single'), { single_candidate: true })
+    assert.deepEqual(precisionWhere('fullname'), { single_candidate: true, top_given_match: 'full' })
+    for (const p of ['all', '', undefined, null, 'VENUEFIT', "venuefit' OR 1=1", ['venuefit'], { venuefit: true }]) {
+        assert.equal(precisionWhere(p), null)
+    }
+})
+
+test('precisionWhere: venuefit is one candidate, an initial-only match and byline, and a good venue fit', () => {
+    assert.equal(whereSql(precisionWhere('venuefit')),
+        "((`single_candidate` = true AND `top_given_match` = 'initial' AND `top_venue_fit` >= 1) AND "
+        + "CHAR_LENGTH(REPLACE(SUBSTRING_INDEX(`wcm_author`, ' ', 1), '.', '')) < 3)")
+})
+
+test('SORTS: top_confidence breaks top_io_score ties, directly after it and before pmid', () => {
+    const keys = (sort) => SORTS[sort].map(([k, dir]) => (typeof k === 'string' ? `${k} ${dir}` : `<expr> ${dir}`))
+    assert.deepEqual(keys('precision'), ['single_candidate DESC', 'top_io_score DESC', 'top_confidence DESC', 'pmid DESC'])
+    assert.deepEqual(keys('io'), ['top_io_score DESC', 'top_confidence DESC', 'pmid DESC'])
+    assert.deepEqual(keys('candidates'), ['<expr> DESC', 'top_io_score DESC', 'top_confidence DESC', 'pmid DESC'])
+    // every sort that orders by top_io_score has the tiebreaker right behind it
+    for (const sort of Object.keys(SORTS)) {
+        const k = keys(sort)
+        const i = k.indexOf('top_io_score DESC')
+        if (i > -1) assert.equal(k[i + 1], 'top_confidence DESC', sort)
+    }
+})
+
+test('SORTS: the sorts that never used top_io_score are as they were', () => {
+    assert.deepEqual(SORTS.confidence, [['top_confidence', 'DESC'], ['pmid', 'DESC']])
+    assert.deepEqual(SORTS.fg, [['top_fg_score', 'DESC'], ['pmid', 'DESC']])
+    assert.deepEqual(SORTS.date, [['entrez_date', 'DESC'], ['pmid', 'DESC']])
+    assert.deepEqual(SORTS.date_asc, [['entrez_date', 'ASC'], ['pmid', 'ASC']])
+    assert.deepEqual(Object.keys(SORTS), ['precision', 'confidence', 'io', 'fg', 'date', 'date_asc', 'candidates'])
 })

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import {
     ioBand, ioBadgeText, ioBadge, shortInstitution, roleLine, formatRowDate,
     splitAffiliation, sourceBadgeText, shortcutsLine, parkedNote,
-    ioScoreText, fgLine, bylineParts, rankCandidates, compareHint, shareLine,
+    ioScoreText, fgLine, bylineParts, rankCandidates, compareHint, shareLine, venueFitBand,
 } from '../src/utils/authorshipRow.ts'
 
 test('ioBand uses the page bands (90 / 50)', () => {
@@ -16,6 +16,19 @@ test('ioBand uses the page bands (90 / 50)', () => {
     assert.equal(ioBand(0), 'Low')
     assert.equal(ioBand(undefined), null)
     assert.equal(ioBand(null), null)
+})
+
+test('venueFitBand: >= 1 good, < -1 poor, nothing in between or when unknown', () => {
+    assert.equal(venueFitBand(1), 'good')
+    assert.equal(venueFitBand(2.4), 'good')
+    assert.equal(venueFitBand(0.999), null)
+    assert.equal(venueFitBand(0), null)
+    assert.equal(venueFitBand(-1), null)
+    assert.equal(venueFitBand(-1.001), 'poor')
+    assert.equal(venueFitBand(-3), 'poor')
+    assert.equal(venueFitBand(null), null)
+    assert.equal(venueFitBand(undefined), null)
+    assert.equal(venueFitBand(NaN), null)
 })
 
 test('ioBadgeText floors so the number never outranks its band', () => {

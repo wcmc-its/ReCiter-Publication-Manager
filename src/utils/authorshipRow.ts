@@ -29,6 +29,16 @@ export const ioBadge = (r: {
   return { text: ioBadgeText(r.top_io_score), tone: band === "High" ? "slate" : band === "Medium" ? "amber" : "red", band };
 };
 
+export type VenueFitBand = "good" | "poor";
+
+// The venue-fit pill on a row, from authorship_review.top_venue_fit: ln(the proposed person's
+// department's share of its accepted papers in the venue's subfield / the campus-wide share).
+// >= 1 is a good fit, < -1 a poor one; in between, and when the producer has no value, no pill.
+// The "Initials + venue fit" lane's SQL (precisionWhere in controllers/db/authorshipQueueSql.ts)
+// uses the same >= 1.
+export const venueFitBand = (fit?: number | null): VenueFitBand | null =>
+  fit == null || Number.isNaN(fit) ? null : fit >= 1 ? "good" : fit < -1 ? "poor" : null;
+
 // Institution on the role line, shortened the way the prototype writes it ("WCM").
 export const shortInstitution = (inst?: string | null): string => {
   const s = (inst || "").trim();

@@ -31,7 +31,7 @@ import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } fro
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import {
   bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
-  conflictIdentities, conflictKeep, emptyState, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation,
+  conflictIdentities, conflictKeep, emptyState, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, venueFitBand,
 } from "../../../utils/authorshipRow";
 
 // ---- types ---------------------------------------------------------------
@@ -74,6 +74,9 @@ interface AuthorshipRow {
   top_cohort_size?: number;
   top_given_match?: string;
   top_affil_match?: boolean;
+  // How well the venue fits the proposed person's department (ReCiterDB v3.14); see venueFitBand.
+  // Only ever set on Scopus / OpenAlex rows whose candidates are all Cornell Ithaca people.
+  top_venue_fit?: number | null;
   n_candidates?: number;
   single_candidate?: boolean;
   candidate_cwids_json?: string;
@@ -262,6 +265,7 @@ interface Candidate {
 interface Summary {
   total: number; single_candidate: number; classes: Record<string, number>;
   fullname?: number;                                 // single-candidate AND full given-name match
+  venuefit?: number;                                 // single-candidate, initials-only byline, venue fits the department
   duplicates?: number;                               // accepts parked by a dup-check 409
   // Identity conflicts (#986/#990): open rows whose exact byline slot — same PMID AND same
   // author position — is already ACCEPTED by a different WCM identity (one that exists in the
@@ -498,7 +502,7 @@ const datePhrase = (preset: string, from: string, to: string): string => {
 //                     changes only the preset and must not refetch or drop a selection.
 //   * anchors, `expanded`, `selected`, `picked`, `allMatching` — UI state, not filters.
 interface AuthorshipFilters {
-  lane: "fullname" | "single" | "all";
+  lane: "fullname" | "venuefit" | "single" | "all";
   classification: "all" | "buried" | "absent" | "suggested";
   search: string;
   selectedTypes: string[];
@@ -670,11 +674,12 @@ const sameFilterValue = (a: any, b: any): boolean => {
 };
 
 // MATCH CLASS (HANDOFF §2.3) is the union of today's two chip strips — the lane strip
-// (fullname / single / all) and the classification strip — as ONE single-select list in the
-// mockup's order (mockup:488-496). Picking a lane value resets classification to its all-value
-// and vice versa, which is why 7 entries cover 3 lane values + 4 classification values.
+// (fullname / venuefit / single / all) and the classification strip — as ONE single-select list
+// in the mockup's order (mockup:488-496). Picking a lane value resets classification to its
+// all-value and vice versa, which is why 8 entries cover 4 lane values + 4 classification values.
 const LANE_LABEL: Record<AuthorshipFilters["lane"], string> = {
-  all: "All unassigned", fullname: "Unique and full given-name match", single: "High-precision",
+  all: "All unassigned", fullname: "Unique and full given-name match", venuefit: "Initials + venue fit",
+  single: "High-precision",
 };
 const MATCH_CLASS_DEFAULT = LANE_LABEL.all;
 // `hint` is the tooltip the deleted strips carried (they are the only place these explanations
@@ -697,6 +702,12 @@ const MATCH_CLASS_OPTIONS: MatchClassOption[] = [
     count: (s) => s?.fullname,
   },
   {
+    label: LANE_LABEL.venuefit, lane: "venuefit", classification: "all",
+    sub: "Exactly one identity matches on initials, and the venue fits their department",
+    hint: "Exactly one identity matches, the byline gives initials only, AND the person's department often publishes in this venue's field. On adjudicated Cornell Ithaca Scopus rows these were correct 99.1% of the time (n=1,007, 2026-11-16).",
+    count: (s) => s?.venuefit,
+  },
+  {
     label: LANE_LABEL.single, lane: "single", classification: "all",
     sub: "Exactly one identity matches the name",
     hint: "Only authorships where exactly one WCM identity matches the name",
@@ -705,7 +716,8 @@ const MATCH_CLASS_OPTIONS: MatchClassOption[] = [
   { label: CLASS_META.suggested.label, lane: "all", classification: "suggested", sub: "Already in a curator's pending queue (Authorship Score ≥ 30)", hint: CLASS_META.suggested.hint, count: (s) => s?.classes?.suggested },
   { label: CLASS_META.buried.label, lane: "all", classification: "buried", sub: "Production buried it (Authorship Score < 30)", hint: CLASS_META.buried.hint, count: (s) => s?.classes?.buried },
   { label: CLASS_META.absent.label, lane: "all", classification: "absent", sub: "Production never scored this person", hint: CLASS_META.absent.hint, count: (s) => s?.classes?.absent },
-  // SIX options, not the mockup's seven. Its 7th, "All classes", is the classification strip's
+  // SEVEN options: the mockup's first six plus "Initials + venue fit" (2026-11-16). The mockup's
+  // own 7th, "All classes", is left out on purpose: it is the classification strip's
   // all-value and lands on exactly the same (lane:"all", classification:"all") state as
   // "All unassigned" at the top of this list — the mockup lists both only because it is today's
   // two chip strips concatenated (HANDOFF §3a) and does not know they are two axes. Two entries
@@ -4420,6 +4432,7 @@ const AuthorshipCard = ({
   const rejectBlock = noSuggestion ? "No candidate to reject" : null;
   const affiliation = r.author_affiliation ? splitAffiliation(r.author_affiliation, WCM_RE) : null;
   const dateText = formatRowDate(r.entrez_date);
+  const venueFit = venueFitBand(r.top_venue_fit);
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
   return (
@@ -4658,8 +4671,20 @@ const AuthorshipCard = ({
           )}
           {/* exact-DOI duplicate precheck, and the producer's PubMed-twin heuristic (#951): two
               separate signals. The twin chip clears once a curator records a verdict. */}
-          {(r.dup_flag || (r.matched_pmid != null && !r.matched_pmid_verdict)) && (
+          {(venueFit || r.dup_flag || (r.matched_pmid != null && !r.matched_pmid_verdict)) && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+              {/* venue fit (ReCiterDB v3.14): does the proposed person's department publish in
+                  this venue's field. Quiet when it does, a caution when it rarely does. */}
+              {venueFit === "good" && (
+                <Tip title="This department often publishes in this venue's field" placement="top" arrow>
+                  <span><Chip kind="ok">Venue fits department</Chip></span>
+                </Tip>
+              )}
+              {venueFit === "poor" && (
+                <Tip title="This department rarely publishes in this venue's field" placement="top" arrow>
+                  <span><Chip kind="warn"><IconAlert size={12} /> Unusual venue for this department</Chip></span>
+                </Tip>
+              )}
               {r.dup_flag && (
                 <Tip title={r.dup_reason || "Possible duplicate — already added as an external article"} placement="top" arrow>
                   <span><Chip kind="warn"><IconAlert size={12} /> Possible duplicate</Chip></span>

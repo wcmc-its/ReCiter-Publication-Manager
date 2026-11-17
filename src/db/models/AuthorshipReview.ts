@@ -31,6 +31,11 @@ export interface AuthorshipReviewAttributes {
   top_cohort_size?: number;
   top_given_match?: string;
   top_affil_match?: boolean;
+  // ReCiterDB v3.14: how well the venue fits top_cwid's department, as ln(the department's share
+  // of its accepted papers in the venue's subfield / the campus-wide share). >= 1 a good fit,
+  // < -1 a poor one, NULL unknown. Only set on scopus/openalex rows whose candidates are all
+  // Cornell Ithaca people.
+  top_venue_fit?: number;
   n_candidates?: number;
   single_candidate?: boolean;
   candidate_cwids_json?: string;
@@ -61,7 +66,7 @@ export interface AuthorshipReviewAttributes {
 
 export type AuthorshipReviewPk = "id";
 export type AuthorshipReviewId = AuthorshipReview[AuthorshipReviewPk];
-export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "authors_json" | "dup_flag" | "dup_reason" | "accept_conflict" | "accept_conflict_matches" | "matched_pmid" | "matched_pmid_source" | "matched_pmid_at" | "matched_pmid_verdict" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
+export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "top_venue_fit" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "authors_json" | "dup_flag" | "dup_reason" | "accept_conflict" | "accept_conflict_matches" | "matched_pmid" | "matched_pmid_source" | "matched_pmid_at" | "matched_pmid_verdict" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
 export type AuthorshipReviewCreationAttributes = Optional<AuthorshipReviewAttributes, AuthorshipReviewOptionalAttributes>;
 
 export class AuthorshipReview extends Model<AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes> implements AuthorshipReviewAttributes {
@@ -91,6 +96,7 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
   top_cohort_size?: number;
   top_given_match?: string;
   top_affil_match?: boolean;
+  top_venue_fit?: number;
   n_candidates?: number;
   single_candidate?: boolean;
   candidate_cwids_json?: string;
@@ -141,6 +147,7 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
       top_cohort_size: { type: DataTypes.INTEGER, allowNull: true },
       top_given_match: { type: DataTypes.STRING(16), allowNull: true },
       top_affil_match: { type: DataTypes.BOOLEAN, allowNull: true },
+      top_venue_fit: { type: DataTypes.FLOAT, allowNull: true },
       n_candidates: { type: DataTypes.INTEGER, allowNull: true },
       single_candidate: { type: DataTypes.BOOLEAN, allowNull: true },
       candidate_cwids_json: { type: DataTypes.TEXT({ length: 'long' }), allowNull: true },
