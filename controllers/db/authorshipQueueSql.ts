@@ -69,9 +69,13 @@ export function precisionWhere(precision: unknown): any {
   } else if (precision === "orcid") {
     // "ORCID match": the fullname lane's rows where the byline ORCID also maps to that one
     // identity (ReCiterDB v3.15, top_orcid_match = 1). Narrow on purpose. When the ORCID person
-    // was not among the name-matched candidates the producer adds them, and that row is
-    // multi-candidate or not a full-name match, so it stays out of this lane and is reviewed
-    // one at a time. top_orcid_match is NULL when the byline has no ORCID or it maps to nobody.
+    // was not among the name-matched candidates the producer adds them, and that row must stay
+    // out of this lane and be reviewed one at a time. PM has no column that says "added by
+    // ORCID", so this RELIES ON THE PRODUCER: a candidate the name matcher did not find never
+    // carries given_match "full", even alone and even when the given names agree. The
+    // ReCiterDB matcher has to hold that and test it in _selftest; if it cannot, it needs to
+    // write a flag this predicate can exclude before the lane is used for bulk accept.
+    // top_orcid_match is NULL when the byline has no ORCID or it maps to nobody.
     return { single_candidate: true, top_given_match: "full", top_orcid_match: true };
   }
   return null;
