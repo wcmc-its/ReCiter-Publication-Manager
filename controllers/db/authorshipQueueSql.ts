@@ -6,15 +6,19 @@ import { Op, fn, col, literal, where as sqlWhere } from "sequelize";
 export const SORTS: Record<string, any[]> = {
   // default: single-candidate (high-precision) first, then identity-only score desc.
   // ["pmid","DESC"] is a secondary key so same-paper pubmed authorships land adjacent.
-  // top_confidence breaks top_io_score ties in every sort that leads on it: Scopus and OpenAlex
-  // rows have no IO score at all, so without it they came back in no useful order. PubMed rows
-  // have one, so for them it only decides exact IO ties (ahead of pmid).
-  precision: [["single_candidate", "DESC"], ["top_io_score", "DESC"], ["top_confidence", "DESC"], ["pmid", "DESC"]],
-  confidence: [["top_confidence", "DESC"], ["pmid", "DESC"]],
-  io: [["top_io_score", "DESC"], ["top_confidence", "DESC"], ["pmid", "DESC"]],
-  fg: [["top_fg_score", "DESC"], ["pmid", "DESC"]],
-  date: [["entrez_date", "DESC"], ["pmid", "DESC"]],
-  date_asc: [["entrez_date", "ASC"], ["pmid", "ASC"]],
+  // top_confidence follows pmid in every sort that leads on top_io_score: Scopus and OpenAlex
+  // rows have neither an IO score nor a pmid, so without it they came back in no useful order.
+  // It sits BEHIND pmid, not ahead of it, so PubMed rows keep the order they always had: exact
+  // IO ties are the norm there (the score is a step function, and many rows have none), and
+  // confidence ahead of pmid would reorder nearly all of them and split same-paper authorships.
+  // id closes every sort: pmid is NULL on external rows and shared by same-paper PubMed rows,
+  // so without a unique last key LIMIT/OFFSET paging through a tie can repeat or skip a row.
+  precision: [["single_candidate", "DESC"], ["top_io_score", "DESC"], ["pmid", "DESC"], ["top_confidence", "DESC"], ["id", "DESC"]],
+  confidence: [["top_confidence", "DESC"], ["pmid", "DESC"], ["id", "DESC"]],
+  io: [["top_io_score", "DESC"], ["pmid", "DESC"], ["top_confidence", "DESC"], ["id", "DESC"]],
+  fg: [["top_fg_score", "DESC"], ["pmid", "DESC"], ["id", "DESC"]],
+  date: [["entrez_date", "DESC"], ["pmid", "DESC"], ["id", "DESC"]],
+  date_asc: [["entrez_date", "ASC"], ["pmid", "ASC"], ["id", "ASC"]],
   // "Most candidates" — the biggest pile first, where "pile" is the same N the card's "Show N
   // others like this" button counts: rows sharing the byline's first|last token key (the exact
   // SUBSTRING_INDEX pair like_count's grouped COUNT in authorships.controller.ts uses). One window COUNT in the ORDER
@@ -28,7 +32,7 @@ export const SORTS: Record<string, any[]> = {
   // GROUP BY table on the same two tokens instead.
   candidates: [
     [literal("COUNT(*) OVER (PARTITION BY LOWER(SUBSTRING_INDEX(`AuthorshipReview`.`wcm_author`, ' ', 1)), LOWER(SUBSTRING_INDEX(`AuthorshipReview`.`wcm_author`, ' ', -1)))"), "DESC"],
-    ["top_io_score", "DESC"], ["top_confidence", "DESC"], ["pmid", "DESC"],
+    ["top_io_score", "DESC"], ["pmid", "DESC"], ["top_confidence", "DESC"], ["id", "DESC"],
   ],
 };
 
@@ -47,15 +51,21 @@ export function precisionWhere(precision: unknown): any {
   } else if (precision === "venuefit") {
     // "Initials + venue fit": the initial-only rows the fullname lane leaves out, where the
     // venue says what the name cannot. One candidate, the byline gives initials only (its first
-    // token, periods removed, is under 3 characters) and top_venue_fit >= 1: the candidate's
+    // token, periods removed, is exactly 1 character) and top_venue_fit >= 1: the candidate's
     // department publishes in the venue's subfield at e (2.7x) or more of the campus-wide rate.
     // Measured on adjudicated Cornell Ithaca Scopus rows, 2026-11-16: 99.1% correct (n=1,007).
     // With a poor fit (< -1) the same picks were usually wrong. top_venue_fit is NULL on PubMed
     // rows and wherever a candidate is not an Ithaca person, so those never match.
+    // That measurement counted a first token under 3 characters as initials. The lane is
+    // narrower on purpose: Scopus writes initials as "A. A. Agrawal" (1 character), so a
+    // 2-character token here is a short spelled-out name that differs from the candidate's
+    // ("Yi Wang" proposed for Yan Wang), and spelled-out different names measured about 90%
+    // at the same fit, not 99%. An empty first token (blank byline, leading space) is no
+    // initial either.
     return {
       [Op.and]: [
         { single_candidate: true, top_given_match: "initial", top_venue_fit: { [Op.gte]: 1 } },
-        sqlWhere(fn("CHAR_LENGTH", fn("REPLACE", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1), ".", "")), "<", 3),
+        sqlWhere(fn("CHAR_LENGTH", fn("REPLACE", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1), ".", "")), "=", 1),
       ],
     };
   }
