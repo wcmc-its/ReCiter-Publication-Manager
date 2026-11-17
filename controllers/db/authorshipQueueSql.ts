@@ -53,15 +53,13 @@ export function precisionWhere(precision: unknown): any {
     // venue says what the name cannot. One candidate, the byline gives initials only (its first
     // token, periods removed, is exactly 1 character) and top_venue_fit >= 1: the candidate's
     // department publishes in the venue's subfield at e (2.7x) or more of the campus-wide rate.
-    // Measured on adjudicated Cornell Ithaca Scopus rows, 2026-11-16: 99.1% correct (n=1,007).
+    // Measured on adjudicated Cornell Ithaca Scopus rows, 2026-11-16: 998 of 998 correct.
     // With a poor fit (< -1) the same picks were usually wrong. top_venue_fit is NULL on PubMed
     // rows and wherever a candidate is not an Ithaca person, so those never match.
-    // That measurement counted a first token under 3 characters as initials. The lane is
-    // narrower on purpose: Scopus writes initials as "A. A. Agrawal" (1 character), so a
-    // 2-character token here is a short spelled-out name that differs from the candidate's
-    // ("Yi Wang" proposed for Yan Wang), and spelled-out different names measured about 90%
-    // at the same fit, not 99%. An empty first token (blank byline, leading space) is no
-    // initial either.
+    // Scopus writes initials as "A. A. Agrawal" (1 character). A 2-character first token is a
+    // short spelled-out name that differs from the candidate's ("Yi Wang" proposed for Yan
+    // Wang): all 9 such adjudicated rows at this fit were wrong, so they stay out. An empty
+    // first token (blank byline, leading space) is no initial either.
     return {
       [Op.and]: [
         { single_candidate: true, top_given_match: "initial", top_venue_fit: { [Op.gte]: 1 } },

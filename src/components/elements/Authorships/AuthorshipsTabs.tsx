@@ -704,7 +704,7 @@ const MATCH_CLASS_OPTIONS: MatchClassOption[] = [
   {
     label: LANE_LABEL.venuefit, lane: "venuefit", classification: "all",
     sub: "Exactly one identity matches on initials, and the venue fits their department",
-    hint: "Exactly one identity matches, the byline gives initials only, AND the person's department often publishes in this venue's field. On adjudicated Cornell Ithaca Scopus rows these were correct 99.1% of the time (n=1,007, 2026-11-16).",
+    hint: "Exactly one identity matches, the byline gives initials only, AND the person's department often publishes in this venue's field. On adjudicated Cornell Ithaca Scopus rows all 998 such rows were correct (2026-11-16).",
     count: (s) => s?.venuefit,
   },
   {
