@@ -25,6 +25,7 @@ import {
 } from "../../src/lib/directory";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { scheduleAnalysisRefresh } from "../analysisRefresh";
+import { SORTS, precisionWhere } from "./authorshipQueueSql";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
@@ -34,7 +35,7 @@ const LIST_ATTRIBUTES = [
   "entrez_date", "title", "journal", "doi", "pub_type", "container_id", "classification",
   "top_cwid", "top_name", "top_person_type", "top_dept",
   "top_fg_score", "top_io_score", "top_confidence", "top_cohort_size",
-  "top_given_match", "top_affil_match", "n_candidates", "single_candidate",
+  "top_given_match", "top_affil_match", "top_venue_fit", "n_candidates", "single_candidate",
   "candidate_cwids_json", "authors_json", "dup_flag", "dup_reason", "accept_conflict", "accept_conflict_matches",
   "matched_pmid", "matched_pmid_source", "matched_pmid_at", "matched_pmid_verdict",
   "status", "snooze_until", "reviewer", "resolved_at",
@@ -378,32 +379,6 @@ const SCOPUS_NO_DOI_MATURITY_DAYS = 60;
 const maturityCutoffStr = () =>
   new Date(Date.now() - SCOPUS_NO_DOI_MATURITY_DAYS * 86400000).toISOString().slice(0, 10);
 
-const SORTS: Record<string, any[]> = {
-  // default: single-candidate (high-precision) first, then identity-only score desc.
-  // ["pmid","DESC"] is a secondary key so same-paper pubmed authorships land adjacent.
-  precision: [["single_candidate", "DESC"], ["top_io_score", "DESC"], ["pmid", "DESC"]],
-  confidence: [["top_confidence", "DESC"], ["pmid", "DESC"]],
-  io: [["top_io_score", "DESC"], ["pmid", "DESC"]],
-  fg: [["top_fg_score", "DESC"], ["pmid", "DESC"]],
-  date: [["entrez_date", "DESC"], ["pmid", "DESC"]],
-  date_asc: [["entrez_date", "ASC"], ["pmid", "ASC"]],
-  // "Most candidates" — the biggest pile first, where "pile" is the same N the card's "Show N
-  // others like this" button counts: rows sharing the byline's first|last token key (the exact
-  // SUBSTRING_INDEX pair like_count's grouped COUNT below uses). One window COUNT in the ORDER
-  // BY, so no second query, no new column and no alias for the selectable endpoint to trip on.
-  // Measured on dev 2026-09-15 (MariaDB 10.6, 7.7k open rows): 85 ms.
-  // It replaced n_candidates, which capped at 5 on prod and dumped 35% of rows into one
-  // arbitrary bucket — a sort that could not tell a 5-homonym row from a 40-homonym one.
-  // ponytail: the window partitions the FILTERED set, while the card's N counts the whole open
-  // queue, so the two diverge only when a chip (affiliation, date…) has cut part of a pile.
-  // Under the default filters they agree; if exact parity ever matters, JOIN a derived
-  // GROUP BY table on the same two tokens instead.
-  candidates: [
-    [literal("COUNT(*) OVER (PARTITION BY LOWER(SUBSTRING_INDEX(`AuthorshipReview`.`wcm_author`, ' ', 1)), LOWER(SUBSTRING_INDEX(`AuthorshipReview`.`wcm_author`, ' ', -1)))"), "DESC"],
-    ["top_io_score", "DESC"], ["pmid", "DESC"],
-  ],
-};
-
 // Status-view predicate for the current view ("open" | "snoozed" | "dismissed"), or null
 // when feed="all". Factored out so the per-paper sibling count respects the same view.
 function openStatusWhere(body: any): any {
@@ -523,17 +498,10 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
   if (body.classification && body.classification !== "all") {
     and.push({ classification: body.classification });
   }
-  // precision lane: only single-candidate (near-certain) authorships
-  if (body.precision === "single") {
-    and.push({ single_candidate: true });
-  } else if (body.precision === "fullname") {
-    // "Unique and full given-name match": the one class curators have never once rejected.
-    // Across 4,723 resolved decisions with single_candidate + top_given_match="full" there
-    // are 0 rejections, in both sources and all three classifications; the same curators
-    // rejected 373 of 3,251 single-candidate rows whose given name matched on INITIAL only,
-    // on the same days. Rule of three puts the upper bound on this class's error at 0.064%.
-    and.push({ single_candidate: true, top_given_match: "full" });
-  }
+  // precision lane: only single-candidate (near-certain) authorships. The lanes, and the
+  // measurements behind them, are in precisionWhere() (authorshipQueueSql.ts).
+  const precision = precisionWhere(body.precision);
+  if (precision) and.push(precision);
   // publication-type filter (multiselect): Scopus subtypeDescription
   if (Array.isArray(body.pubTypes) && body.pubTypes.length > 0) {
     and.push({ pub_type: { [Op.in]: body.pubTypes } });
@@ -1970,7 +1938,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     // Exclusion map (#988) — the key(s) each response field's OWN where must be blind to; every
     // other filter in the body is honoured exactly like the list.
     const where = summaryWhere(body, [], absentCwids);                                   // total: nothing excluded
-    const matchClassWhere = summaryWhere(body, ["precision", "classification"], absentCwids); // single_candidate/fullname/classes
+    const matchClassWhere = summaryWhere(body, ["precision", "classification"], absentCwids); // single_candidate/fullname/venuefit/classes
     const bySourceWhere = summaryWhere(body, ["source", "pubTypes"], absentCwids);        // bySource
     const pubTypesWhere = summaryWhere(body, ["pubTypes"], absentCwids);                  // pubTypes (source:"scopus" AND kept below)
     const personTypesWhere = summaryWhere(body, ["personTypes"], absentCwids);            // personTypes
@@ -2010,10 +1978,11 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     const whereOpts = (w: any) => (hasInstitutions ? { where: w, include: instInclude } : { where: w });
     const groupCountAttr = hasInstitutions ? fn("COUNT", fn("DISTINCT", col("AuthorshipReview.id"))) : fn("COUNT", col("id"));
 
-    const [total, single, fullname, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution, byAuthorInstitution, lowScoringAccepts, highScoringRejects, hiddenNoSuggestion, hiddenNoIdentity] = await Promise.all([
+    const [total, single, fullname, venuefit, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution, byAuthorInstitution, lowScoringAccepts, highScoringRejects, hiddenNoSuggestion, hiddenNoIdentity] = await Promise.all([
       models.AuthorshipReview.count(countOpts(where)),
       models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true }] })),
       models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true, top_given_match: "full" }] })),
+      models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, precisionWhere("venuefit")] })),
       models.AuthorshipReview.count(countOpts(dupWhere)),
       models.AuthorshipReview.count(countOpts(conflictWhere)),
       models.AuthorshipReview.findAll({ attributes: ["classification", [groupCountAttr, "n"]], ...whereOpts(matchClassWhere), group: ["classification"], raw: true }),
@@ -2097,7 +2066,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       ? bucketCounts(((byAuthorInstitution as any[])?.[0]) || {})
       : undefined;
     res.send({
-      total, single_candidate: single, fullname, duplicates, conflicts,
+      total, single_candidate: single, fullname, venuefit, duplicates, conflicts,
       classes, personTypes, bySource, pubTypes, institutions, authorInstitutions,
       // Always present, unlike authorInstitutions above — these two are cheap enough to compute
       // unconditionally once the index exists, and the dropdown needs both labels populated the
