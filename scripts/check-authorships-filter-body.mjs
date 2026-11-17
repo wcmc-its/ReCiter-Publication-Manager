@@ -386,14 +386,14 @@ chk("the search box is a chip, trimmed and curly-quoted",
   labels({ lane: "all", selectedInstitutions: ["wcm"], search: "  park  " }), ["\u201cpark\u201d"]);
 chk("the source segment is never a chip", labels({ lane: "all", selectedInstitutions: ["wcm"], source: "scopus" }), []);
 chk("sort is never a chip", labels({ lane: "all", selectedInstitutions: ["wcm"], sort: "date" }), []);
-// SEVEN options, and each resolves back to its own label. The mockup's own seventh, "All classes",
+// EIGHT options, and each resolves back to its own label. The mockup's own seventh, "All classes",
 // was the classification strip's all-value and landed on the same (lane:"all",
 // classification:"all") state as "All unassigned" — a second entry for one state that
 // activeMatchClass's .find() could never highlight. It was removed; a re-added duplicate fails
 // the second check below.
 chk("every match-class option in the popover list resolves back to its own label",
   M.MATCH_CLASS_OPTIONS.map((o) => M.matchClassLabel({ ...MOUNT, lane: o.lane, classification: o.classification })),
-  ["All unassigned", "Unique and full given-name match", "Initials + venue fit", "High-precision", "Suggested", "Buried", "Never retrieved"]);
+  ["All unassigned", "Unique and full given-name match", "Initials + venue fit", "ORCID match", "High-precision", "Suggested", "Buried", "Never retrieved"]);
 chk("no two match-class options address the same (lane, classification) state",
   new Set(M.MATCH_CLASS_OPTIONS.map((o) => `${o.lane}|${o.classification}`)).size, M.MATCH_CLASS_OPTIONS.length);
 

@@ -78,6 +78,17 @@ test('precisionWhere: venuefit is one candidate, an initial-only match and bylin
         + "CHAR_LENGTH(REPLACE(SUBSTRING_INDEX(`wcm_author`, ' ', 1), '.', '')) = 1)")
 })
 
+// The bulk lane is the fullname lane narrowed by the ORCID flag, nothing wider: a row where the
+// ORCID person was added as a new candidate is multi-candidate or not a full-name match.
+test('precisionWhere: orcid is one candidate, a full given-name match, and the byline ORCID maps to them', () => {
+    assert.deepEqual(precisionWhere('orcid'), { single_candidate: true, top_given_match: 'full', top_orcid_match: true })
+    assert.equal(whereSql(precisionWhere('orcid')),
+        "`single_candidate` = true AND `top_given_match` = 'full' AND `top_orcid_match` = true")
+    for (const p of ['ORCID', 'orcid_match', "orcid' OR 1=1", ['orcid'], { orcid: true }]) {
+        assert.equal(precisionWhere(p), null)
+    }
+})
+
 const sortKeys = (sort) => SORTS[sort].map(([k, dir]) => (typeof k === 'string' ? `${k} ${dir}` : `<expr> ${dir}`))
 
 test('SORTS: top_confidence breaks top_io_score ties behind pmid, so PubMed order is as it was', () => {

@@ -36,6 +36,11 @@ export interface AuthorshipReviewAttributes {
   // < -1 a poor one, NULL unknown. Only set on scopus/openalex rows whose candidates are all
   // Cornell Ithaca people.
   top_venue_fit?: number;
+  // ReCiterDB v3.15: the ORCID of this row's byline author, bare form (0000-0000-0000-0000), and
+  // whether top_cwid is the person that ORCID maps to. top_orcid_match is NULL when the byline
+  // has no ORCID or the ORCID maps to nobody on the roster.
+  byline_orcid?: string;
+  top_orcid_match?: boolean;
   n_candidates?: number;
   single_candidate?: boolean;
   candidate_cwids_json?: string;
@@ -66,7 +71,7 @@ export interface AuthorshipReviewAttributes {
 
 export type AuthorshipReviewPk = "id";
 export type AuthorshipReviewId = AuthorshipReview[AuthorshipReviewPk];
-export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "top_venue_fit" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "authors_json" | "dup_flag" | "dup_reason" | "accept_conflict" | "accept_conflict_matches" | "matched_pmid" | "matched_pmid_source" | "matched_pmid_at" | "matched_pmid_verdict" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
+export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "top_venue_fit" | "byline_orcid" | "top_orcid_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "authors_json" | "dup_flag" | "dup_reason" | "accept_conflict" | "accept_conflict_matches" | "matched_pmid" | "matched_pmid_source" | "matched_pmid_at" | "matched_pmid_verdict" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
 export type AuthorshipReviewCreationAttributes = Optional<AuthorshipReviewAttributes, AuthorshipReviewOptionalAttributes>;
 
 export class AuthorshipReview extends Model<AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes> implements AuthorshipReviewAttributes {
@@ -97,6 +102,8 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
   top_given_match?: string;
   top_affil_match?: boolean;
   top_venue_fit?: number;
+  byline_orcid?: string;
+  top_orcid_match?: boolean;
   n_candidates?: number;
   single_candidate?: boolean;
   candidate_cwids_json?: string;
@@ -148,6 +155,8 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
       top_given_match: { type: DataTypes.STRING(16), allowNull: true },
       top_affil_match: { type: DataTypes.BOOLEAN, allowNull: true },
       top_venue_fit: { type: DataTypes.FLOAT, allowNull: true },
+      byline_orcid: { type: DataTypes.CHAR(19), allowNull: true },
+      top_orcid_match: { type: DataTypes.BOOLEAN, allowNull: true },
       n_candidates: { type: DataTypes.INTEGER, allowNull: true },
       single_candidate: { type: DataTypes.BOOLEAN, allowNull: true },
       candidate_cwids_json: { type: DataTypes.TEXT({ length: 'long' }), allowNull: true },

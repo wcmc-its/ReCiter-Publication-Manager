@@ -92,6 +92,8 @@ assert(/models\.AuthorshipReview\.count\(countOpts\(\{ \[Op\.and\]: \[matchClass
   "fullname is counted against matchClassWhere");
 assert(/models\.AuthorshipReview\.count\(countOpts\(\{ \[Op\.and\]: \[matchClassWhere, precisionWhere\("venuefit"\)\] \}\)\)/.test(summaryFn),
   "venuefit is counted against matchClassWhere");
+assert(/models\.AuthorshipReview\.count\(countOpts\(\{ \[Op\.and\]: \[matchClassWhere, precisionWhere\("orcid"\)\] \}\)\)/.test(summaryFn),
+  "orcid is counted against matchClassWhere");
 assert(/attributes: \["classification", \[groupCountAttr, "n"\]\], \.\.\.whereOpts\(matchClassWhere\)/.test(summaryFn),
   "classes (byClass) is grouped against matchClassWhere");
 assert(/attributes: \["top_person_type", \[groupCountAttr, "n"\]\], \.\.\.whereOpts\(personTypesWhere\)/.test(summaryFn),
@@ -137,8 +139,8 @@ assert(/const groupCountAttr = hasInstitutions \? fn\("COUNT", fn\("DISTINCT", c
 // countOpts/whereOpts, i.e. none of them pass a bare `{ where }`-shaped literal for those fields.
 const promiseAllBlock = slice(summaryFn, "await Promise.all([", "\n    ]);");
 assert(promiseAllBlock.length > 0, "the Promise.all block is present");
-assert((promiseAllBlock.match(/countOpts\(/g) || []).length === 8,
-  "all 8 count() calls (total, single, fullname, venuefit, duplicates, conflicts, hidden noSuggestion/noIdentity) go through countOpts()");
+assert((promiseAllBlock.match(/countOpts\(/g) || []).length === 9,
+  "all 9 count() calls (total, single, fullname, venuefit, orcid, duplicates, conflicts, hidden noSuggestion/noIdentity) go through countOpts()");
 assert((promiseAllBlock.match(/whereOpts\(/g) || []).length === 5,
   "all 5 findAll() calls that can carry institutions (classes, personTypes, bySource, pubTypes, authorInstitutions) go through whereOpts()");
 
