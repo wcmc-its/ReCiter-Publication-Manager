@@ -128,3 +128,14 @@ test('mostEvidenceCwid: follows the column order (email match wins), skips rejec
     assert.equal(mostEvidenceCwid([{ c: { cwid: 'a' }, rows: R(['match']) }, { c: { cwid: 'b' }, rows: R(['match']) }]), undefined)
     assert.equal(mostEvidenceCwid([{ c: { cwid: 'a', already_rejected: true }, rows: R(['match']) }]), undefined)
 })
+
+test('department: an affiliation that names no unit is no data; a different unit is a mismatch', () => {
+    const dept = (affiliation, c) => buildCandidateEvidence({ affiliation }, c, undefined).find((r) => r.label === 'Department')
+    const c = { cwid: 'a', dept: 'Computer Science' }
+    assert.equal(dept('Cornell University, Ithaca', c).kind, 'nodata')
+    assert.equal(dept('Cornell University, Ithaca', c).why, 'The affiliation names no department')
+    assert.equal(dept('Department of Physics, Cornell University, Ithaca', c).kind, 'mismatch')
+    assert.equal(dept('Cornell University College of Engineering, Ithaca', c).kind, 'mismatch')
+    assert.equal(dept('Cornell University, Ithaca', { ...c, affil_dept_match: true }).kind, 'match')
+    assert.equal(dept('Department of Physics, Cornell University', { cwid: 'a' }).kind, 'nodata')
+})

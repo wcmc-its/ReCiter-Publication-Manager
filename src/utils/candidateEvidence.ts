@@ -49,6 +49,7 @@ export interface EvidenceCandidate {
 
 export const WCM_RE = /Weill[ -]Cornell(?:\s+(?:Medicine|Medical College|Medical Cent(?:er|re)))?/i
 const CORNELL_RE = /Cornell/i
+const UNIT_RE = /\b(?:Dep(?:artmen)?t\.?|Div(?:ision)?\.?|School|College|Cent(?:er|re)|Institute|Lab(?:oratory)?|Program(?:me)?|Faculty|Section|Unit)\b/i
 
 // Cornell email identifiers off a raw affiliation string (from PR #1004). PubMed writes the
 // author's address into the affiliation ("Electronic address: abc1001@med.cornell.edu."), and
@@ -124,11 +125,17 @@ export function buildCandidateEvidence(row: EvidenceRowInput, c: EvidenceCandida
         why: inst ? '' : aff.trim() ? 'No Cornell institution in the affiliation' : 'No affiliation on this byline',
     })
 
+    // An affiliation that names no unit at all ("Cornell University, Ithaca") says nothing
+    // about anyone's department: that is no data, not a mismatch. A mismatch needs the
+    // affiliation to name some unit and for it not to be theirs.
+    // ponytail: unit-word heuristic; parse the affiliation's department if this misfires.
+    const namesUnit = UNIT_RE.test(aff)
     rows.push({
         label: 'Department',
-        kind: c.affil_dept_match ? 'match' : c.dept ? 'mismatch' : 'nodata',
+        kind: c.affil_dept_match ? 'match' : c.dept && namesUnit ? 'mismatch' : 'nodata',
         theirs: c.dept || undefined,
-        why: c.affil_dept_match ? 'Named in the affiliation' : c.dept ? 'Not in the affiliation' : '',
+        why: c.affil_dept_match ? 'Named in the affiliation'
+            : !c.dept ? '' : namesUnit ? 'The affiliation names a different unit' : 'The affiliation names no department',
     })
 
     // Co-authors: this paper's other authors who also appear on their accepted papers.
