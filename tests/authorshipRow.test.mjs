@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import {
     ioBand, ioBadgeText, ioBadge, shortInstitution, roleLine, formatRowDate,
     splitAffiliation, sourceBadgeText, shortcutsLine, parkedNote,
-    ioScoreText, fgLine, bylineParts, rankCandidates, confidenceLevel, confidenceTip, CONFIDENCE_HIGH, CONFIDENCE_MEDIUM, compareHint, shareLine, venueFitBand, orcidMatchTip, isDeliberateClick,
+    ioScoreText, fgLine, bylineParts, rankCandidates, confidenceLevel, confidenceTip, CONFIDENCE_HIGH, CONFIDENCE_MEDIUM, compareHint, shareLine, venueFitBand, orcidMatchTip, topOrcidSource, orcidLaneBulkOk, isDeliberateClick,
 } from '../src/utils/authorshipRow.ts'
 
 test('ioBand uses the page bands (90 / 50)', () => {
@@ -37,6 +37,58 @@ test('orcidMatchTip names the ORCID when the row has one', () => {
     assert.equal(orcidMatchTip(null), 'The byline ORCID is on file for this person')
     assert.equal(orcidMatchTip(undefined), 'The byline ORCID is on file for this person')
     assert.equal(orcidMatchTip(''), 'The byline ORCID is on file for this person')
+})
+
+test('orcidMatchTip says where the iD comes from when the candidate carries an orcid_source', () => {
+    const base = 'The byline ORCID 0000-0002-1825-0097 is on file for this person'
+    assert.equal(orcidMatchTip('0000-0002-1825-0097', 'scholars'), `${base} (confirmed in Scholars)`)
+    assert.equal(orcidMatchTip('0000-0002-1825-0097', 'affiliation_manager'), `${base} (from the Cornell library's list)`)
+    assert.equal(orcidMatchTip('0000-0002-1825-0097', 'inferred'), `${base} (inferred from accepted publications)`)
+    assert.equal(orcidMatchTip(null, 'scholars'), 'The byline ORCID is on file for this person (confirmed in Scholars)')
+    // no source, or one this page does not know: as before
+    for (const s of [undefined, null, '', 'something_new', 'constructor']) assert.equal(orcidMatchTip('0000-0002-1825-0097', s), base)
+})
+
+test('topOrcidSource reads the first candidate only', () => {
+    assert.equal(topOrcidSource(JSON.stringify([{ cwid: 'a', orcid_match: true, orcid_source: 'inferred' }, { cwid: 'b', orcid_source: 'scholars' }])), 'inferred')
+    assert.equal(topOrcidSource(JSON.stringify([{ cwid: 'a', orcid_match: true }])), undefined)
+    for (const j of [undefined, null, '', 'not json', '{}', '[]', '[null]', '[{"orcid_source": 7}]']) assert.equal(topOrcidSource(j), undefined)
+})
+
+// The ORCID match lane's bulk rule. SQL copy: orcidLaneBulkWhere (authorshipReviewQueues.test.mjs).
+const orcidRow = (top_person_type, ...cands) => ({ top_person_type, candidate_cwids_json: JSON.stringify(cands) })
+
+test('orcidLaneBulkOk: a WCM top pick is bulk-selectable only with a Scholars-confirmed iD', () => {
+    const wcm = { cwid: 'abc2001', person_type: 'Full-time WCMC faculty', orcid_match: true }
+    assert.equal(orcidLaneBulkOk(orcidRow('Full-time WCMC faculty', { ...wcm, orcid_source: 'scholars' })), true)
+    assert.equal(orcidLaneBulkOk(orcidRow('Full-time WCMC faculty', { ...wcm, campus: 'wcm', orcid_source: 'scholars' })), true)
+    assert.equal(orcidLaneBulkOk(orcidRow('Full-time WCMC faculty', { ...wcm, orcid_source: 'inferred' })), false)
+    assert.equal(orcidLaneBulkOk(orcidRow('Full-time WCMC faculty', { ...wcm, campus: 'wcm', orcid_source: 'inferred' })), false)
+    assert.equal(orcidLaneBulkOk(orcidRow('Full-time WCMC faculty', { ...wcm, orcid_source: 'affiliation_manager' })), false)
+    assert.equal(orcidLaneBulkOk(orcidRow('Full-time WCMC faculty', wcm)), false)                    // ranked before orcid_source
+    assert.equal(orcidLaneBulkOk(orcidRow(null, { ...wcm, campus: 'wcm' })), false)
+    // only the FIRST candidate counts: a Scholars iD on a runner-up does not open the row
+    assert.equal(orcidLaneBulkOk(orcidRow('Full-time WCMC faculty', { ...wcm, orcid_source: 'inferred' }, { cwid: 'b', campus: 'ithaca', orcid_source: 'scholars' })), false)
+    // campus wins over the person-type fallback
+    assert.equal(orcidLaneBulkOk(orcidRow('Cornell Ithaca', { ...wcm, campus: 'wcm' })), false)
+})
+
+test('orcidLaneBulkOk: a Cornell Ithaca top pick is selectable whatever its orcid_source', () => {
+    const ith = { cwid: 'aa123', person_type: 'Cornell faculty', orcid_match: true }
+    for (const src of [{}, { orcid_source: 'scholars' }, { orcid_source: 'affiliation_manager' }, { orcid_source: 'inferred' }]) {
+        assert.equal(orcidLaneBulkOk(orcidRow('Cornell faculty', { ...ith, ...src })), true)                    // no campus key: person type
+        assert.equal(orcidLaneBulkOk(orcidRow('Cornell faculty', { ...ith, campus: 'ithaca', ...src })), true)
+        assert.equal(orcidLaneBulkOk(orcidRow(null, { ...ith, campus: 'ithaca', ...src })), true)               // campus alone is enough
+    }
+    assert.equal(orcidLaneBulkOk(orcidRow('Cornell Ithaca', { ...ith, campus: null })), true)                   // a null campus is no campus
+})
+
+test('orcidLaneBulkOk: absent or malformed candidate JSON leaves a WCM row out and an Ithaca row in', () => {
+    for (const json of [undefined, null, '', 'not json', '{"orcid_source":"scholars"}', '[]', '[null]', '["scholars"]', '[{"orcid_source":"scholars"']) {
+        assert.equal(orcidLaneBulkOk({ top_person_type: 'Full-time WCMC faculty', candidate_cwids_json: json }), false, String(json))
+        assert.equal(orcidLaneBulkOk({ top_person_type: null, candidate_cwids_json: json }), false, String(json))
+        assert.equal(orcidLaneBulkOk({ top_person_type: 'Cornell faculty', candidate_cwids_json: json }), true, String(json))
+    }
 })
 
 test('ioBadgeText floors so the number never outranks its band', () => {

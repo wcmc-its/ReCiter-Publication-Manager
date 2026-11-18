@@ -3,9 +3,9 @@
 // (controllers/db/authorshipQueueSql.ts). Run with `npm test`.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { Sequelize } from 'sequelize'
+import { Sequelize, Op } from 'sequelize'
 import { conflictIdentities, conflictKeep, emptyState } from '../src/utils/authorshipRow.ts'
-import { SORTS, precisionWhere } from '../controllers/db/authorshipQueueSql.ts'
+import { SORTS, precisionWhere, orcidLaneBulkWhere } from '../controllers/db/authorshipQueueSql.ts'
 
 test('conflictIdentities lists the proposed identity, then each person who accepted it', () => {
     const ids = conflictIdentities({
@@ -85,6 +85,18 @@ test('precisionWhere: orcid is every row whose name-matched top pick the byline 
     for (const p of ['ORCID', 'orcid_match', "orcid' OR 1=1", ['orcid'], { orcid: true }]) {
         assert.equal(precisionWhere(p), null)
     }
+})
+
+// The server's copy of orcidLaneBulkOk (tests/authorshipRow.test.mjs has the cases).
+test('orcidLaneBulkWhere: Ithaca by campus or, without one, by person type; otherwise a Scholars iD', () => {
+    const j = '`AuthorshipReview`.`candidate_cwids_json`'
+    const top = (k) => `JSON_UNQUOTE(JSON_EXTRACT(IF(CASE WHEN JSON_VALID(${j}) THEN JSON_TYPE(${j}) = 'ARRAY' END, ${j}, NULL), '$[0].${k}'))`
+    assert.equal(whereSql(orcidLaneBulkWhere()),
+        "(COALESCE(NULLIF(" + top('campus') + ", 'null') = 'ithaca', `AuthorshipReview`.`top_person_type` LIKE 'Cornell%', 0)"
+        + " OR COALESCE(" + top('orcid_source') + " = 'scholars', 0))")
+    // ANDs onto the lane's own predicate as one parenthesised term
+    assert.match(whereSql({ [Op.and]: [precisionWhere('orcid'), { single_candidate: true }, orcidLaneBulkWhere()] }),
+        /^\(`top_orcid_match` = true AND `single_candidate` = true AND \(COALESCE\(.+\)\)$/)
 })
 
 const sortKeys = (sort) => SORTS[sort].map(([k, dir]) => (typeof k === 'string' ? `${k} ${dir}` : `<expr> ${dir}`))

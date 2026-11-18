@@ -31,7 +31,7 @@ import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } fro
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import {
   bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
-  confidenceLevel, confidenceTip, conflictIdentities, conflictKeep, emptyState, isDeliberateClick, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, venueFitBand,
+  confidenceLevel, confidenceTip, conflictIdentities, conflictKeep, emptyState, isDeliberateClick, orcidLaneBulkOk, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, topOrcidSource, venueFitBand,
 } from "../../../utils/authorshipRow";
 
 // ---- types ---------------------------------------------------------------
@@ -253,6 +253,9 @@ interface Candidate {
   confidence?: number;
   // The byline ORCID is on file for this candidate (present only when it found somebody).
   orcid_match?: boolean;
+  // Where that iD on file comes from: "scholars", "affiliation_manager" or "inferred"
+  // (ReCiterDB #283). Absent on rows ranked before it existed.
+  orcid_source?: string;
   affil_dept_match?: boolean;
   given_match?: string;
   // true → this candidate already rejected this exact pmid via their own /curate page
@@ -716,7 +719,7 @@ const MATCH_CLASS_OPTIONS: MatchClassOption[] = [
   {
     label: LANE_LABEL.orcid, lane: "orcid", classification: "all",
     sub: "The byline ORCID belongs to the proposed identity",
-    hint: "The byline author's ORCID is on file for the proposed identity, who also matches the name. Rows where the ORCID points to someone who did not match the name are left out. Select all picks the single-candidate rows; rows with several candidates are assigned one at a time.",
+    hint: "The byline author's ORCID is on file for the proposed identity, who also matches the name. Rows where the ORCID points to someone who did not match the name are left out. Select all picks the single-candidate rows; rows with several candidates are assigned one at a time. In this lane a WCM row can be selected in bulk only when the iD is confirmed in Scholars; other WCM rows are reviewed one at a time.",
     count: (s) => s?.orcid,
   },
   {
@@ -2737,18 +2740,21 @@ const AuthorshipsTabs = () => {
   // rows are now ALSO selectable — open, non-scopus (see isMultiAssignEligible) — but only for
   // bulk-assign: isBulkSelectable never lets a multi row satisfy isAcceptEligible, which is
   // what every accept-type bulk consumer below (eligibleRows, "Accept selected") filters on.
+  // The ORCID match lane narrows bulk selection further (orcidLaneBulkOk); no other lane does.
+  const laneBulkOk = useCallback((row: AuthorshipRow) => lane !== "orcid" || orcidLaneBulkOk(row), [lane]);
   const toggleSelect = useCallback((row: AuthorshipRow) => {
     // PR 5: every row on Snoozed / Dismissed is selectable, for bulk Reopen only. Elsewhere
     // the open-queue gate below (pinned by check-authorships-no-suggestion.mjs) decides.
     if (!isParkedQueue(statusView)) {
       if (!isBulkSelectable(row, statusView)) return;
+      if (!laneBulkOk(row)) return;
     }
     setSelected((s) => {
       const next = new Set(s);
       next.has(row.id) ? next.delete(row.id) : next.add(row.id);
       return next;
     });
-  }, [statusView]);
+  }, [statusView, laneBulkOk]);
 
   useEffect(() => { doActionRef.current = doAction; }, [doAction]);
   useEffect(() => { toggleSelectRef.current = toggleSelect; }, [toggleSelect]);
@@ -3026,7 +3032,7 @@ const AuthorshipsTabs = () => {
   // still loaded underneath — must not become bulk-selectable through a report the curator is
   // reading. "Accept near-certain" is gated at its render site instead of on its own line: that
   // line is pinned byte-for-byte by scripts/check-authorships-no-suggestion.mjs.
-  const eligibleRows = statusView === "open" && reportView === null ? rows.filter((r) => isBulkSelectable(r, statusView)) : [];
+  const eligibleRows = statusView === "open" && reportView === null ? rows.filter((r) => isBulkSelectable(r, statusView) && laneBulkOk(r)) : [];
   // PR 5: on Snoozed / Dismissed every row on the page can be selected, and Reopen is the only
   // bulk action there. Kept off eligibleRows, whose line above check-authorships-*.mjs pins.
   const selectableRows = isParkedQueue(statusView) && reportView === null ? rows : eligibleRows;
@@ -3554,7 +3560,7 @@ const AuthorshipsTabs = () => {
             // clicked. Computed here, from the real queue, so the page and the card cannot
             // disagree about what is selectable.
             // PR 5: on Snoozed / Dismissed every row is selectable, for bulk Reopen.
-            selectable={isParkedQueue(statusView) || isBulkSelectable(r, statusView)}
+            selectable={isParkedQueue(statusView) || (isBulkSelectable(r, statusView) && laneBulkOk(r))}
             isExpanded={expanded === r.id}
             isSelected={selected.has(r.id)}
             isFocused={focusedId === r.id}
@@ -4550,7 +4556,7 @@ const AuthorshipCard = ({
                               that someone's does). Native titles, not Tip: the option already has a
                               title and a hover card, and a title on the chip replaces the option's. */}
                           {c.orcid_match === true && (
-                            <span data-cand-orcid title={orcidMatchTip(r.byline_orcid)}><Chip kind="ok" style={CAND_CHIP}>ORCID</Chip></span>
+                            <span data-cand-orcid title={orcidMatchTip(r.byline_orcid, c.orcid_source)}><Chip kind="ok" style={CAND_CHIP}>ORCID</Chip></span>
                           )}
                           {/* Match confidence in words (High / Medium / Low), the percentage on hover. */}
                           {level && (
@@ -4696,7 +4702,7 @@ const AuthorshipCard = ({
               {/* byline ORCID (ReCiterDB v3.15): it is on file for the proposed person. Shown
                   beside the venue pill when a row has both. */}
               {orcidMatch && (
-                <Tip title={orcidMatchTip(r.byline_orcid)} placement="top" arrow>
+                <Tip title={orcidMatchTip(r.byline_orcid, topOrcidSource(r.candidate_cwids_json))} placement="top" arrow>
                   <span><Chip kind="ok">ORCID match</Chip></span>
                 </Tip>
               )}

@@ -78,3 +78,20 @@ export function precisionWhere(precision: unknown): any {
   }
   return null;
 }
+
+// "Select all N matching" inside the ORCID match lane: the SQL copy of orcidLaneBulkOk
+// (src/utils/authorshipRow.ts), which has the rule and the reason. A Cornell Ithaca top pick,
+// or a top pick whose iD is confirmed in Scholars. candidate_cwids_json is longtext, not a JSON
+// column, so it is read only when it is valid JSON and an array ($[0] on a bare object would
+// read the object itself): NULL or malformed text yields NULL for both keys, which leaves an
+// Ithaca row to its top_person_type and a WCM row out, and never raises.
+// COALESCE takes the campus when the top candidate has one and falls back to the person type
+// when it does not ('null' is how JSON_UNQUOTE spells a JSON null).
+export function orcidLaneBulkWhere(): any {
+  const json = "`AuthorshipReview`.`candidate_cwids_json`";
+  const top = (key: string) => "JSON_UNQUOTE(JSON_EXTRACT(IF(CASE WHEN JSON_VALID(" + json + ") THEN JSON_TYPE(" + json + ") = 'ARRAY' END, "
+    + json + ", NULL), '$[0]." + key + "'))";
+  return literal(
+    "(COALESCE(NULLIF(" + top("campus") + ", 'null') = 'ithaca', `AuthorshipReview`.`top_person_type` LIKE 'Cornell%', 0)"
+    + " OR COALESCE(" + top("orcid_source") + " = 'scholars', 0))");
+}
