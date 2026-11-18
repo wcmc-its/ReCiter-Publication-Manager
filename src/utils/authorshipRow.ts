@@ -151,29 +151,39 @@ export const bylineParts = (authors: string[], target: number, max = 12, edge = 
 };
 
 export interface RankableCandidate {
-  cwid: string; given_match?: string; io_score?: number | null; confidence?: number | null;
+  cwid: string; confidence?: number | null; orcid_match?: boolean;
   already_rejected?: boolean; retired_cwid?: boolean;
 }
 
-// The order candidates are listed in on a multi-candidate row: a full given-name match first,
-// then IO, then the matcher's confidence (the AAR producer's own key). Candidates who already
-// rejected this paper go last, and retired CWIDs are left out (the row says why separately).
+// The order candidates are listed in on a multi-candidate row: the person the byline ORCID
+// belongs to first, then the matcher's confidence, highest first, with no confidence last. Ties
+// keep the order the row came in (the producer's). Candidates who already rejected this paper go
+// last, and retired CWIDs are left out (the row says why separately).
 export const rankCandidates = <C extends RankableCandidate>(cands: C[]): C[] => {
   const live = cands.filter((c) => !c.retired_cwid);
-  const full = (c: C) => (c.given_match === "full" ? 1 : 0);
-  const byScore = (a: C, b: C) => (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1);
+  const conf = (c: C) => (c.confidence == null || Number.isNaN(c.confidence) ? -1 : c.confidence);
+  const order = (a: C, b: C) => Number(!!b.orcid_match) - Number(!!a.orcid_match) || conf(b) - conf(a);
   return [
-    ...live.filter((c) => !c.already_rejected).sort((a, b) => full(b) - full(a) || byScore(a, b)),
-    ...live.filter((c) => c.already_rejected).sort(byScore),
+    ...live.filter((c) => !c.already_rejected).sort(order),
+    ...live.filter((c) => c.already_rejected).sort(order),
   ];
 };
 
+// The three-level match confidence shown on each candidate of a multi-candidate row, from the
+// producer's 0..1 number. Nothing when the row has none (rows written before it was stored).
+export const CONFIDENCE_HIGH = 0.5;
+export const CONFIDENCE_MEDIUM = 0.25;
+export type ConfidenceLevel = "High" | "Medium" | "Low";
+export const confidenceLevel = (c?: number | null): ConfidenceLevel | null =>
+  c == null || Number.isNaN(c) ? null : c >= CONFIDENCE_HIGH ? "High" : c >= CONFIDENCE_MEDIUM ? "Medium" : "Low";
+// Its tooltip: "Match confidence 62%".
+export const confidenceTip = (c?: number | null): string =>
+  confidenceLevel(c) ? `Match confidence ${Math.round(Math.min(1, Math.max(0, c as number)) * 100)}%` : "";
+
 // The hint beside "Compare N candidates", and the collapsed row's count line.
-export const compareHint = (pickedName?: string | null): string => (pickedName
-  ? `Accept assigns to ${pickedName}. Click another column to switch.`
-  : "Click a column to pick who gets this authorship.");
-export const shareLine = (n: number, picked: boolean): string =>
-  `${n} people share this name${picked ? "" : " · pick one"}`;
+export const compareHint = (): string => "Click a person's column heading to assign this authorship to them.";
+export const shareLine = (n: number, canPick: boolean): string =>
+  `${n} people share this name${canPick ? " · click one to assign" : ""}`;
 
 // ---- review queues and empty states (UI refresh PR 6) --------------------------------------
 

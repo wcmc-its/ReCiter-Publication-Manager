@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import {
     ioBand, ioBadgeText, ioBadge, shortInstitution, roleLine, formatRowDate,
     splitAffiliation, sourceBadgeText, shortcutsLine, parkedNote,
-    ioScoreText, fgLine, bylineParts, rankCandidates, compareHint, shareLine, venueFitBand, orcidMatchTip,
+    ioScoreText, fgLine, bylineParts, rankCandidates, confidenceLevel, confidenceTip, CONFIDENCE_HIGH, CONFIDENCE_MEDIUM, compareHint, shareLine, venueFitBand, orcidMatchTip,
 } from '../src/utils/authorshipRow.ts'
 
 test('ioBand uses the page bands (90 / 50)', () => {
@@ -133,21 +133,42 @@ test('bylineParts highlights the target and elides long lists around it', () => 
     assert.deepEqual(bylineParts([], 0), { pre: '', tgt: '', post: '' })
 })
 
-test('rankCandidates: full name, then IO, then confidence; rejected last; retired out', () => {
+test('rankCandidates: ORCID match, then confidence, none last, ties in the given order; rejected last; retired out', () => {
     const c = [
-        { cwid: 'a', io_score: 98, given_match: 'initial' },
-        { cwid: 'b', io_score: 40, given_match: 'full' },
-        { cwid: 'c', io_score: 99, already_rejected: true },
-        { cwid: 'd', io_score: 99.5, retired_cwid: true },
-        { cwid: 'e', io_score: null, confidence: 0.9 },
-        { cwid: 'f', io_score: null, confidence: 0.2 },
+        { cwid: 'a', confidence: 0.4 },
+        { cwid: 'b', confidence: null },
+        { cwid: 'c', confidence: 0.99, already_rejected: true },
+        { cwid: 'd', confidence: 0.99, retired_cwid: true },
+        { cwid: 'e', confidence: 0.9 },
+        { cwid: 'f', confidence: 0.4 },
+        { cwid: 'g', confidence: 0.1, orcid_match: true },
+        { cwid: 'h' },
+        { cwid: 'i', confidence: 0, orcid_match: false },
     ]
-    assert.deepEqual(rankCandidates(c).map((x) => x.cwid), ['b', 'a', 'e', 'f', 'c'])
+    assert.deepEqual(rankCandidates(c).map((x) => x.cwid), ['g', 'e', 'a', 'f', 'i', 'b', 'h', 'c'])
+    assert.deepEqual(c.map((x) => x.cwid).join(''), 'abcdefghi') // the input is not reordered
+    assert.deepEqual(rankCandidates([]), [])
+})
+
+test('confidenceLevel and confidenceTip: High from 0.5, Medium from 0.25, nothing without a number', () => {
+    assert.equal(CONFIDENCE_HIGH, 0.5)
+    assert.equal(CONFIDENCE_MEDIUM, 0.25)
+    assert.equal(confidenceLevel(1), 'High')
+    assert.equal(confidenceLevel(0.5), 'High')
+    assert.equal(confidenceLevel(0.499), 'Medium')
+    assert.equal(confidenceLevel(0.25), 'Medium')
+    assert.equal(confidenceLevel(0.249), 'Low')
+    assert.equal(confidenceLevel(0), 'Low')
+    assert.equal(confidenceLevel(null), null)
+    assert.equal(confidenceLevel(undefined), null)
+    assert.equal(confidenceLevel(NaN), null)
+    assert.equal(confidenceTip(0.617), 'Match confidence 62%')
+    assert.equal(confidenceTip(0), 'Match confidence 0%')
+    assert.equal(confidenceTip(null), '')
 })
 
 test('compareHint and shareLine', () => {
-    assert.equal(compareHint(null), 'Click a column to pick who gets this authorship.')
-    assert.equal(compareHint('Michael Jones'), 'Accept assigns to Michael Jones. Click another column to switch.')
-    assert.equal(shareLine(5, false), '5 people share this name · pick one')
-    assert.equal(shareLine(5, true), '5 people share this name')
+    assert.equal(compareHint(), "Click a person's column heading to assign this authorship to them.")
+    assert.equal(shareLine(5, true), '5 people share this name · click one to assign')
+    assert.equal(shareLine(5, false), '5 people share this name')
 })

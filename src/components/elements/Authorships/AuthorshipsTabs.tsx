@@ -31,7 +31,7 @@ import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } fro
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import {
   bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
-  conflictIdentities, conflictKeep, emptyState, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, venueFitBand,
+  confidenceLevel, confidenceTip, conflictIdentities, conflictKeep, emptyState, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, venueFitBand,
 } from "../../../utils/authorshipRow";
 
 // ---- types ---------------------------------------------------------------
@@ -251,6 +251,8 @@ interface Candidate {
   io_score?: number;
   final_score?: number;
   confidence?: number;
+  // The byline ORCID is on file for this candidate (present only when it found somebody).
+  orcid_match?: boolean;
   affil_dept_match?: boolean;
   given_match?: string;
   // true → this candidate already rejected this exact pmid via their own /curate page
@@ -504,7 +506,7 @@ const datePhrase = (preset: string, from: string, to: string): string => {
 //                     filter; binding a fetch to every keystroke is what the debounce avoids.
 //   * `datePreset`  — a LABEL for the dateFrom/dateTo pair, not a filter. Selecting "Custom…"
 //                     changes only the preset and must not refetch or drop a selection.
-//   * anchors, `expanded`, `selected`, `picked`, `allMatching` — UI state, not filters.
+//   * anchors, `expanded`, `selected`, `allMatching` — UI state, not filters.
 interface AuthorshipFilters {
   lane: "fullname" | "venuefit" | "orcid" | "single" | "all";
   classification: "all" | "buried" | "absent" | "suggested";
@@ -1015,6 +1017,9 @@ const Chip = ({ kind, children, style }: { kind: "ok" | "warn" | "neutral"; chil
     }}>{children}</span>
   );
 };
+
+// The ORCID and confidence chips on a multi-candidate row's options: the Chip, one size down.
+const CAND_CHIP: CSSProperties = { fontSize: 10.5, padding: "0 6px", lineHeight: "16px" };
 
 // The small pill after a candidate's name saying which of their names it is (Candidate.name_source).
 const NAME_SOURCE_LABEL: Record<string, string> = {
@@ -1621,11 +1626,6 @@ const AuthorshipsTabs = () => {
   // selection (bulk) — T4: single-candidate accept-eligible rows AND (now) open, non-scopus
   // multi-candidate rows (see isBulkSelectable) — the latter for bulk-ASSIGN only.
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  // multi-candidate: chosen cwid per row id
-  const [picked, setPicked] = useState<Record<number, string>>({});
-  // For the keyboard handler, which is bound once: Y on a multi-candidate row assigns the pick.
-  const pickedRef = useRef(picked);
-  pickedRef.current = picked;
   // T4/B-8: "Assign selected (N) to…" — anchor opens the candidate-union picker; choosing a
   // target (typed or from the union) fires ONE server lookup (authorshipLookupCwid) rather than
   // submitting anything, so assignLookupCwid holds the in-flight typed/picked string while that
@@ -2125,13 +2125,13 @@ const AuthorshipsTabs = () => {
   // clear transient per-page UI state on deliberate navigation only (filter/sort/status/page) —
   // NOT on every `rows` change, so a silent rolling-queue refill (topUp) after a single action
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
-  // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
+  // Stale ids left in selected when a row drops are harmless (they match no visible row).
   // Same derivation as filterBody's deps — the whole filter object, plus `page` (which is NOT a
   // filter: it is appended as `offset` at the fetch site, but paging still has to drop a
   // selection made on the page you left). Note what is deliberately absent: this effect clears
   // only ephemeral per-page state, it never RESETS a filter. Sort, dates, class, types and
   // institutions all survive a change to any other control.
-  useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
+  useEffect(() => { setSelected(new Set()); setExpanded(null); setAllMatching(null); },
     [filters, page]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
   // (setSelectedPubTypes is stable, and patchFilters no-ops when the list is already empty, so
@@ -2902,17 +2902,14 @@ const AuthorshipsTabs = () => {
       const toggleSelect = toggleSelectRef.current;
       if (cmd === "evidence") { setExpanded((x) => (x === row.id ? null : row.id)); e.preventDefault(); }
       else if (cmd === "accept") {
-        // Y works in the Open queue only, like N and S. The row has no "Pick one" button any more:
-        // a multi-candidate row is assigned from its opened evidence (E).
+        // Y works in the Open queue only, like N and S, and only on a single-candidate row. A
+        // multi-candidate row is assigned by clicking a person on it (or Tab to one, then Enter):
+        // that click is the decision, so there is no pick left for Y to confirm.
         if (statusView === "open" && row.single_candidate) {
           if (row.identity_in_reciter === false) showError(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Assign it to someone else instead.`);
           else doAction?.(row, "accept");
         } else if (statusView === "open") {
-          // The same pick ✓ uses: one of the row's live candidates, chosen by a radio or a column.
-          const cwid = pickedRef.current[row.id];
-          const live = rankCandidates(parseCandidates(row.candidate_cwids_json)).some((c) => c.cwid === cwid);
-          if (cwid && live) doAction?.(row, "assign", { cwid });
-          else showError("Several people share this name: pick one on the row first, then press Y to assign it.");
+          showError("Several people share this name: click the right person on the row to assign it, or Tab to them and press Enter.");
         }
         e.preventDefault();
       }
@@ -3562,13 +3559,11 @@ const AuthorshipsTabs = () => {
             isSelected={selected.has(r.id)}
             isFocused={focusedId === r.id}
             acting={actingId === r.id}
-            pickedCwid={picked[r.id]}
             assignPrefill={assignPrefill?.id === r.id ? assignPrefill.name : undefined}
             registerRef={(el) => { cardRefs.current[r.id] = el; }}
             onFocus={() => setFocusedId(r.id)}
             onToggleExpand={() => setExpanded((e) => (e === r.id ? null : r.id))}
             onToggleSelect={() => toggleSelect(r)}
-            onPick={(cwid) => setPicked((p) => ({ ...p, [r.id]: cwid }))}
             onAction={(action, extra) => doAction(r, action, extra)}
             onMenu={(anchor) => setMenu({ anchor, row: r })}
             onAssignOther={() => focusAssignOther(r.id, r.wcm_author)}
@@ -4327,13 +4322,11 @@ interface CardProps {
   isSelected: boolean;
   isFocused: boolean;
   acting: boolean;
-  pickedCwid?: string;
   assignPrefill?: string; // seeds AssignOther's box — set only for the row that asked
   registerRef: (el: HTMLElement | null) => void;
   onFocus: () => void;
   onToggleExpand: () => void;
   onToggleSelect: () => void;
-  onPick: (cwid: string) => void;
   onAction: (action: string, extra?: Record<string, any>) => void;
   onMenu: (anchor: HTMLElement) => void;
   onAssignOther: () => void;
@@ -4354,8 +4347,8 @@ interface CardProps {
 }
 
 const AuthorshipCard = ({
-  row: r, statusView, selectable, isExpanded, isSelected, isFocused, acting, pickedCwid, assignPrefill,
-  registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onAssignOther, onNarrowPmid,
+  row: r, statusView, selectable, isExpanded, isSelected, isFocused, acting, assignPrefill,
+  registerRef, onFocus, onToggleExpand, onToggleSelect, onAction, onMenu, onAssignOther, onNarrowPmid,
   onFindOthers, priorNamesByCwid, onHoverIdentity,
   conflict, onClearConflict, conflictQueue = false,
 }: CardProps) => {
@@ -4406,10 +4399,9 @@ const AuthorshipCard = ({
     hoverTimer.current = setTimeout(() => { setHoverCwid(cwid); onHoverIdentity(cwid); }, 220);
   };
   const closeHover = () => { cancelHover(); setHoverCwid(null); };
-  // The candidates in the order the row lists them; retired CWIDs left out (the opened row says
-  // why). A pick that is no longer among them doesn't count.
+  // The candidates in the order the row lists them (the byline ORCID's owner, then by match
+  // confidence); retired CWIDs left out (the opened row says why).
   const ranked = isMulti ? rankCandidates(candidates) : [];
-  const pick = ranked.find((c) => c.cwid === pickedCwid);
   const acceptedByCwids = new Set((r.accepted_by || []).map((a) => String(a.cwid || "").toLowerCase()));
 
   // One table row (prototype markup ~963-1114): checkbox | IO | author → identity | article |
@@ -4433,8 +4425,8 @@ const AuthorshipCard = ({
         : `Identity-Only Score ${fmtScore(r.top_io_score)} · ${badge.band} confidence${statusView !== "dismissed" && r.top_fg_score != null ? ` · Authorship Score ${fmtScore(r.top_fg_score)}${r.top_fg_score < 30 ? " (below the 30 cut)" : ""}` : ""}`;
   // What Accept can do on this row, and why not when it can't. Every disabled state is the same
   // gate the old labelled buttons had; only the control changed.
-  const acceptBlock: string | null = isMulti ? (nothingToPick ? "No candidate to accept — open the row to look up the directory" : pick ? null : "Pick a candidate first")
-    : noSuggestion ? "No candidate to accept"
+  // (A multi-candidate row has no ✓: clicking a person on it assigns to them.)
+  const acceptBlock: string | null = noSuggestion ? "No candidate to accept"
       : topRetired ? `${r.top_cwid} is a retired CWID${r.top_superseded_by ? ` — assign it to ${r.top_superseded_by} instead` : ""}`
         : noIdentity ? `${r.top_name || r.top_cwid} has no ReCiter identity, so there is nothing to add this authorship to — assign it to someone else`
           : alreadyRejected ? `${r.top_name || r.top_cwid} already rejected this article on their own curation page`
@@ -4522,40 +4514,54 @@ const AuthorshipCard = ({
           ) : isMulti ? (
             <>
               <span data-share style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>
-                {nothingToPick ? "No WCM candidate proposed · look up the directory" : shareLine(ranked.length || (r.n_candidates ?? candidates.length), !!pick || statusView !== "open")}
+                {nothingToPick ? "No WCM candidate proposed · look up the directory" : shareLine(ranked.length || (r.n_candidates ?? candidates.length), statusView === "open")}
               </span>
-              {/* The candidates as an inline radio group (prototype markup ~1015-1030): picking
-                  one turns on ✓, which then assigns to them. Writes nothing by itself. Only the
-                  Open queue can act, so the parked queues list them without radios. */}
+              {/* The candidates, one button each: clicking a person (or Enter / Space on them)
+                  assigns the authorship to them through the row's ordinary assign action, with
+                  its Undo toast. Tab moves between them and commits nothing. Only the Open queue
+                  can act, so the parked queues list them as plain lines. */}
               {ranked.length > 0 && (
-                <div role="radiogroup" aria-label={`Who wrote this as ${r.wcm_author || "this author"}`} onClick={stop}
+                <div role="group" aria-label={`Who wrote this as ${r.wcm_author || "this author"}`} onClick={stop}
                   style={{ marginLeft: -6, display: "flex", flexDirection: "column", gap: 1 }}>
                   {ranked.map((c) => {
-                    const on = c.cwid === pick?.cwid;
-                    const live = statusView === "open";
+                    const live = statusView === "open" && !acting;
                     const warn = c.already_rejected ? "Already rejected this paper on their own record"
                       : acceptedByCwids.has(c.cwid.toLowerCase()) ? "Already accepted this article" : "";
+                    const level = confidenceLevel(c.confidence);
+                    const assign = () => onAction("assign", { cwid: c.cwid });
                     return (
-                      <div key={c.cwid} role="radio" aria-checked={on} tabIndex={live ? 0 : -1} data-cand={c.cwid}
-                        className={live ? "pm-arow-cand" : undefined}
-                        title={[`${c.name || c.cwid} (${c.cwid})`, c.person_type, c.dept, c.io_score != null ? `IO ${Math.floor(c.io_score)}` : `${confBand(c.confidence)} match`, warn].filter(Boolean).join(" · ")}
-                        onClick={() => { if (live) onPick(c.cwid); }}
-                        onKeyDown={(e) => { if (live && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); onPick(c.cwid); } }}
+                      <div key={c.cwid} data-cand={c.cwid}
+                        {...(live ? { role: "button", tabIndex: 0, className: "pm-arow-cand",
+                          "aria-label": [`Assign to ${c.name || c.cwid}`, c.orcid_match ? "ORCID match" : "", level ? `${level} match confidence` : "", warn].filter(Boolean).join(", ") } : {})}
+                        title={[live ? `Assign to ${c.name || c.cwid} (${c.cwid})` : `${c.name || c.cwid} (${c.cwid})`, c.person_type, c.dept,
+                          c.io_score != null ? `IO ${Math.floor(c.io_score)}` : "", level ? `${confidenceTip(c.confidence)} (${level})` : "", warn].filter(Boolean).join(" · ")}
+                        onClick={() => { if (live) assign(); }}
+                        onKeyDown={(e) => { if (live && e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); assign(); } }}
                         onMouseEnter={() => openHover(c.cwid)} onMouseLeave={closeHover}
-                        style={{ position: "relative", display: "grid", gridTemplateColumns: "13px minmax(0,1fr) auto", gap: 8, alignItems: "center",
-                          padding: "4px 6px", borderRadius: 6, background: on ? "var(--pm-slate-tint)" : undefined, cursor: live ? "pointer" : "default", fontSize: 12.5 }}>
-                        <span aria-hidden="true" style={{ width: 13, height: 13, borderRadius: "50%", boxSizing: "border-box", background: "#fff",
-                          border: on ? "4px solid var(--pm-slate)" : "1.5px solid var(--pm-muted-foreground)", visibility: live ? "visible" : "hidden" }} />
+                        style={{ position: "relative", display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "center",
+                          padding: "4px 6px", borderRadius: 6, cursor: live ? "pointer" : "default", fontSize: 12.5 }}>
                         <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          <span style={{ fontWeight: on ? 600 : 500, color: warn ? "var(--pm-red)" : on ? "var(--pm-slate)" : "var(--pm-foreground)" }}>{c.name || c.cwid}</span>
+                          <span style={{ fontWeight: 500, color: warn ? "var(--pm-red)" : "var(--pm-foreground)" }}>{c.name || c.cwid}</span>
                           {c.dept && <span style={{ color: "var(--pm-muted-foreground)" }}> · {c.dept}</span>}
                           {warn && <span style={{ color: "var(--pm-red)" }}> · {c.already_rejected ? "already rejected" : "accepted this article"}</span>}
                         </span>
-                        <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>
-                          {c.io_score != null ? Math.floor(c.io_score) : "—"}
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>
+                          {/* Whose ORCID the byline carries (the row's "ORCID match" pill says only
+                              that someone's does). Native titles, not Tip: the option already has a
+                              title and a hover card, and a title on the chip replaces the option's. */}
+                          {c.orcid_match === true && (
+                            <span data-cand-orcid title={orcidMatchTip(r.byline_orcid)}><Chip kind="ok" style={CAND_CHIP}>ORCID</Chip></span>
+                          )}
+                          {/* Match confidence in words (High / Medium / Low), the percentage on hover. */}
+                          {level && (
+                            <span data-cand-conf title={confidenceTip(c.confidence)}>
+                              <Chip kind={level === "High" ? "ok" : "neutral"} style={{ ...CAND_CHIP, ...(level === "Low" ? { color: "var(--pm-muted-foreground)" } : null) }}>{level}</Chip>
+                            </span>
+                          )}
+                          <span title="Identity-Only Score">{c.io_score != null ? Math.floor(c.io_score) : "—"}</span>
                         </span>
                         {hoverCwid === c.cwid && (
-                          <span style={{ position: "absolute", top: "100%", left: 21, width: 0, height: 0 }}>
+                          <span style={{ position: "absolute", top: "100%", left: 6, width: 0, height: 0 }}>
                             <span style={{ position: "relative", display: "block" }}>
                               <IdentityHoverCard
                                 subject={{ name: c.name, cwid: c.cwid, dept: c.dept, person_type: c.person_type, name_source: c.name_source, name_n: c.name_n }}
@@ -4727,12 +4733,14 @@ const AuthorshipCard = ({
         <div data-actions style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, ...(statusView === "open" ? { width: 104 } : { minWidth: 104 }) }}>
           {conflictQueue ? null : statusView === "open" ? (
             <>
-              <button type="button" className="pm-arow-accept" aria-label={isMulti ? (pick ? `Assign to ${pick.name || pick.cwid}` : "Assign") : "Accept"}
-                title={acceptBlock || (isMulti && pick ? `Assign to ${pick.name || pick.cwid} (Y)` : "Accept (Y)")} disabled={acting || !!acceptBlock}
-                onClick={(e) => { e.stopPropagation(); if (isMulti) { if (pick) onAction("assign", { cwid: pick.cwid }); } else onAction("accept"); }}
-                style={rowActBtn("accept", acting || !!acceptBlock)}>
-                <IconCheck size={14} style={{ strokeWidth: 2.5 }} />
-              </button>
+              {!isMulti && (
+                <button type="button" className="pm-arow-accept" aria-label="Accept"
+                  title={acceptBlock || "Accept (Y)"} disabled={acting || !!acceptBlock}
+                  onClick={(e) => { e.stopPropagation(); onAction("accept"); }}
+                  style={rowActBtn("accept", acting || !!acceptBlock)}>
+                  <IconCheck size={14} style={{ strokeWidth: 2.5 }} />
+                </button>
+              )}
               <button type="button" className="pm-arow-reject" aria-label={isMulti ? "Reject all" : "Reject"}
                 title={rejectBlock || (isMulti ? "Reject all candidates (N)" : "Reject (N)")} disabled={acting || !!rejectBlock}
                 onClick={(e) => { e.stopPropagation(); onAction("reject"); }}
@@ -4773,8 +4781,8 @@ const AuthorshipCard = ({
 
       {/* expanded evidence, the record footer and the "someone else" strip */}
       {isExpanded && (
-        <ExpandedPanel row={r} candidates={candidates} pickedCwid={pick?.cwid} acting={acting} statusView={statusView}
-          onPick={onPick} onAction={onAction} priorNamesByCwid={priorNamesByCwid} onHoverIdentity={onHoverIdentity}
+        <ExpandedPanel row={r} candidates={candidates} acting={acting} statusView={statusView}
+          onAction={onAction} priorNamesByCwid={priorNamesByCwid} onHoverIdentity={onHoverIdentity}
           assignPrefill={assignPrefill} />
       )}
     </article>
@@ -4890,10 +4898,10 @@ type ConflictIdentityView = ReturnType<typeof conflictIdentities>[number];
 // comparison grid on a multi-candidate row), the grey record footer, then the "someone else"
 // strip. The candidate-evidence request is made once here and shared by the table, the grid and
 // the footer's Authors line.
-const ExpandedPanel = ({ row: r, candidates, pickedCwid, acting, statusView, onPick, onAction,
+const ExpandedPanel = ({ row: r, candidates, acting, statusView, onAction,
   priorNamesByCwid, onHoverIdentity, assignPrefill }: {
-  row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean; statusView: "open" | "snoozed" | "dismissed";
-  onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
+  row: AuthorshipRow; candidates: Candidate[]; acting: boolean; statusView: "open" | "snoozed" | "dismissed";
+  onAction: (action: string, extra?: Record<string, any>) => void;
   priorNamesByCwid: Record<string, PriorNames>; onHoverIdentity: (cwid?: string | null) => void; assignPrefill?: string;
 }) => {
   const isMulti = !r.single_candidate;
@@ -4905,8 +4913,8 @@ const ExpandedPanel = ({ row: r, candidates, pickedCwid, acting, statusView, onP
     <div onClick={(e) => e.stopPropagation()} data-expanded-panel
       style={{ margin: "0 16px 12px 104px", display: "flex", flexDirection: "column", gap: 10, fontSize: 13, color: "var(--pm-foreground)", cursor: "default" }}>
       {isMulti ? (
-        <MultiEvidence row={r} candidates={candidates} pickedCwid={pickedCwid} ev={ev}
-          onPick={statusView === "open" ? onPick : undefined}
+        <MultiEvidence row={r} candidates={candidates} ev={ev}
+          onPick={statusView === "open" && !acting ? (cwid) => onAction("assign", { cwid }) : undefined}
           priorNamesByCwid={priorNamesByCwid} onHoverIdentity={onHoverIdentity} />
       ) : noSuggestion ? (
         <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>No suggested identity to compare against. Use the box below to look the author up in the directory.</span>
@@ -5057,11 +5065,11 @@ const HomonymNote = ({ listed, typed }: { listed: number; typed: number }) => ty
   </div>
 );
 
-// The opened multi-candidate row: the comparison grid (4d-4), with the radios on the collapsed
-// row as the other way to pick. The notes the row can't show in one line sit above it.
-const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, ev, onPick, priorNamesByCwid, onHoverIdentity }: {
-  row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; ev: ReturnType<typeof useCandidateEvidence>;
-  // undefined on the parked queues (Snoozed / Dismissed): only the Open queue can act.
+// The opened multi-candidate row: the comparison grid (4d-4), with the people listed on the
+// collapsed row as the other way to assign. The notes the row can't show in one line sit above it.
+const MultiEvidence = ({ row: r, candidates: allCandidates, ev, onPick, priorNamesByCwid, onHoverIdentity }: {
+  row: AuthorshipRow; candidates: Candidate[]; ev: ReturnType<typeof useCandidateEvidence>;
+  // Assigns to that person. undefined on the parked queues (Snoozed / Dismissed): only the Open queue can act.
   onPick?: (cwid: string) => void;
   priorNamesByCwid: Record<string, PriorNames>; onHoverIdentity: (cwid?: string | null) => void;
 }) => {
@@ -5089,7 +5097,6 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, ev, onPi
     coauthors: ev.status === "ok" ? ev.data.coauthors : null };
   const cols = ev.status === "ok" && candidates.length >= 1
     ? orderByEvidence(candidates, (c) => buildCandidateEvidence(rowInput, c, ev.data.facts[c.cwid])) : null;
-  const pickedName = candidates.find((c) => c.cwid === pickedCwid)?.name || pickedCwid;
   // Name, hover card and warning badges: the grid's column header.
   const head = (c: Candidate) => {
     const rejected = c.already_rejected === true;
@@ -5117,7 +5124,7 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, ev, onPi
   return (
     <>
       {!anyDeptMatch && candidates.length > 0 && (
-        <span style={{ fontSize: 12, color: "var(--pm-amber)" }}>The affiliation names no department any candidate is in, so the candidates are ranked by Identity-Only Score.</span>
+        <span style={{ fontSize: 12, color: "var(--pm-amber)" }}>The affiliation names no department any candidate is in, so the candidates are ranked by match confidence.</span>
       )}
       {candidates.length === 0 ? (
         <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>No candidate to compare. Use the box below to look the author up in the directory.</span>
@@ -5126,8 +5133,8 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, pickedCwid, ev, onPi
       ) : ev.status === "error" || !cols ? (
         <span style={{ fontSize: 12.5, color: "var(--pm-amber)" }}>Couldn’t load the comparison. Pick from the list above, or close and reopen the row to retry.</span>
       ) : (
-        <CompareGrid cols={cols} pickedCwid={pickedCwid} onPick={onPick} renderHead={head}
-          hint={onPick ? compareHint(pickedCwid ? pickedName : null) : "Reopen it to pick who gets this authorship."} />
+        <CompareGrid cols={cols} onPick={onPick} renderHead={head}
+          hint={onPick ? compareHint() : "Reopen it to pick who gets this authorship."} />
       )}
       {/* #1012: what the retired-cwid filter removed, and what replaced it. */}
       {retiredCandidates.length > 0 && (
@@ -5207,7 +5214,11 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
   // heard of it AND no directory recognises it as an identifier do we spend a second
   // round-trip treating the same characters as a surname. Anything with a space can only ever
   // be a name.
-  const runLookup = useCallback((val: string, seq: number) => {
+  // `commit` (a directory hit was clicked): when the server resolves the identifier to a named
+  // person who already has a ReCiter identity, assign straight away with the call the Assign
+  // button makes for a resolved lookup. Anything the preview line warns about (a different
+  // identifier, an identity that would be created, no name on file) waits for Assign instead.
+  const runLookup = useCallback((val: string, seq: number, commit = false) => {
     const isIdentifier = /^[A-Za-z0-9]{1,32}$/.test(val);
     setLookupState({ status: "loading" });
     const nameQuery = { q: val, affil: affiliation || "", auto: autoSeeded.current ? "1" : "" };
@@ -5215,10 +5226,15 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
       .then(async (d: any) => {
         if (requestSeq.current !== seq) return;
         if (d.searchOnly) { setLookupState({ status: "idle" }); setMatches(d.searchOnly.matches || []); return; }
-        setLookupState({
+        const resolved: TypedCwidLookupState = {
           status: "resolved", cwid: String(d.cwid || val),
           name: d.name ?? null, hasIdentity: !!d.hasIdentity, directory: d.directory ?? null,
-        });
+        };
+        setLookupState(resolved);
+        if (commit && typedCwidPreview(resolved)?.tone === "neutral") {
+          onAction("assign", { cwid: resolved.cwid, ...assignConfirmFlags(true, resolved.hasIdentity) });
+          return;
+        }
         if (!d.hasIdentity && !d.directory) {
           const s = await post(nameQuery);
           if (requestSeq.current !== seq) return;
@@ -5229,7 +5245,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
         if (requestSeq.current !== seq) return;
         setLookupState({ status: "error", message: String(e?.message || e) });
       });
-  }, [post, affiliation]);
+  }, [post, affiliation, onAction]);
 
   // Picking a search result puts its identifier in the box and re-asks the cwid question about
   // it, rather than assigning straight off the row: the write must be authorised against what
@@ -5237,16 +5253,17 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
   // Same trust boundary the bulk confirm dialog enforces. When the bridge says this Cornell
   // person already holds a WCM identity, the box takes THAT identifier — the one the write
   // will land on.
-  // The hit list stays up with the picked row marked, as in the prototype's radio table; the
-  // next keystroke clears both.
+  // Once the server has answered, a person already in ReCiter is assigned without a second
+  // click (runLookup's `commit`); otherwise the hit list stays up with the picked row marked and
+  // the preview line says what Assign would do. The next keystroke clears both.
   const [pickedHit, setPickedHit] = useState<string | null>(null);
   const pick = useCallback((m: any) => {
     const id = m.wcmCwidHasIdentity && m.wcmCwid ? String(m.wcmCwid) : String(m.id);
     setOtherCwid(id);
     setPickedHit(`${m.source}:${m.id}`);
     requestSeq.current += 1;
-    runLookup(id, requestSeq.current);
-  }, [runLookup]);
+    runLookup(id, requestSeq.current, !acting);
+  }, [runLookup, acting]);
 
   // A name is not submittable — it is a search term, and the server's assign route would 400 on
   // it. Picking a result turns it into an identifier, which is submittable. Keeping this in one
@@ -5476,6 +5493,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
           </div>
           <span style={{ fontSize: 12, color: "var(--pm-muted-foreground)" }}>
             {matches.length} match{matches.length === 1 ? "" : "es"}{searched ? ` for ${searched}` : ""} · department named in the byline first, then people already in ReCiter, then active
+            {" "}· click a person to assign; someone not in ReCiter yet is confirmed with Assign
           </span>
         </>
       )}

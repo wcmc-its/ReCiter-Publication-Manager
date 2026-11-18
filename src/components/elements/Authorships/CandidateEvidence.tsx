@@ -161,9 +161,10 @@ export { orderByEvidence } from "../../../utils/candidateEvidence";
 
 const stripPx = (n: number) => (n >= 3 ? "var(--pm-slate)" : n >= 0 ? "var(--pm-amber)" : "var(--pm-red)");
 
-export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick, renderHead, hint }: {
+export const CompareGrid = <C extends GridCandidate>({ cols, onPick, renderHead, hint }: {
+  // Clicking a person's column heading assigns the authorship to them, in one click.
   // undefined = read-only (a parked queue): the headers are not a picker.
-  cols: Array<{ c: C; rows: EvidenceRow[] }>; pickedCwid?: string; onPick?: (cwid: string) => void;
+  cols: Array<{ c: C; rows: EvidenceRow[] }>; onPick?: (cwid: string) => void;
   renderHead: (c: C) => ReactNode;   // name, badges, hover card: owned by the caller
   hint: string;
 }) => {
@@ -185,7 +186,7 @@ export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick,
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }} data-testid="compare-grid" onClick={stop}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={HEAD}>Compare {n} candidates</span>
-        <span data-compare-hint style={{ fontSize: 12.5, color: !onPick ? "var(--pm-muted-foreground)" : pickedCwid ? "var(--pm-slate)" : "var(--pm-amber)" }}>{hint}</span>
+        <span data-compare-hint style={{ fontSize: 12.5, color: onPick ? "var(--pm-slate)" : "var(--pm-muted-foreground)" }}>{hint}</span>
       </div>
       {per < n && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -208,9 +209,6 @@ export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick,
                   fontSize: 12, fontWeight: inView ? 600 : 500, fontFamily: "inherit", color: "var(--pm-foreground)" }}>
                 <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: x.c.already_rejected ? "var(--pm-red)" : stripPx(score(x.rows)) }} />
                 {x.c.name || x.c.cwid}
-                {x.c.cwid === pickedCwid && (
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--pm-slate)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                )}
               </button>
             );
           })}
@@ -222,16 +220,14 @@ export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick,
           <span role="columnheader" style={{ ...HEAD, alignSelf: "end" }}>Evidence</span>
           <span role="columnheader" style={{ ...HEAD, alignSelf: "end" }}>This article</span>
           {shown.map(({ c, rows }) => {
-            const picked = c.cwid === pickedCwid;
             return (
-              <div role="columnheader" key={c.cwid} aria-pressed={onPick ? picked : undefined} tabIndex={onPick ? 0 : undefined} data-cmp-head={c.cwid}
-                onClick={() => onPick?.(c.cwid)} onKeyDown={(e) => { if (onPick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onPick(c.cwid); } }}
+              <div role="columnheader" key={c.cwid} tabIndex={onPick ? 0 : undefined} data-cmp-head={c.cwid}
+                aria-label={onPick ? `Assign to ${c.name || c.cwid}` : undefined}
+                onClick={() => onPick?.(c.cwid)} onKeyDown={(e) => { if (onPick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); onPick(c.cwid); } }}
                 title={onPick ? `Assign to ${c.name || c.cwid}` : undefined}
                 style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, padding: "7px 9px", borderRadius: 8, cursor: onPick ? "pointer" : "default", boxSizing: "border-box",
-                  border: `1px solid ${picked ? "var(--pm-slate)" : "var(--pm-border)"}`, background: picked ? "var(--pm-slate-tint)" : "#fff" }}>
+                  border: "1px solid var(--pm-border)", background: "#fff" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                  <span aria-hidden="true" style={{ width: 13, height: 13, flex: "none", borderRadius: "50%", boxSizing: "border-box", background: "#fff",
-                    border: picked ? "4px solid var(--pm-slate)" : "1.5px solid var(--pm-muted-foreground)", visibility: onPick ? "visible" : "hidden" }} />
                   {renderHead(c)}
                 </span>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--pm-muted-foreground)" }}>
@@ -254,7 +250,7 @@ export const CompareGrid = <C extends GridCandidate>({ cols, pickedCwid, onPick,
               const val = !e ? undefined : l === "Name" || l === "Given name" ? undefined : e.theirs;
               return (
                 <span role="cell" key={c.cwid} data-kind={e?.kind} style={{ minWidth: 0, overflowWrap: "anywhere", display: "flex", flexDirection: "column", gap: 3,
-                  padding: "5px 7px", margin: "-5px -7px", borderRadius: 6, background: c.cwid === pickedCwid ? "var(--pm-slate-tint)" : "transparent" }}>
+                  padding: "5px 7px", margin: "-5px -7px", borderRadius: 6 }}>
                   <KindPill kind={e?.kind || "nodata"} />
                   {val && <span style={{ color: "var(--pm-muted-foreground)" }}>{val}</span>}
                   {e?.why && <span style={MUTED}>{e.why}</span>}
