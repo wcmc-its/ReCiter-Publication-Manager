@@ -41,9 +41,50 @@ export const venueFitBand = (fit?: number | null): VenueFitBand | null =>
 
 // The tooltip on a row's "ORCID match" pill (authorship_review.top_orcid_match = 1): the byline
 // author's ORCID is on file for the proposed person. Names the ORCID when the row carries it.
-export const orcidMatchTip = (orcid?: string | null): string => {
+// `source` is the candidate's orcid_source (ReCiterDB #283): where that iD on file comes from.
+// Rows ranked before it existed carry none, and the tooltip reads as it always did.
+const ORCID_SOURCE_TEXT: Record<string, string> = {
+  scholars: "confirmed in Scholars",
+  affiliation_manager: "from the Cornell library's list",
+  inferred: "inferred from accepted publications",
+};
+export const orcidMatchTip = (orcid?: string | null, source?: string | null): string => {
   const o = (orcid || "").trim();
-  return o ? `The byline ORCID ${o} is on file for this person` : "The byline ORCID is on file for this person";
+  const base = o ? `The byline ORCID ${o} is on file for this person` : "The byline ORCID is on file for this person";
+  const from = ORCID_SOURCE_TEXT[source || ""];
+  return typeof from === "string" ? `${base} (${from})` : base;   // typeof: "constructor" is a key of every object
+};
+
+// The top pick's own entry in candidate_cwids_json (the first one). null when the JSON is
+// absent, malformed or holds no such entry.
+const topCandidate = (json?: string | null): { campus?: unknown; orcid_source?: unknown } | null => {
+  try {
+    const parsed = JSON.parse(json || "");
+    return Array.isArray(parsed) && parsed[0] && typeof parsed[0] === "object" ? parsed[0] : null;
+  } catch {
+    return null;
+  }
+};
+
+// The top pick's orcid_source, for the row's "ORCID match" pill.
+export const topOrcidSource = (json?: string | null): string | undefined => {
+  const s = topCandidate(json)?.orcid_source;
+  return typeof s === "string" ? s : undefined;
+};
+
+// Bulk selection inside the "ORCID match" lane (owner decision, 2026-11-18). A Cornell Ithaca
+// top pick is selectable as before. A WCM top pick is selectable only when its iD is confirmed
+// in Scholars: an inferred iD, or a row with no orcid_source, is reviewed one row at a time.
+// Ithaca = the top candidate's campus is "cornell-ithaca", the only value the producer writes
+// (ReCiterDB identity_index.py CAMPUS_ITHACA; a WCM candidate carries no campus key). Candidates
+// written before `campus` existed have none and are Ithaca when top_person_type starts with
+// "Cornell". This narrows the lane's
+// bulk paths only, never a single-row action and never another lane. The server's copy of the
+// same rule is orcidLaneBulkWhere (controllers/db/authorshipQueueSql.ts).
+export const orcidLaneBulkOk = (row: { top_person_type?: string | null; candidate_cwids_json?: string | null }): boolean => {
+  const top = topCandidate(row.candidate_cwids_json);
+  const ithaca = top?.campus != null ? top.campus === "cornell-ithaca" : (row.top_person_type || "").startsWith("Cornell");
+  return ithaca || top?.orcid_source === "scholars";
 };
 
 // Institution on the role line, shortened the way the prototype writes it ("WCM").

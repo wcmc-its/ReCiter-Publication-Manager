@@ -25,7 +25,7 @@ import {
 } from "../../src/lib/directory";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { scheduleAnalysisRefresh } from "../analysisRefresh";
-import { SORTS, precisionWhere } from "./authorshipQueueSql";
+import { SORTS, precisionWhere, orcidLaneBulkWhere } from "./authorshipQueueSql";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
@@ -1391,7 +1391,10 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
       // required:false — see listAuthorships's identical include for why (unmatched/absent
       // top_cwid rows must not be dropped when no institution filter is active).
       include: [personInstitutionInclude(false)],
-      where: { [Op.and]: [buildWhere(body, absentCwids), { single_candidate: true }] },
+      // In the ORCID match lane a WCM top pick is bulk-selectable only with a Scholars-confirmed
+      // iD (orcidLaneBulkWhere). In the WHERE, so the rows returned are the "N matching" shown.
+      where: { [Op.and]: [buildWhere(body, absentCwids), { single_candidate: true },
+        ...(body.precision === "orcid" ? [orcidLaneBulkWhere()] : [])] },
       order: SORTS[body.sort] || SORTS.precision,
       limit: SELECTABLE_CAP + 1,
     });
