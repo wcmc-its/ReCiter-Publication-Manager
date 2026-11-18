@@ -67,12 +67,14 @@ export function precisionWhere(precision: unknown): any {
       ],
     };
   } else if (precision === "orcid") {
-    // "ORCID match": the fullname lane's rows where the byline ORCID also maps to that one
-    // identity (ReCiterDB v3.15). Narrow on purpose. top_orcid_match is 1 when the ORCID
-    // confirms a name-matched top pick and 2 when only the ORCID put that person on the list;
-    // `= true` matches 1 alone, so the 2 rows stay out and are reviewed one at a time.
-    // NULL when the byline has no ORCID or it maps to nobody.
-    return { single_candidate: true, top_given_match: "full", top_orcid_match: true };
+    // "ORCID match": every row whose top pick is name-matched AND is the person the byline
+    // ORCID is on file for (ReCiterDB v3.15). top_orcid_match is 1 for that case and 2 when
+    // only the ORCID put the person on the list; `= true` matches 1 alone, so the 2 rows stay
+    // out and are reviewed one at a time. NULL when there is no ORCID or it maps to nobody.
+    // Not restricted to single-candidate rows: on 2026-11-17 the single + full-name rows were
+    // already accepted, and the 853 confirmed open rows were multi-candidate or initials-only.
+    // "Select all N matching" still returns single-candidate rows only (authorshipSelectable).
+    return { top_orcid_match: true };
   }
   return null;
 }

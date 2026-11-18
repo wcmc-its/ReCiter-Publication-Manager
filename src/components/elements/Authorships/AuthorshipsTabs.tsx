@@ -269,7 +269,7 @@ interface Summary {
   total: number; single_candidate: number; classes: Record<string, number>;
   fullname?: number;                                 // single-candidate AND full given-name match
   venuefit?: number;                                 // single-candidate, initials-only byline, venue fits the department
-  orcid?: number;                                    // single-candidate, full given-name match, byline ORCID maps to that identity
+  orcid?: number;                                    // byline ORCID is on file for the name-matched top pick
   duplicates?: number;                               // accepts parked by a dup-check 409
   // Identity conflicts (#986/#990): open rows whose exact byline slot — same PMID AND same
   // author position — is already ACCEPTED by a different WCM identity (one that exists in the
@@ -713,8 +713,8 @@ const MATCH_CLASS_OPTIONS: MatchClassOption[] = [
   },
   {
     label: LANE_LABEL.orcid, lane: "orcid", classification: "all",
-    sub: "The byline ORCID belongs to the one identity that matches the name in full",
-    hint: "Exactly one identity matches, the given name matches in full, AND the byline author's ORCID is on file for that person. Rows where the ORCID points to someone who did not match the name are left out and reviewed one at a time.",
+    sub: "The byline ORCID belongs to the proposed identity",
+    hint: "The byline author's ORCID is on file for the proposed identity, who also matches the name. Rows where the ORCID points to someone who did not match the name are left out. Select all picks the single-candidate rows; rows with several candidates are assigned one at a time.",
     count: (s) => s?.orcid,
   },
   {

@@ -78,12 +78,10 @@ test('precisionWhere: venuefit is one candidate, an initial-only match and bylin
         + "CHAR_LENGTH(REPLACE(SUBSTRING_INDEX(`wcm_author`, ' ', 1), '.', '')) = 1)")
 })
 
-// The bulk lane is the fullname lane narrowed by the ORCID flag, nothing wider: a row where the
-// ORCID person was added as a new candidate is multi-candidate or not a full-name match.
-test('precisionWhere: orcid is one candidate, a full given-name match, and the byline ORCID maps to them', () => {
-    assert.deepEqual(precisionWhere('orcid'), { single_candidate: true, top_given_match: 'full', top_orcid_match: true })
-    assert.equal(whereSql(precisionWhere('orcid')),
-        "`single_candidate` = true AND `top_given_match` = 'full' AND `top_orcid_match` = true")
+// `= true` is 1 only: a person only the ORCID put on the list carries 2 and stays out.
+test('precisionWhere: orcid is every row whose name-matched top pick the byline ORCID confirms', () => {
+    assert.deepEqual(precisionWhere('orcid'), { top_orcid_match: true })
+    assert.equal(whereSql(precisionWhere('orcid')), "`top_orcid_match` = true")
     for (const p of ['ORCID', 'orcid_match', "orcid' OR 1=1", ['orcid'], { orcid: true }]) {
         assert.equal(precisionWhere(p), null)
     }
