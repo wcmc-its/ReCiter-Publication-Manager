@@ -39,6 +39,13 @@ export type VenueFitBand = "good" | "poor";
 export const venueFitBand = (fit?: number | null): VenueFitBand | null =>
   fit == null || Number.isNaN(fit) ? null : fit >= 1 ? "good" : fit < -1 ? "poor" : null;
 
+// The tooltip on a row's "ORCID match" pill (authorship_review.top_orcid_match = 1): the byline
+// author's ORCID is on file for the proposed person. Names the ORCID when the row carries it.
+export const orcidMatchTip = (orcid?: string | null): string => {
+  const o = (orcid || "").trim();
+  return o ? `The byline ORCID ${o} is on file for this person` : "The byline ORCID is on file for this person";
+};
+
 // Institution on the role line, shortened the way the prototype writes it ("WCM").
 export const shortInstitution = (inst?: string | null): string => {
   const s = (inst || "").trim();

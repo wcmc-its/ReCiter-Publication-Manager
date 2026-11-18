@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import {
     ioBand, ioBadgeText, ioBadge, shortInstitution, roleLine, formatRowDate,
     splitAffiliation, sourceBadgeText, shortcutsLine, parkedNote,
-    ioScoreText, fgLine, bylineParts, rankCandidates, compareHint, shareLine, venueFitBand,
+    ioScoreText, fgLine, bylineParts, rankCandidates, compareHint, shareLine, venueFitBand, orcidMatchTip,
 } from '../src/utils/authorshipRow.ts'
 
 test('ioBand uses the page bands (90 / 50)', () => {
@@ -29,6 +29,14 @@ test('venueFitBand: >= 1 good, < -1 poor, nothing in between or when unknown', (
     assert.equal(venueFitBand(null), null)
     assert.equal(venueFitBand(undefined), null)
     assert.equal(venueFitBand(NaN), null)
+})
+
+test('orcidMatchTip names the ORCID when the row has one', () => {
+    assert.equal(orcidMatchTip('0000-0002-1825-0097'), 'The byline ORCID 0000-0002-1825-0097 is on file for this person')
+    assert.equal(orcidMatchTip(' 0000-0002-1825-0097 '), 'The byline ORCID 0000-0002-1825-0097 is on file for this person')
+    assert.equal(orcidMatchTip(null), 'The byline ORCID is on file for this person')
+    assert.equal(orcidMatchTip(undefined), 'The byline ORCID is on file for this person')
+    assert.equal(orcidMatchTip(''), 'The byline ORCID is on file for this person')
 })
 
 test('ioBadgeText floors so the number never outranks its band', () => {

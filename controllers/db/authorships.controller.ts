@@ -35,7 +35,7 @@ const LIST_ATTRIBUTES = [
   "entrez_date", "title", "journal", "doi", "pub_type", "container_id", "classification",
   "top_cwid", "top_name", "top_person_type", "top_dept",
   "top_fg_score", "top_io_score", "top_confidence", "top_cohort_size",
-  "top_given_match", "top_affil_match", "top_venue_fit", "n_candidates", "single_candidate",
+  "top_given_match", "top_affil_match", "top_venue_fit", "byline_orcid", "top_orcid_match", "n_candidates", "single_candidate",
   "candidate_cwids_json", "authors_json", "dup_flag", "dup_reason", "accept_conflict", "accept_conflict_matches",
   "matched_pmid", "matched_pmid_source", "matched_pmid_at", "matched_pmid_verdict",
   "status", "snooze_until", "reviewer", "resolved_at",
@@ -1938,7 +1938,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     // Exclusion map (#988) — the key(s) each response field's OWN where must be blind to; every
     // other filter in the body is honoured exactly like the list.
     const where = summaryWhere(body, [], absentCwids);                                   // total: nothing excluded
-    const matchClassWhere = summaryWhere(body, ["precision", "classification"], absentCwids); // single_candidate/fullname/venuefit/classes
+    const matchClassWhere = summaryWhere(body, ["precision", "classification"], absentCwids); // single_candidate/fullname/venuefit/orcid/classes
     const bySourceWhere = summaryWhere(body, ["source", "pubTypes"], absentCwids);        // bySource
     const pubTypesWhere = summaryWhere(body, ["pubTypes"], absentCwids);                  // pubTypes (source:"scopus" AND kept below)
     const personTypesWhere = summaryWhere(body, ["personTypes"], absentCwids);            // personTypes
@@ -1978,11 +1978,12 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     const whereOpts = (w: any) => (hasInstitutions ? { where: w, include: instInclude } : { where: w });
     const groupCountAttr = hasInstitutions ? fn("COUNT", fn("DISTINCT", col("AuthorshipReview.id"))) : fn("COUNT", col("id"));
 
-    const [total, single, fullname, venuefit, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution, byAuthorInstitution, lowScoringAccepts, highScoringRejects, hiddenNoSuggestion, hiddenNoIdentity] = await Promise.all([
+    const [total, single, fullname, venuefit, orcid, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution, byAuthorInstitution, lowScoringAccepts, highScoringRejects, hiddenNoSuggestion, hiddenNoIdentity] = await Promise.all([
       models.AuthorshipReview.count(countOpts(where)),
       models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true }] })),
       models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true, top_given_match: "full" }] })),
       models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, precisionWhere("venuefit")] })),
+      models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, precisionWhere("orcid")] })),
       models.AuthorshipReview.count(countOpts(dupWhere)),
       models.AuthorshipReview.count(countOpts(conflictWhere)),
       models.AuthorshipReview.findAll({ attributes: ["classification", [groupCountAttr, "n"]], ...whereOpts(matchClassWhere), group: ["classification"], raw: true }),
@@ -2066,7 +2067,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       ? bucketCounts(((byAuthorInstitution as any[])?.[0]) || {})
       : undefined;
     res.send({
-      total, single_candidate: single, fullname, venuefit, duplicates, conflicts,
+      total, single_candidate: single, fullname, venuefit, orcid, duplicates, conflicts,
       classes, personTypes, bySource, pubTypes, institutions, authorInstitutions,
       // Always present, unlike authorInstitutions above — these two are cheap enough to compute
       // unconditionally once the index exists, and the dropdown needs both labels populated the

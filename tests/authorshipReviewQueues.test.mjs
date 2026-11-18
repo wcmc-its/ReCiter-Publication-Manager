@@ -78,6 +78,15 @@ test('precisionWhere: venuefit is one candidate, an initial-only match and bylin
         + "CHAR_LENGTH(REPLACE(SUBSTRING_INDEX(`wcm_author`, ' ', 1), '.', '')) = 1)")
 })
 
+// `= true` is 1 only: a person only the ORCID put on the list carries 2 and stays out.
+test('precisionWhere: orcid is every row whose name-matched top pick the byline ORCID confirms', () => {
+    assert.deepEqual(precisionWhere('orcid'), { top_orcid_match: true })
+    assert.equal(whereSql(precisionWhere('orcid')), "`top_orcid_match` = true")
+    for (const p of ['ORCID', 'orcid_match', "orcid' OR 1=1", ['orcid'], { orcid: true }]) {
+        assert.equal(precisionWhere(p), null)
+    }
+})
+
 const sortKeys = (sort) => SORTS[sort].map(([k, dir]) => (typeof k === 'string' ? `${k} ${dir}` : `<expr> ${dir}`))
 
 test('SORTS: top_confidence breaks top_io_score ties behind pmid, so PubMed order is as it was', () => {
