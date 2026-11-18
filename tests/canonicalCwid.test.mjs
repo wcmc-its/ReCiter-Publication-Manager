@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { canonicalCwid, isValidCwid, parseCwid, cwidParam, sameCwid, isExternalCohortId } from '../src/utils/canonicalCwid.ts'
+import { canonicalCwid, isValidCwid, parseCwid, parseCwidList, cwidParam, sameCwid, isExternalCohortId } from '../src/utils/canonicalCwid.ts'
 import { canonicalCwid as assignCanonical, toCanonicalCwid } from '../src/lib/assignGate.ts'
 
 // The families the 11-18 DynamoDB scan found, and what each must become.
@@ -139,10 +139,10 @@ test('proxy lookups match a grant in any stored spelling, not via case-sensitive
     assert.match(f, /currentArr\.filter\(\(pid: string\) => parseCwid\(pid\) !== personIdentifier\)/)
 })
 
-test('admin_users: a login reuses the CWID row (lowest userID), then the email row, before creating', () => {
+test('admin_users: a login reuses the CWID row, then the email row, before creating', () => {
     const f = src('controllers/db/admin.users.controller.ts')
     assert.doesNotMatch(f, /AdminUser\.findOrCreate\(/)
-    const byCwid = f.indexOf("where: { personIdentifier: uid }, order: [['userID', 'ASC']]")
+    const byCwid = f.indexOf("where: { personIdentifier: uid }, order })")
     const byEmail = f.indexOf("where: { email }, order: [['userID', 'ASC']]")
     assert.ok(byCwid > 0 && byEmail > byCwid, 'CWID row preferred over email row, lowest userID')
     const reuse = f.indexOf('const existing = await findExistingAdminUser(uid, samlEmail)')
@@ -153,4 +153,39 @@ test('admin_users: a login reuses the CWID row (lowest userID), then the email r
 test('direct login denies a non-CWID username instead of crashing on a null account', () => {
     const f = src('src/pages/api/auth/[...nextauth].jsx')
     assert.match(f, /const adminUser = await findOrcreateAdminUser\([\s\S]{0,200}\);\s*\/\/[^\n]*\n\s*if \(!adminUser\) return null;\s*\n\s*const assignedRoles = await grantDefaultRolesToAdminUser\(adminUser\)/)
+})
+
+test('admin_users: duplicate CWID rows resolve to the SAML-email row first, then lowest userID', () => {
+    const f = src('controllers/db/admin.users.controller.ts')
+    assert.match(f, /\[sequelize\.literal\(`\(email = \$\{sequelize\.escape\(email\)\}\)`\), 'DESC'\], \['userID', 'ASC'\]/)
+})
+
+test('authorship accept: the row top_cwid is canonical before identity/retired checks and writes', () => {
+    const f = src('controllers/db/authorships.controller.ts')
+    assert.match(f, /const cwid = row\.top_cwid \? toCanonicalCwid\(String\(row\.top_cwid\)\) : undefined;/)
+    assert.doesNotMatch(f, /const cwid = row\.top_cwid as string/)
+})
+
+test('manage-users create: an existing account for the CWID/email is a 409, not a second row', () => {
+    const f = src('controllers/db/manage-users/user.controller.ts')
+    const check = f.indexOf('await findExistingAdminUser(canonical, email || undefined)')
+    const conflict = f.indexOf('res.status(409)', check)
+    const create = f.indexOf('models.AdminUser.create(createUserPayload')
+    assert.ok(check > 0 && conflict > check && create > conflict, 'existence check + 409 before create')
+})
+
+test('parseCwidList: canonical, de-duplicated, invalid entries split out', () => {
+    assert.deepEqual(parseCwidList(['Abl9002', 'abl9002 ', 'fredhutch_Rachel.Rau', 'a b', 'x@y.edu', '', 7, 'ggi9001']),
+        { valid: ['abl9002', 'fredhutch_Rachel.Rau', 'ggi9001'], invalid: ['a b', 'x@y.edu', '', 7] })
+    assert.deepEqual(parseCwidList('abl9002'), { valid: [], invalid: [] })
+})
+
+test('feature-generator/group: bulk uids are canonicalized before they reach ReCiter', () => {
+    const f = src('controllers/featuregeneratorbulk.controller.ts')
+    assert.match(f, /const \{ valid: uids, invalid \} = parseCwidList\(rawBody\)/)
+    assert.match(f, /statusCode: 400, statusText: 'No valid uids in request body'/)
+    assert.match(f, /body: JSON\.stringify\(uids\)/)
+    assert.match(f, /getPendingFeedback\(uids, data\)/)
+    assert.match(f, /sameCwid\(item\?\.personIdentifier, uid\)/)
+    assert.doesNotMatch(f, /JSON\.stringify\(req\.body\)/)
 })

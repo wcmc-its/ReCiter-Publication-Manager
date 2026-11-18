@@ -2904,7 +2904,9 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
 
     const isExternal = isExternalSource(row);
     const pmid = row.pmid != null ? Number(row.pmid) : null;
-    const cwid = row.top_cwid as string | undefined;
+    // Canonical, like every write below it: a producer-baked `Abl9002` must hit the same
+    // identity / retired checks and resolution_cwid as the gold-standard write, or it orphans.
+    const cwid = row.top_cwid ? toCanonicalCwid(String(row.top_cwid)) : undefined;
     const reviewer = curator.cwid || String(curator.userID);
     const force = String(body.force) === "true";
 

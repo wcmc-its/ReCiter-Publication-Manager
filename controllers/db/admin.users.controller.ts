@@ -1,4 +1,5 @@
 import models from '../../src/db/sequelize'
+import sequelize from '../../src/db/db'
 import { findOnePerson } from './person.controller'
 import { Op} from "sequelize"
 import { canonicalCwid, isValidCwid } from '../../src/utils/canonicalCwid'
@@ -51,11 +52,16 @@ export const findOrCreateAdminUsers = async (rawUid: string, samlEmail: string, 
     }
 };
 
-// The account a login should use: the CWID's row first (lowest userID when duplicates
-// exist; MySQL's default collation also matches a stored 'Abl9002'), else the email's row.
+// The account a login should use: the CWID's row first, else the email's row. When a CWID
+// has duplicate rows (MySQL's default collation also matches a stored 'Abl9002'), the row
+// whose email matches the SAML email wins, then the lowest userID -- so a login always lands
+// on the same row and keeps that row's scope_*, proxy_person_ids and departments.
 export const findExistingAdminUser = async (uid: string | undefined, email: string | undefined) => {
     if (uid) {
-        const byCwid = await models.AdminUser.findOne({ where: { personIdentifier: uid }, order: [['userID', 'ASC']] })
+        const order: any[] = email
+            ? [[sequelize.literal(`(email = ${sequelize.escape(email)})`), 'DESC'], ['userID', 'ASC']]
+            : [['userID', 'ASC']]
+        const byCwid = await models.AdminUser.findOne({ where: { personIdentifier: uid }, order })
         if (byCwid) return byCwid
     }
     if (email) {

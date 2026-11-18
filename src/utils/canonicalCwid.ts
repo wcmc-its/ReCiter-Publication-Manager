@@ -56,3 +56,18 @@ export function sameCwid(a: unknown, b: unknown): boolean {
     const ca = canonicalCwid(a)
     return ca !== '' && ca === canonicalCwid(b)
 }
+
+/**
+ * A list of uids from a request body, canonicalized and de-duplicated (first spelling wins).
+ * Entries that are still not an identifier land in `invalid` for the caller to log and skip.
+ */
+export function parseCwidList(raw: unknown): { valid: string[]; invalid: unknown[] } {
+    const valid: string[] = []
+    const invalid: unknown[] = []
+    for (const item of Array.isArray(raw) ? raw : []) {
+        const c = parseCwid(item)
+        if (c === null) invalid.push(item)
+        else if (!valid.includes(c)) valid.push(c)
+    }
+    return { valid, invalid }
+}
