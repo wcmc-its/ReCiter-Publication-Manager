@@ -92,7 +92,7 @@ test('orcidLaneBulkWhere: Ithaca by campus or, without one, by person type; othe
     const j = '`AuthorshipReview`.`candidate_cwids_json`'
     const top = (k) => `JSON_UNQUOTE(JSON_EXTRACT(IF(CASE WHEN JSON_VALID(${j}) THEN JSON_TYPE(${j}) = 'ARRAY' END, ${j}, NULL), '$[0].${k}'))`
     assert.equal(whereSql(orcidLaneBulkWhere()),
-        "(COALESCE(NULLIF(" + top('campus') + ", 'null') = 'ithaca', `AuthorshipReview`.`top_person_type` LIKE 'Cornell%', 0)"
+        "(COALESCE(NULLIF(" + top('campus') + ", 'null') = 'cornell-ithaca', `AuthorshipReview`.`top_person_type` LIKE 'Cornell%', 0)"
         + " OR COALESCE(" + top('orcid_source') + " = 'scholars', 0))")
     // ANDs onto the lane's own predicate as one parenthesised term
     assert.match(whereSql({ [Op.and]: [precisionWhere('orcid'), { single_candidate: true }, orcidLaneBulkWhere()] }),

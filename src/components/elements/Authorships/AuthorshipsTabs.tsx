@@ -1644,6 +1644,8 @@ const AuthorshipsTabs = () => {
   // curator has since closed lands nowhere. Without it a late answer set assignConfirm with the
   // popover shut, and overlayOpen then held every row shortcut off until it was reopened.
   const assignSeqRef = useRef(0);
+  // Same guard for "Select all N matching": bumped on every filter / page change.
+  const selectAllSeqRef = useRef(0);
   const [assignConfirm, setAssignConfirm] = useState<{
     cwid: string; name?: string | null; hasIdentity: boolean;
     onCandidate: AuthorshipRow[]; offCandidate: AuthorshipRow[];
@@ -2134,7 +2136,9 @@ const AuthorshipsTabs = () => {
   // selection made on the page you left). Note what is deliberately absent: this effect clears
   // only ephemeral per-page state, it never RESETS a filter. Sort, dates, class, types and
   // institutions all survive a change to any other control.
-  useEffect(() => { setSelected(new Set()); setExpanded(null); setAllMatching(null); },
+  // The bump drops a "Select all N matching" reply still in flight for the filters just left, so
+  // one lane's selection cannot land in another (the ORCID match lane has its own bulk rule).
+  useEffect(() => { selectAllSeqRef.current += 1; setSelected(new Set()); setExpanded(null); setAllMatching(null); },
     [filters, page]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
   // (setSelectedPubTypes is stable, and patchFilters no-ops when the list is already empty, so
@@ -2622,18 +2626,20 @@ const AuthorshipsTabs = () => {
   // this can only ever select rows an individual Accept would also have allowed.
   const selectAllMatching = useCallback(() => {
     setSelectingAll(true);
+    const seq = selectAllSeqRef.current;
     fetch("/api/db/authorships/selectable", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify(filterBody()),
     })
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => {
+        if (selectAllSeqRef.current !== seq) return;
         const matched: AuthorshipRow[] = d.rows || [];
         setAllMatching(matched);
         setSelected(new Set(matched.map((r) => r.id)));
         if (d.capped) showError(`Selected the first ${d.cap.toLocaleString()} matching rows — narrow the filters to reach the rest.`);
       })
-      .catch((e) => showError(`Couldn't select all matching rows. ${plainReason(e)}`))
+      .catch((e) => { if (selectAllSeqRef.current === seq) showError(`Couldn't select all matching rows. ${plainReason(e)}`); })
       .finally(() => setSelectingAll(false));
   }, [filterBody]);
 
@@ -3022,6 +3028,9 @@ const AuthorshipsTabs = () => {
   // M" is always present, and a snoozed / dismissed / duplicate / conflict row must not become
   // bulk-acceptable just because it scores IO ≥ 95. Same gate as eligibleRows below.
   const nearCertain = statusView === "open" ? nearCertainOnPage : [];
+  // The ORCID match lane's bulk rule covers this button too. On its own line: the two above are
+  // pinned byte-for-byte by scripts/check-authorships-no-suggestion.mjs.
+  const nearCertainInLane = nearCertain.filter(laneBulkOk);
   // Item 7: select-all targets the eligible (bulk-selectable) rows on this page — the same
   // set the per-row checkboxes allow (T4: multi-candidate rows included, for bulk-assign).
   // Accept safety is downstream: every accept-type consumer reads selectedAcceptRows, so
@@ -3499,10 +3508,10 @@ const AuthorshipsTabs = () => {
             {statusView === "open" && (
               <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only, not on the selection" placement="top" arrow>
                 <span>
-                  <Button variant="secondary" size="sm" disabled={nearCertain.length === 0 || !!bulkProgress || loading} onClick={() => doBulkAccept(nearCertain)}>
+                  <Button variant="secondary" size="sm" disabled={nearCertainInLane.length === 0 || !!bulkProgress || loading} onClick={() => doBulkAccept(nearCertainInLane)}>
                     Accept near-certain · IO ≥ 95
                     {/* While a list is loading, the rows behind this count are not on screen. */}
-                    <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{loading ? "" : nearCertain.length}</span>
+                    <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{loading ? "" : nearCertainInLane.length}</span>
                   </Button>
                 </span>
               </Tip>

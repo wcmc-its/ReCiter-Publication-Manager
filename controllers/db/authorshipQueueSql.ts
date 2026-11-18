@@ -92,6 +92,6 @@ export function orcidLaneBulkWhere(): any {
   const top = (key: string) => "JSON_UNQUOTE(JSON_EXTRACT(IF(CASE WHEN JSON_VALID(" + json + ") THEN JSON_TYPE(" + json + ") = 'ARRAY' END, "
     + json + ", NULL), '$[0]." + key + "'))";
   return literal(
-    "(COALESCE(NULLIF(" + top("campus") + ", 'null') = 'ithaca', `AuthorshipReview`.`top_person_type` LIKE 'Cornell%', 0)"
+    "(COALESCE(NULLIF(" + top("campus") + ", 'null') = 'cornell-ithaca', `AuthorshipReview`.`top_person_type` LIKE 'Cornell%', 0)"
     + " OR COALESCE(" + top("orcid_source") + " = 'scholars', 0))");
 }
