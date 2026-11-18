@@ -16,23 +16,23 @@ export const findOrCreateAdminUsers = async (rawUid: string, samlEmail: string, 
             console.warn(`[admin_users] refusing login account for non-CWID personIdentifier ${JSON.stringify(rawUid)}`)
             return null
         }
-        let whereCondition:any =samlEmail?{'email':samlEmail}:{'personIdentifier':uid} ;
+        // One account per person. Reuse an existing row before ever inserting: the row holding
+        // this CWID wins (lowest userID if duplicates already exist), else the row holding this
+        // email. Only when neither key matches is a row created. The old findOrCreate keyed on
+        // email alone whenever SAML supplied one, so a CWID that already had an account but a
+        // different/blank email got a second admin_users row (mrj4001: userIDs 13 and 40078).
+        const existing = await findExistingAdminUser(uid, samlEmail)
+        if (existing) {
+            console.log('User ' + uid + ' already exists in adminUsers table (userID ' + existing.userID + ')')
+            return existing.get({plain:true});
+        }
 
         let person:any=null;
-        let adminUser=null
         if(samlEmail || uid)
         {
-            adminUser = await findAdminUser([EMAIL,PERSONIDENTIFIER],[samlEmail,uid]);
-            if((samlEmail || uid) && adminUser)
-            {
-                person = await findOnePerson([EMAIL,PERSONIDENTIFIER],[samlEmail,uid]); 
-            }
-        
+            person = await findOnePerson([EMAIL,PERSONIDENTIFIER],[samlEmail,uid]);
         }
-        const [user, created] = await models.AdminUser.findOrCreate({
-
-            where : whereCondition,
-            defaults: {
+        const user = await models.AdminUser.create({
                 personIdentifier: uid,
                 nameFirst: samlFirstName?samlFirstName:((person && person.firstName)?person.firstName:null),
                 nameMiddle: (person && person.middleName)?person.middleName:null,
@@ -41,16 +41,28 @@ export const findOrCreateAdminUsers = async (rawUid: string, samlEmail: string, 
                 modifyTimestamp: new Date(),
                 status: 1,//Start of with no access for everybody(person && person.personIdentifier)? 1:0
                 email:samlEmail?samlEmail:((person && person.primaryEmail?.toString())?person.primaryEmail?.toString():null)
-            }
         })
 
-        created?console.log('User ' + uid + ' is logging in for first time so record is created in adminUsers table'): 
-            console.log('User ' + uid + ' already exists in adminUsers table')
+        console.log('User ' + uid + ' is logging in for first time so record is created in adminUsers table')
         return user.get({plain:true});
         
     } catch (e) {
         console.log(e)
     }
+};
+
+// The account a login should use: the CWID's row first (lowest userID when duplicates
+// exist; MySQL's default collation also matches a stored 'Abl9002'), else the email's row.
+export const findExistingAdminUser = async (uid: string | undefined, email: string | undefined) => {
+    if (uid) {
+        const byCwid = await models.AdminUser.findOne({ where: { personIdentifier: uid }, order: [['userID', 'ASC']] })
+        if (byCwid) return byCwid
+    }
+    if (email) {
+        const byEmail = await models.AdminUser.findOne({ where: { email }, order: [['userID', 'ASC']] })
+        if (byEmail) return byEmail
+    }
+    return null
 };
 
 export const findAdminUser = async (attrTypes: string[], attrValues: string[]) => {

@@ -41,6 +41,8 @@ export const authOptions = {
           credentials.firstName,
           credentials.lastName
         );
+        // null = the username is not a CWID even after canonicalizing: deny cleanly.
+        if (!adminUser) return null;
 
         const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
         const userRoles = await findUserPermissions(

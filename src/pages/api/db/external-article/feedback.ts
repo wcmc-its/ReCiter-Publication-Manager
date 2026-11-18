@@ -6,6 +6,7 @@ import { reciterConfig } from '../../../../../config/local'
 import { effectiveToken } from '../../../../../src/utils/viewAs'
 import { externalStoreMode } from '../../../../../src/lib/externalStore'
 import { send, sessionOf, feedbackExternal } from '../../../../../controllers/db/external.controller'
+import { cwidParam } from '../../../../../src/utils/canonicalCwid'
 
 // POST /api/db/external-article/feedback — curate per-source tabs (Option C, Phase 1):
 // Accept / Reject / un-reject an already-added external (non-PubMed) publication. Same
@@ -29,9 +30,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(401).send('Authorization header is incorrect')
     }
 
-    const { uid, articleId, action, note } = req.body || {}
-    if (!uid || !articleId || !action) {
+    const { uid: rawUid, articleId, action, note } = req.body || {}
+    if (!rawUid || !articleId || !action) {
         return res.status(400).send({ statusCode: 400, message: 'uid, articleId, and action are required' })
+    }
+    // Convert the uid on the way in, before both the canCurate check and the write, so the
+    // permission check and the ExternalArticle/FeedbackLog key are the same person.
+    const uid = cwidParam(rawUid)
+    if (!uid) {
+        return res.status(400).send({ statusCode: 400, message: `Not a valid uid: ${JSON.stringify(rawUid)}` })
     }
     if (action !== 'ACCEPTED' && action !== 'REJECTED' && action !== 'PENDING') {
         return res.status(400).send({ statusCode: 400, message: 'action must be ACCEPTED, REJECTED, or PENDING' })

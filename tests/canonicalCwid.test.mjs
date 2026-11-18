@@ -112,6 +112,45 @@ test('write boundaries canonicalize on the way in', () => {
         ['controllers/db/authorization.controller.ts', /sameCwid\(caps\.canCurate\.personIdentifier, uid\)/],
         ['controllers/db/manage-users/user.controller.ts', /'personIdentifier': canonical,/],
         ['src/components/elements/CurateIndividual/CurateIndividual.tsx', /const id = canonicalCwid\(/],
+        ['src/pages/api/db/external-article/feedback.ts', /const uid = cwidParam\(rawUid\)/],
+        ['controllers/db/proxy.controller.ts', /personIdentifiers = Array\.from\(new Set\(rawPersonIdentifiers\.map\(\(p: unknown\) => parseCwid\(p\)/],
+        ['controllers/db/proxy.controller.ts', /const personIdentifier = parseCwid\(rawPersonIdentifier\)/],
+        ['controllers/db/proxy.controller.ts', /const personIdentifier = cwidParam\(req\.query\.personIdentifier\)/],
+        ['controllers/pubmed.controller.ts', /const uid = cwidParam\(req\.body\.personIdentifier\)[\s\S]{0,300}getPublications\(uid, req\)/],
+        ['src/middleware.ts', /proxyPersonIds\.some\(\(pid\) => sameCwid\(pid, curateTarget\)\)/],
     ]
     for (const [file, re] of cases) assert.match(src(file), re, file)
+})
+
+test('external-article feedback: the canCurate check and the write use the same canonical uid', () => {
+    const f = src('src/pages/api/db/external-article/feedback.ts')
+    const at = f.indexOf('const uid = cwidParam(rawUid)')
+    assert.ok(at > 0)
+    for (const use of ['feedbackExternal(uid,', 'canCurate(effectiveToken(token), uid)', 'recordExternalArticleFeedback(uid,']) {
+        assert.ok(f.indexOf(use) > at, use)
+    }
+    assert.doesNotMatch(f, /const \{ uid, articleId/)
+})
+
+test('proxy lookups match a grant in any stored spelling, not via case-sensitive JSON_CONTAINS', () => {
+    const f = src('controllers/db/proxy.controller.ts')
+    assert.doesNotMatch(f, /WHERE JSON_CONTAINS/)
+    assert.match(f, /parseCwid\(pid\) === canonicalId/)
+    assert.match(f, /currentArr\.filter\(\(pid: string\) => parseCwid\(pid\) !== personIdentifier\)/)
+})
+
+test('admin_users: a login reuses the CWID row (lowest userID), then the email row, before creating', () => {
+    const f = src('controllers/db/admin.users.controller.ts')
+    assert.doesNotMatch(f, /AdminUser\.findOrCreate\(/)
+    const byCwid = f.indexOf("where: { personIdentifier: uid }, order: [['userID', 'ASC']]")
+    const byEmail = f.indexOf("where: { email }, order: [['userID', 'ASC']]")
+    assert.ok(byCwid > 0 && byEmail > byCwid, 'CWID row preferred over email row, lowest userID')
+    const reuse = f.indexOf('const existing = await findExistingAdminUser(uid, samlEmail)')
+    const create = f.indexOf('models.AdminUser.create(')
+    assert.ok(reuse > 0 && create > reuse, 'create only after the existing-row lookup')
+})
+
+test('direct login denies a non-CWID username instead of crashing on a null account', () => {
+    const f = src('src/pages/api/auth/[...nextauth].jsx')
+    assert.match(f, /const adminUser = await findOrcreateAdminUser\([\s\S]{0,200}\);\s*\/\/[^\n]*\n\s*if \(!adminUser\) return null;\s*\n\s*const assignedRoles = await grantDefaultRolesToAdminUser\(adminUser\)/)
 })
