@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { reciterConfig } from "../../../../config/local";
 import { mostEvidenceCwid, tallyOf } from "../../../utils/candidateEvidence";
+import { isDeliberateClick } from "../../../utils/authorshipRow";
 import type { CandidateFacts, EvidenceCandidate, EvidenceKind, EvidenceRow } from "../../../utils/candidateEvidence";
 
 export interface CandidateEvidenceData {
@@ -223,7 +224,7 @@ export const CompareGrid = <C extends GridCandidate>({ cols, onPick, renderHead,
             return (
               <div role="columnheader" key={c.cwid} tabIndex={onPick ? 0 : undefined} data-cmp-head={c.cwid}
                 aria-label={onPick ? `Assign to ${c.name || c.cwid}` : undefined}
-                onClick={() => onPick?.(c.cwid)} onKeyDown={(e) => { if (onPick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); onPick(c.cwid); } }}
+                onClick={(e) => { if (isDeliberateClick(e.detail, window.getSelection()?.toString() || "")) onPick?.(c.cwid); }} onKeyDown={(e) => { if (onPick && e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); onPick(c.cwid); } }}
                 title={onPick ? `Assign to ${c.name || c.cwid}` : undefined}
                 style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, padding: "7px 9px", borderRadius: 8, cursor: onPick ? "pointer" : "default", boxSizing: "border-box",
                   border: "1px solid var(--pm-border)", background: "#fff" }}>

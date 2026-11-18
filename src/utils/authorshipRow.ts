@@ -180,6 +180,12 @@ export const confidenceLevel = (c?: number | null): ConfidenceLevel | null =>
 export const confidenceTip = (c?: number | null): string =>
   confidenceLevel(c) ? `Match confidence ${Math.round(Math.min(1, Math.max(0, c as number)) * 100)}%` : "";
 
+// A click that assigns must be a deliberate single click: not the second click of a double-click
+// (the row it removed lets the next row slide under the cursor) and not the mouseup that ends a
+// text selection (copying a name or CWID). `detail` is the event's click count.
+export const isDeliberateClick = (detail: number, selectedText: string): boolean =>
+  detail <= 1 && !selectedText;
+
 // The hint beside "Compare N candidates", and the collapsed row's count line.
 export const compareHint = (): string => "Click a person's column heading to assign this authorship to them.";
 export const shareLine = (n: number, canPick: boolean): string =>

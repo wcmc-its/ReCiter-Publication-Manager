@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import {
     ioBand, ioBadgeText, ioBadge, shortInstitution, roleLine, formatRowDate,
     splitAffiliation, sourceBadgeText, shortcutsLine, parkedNote,
-    ioScoreText, fgLine, bylineParts, rankCandidates, confidenceLevel, confidenceTip, CONFIDENCE_HIGH, CONFIDENCE_MEDIUM, compareHint, shareLine, venueFitBand, orcidMatchTip,
+    ioScoreText, fgLine, bylineParts, rankCandidates, confidenceLevel, confidenceTip, CONFIDENCE_HIGH, CONFIDENCE_MEDIUM, compareHint, shareLine, venueFitBand, orcidMatchTip, isDeliberateClick,
 } from '../src/utils/authorshipRow.ts'
 
 test('ioBand uses the page bands (90 / 50)', () => {
@@ -171,4 +171,11 @@ test('compareHint and shareLine', () => {
     assert.equal(compareHint(), "Click a person's column heading to assign this authorship to them.")
     assert.equal(shareLine(5, true), '5 people share this name · click one to assign')
     assert.equal(shareLine(5, false), '5 people share this name')
+})
+
+test('isDeliberateClick: a single click with nothing selected, never a double-click or a text selection', () => {
+    assert.equal(isDeliberateClick(1, ''), true)
+    assert.equal(isDeliberateClick(0, ''), true)   // keyboard-synthesised click
+    assert.equal(isDeliberateClick(2, ''), false)
+    assert.equal(isDeliberateClick(1, 'abc2001'), false)
 })

@@ -31,7 +31,7 @@ import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } fro
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import {
   bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
-  confidenceLevel, confidenceTip, conflictIdentities, conflictKeep, emptyState, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, venueFitBand,
+  confidenceLevel, confidenceTip, conflictIdentities, conflictKeep, emptyState, isDeliberateClick, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, venueFitBand,
 } from "../../../utils/authorshipRow";
 
 // ---- types ---------------------------------------------------------------
@@ -4535,7 +4535,7 @@ const AuthorshipCard = ({
                           "aria-label": [`Assign to ${c.name || c.cwid}`, c.orcid_match ? "ORCID match" : "", level ? `${level} match confidence` : "", warn].filter(Boolean).join(", ") } : {})}
                         title={[live ? `Assign to ${c.name || c.cwid} (${c.cwid})` : `${c.name || c.cwid} (${c.cwid})`, c.person_type, c.dept,
                           c.io_score != null ? `IO ${Math.floor(c.io_score)}` : "", level ? `${confidenceTip(c.confidence)} (${level})` : "", warn].filter(Boolean).join(" · ")}
-                        onClick={() => { if (live) assign(); }}
+                        onClick={(e) => { if (live && isDeliberateClick(e.detail, window.getSelection()?.toString() || "")) assign(); }}
                         onKeyDown={(e) => { if (live && e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); assign(); } }}
                         onMouseEnter={() => openHover(c.cwid)} onMouseLeave={closeHover}
                         style={{ position: "relative", display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "center",
@@ -4934,7 +4934,7 @@ const ExpandedPanel = ({ row: r, candidates, acting, statusView, onAction,
           the directory lookup on the byline name straight away (UI refresh 4c: every expand);
           the box itself starts empty, as in the prototype. */}
       {(
-        <AssignOther rowId={r.id} acting={acting} onAction={onAction} authorName={r.wcm_author}
+        <AssignOther rowId={r.id} acting={acting} onAction={onAction} authorName={r.wcm_author} oneClick={statusView === "open"}
           affiliation={r.author_affiliation} prefill={assignPrefill} autoSearch={!assignPrefill}
           // One note for the box and the radios. `listed` is candidates-minus-one, `typed` is all
           // of them: someone typed in is by definition not a listed candidate. F-2: a
@@ -5168,7 +5168,8 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, ev, onPick, priorNam
 // ponytail: the "lookup route feeding the box" upgrade path landed — #948 built POST
 // /api/db/authorships/lookup for the bulk dialog, so the box debounces into it and a resolved
 // Assign/Enter writes in one click; unresolved (debouncing/errored) falls back to the plain call.
-const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName, affiliation, note }: {
+const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName, affiliation, note, oneClick }: {
+  oneClick?: boolean; // Open queue only: a directory hit already in ReCiter assigns on click
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
   prefill?: string; // a name to look up straight away (the ⋯ menu's "Assign to someone else…")
   autoSearch?: boolean; // the row was simply opened: look up the byline name, WCM first
@@ -5197,7 +5198,11 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
   // clears it, so the server's WCM-first / Cornell-fallback narrowing applies to the routine
   // search alone and a curator who types a name still gets both directories.
   const autoSeeded = useRef(false);
-  useEffect(() => () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); }, []);
+  // Unmount (row collapsed, acted on, filtered away) also invalidates any lookup in flight: a
+  // reply that lands afterwards must not assign.
+  useEffect(() => () => { requestSeq.current += 1; if (debounceTimer.current) clearTimeout(debounceTimer.current); }, []);
+  const actingRef = useRef(acting);
+  actingRef.current = acting;
 
   const post = useCallback((payload: Record<string, string>) =>
     fetch("/api/db/authorships/lookup", {
@@ -5231,7 +5236,10 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
           name: d.name ?? null, hasIdentity: !!d.hasIdentity, directory: d.directory ?? null,
         };
         setLookupState(resolved);
-        if (commit && typedCwidPreview(resolved)?.tone === "neutral") {
+        // Re-checked when the reply lands, not when the hit was clicked: no action is in flight on
+        // this row, and the server resolved the very identifier that was clicked.
+        if (commit && !actingRef.current && resolved.cwid.toLowerCase() === val.toLowerCase()
+          && typedCwidPreview(resolved)?.tone === "neutral") {
           onAction("assign", { cwid: resolved.cwid, ...assignConfirmFlags(true, resolved.hasIdentity) });
           return;
         }
@@ -5262,8 +5270,10 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
     setOtherCwid(id);
     setPickedHit(`${m.source}:${m.id}`);
     requestSeq.current += 1;
-    runLookup(id, requestSeq.current, !acting);
-  }, [runLookup, acting]);
+    // A bridged hit (the box takes a different identifier from the one clicked) keeps the
+    // Assign step, so the curator sees who the write lands on first.
+    runLookup(id, requestSeq.current, !!oneClick && !acting && id === String(m.id));
+  }, [runLookup, acting, oneClick]);
 
   // A name is not submittable — it is a search term, and the server's assign route would 400 on
   // it. Picking a result turns it into an identifier, which is submittable. Keeping this in one
@@ -5429,7 +5439,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
                   <div key={`${m.source}:${m.id}`} data-dir-hit={m.id}
                     {...((m.retiredCwid ? { "aria-disabled": true } : {
                       tabIndex: 0, role: "radio", "aria-checked": on,
-                      onClick: (e) => { e.stopPropagation(); pick(m); },
+                      onClick: (e) => { e.stopPropagation(); if (isDeliberateClick(e.detail, window.getSelection()?.toString() || "")) pick(m); },
                       onKeyDown: (e) => {
                         if (e.key !== "Enter" && e.key !== " ") return;
                         e.preventDefault(); e.stopPropagation(); pick(m);
