@@ -3,6 +3,7 @@ import { getToken } from 'next-auth/jwt'
 import { saveUserFeedback } from "../../../../../../controllers/userfeedback.controller"
 import { canCurate } from "../../../../../../controllers/db/authorization.controller"
 import { reciterConfig } from '../../../../../../config/local'
+import { cwidParam } from '../../../../../../src/utils/canonicalCwid'
 import { effectiveToken } from '../../../../../../src/utils/viewAs'
 
 type Error = {
@@ -21,7 +22,11 @@ export default async function handler(
 ) {
     if(req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
-        const { uid } = req.query;
+        const uid = cwidParam(req.query.uid);
+        if (!uid) {
+            res.status(400).send({ statusCode: 400, message: `Not a valid uid: ${JSON.stringify(req.query.uid)}` })
+            return
+        }
 
         // Same canCurate gate as goldstandard.ts -- the api-key check above only proves the
         // request came from this app's own server code, not who the curator is. See PM#916.

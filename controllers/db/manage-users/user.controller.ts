@@ -4,6 +4,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
 import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
+import { parseCwid } from "../../../src/utils/canonicalCwid";
 models.AdminUser.hasMany(models.AdminUsersDepartment, {as:'AdminUserDept', constraints: false,foreignKey:"userID" });
 models.AdminUser.hasOne(models.Person, {as:'person', constraints: false,foreignKey:"personIdentifier" });
 models.AdminUser.hasMany(models.AdminDepartment, {as:'AdminDepartment', constraints: false,foreignKey:"departmentID" });
@@ -324,10 +325,17 @@ export const createOrUpdateAdminUser = async (
       }
     } 
     else {
+      // Convert the CWID on the way in (trim, lowercase) so a new account is never keyed
+      // `Abl9002` or `ggi9001 `; anything still not an identifier is refused.
+      const canonical = parseCwid(cwid);
+      if (!canonical) {
+        res.status(400).send({ message: `Not a valid CWID: ${JSON.stringify(cwid)}` });
+        return;
+      }
 
       //Create admin user Payload
       let createUserPayload = {
-        'personIdentifier': cwid,
+        'personIdentifier': canonical,
         'nameFirst': firstName,
         'nameMiddle': middleName,
         'nameLast': lastName,

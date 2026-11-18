@@ -7,6 +7,7 @@ import { QueryConstants } from "../../../src/utils/namedQueryConstants";
 import { getIdentity } from "../../identity.controller";
 import { scholarsStatus, scholarsChangeUrl, identityOrcidUpdate, SCHOLARS_ACTIVE_MAX_AGE_HOURS } from "../../../src/utils/scholarsOrcid";
 import { reciterConfig } from "../../../config/local";
+import { canonicalCwid, cwidParam } from "../../../src/utils/canonicalCwid";
 
 // Who owns this person's ORCID, from reciterdb.scholar_active (written by SPS, prod only).
 // Any failure, including the table not existing (PM dev's reciterdb), is 'unknown'.
@@ -75,7 +76,8 @@ export const getManageProfileByID = async (
     req: NextApiRequest,
     res: NextApiResponse
 ) => {
-    const { personIdentifier } = req.query;
+    // Canonical (trimmed, lowercase); MySQL's case-insensitive compare still finds legacy rows.
+    const personIdentifier = canonicalCwid(Array.isArray(req.query.personIdentifier) ? req.query.personIdentifier[0] : req.query.personIdentifier);
     try {
         let profileInfo: any = [];
         let adminUserData = await models.AdminUser.findOne({
@@ -139,7 +141,13 @@ export const saveORCIDProfile = async (
     req: NextApiRequest,
     res: NextApiResponse
 ) => {
-    const { orcid, personIdentifier } = req.body;
+    const { orcid } = req.body;
+    // Converted on the way in: admin_orcid and ReCiter Identity are keyed by the CWID.
+    const personIdentifier = cwidParam(req.body?.personIdentifier);
+    if (!personIdentifier) {
+        res.status(400).send(`Not a valid personIdentifier: ${JSON.stringify(req.body?.personIdentifier)}`)
+        return
+    }
 
     try {
         if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(String(orcid))) {
@@ -173,7 +181,11 @@ export const resetProfileORCID = async (
     req: NextApiRequest,
     res: NextApiResponse
 ) => {
-    const { orcid, personIdentifier } = req.query;
+    const personIdentifier = cwidParam(req.query.personIdentifier);
+    if (!personIdentifier) {
+        res.status(400).send(`Not a valid personIdentifier: ${JSON.stringify(req.query.personIdentifier)}`)
+        return
+    }
     try {
         const status = await refuseIfScholars(String(personIdentifier), res)
         if (!status) return

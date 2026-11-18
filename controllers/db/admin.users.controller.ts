@@ -1,12 +1,21 @@
 import models from '../../src/db/sequelize'
 import { findOnePerson } from './person.controller'
 import { Op} from "sequelize"
+import { canonicalCwid, isValidCwid } from '../../src/utils/canonicalCwid'
 
 const EMAIL ='email'
 const PERSONIDENTIFIER  = 'personIdentifier'
 
-export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
+export const findOrCreateAdminUsers = async (rawUid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
+        // Convert the login's CWID on the way in (trim, lowercase), so a typed or IdP-supplied
+        // `Abl9002` / `ggi9001 ` never creates or keys an admin_users row; token.username is
+        // read back from this row. Still not an identifier after that -> no account.
+        const uid = rawUid ? canonicalCwid(rawUid) : rawUid
+        if (uid && !isValidCwid(uid)) {
+            console.warn(`[admin_users] refusing login account for non-CWID personIdentifier ${JSON.stringify(rawUid)}`)
+            return null
+        }
         let whereCondition:any =samlEmail?{'email':samlEmail}:{'personIdentifier':uid} ;
 
         let person:any=null;

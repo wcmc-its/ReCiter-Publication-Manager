@@ -51,30 +51,35 @@ export function assignGate(o: {
   return "write";
 }
 
-// The identifier as ReCiter STORES it, for a cwid a curator typed by hand. Pure for the same
-// reason assignGate is: it picks which Identity record every write below lands in.
+// Same rule as src/utils/canonicalCwid.ts, inlined because this file stays dependency-free (see
+// the header); tests/canonicalCwid.test.mjs asserts the two agree.
+const EXTERNAL_COHORT = /^(usc|fh|fredhutch|uc[a-z]*)_/;
+export function toCanonicalCwid(typed: string): string {
+  const t = typed.trim();
+  return EXTERNAL_COHORT.test(t) ? t : t.toLowerCase();
+}
+
+// The identifier every write below lands in, for a cwid a curator typed by hand. Pure for the
+// same reason assignGate is: it picks which Identity record every write below lands in.
 //
 // `found` is what reciterIdentitySet() returned for [typed, typed.toLowerCase()]. DynamoDB keys
-// are byte-exact while every WCM identifier that matters is lowercase — 35,384/35,384 IDM
-// roster cwids, 29,845/29,845 authorship_review.top_cwid, 11,389/11,389 cwids baked into
-// candidate_cwids_json, all lowercase on 2026-08-29 — so a curator who capitalises misses an
-// identity that is plainly there, including this row's own proposed candidate.
+// are byte-exact while every WCM identifier that matters is lowercase, so a curator who
+// capitalises would otherwise miss an identity that is plainly there.
 //
-// A byte-exact hit on what was typed WINS over the lowercased form, and that ordering is
-// load-bearing rather than defensive: 14 of the 26,551 typable DynamoDB uids are not lowercase,
-// 13 of them have a lowercase twin that is a SEPARATE Identity row, and the mixed-case one is often
-// the live one ('DLAMB' has 131 person_article rows and 'dlamb' has 0; 'Arn4002' 59 and 0). One
-// pair is two different people — 'Kym9003' is Kyle Merandy, 'kym9003' is Annie Rohan.
-// Lowercasing unconditionally would file an authorship under an empty duplicate record, and in
-// that last case under the wrong human. Falling back ONLY when the typed string names nothing
-// at all cannot do either.
-// ponytail: two keys in one BatchGetItem, no roster round-trip and no case-insensitive index —
-// "canonical" here means "lowercase", which is true of every identifier this app compares.
-// Ceiling: a genuinely mixed-case-native identifier feed would need a real case-folding lookup.
-// Upgrade path: give the reciterdb `identity` roster a LOWER(cwid) index and resolve there.
+// The CANONICAL form (src/utils/canonicalCwid.ts: trimmed, lowercase unless an external-cohort
+// id) always wins, including over a byte-exact hit on a mixed-case twin. That reverses the
+// 2026-08-29 ordering, which let a byte-exact `DLAMB` / `Arn4002` beat its lowercase twin because
+// the mixed-case record was then often the live one. The 11-18 cwid-normalization cleanup merged
+// those records into their canonical uid and deleted the mixed-case ones (this ships after it),
+// and every write boundary now converts on the way in -- writeGoldStandard, mintIdentity and
+// appendFeedbackLog canonicalize again themselves -- so a write must never land on, or
+// re-create, a mixed-case key. ('Kym9003' / 'kym9003', two different people, is settled by that
+// cleanup too, not here.) A mixed-case record the cleanup missed is therefore NOT found: the
+// assign treats the canonical uid as having no identity (directory mint or local-only), which is
+// recoverable, where writing gold standard under a key with no Identity would be a silent orphan.
+// `found` stays in the signature so callers keep asking DynamoDB for exactly this form.
 export function canonicalCwid(typed: string, found: Set<string>): string {
-  const lower = typed.toLowerCase();
-  return found.has(typed) ? typed : found.has(lower) ? lower : typed;
+  return toCanonicalCwid(typed);
 }
 
 // The non-chosen homonyms on a multi-candidate row, i.e. the candidates an assign should

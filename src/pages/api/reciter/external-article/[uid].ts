@@ -8,6 +8,7 @@ import {
 import { canCurate } from '../../../../../controllers/db/authorization.controller'
 import { reciterConfig } from '../../../../../config/local'
 import { effectiveToken } from '../../../../../src/utils/viewAs'
+import { cwidParam } from '../../../../../src/utils/canonicalCwid'
 import { externalStoreMode } from '../../../../../src/lib/externalStore'
 import { send, sessionOf, listExternal, addExternal, removeExternal } from '../../../../../controllers/db/external.controller'
 
@@ -49,10 +50,14 @@ export default async function handler(
         return res.status(401).send({ statusCode: 401, message: 'Authorization header is incorrect' })
     }
 
+    // Converted on the way in (trim, lowercase): external articles are keyed by the exact uid.
     const uidParam = req.query.uid
-    const uid = Array.isArray(uidParam) ? uidParam[0] : uidParam
-    if (!uid) {
+    if (!(Array.isArray(uidParam) ? uidParam[0] : uidParam)) {
         return res.status(400).send({ statusCode: 400, message: 'uid is required' })
+    }
+    const uid = cwidParam(uidParam)
+    if (!uid) {
+        return res.status(400).send({ statusCode: 400, message: `Not a valid uid: ${JSON.stringify(uidParam)}` })
     }
 
     try {

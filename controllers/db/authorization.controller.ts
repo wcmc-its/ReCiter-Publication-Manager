@@ -1,6 +1,7 @@
 import models from '../../src/db/sequelize'
 import { getCapabilities } from '../../src/utils/constants'
 import { hasConfiguredScope, isPersonInScope, isProxyFor } from '../../src/utils/scopeResolver'
+import { canonicalCwid, sameCwid } from '../../src/utils/canonicalCwid'
 
 // Minimal per-person lookup for scope checks -- org unit + institution + person types only, nothing else
 // the curate-write path needs.
@@ -42,12 +43,15 @@ export const canCurate = async (token: any, targetUid: any): Promise<boolean> =>
     // equality, which would let a scope check pass against a different (decoy) person than the
     // one actually acted on downstream. Never let that ambiguity past this point.
     if (typeof targetUid !== 'string' || targetUid.trim().length === 0) return false
+    // Compare canonical forms on both sides: a curator whose role row carries `Abl9002` is
+    // still curating abl9002 (and vice versa), and ` abl9002` is not someone else.
+    const uid = canonicalCwid(targetUid)
 
     const roles = safeJsonParse(token?.userRoles, [])
     const caps = getCapabilities(roles)
 
     if (caps.canCurate.all) return true
-    if (caps.canCurate.self && caps.canCurate.personIdentifier === targetUid) return true
+    if (caps.canCurate.self && sameCwid(caps.canCurate.personIdentifier, uid)) return true
 
     // A proxy grant is an independent, person-scoped delegation -- it does not require the
     // grantee to hold any curate-capable role. This matches the shipped admin UI ("Grants
@@ -55,7 +59,7 @@ export const canCurate = async (token: any, targetUid: any): Promise<boolean> =>
     // because proxy_person_ids is only writable through isAuthorizedAdmin-gated routes: every
     // entry is a deliberate Superuser grant, never user-controlled.
     const proxyPersonIds = safeJsonParse(token?.proxyPersonIds, [])
-    if (isProxyFor(proxyPersonIds, targetUid)) return true
+    if (Array.isArray(proxyPersonIds) && isProxyFor(proxyPersonIds.map(canonicalCwid), uid)) return true
 
     const scopeData = safeJsonParse(token?.scopeData, null)
     // isPersonInScope treats a scope with neither dimension set as "no restriction," which
@@ -72,7 +76,7 @@ export const canCurate = async (token: any, targetUid: any): Promise<boolean> =>
     // configured is still denied everyone.
     if (caps.canCurate.scoped || hasScope) {
         if (!hasScope) return false
-        const target = await findPersonScopeAttributes(targetUid)
+        const target = await findPersonScopeAttributes(uid)
         return isPersonInScope(scopeData, target.orgUnit, target.personTypes, target.institution)
     }
 
