@@ -11,14 +11,16 @@
 //   2. lowercase, EXCEPT external-cohort ids (usc_, fh_, fredhutch_, ucsf_, ucdavis_, ...),
 //      whose ReCiter keys are mixed case on purpose (fredhutch_Rachel.Rau) and must not move;
 //   3. reject only what is still not an identifier after that: empty, inner whitespace, '@'
-//      (an email), or any character outside [a-z0-9._-] ([A-Za-z0-9._-] for cohort ids).
+//      (an email), any character outside [a-z0-9._-] ([A-Za-z0-9._-] for a cohort id's
+//      suffix), or a bare cohort prefix with nothing after it ("usc_", "fh_", "ucsf_").
 //
 // Deliberately NOT a WCM-shape regex: Cornell netids, `_xxx` legacy ids and cohort ids must
 // keep working.
 
 // The cohort prefix must be lowercase and end in '_' -- a bare "uc" would also match real
-// WCM CWIDs (uca4001, ucx9002), which must still be lowercased.
-const EXTERNAL_COHORT = /^(usc|fh|fredhutch|uc[a-z]*)_/
+// WCM CWIDs (uca4001, ucx9002), which must still be lowercased. "uc_" alone is not a cohort
+// prefix either (uc[a-z]+), so `uc_X` lowercases like any other id. Same regex in every repo.
+const EXTERNAL_COHORT = /^(?:usc_|fh_|fredhutch_|uc[a-z]+_)/
 
 export const CWID_MAX_LENGTH = 64
 
@@ -37,7 +39,12 @@ export function canonicalCwid(raw: unknown): string {
 export function isValidCwid(cwid: unknown): boolean {
     if (typeof cwid !== 'string' || cwid === '' || cwid.length > CWID_MAX_LENGTH) return false
     if (canonicalCwid(cwid) !== cwid) return false
-    return isExternalCohortId(cwid) ? /^[A-Za-z0-9._-]+$/.test(cwid) : /^[a-z0-9._-]+$/.test(cwid)
+    const prefix = EXTERNAL_COHORT.exec(cwid)
+    if (prefix) {
+        const suffix = cwid.slice(prefix[0].length)
+        return suffix !== '' && /^[A-Za-z0-9._-]+$/.test(suffix)
+    }
+    return /^[a-z0-9._-]+$/.test(cwid)
 }
 
 /** The canonical form when it is valid, otherwise null (caller answers 400 or skips + logs). */

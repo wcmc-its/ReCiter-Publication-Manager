@@ -53,7 +53,7 @@ export function assignGate(o: {
 
 // Same rule as src/utils/canonicalCwid.ts, inlined because this file stays dependency-free (see
 // the header); tests/canonicalCwid.test.mjs asserts the two agree.
-const EXTERNAL_COHORT = /^(usc|fh|fredhutch|uc[a-z]*)_/;
+const EXTERNAL_COHORT = /^(?:usc_|fh_|fredhutch_|uc[a-z]+_)/;
 export function toCanonicalCwid(typed: string): string {
   const t = typed.trim();
   return EXTERNAL_COHORT.test(t) ? t : t.toLowerCase();

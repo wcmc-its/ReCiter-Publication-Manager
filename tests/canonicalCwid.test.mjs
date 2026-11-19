@@ -38,6 +38,31 @@ test('a bare "uc" start is a real WCM CWID, not a cohort: still lowercased', () 
     assert.equal(canonicalCwid('FREDHUTCH_X'), 'fredhutch_x')
 })
 
+test('"uc_" alone is not a cohort prefix (uc[a-z]+_): lowercased like any id', () => {
+    assert.ok(!isExternalCohortId('uc_x'))
+    assert.ok(!isExternalCohortId('uc_X'))
+    assert.equal(canonicalCwid('uc_x'), 'uc_x')
+    assert.equal(canonicalCwid('uc_X'), 'uc_x')
+    assert.equal(toCanonicalCwid('uc_X'), 'uc_x')
+    assert.ok(isValidCwid('uc_x'))
+    assert.ok(!isValidCwid('uc_X'))
+})
+
+test('bare external prefixes with nothing after them are rejected', () => {
+    for (const id of ['usc_', 'fh_', 'fredhutch_', 'ucsf_', 'ucdavis_', ' usc_ ', 'FH_']) {
+        assert.equal(parseCwid(id), null, JSON.stringify(id))
+    }
+    for (const id of ['usc_', 'fh_', 'fredhutch_', 'ucsf_']) assert.ok(!isValidCwid(id), id)
+    // One character after the prefix is enough.
+    assert.equal(parseCwid('usc_1'), 'usc_1')
+    assert.equal(parseCwid('fh_X'), 'fh_X')
+})
+
+test('underscore-led ids like _pab4001 stay valid and separate', () => {
+    assert.equal(parseCwid('_PAB4001'), '_pab4001')
+    assert.ok(!sameCwid('_pab4001', 'pab4001'))
+})
+
 test('isValidCwid: canonical identifiers of every shape we keep', () => {
     for (const id of ['abl9002', 'mtw1', 'kjc39', 'dlamb', 'jason.carmel', 'str2025-mi', '_lsw8099',
         'usc_123', 'fredhutch_Rachel.Rau', 'ucsf_x-y']) {
@@ -81,7 +106,7 @@ test('sameCwid: canCurate self check compares canonical on both sides', () => {
 })
 
 test('assignGate keeps the same rule inline, and the canonical form always wins', () => {
-    for (const id of ['Abl9002', ' ggi9001 ', 'fredhutch_Rachel.Rau', 'Uca4001', 'usc_X', 'kjc39']) {
+    for (const id of ['Abl9002', ' ggi9001 ', 'fredhutch_Rachel.Rau', 'Uca4001', 'usc_X', 'kjc39', 'uc_X', 'ucsf_Q', 'fh_']) {
         assert.equal(toCanonicalCwid(id), canonicalCwid(id), id)
     }
     // Even over a byte-exact hit on a mixed-case twin (the pre-cleanup ordering).
