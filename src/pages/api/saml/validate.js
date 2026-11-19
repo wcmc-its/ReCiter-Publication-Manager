@@ -13,8 +13,6 @@ export async function validateSAML(samlResponse) {
       allow_unencrypted_assertion: true 
     };
 
-    console.log('SAML validate - Options:', JSON.stringify(options, null, 2));
-    console.log('SAML validate - reciterSamlConfig.samlOptions:', JSON.stringify(reciterSamlConfig.samlOptions, null, 2));
     console.log('SAML validate - reciterSamlConfig.idpOptions:', JSON.stringify(reciterSamlConfig.idpOptions, null, 2));
 
     const sp = new saml2.ServiceProvider(reciterSamlConfig.samlOptions);
