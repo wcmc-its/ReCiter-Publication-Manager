@@ -20,6 +20,12 @@ export const SETTING_DISPLAY: Record<string, { name: string; desc: string }> = {
   },
 };
 
+/**
+ * Rows that are set by SQL only and never shown on the Configuration page. bibliometricReport
+ * (5h P5) holds {"version":"rtf"|"docx"}, an object rather than the page's attribute array.
+ */
+export const isHiddenSetting = (s: { viewName?: string }): boolean => s?.viewName === "bibliometricReport";
+
 export const displayName = (s: { viewName?: string; viewLabel?: string }): string =>
   SETTING_DISPLAY[s.viewName]?.name ?? s.viewLabel ?? "";
 
