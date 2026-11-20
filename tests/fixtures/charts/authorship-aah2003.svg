@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="672" height="263" viewBox="0 0 672 263" role="img" aria-label="Authorship over time" font-family="Liberation Sans">
+<title>Authorship over time</title>
+<rect x="0" y="0" width="672" height="263" fill="#FFFFFF"/>
+<rect x="486.64" y="18" width="11" height="11" fill="#BFBFB3"/>
+<text x="502.64" y="28" font-size="12" text-anchor="start" fill="#5F5F5F">First</text>
+<rect x="539.96" y="18" width="11" height="11" fill="#E4E4DE"/>
+<text x="555.96" y="28" font-size="12" text-anchor="start" fill="#5F5F5F">Middle</text>
+<rect x="605.31" y="18" width="11" height="11" fill="#2878D8"/>
+<text x="621.31" y="28" font-size="12" text-anchor="start" fill="#5F5F5F">Senior</text>
+<text x="16" y="47" font-size="11" text-anchor="start" fill="#5F5F5F">articles</text>
+<text x="24.12" y="241" font-size="11" text-anchor="end" fill="#5F5F5F">0</text>
+<text x="24.12" y="181.67" font-size="11" text-anchor="end" fill="#5F5F5F">2</text>
+<line x1="30.12" y1="177.67" x2="656" y2="177.67" stroke="#E6E6E6" stroke-width="1"/>
+<text x="24.12" y="122.33" font-size="11" text-anchor="end" fill="#5F5F5F">4</text>
+<line x1="30.12" y1="118.33" x2="656" y2="118.33" stroke="#E6E6E6" stroke-width="1"/>
+<text x="24.12" y="63" font-size="11" text-anchor="end" fill="#5F5F5F">6</text>
+<line x1="30.12" y1="59" x2="656" y2="59" stroke="#E6E6E6" stroke-width="1"/>
+<rect x="40.93" y="207.33" width="35.28" height="29.67" fill="#BFBFB3"/>
+<rect x="40.93" y="177.67" width="35.28" height="29.67" fill="#E4E4DE"/>
+<rect x="97.83" y="207.33" width="35.28" height="29.67" fill="#BFBFB3"/>
+<rect x="97.83" y="148" width="35.28" height="59.33" fill="#E4E4DE"/>
+<rect x="154.73" y="207.33" width="35.28" height="29.67" fill="#E4E4DE"/>
+<rect x="211.62" y="207.33" width="35.28" height="29.67" fill="#E4E4DE"/>
+<rect x="268.52" y="207.33" width="35.28" height="29.67" fill="#BFBFB3"/>
+<rect x="268.52" y="88.67" width="35.28" height="118.67" fill="#E4E4DE"/>
+<rect x="325.42" y="207.33" width="35.28" height="29.67" fill="#BFBFB3"/>
+<rect x="325.42" y="177.67" width="35.28" height="29.67" fill="#E4E4DE"/>
+<rect x="382.32" y="88.67" width="35.28" height="148.33" fill="#E4E4DE"/>
+<rect x="439.22" y="118.33" width="35.28" height="118.67" fill="#E4E4DE"/>
+<rect x="496.12" y="59" width="35.28" height="178" fill="#E4E4DE"/>
+<rect x="553.01" y="148" width="35.28" height="89" fill="#E4E4DE"/>
+<rect x="609.91" y="207.33" width="35.28" height="29.67" fill="#BFBFB3"/>
+<line x1="30.12" y1="237" x2="656" y2="237" stroke="#9E9E9E" stroke-width="1"/>
+<text x="58.57" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2014</text>
+<text x="115.47" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2015</text>
+<text x="172.36" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2016</text>
+<text x="229.26" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2017</text>
+<text x="286.16" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2018</text>
+<text x="343.06" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2019</text>
+<text x="399.96" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2020</text>
+<text x="456.86" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2021</text>
+<text x="513.75" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2022</text>
+<text x="570.65" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2023</text>
+<text x="627.55" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2024</text>
+</svg>
