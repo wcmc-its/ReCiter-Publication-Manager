@@ -1,0 +1,1699 @@
+{
+  "status": "DRAFT",
+  "step": "A",
+  "date": "2026-11-13",
+  "label": "DRAFT prod acceptance record from Step A (2026-11-13). Not frozen: Step B freezes it after R2's first prod nightly from analysis_summary_person_peer and a v2 docx per person. Distinct from the dev unit fixtures (bibliometrics-v2-dev-2026-11-11.json, stale January 2026 iCite).",
+  "method": "plans/phase5h-v2-bibliometric.md, 'Prod acceptance values: method', Step A: read-only SELECTs against prod (analysis/biblio_v2/prod_acceptance_preview.sql) with the v2 rules inline: research-article exclusion list, provisional excluded, pct > 0 as the pre-R1 'present' test, year >= 1980, sole author counted as Senior.",
+  "source": "ReCiter Research/analysis/biblio_v2/prod_acceptance_preview.prod-output.txt",
+  "provenance": {
+    "host": "ip-172-17-5-73",
+    "serverVersion": "11.4.10-MariaDB-log",
+    "runAt": "2026-11-13 14:33:13",
+    "iciteLoadedAt": "2026-11-12 16:21:57",
+    "maxEntrezDate": "2026-11-11",
+    "icite24586151": "130 cites / pct 89.80 / prov False",
+    "icite34341117": "70 cites / pct 91.40 / prov False",
+    "fulltimeWithMultipleRanks": 0
+  },
+  "pendingStepB": [
+    "aah2003 cohort cells (Instructor or Lecturer): the Step A preview computed Assistant and Full Professor cohorts only. M, R, X and the S3 headline come from R2's analysis_summary_person_peer.",
+    "Every value: re-confirm against analysis_summary_person_peer and a prod v2 docx; R1's has_percentile may move genuine zeros."
+  ],
+  "people": {
+    "alg2053": {
+      "surname": "Gouzy",
+      "department": "Microbiology and Immunology",
+      "eligibility": {
+        "weillfulltime": 1,
+        "facultyRank": "Assistant Professor",
+        "cohortEligible": 1,
+        "rankCodes": 1,
+        "personTypes": [
+          "academic-faculty",
+          "academic-faculty-assistant",
+          "academic-faculty-weillfulltime"
+        ]
+      },
+      "publications": {
+        "accepted": 19,
+        "firstYear": 2012,
+        "lastYear": 2026,
+        "pubmed": 18,
+        "pre1980Pubmed": 0
+      },
+      "researchArticles": {
+        "total": 9,
+        "first": 4,
+        "senior": 2,
+        "middle": 3,
+        "soleAuthoredInSenior": 0,
+        "firstYear": 2013,
+        "lastYear": 2025
+      },
+      "rated": 7,
+      "medianRcr": {
+        "exact": "2.600",
+        "display": "2.60"
+      },
+      "atOrAbove90": {
+        "k": 1,
+        "n": 7,
+        "shareExact": "14.286",
+        "ratioTo10PctExpected": "1.429"
+      },
+      "maxRatedPct": "91.40",
+      "rated85to90": 2,
+      "recentSeniorResearch": {
+        "count": 2,
+        "years": [
+          2024,
+          2025
+        ]
+      },
+      "researchUnratedNotRecent": 0,
+      "pubmedNotInIciteMethodsK": 0,
+      "topN": {
+        "any": {
+          "rated": 7,
+          "tooRecentToRate": 2,
+          "top5": {
+            "exact": "85.300",
+            "display": "85.3"
+          },
+          "top10": {
+            "exact": null,
+            "display": "Needs 10 rated"
+          }
+        },
+        "first_or_senior": {
+          "rated": 4,
+          "tooRecentToRate": 2,
+          "top5": {
+            "exact": null,
+            "display": "Needs 5 rated"
+          },
+          "top10": {
+            "exact": null,
+            "display": "Needs 10 rated"
+          }
+        },
+        "first": {
+          "rated": 4,
+          "tooRecentToRate": 0,
+          "top5": {
+            "exact": null,
+            "display": "Needs 5 rated"
+          },
+          "top10": {
+            "exact": null,
+            "display": "Needs 10 rated"
+          }
+        },
+        "senior": {
+          "rated": 0,
+          "tooRecentToRate": 2,
+          "top5": {
+            "exact": null,
+            "display": "Needs 5 rated"
+          },
+          "top10": {
+            "exact": null,
+            "display": "Needs 10 rated"
+          }
+        }
+      },
+      "topNArticles": {
+        "any": [
+          {
+            "rn": 1,
+            "pmid": 34341117,
+            "role": "first",
+            "year": 2021,
+            "pct": "91.40",
+            "rcr": "4.66",
+            "cites": 70,
+            "journal": "Proceedings of the National Academy of S"
+          },
+          {
+            "rn": 2,
+            "pmid": 24586151,
+            "role": "first",
+            "year": 2014,
+            "pct": "89.80",
+            "rcr": "4.17",
+            "cites": 130,
+            "journal": "PLoS pathogens"
+          },
+          {
+            "rn": 3,
+            "pmid": 35459278,
+            "role": "middle",
+            "year": 2022,
+            "pct": "86.50",
+            "rcr": "3.42",
+            "cites": 42,
+            "journal": "Nature communications"
+          },
+          {
+            "rn": 4,
+            "pmid": 32127458,
+            "role": "middle",
+            "year": 2020,
+            "pct": "80.50",
+            "rcr": "2.60",
+            "cites": 47,
+            "journal": "mBio"
+          },
+          {
+            "rn": 5,
+            "pmid": 24077180,
+            "role": "first",
+            "year": 2013,
+            "pct": "78.30",
+            "rcr": "2.39",
+            "cites": 78,
+            "journal": "Nature chemical biology"
+          },
+          {
+            "rn": 6,
+            "pmid": 34818059,
+            "role": "middle",
+            "year": 2021,
+            "pct": "70.60",
+            "rcr": "1.83",
+            "cites": 31,
+            "journal": "Science translational medicine"
+          },
+          {
+            "rn": 7,
+            "pmid": 24957090,
+            "role": "first",
+            "year": 2014,
+            "pct": "30.70",
+            "rcr": "0.54",
+            "cites": 17,
+            "journal": "Future microbiology"
+          }
+        ],
+        "first_or_senior": [
+          {
+            "rn": 1,
+            "pmid": 34341117,
+            "role": "first",
+            "year": 2021,
+            "pct": "91.40",
+            "rcr": "4.66",
+            "cites": 70,
+            "journal": "Proceedings of the National Academy of S"
+          },
+          {
+            "rn": 2,
+            "pmid": 24586151,
+            "role": "first",
+            "year": 2014,
+            "pct": "89.80",
+            "rcr": "4.17",
+            "cites": 130,
+            "journal": "PLoS pathogens"
+          },
+          {
+            "rn": 3,
+            "pmid": 24077180,
+            "role": "first",
+            "year": 2013,
+            "pct": "78.30",
+            "rcr": "2.39",
+            "cites": 78,
+            "journal": "Nature chemical biology"
+          },
+          {
+            "rn": 4,
+            "pmid": 24957090,
+            "role": "first",
+            "year": 2014,
+            "pct": "30.70",
+            "rcr": "0.54",
+            "cites": 17,
+            "journal": "Future microbiology"
+          }
+        ],
+        "first": [
+          {
+            "rn": 1,
+            "pmid": 34341117,
+            "role": "first",
+            "year": 2021,
+            "pct": "91.40",
+            "rcr": "4.66",
+            "cites": 70,
+            "journal": "Proceedings of the National Academy of S"
+          },
+          {
+            "rn": 2,
+            "pmid": 24586151,
+            "role": "first",
+            "year": 2014,
+            "pct": "89.80",
+            "rcr": "4.17",
+            "cites": 130,
+            "journal": "PLoS pathogens"
+          },
+          {
+            "rn": 3,
+            "pmid": 24077180,
+            "role": "first",
+            "year": 2013,
+            "pct": "78.30",
+            "rcr": "2.39",
+            "cites": 78,
+            "journal": "Nature chemical biology"
+          },
+          {
+            "rn": 4,
+            "pmid": 24957090,
+            "role": "first",
+            "year": 2014,
+            "pct": "30.70",
+            "rcr": "0.54",
+            "cites": 17,
+            "journal": "Future microbiology"
+          }
+        ]
+      },
+      "cohortCells": {
+        "any:5": {
+          "rated": 7,
+          "avgExact": "85.300",
+          "M": 660,
+          "R": 238,
+          "X": 37,
+          "tiedMembers": 1,
+          "display": "#238 of 660 (top 37%)"
+        },
+        "any:10": {
+          "rated": 7,
+          "avgExact": null,
+          "M": 394,
+          "R": null,
+          "X": null,
+          "tiedMembers": null,
+          "display": "Needs 10 rated"
+        },
+        "first_or_senior:5": {
+          "rated": 4,
+          "avgExact": null,
+          "M": 248,
+          "R": null,
+          "X": null,
+          "tiedMembers": null,
+          "display": "Needs 5 rated"
+        },
+        "first_or_senior:10": {
+          "rated": 4,
+          "avgExact": null,
+          "M": 75,
+          "R": null,
+          "X": null,
+          "tiedMembers": null,
+          "display": "Needs 10 rated"
+        },
+        "first:5": {
+          "rated": 4,
+          "avgExact": null,
+          "M": 203,
+          "R": null,
+          "X": null,
+          "tiedMembers": null,
+          "display": "Needs 5 rated"
+        },
+        "first:10": {
+          "rated": 4,
+          "avgExact": null,
+          "M": 49,
+          "R": null,
+          "X": null,
+          "tiedMembers": null,
+          "display": "Needs 10 rated"
+        },
+        "senior:5": {
+          "rated": 0,
+          "avgExact": null,
+          "M": 27,
+          "R": null,
+          "X": null,
+          "tiedMembers": null,
+          "display": "Needs 5 rated"
+        },
+        "senior:10": {
+          "rated": 0,
+          "avgExact": null,
+          "M": 6,
+          "R": null,
+          "X": null,
+          "tiedMembers": null,
+          "display": "Needs 10 rated"
+        }
+      },
+      "headline": {
+        "cell": "any:5",
+        "rankText": "rank #238, in the top 37%"
+      },
+      "hIndex": {
+        "h": 9,
+        "h5": 4,
+        "storedV1": {
+          "hindexNIH": 9,
+          "h5indexNIH": 4
+        }
+      },
+      "recentWork": [
+        {
+          "pos": 1,
+          "pmid": 40643003,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "senior",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2025-07-11",
+          "provisional": "True",
+          "pct": "0.00",
+          "whyRecent": "provisional",
+          "titleStart": "Identifying genetic determinants of <i>Mycobacterium tuberculosis</i> "
+        },
+        {
+          "pos": 2,
+          "pmid": 39611843,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "senior",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2024-11-29",
+          "provisional": "True",
+          "pct": "80.20",
+          "whyRecent": "provisional",
+          "titleStart": "An exacerbated phosphate starvation response triggers <i>Mycobacterium"
+        },
+        {
+          "pos": 3,
+          "pmid": -439,
+          "articleId": "OPENALEX:W7134966656",
+          "sourceType": "OPENALEX",
+          "role": "first",
+          "type": "preprint",
+          "research": 0,
+          "pubDate": "2026-03-10",
+          "provisional": null,
+          "pct": null,
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "Metabolic control of drug resistance by a mycobacterial ion channel"
+        },
+        {
+          "pos": 4,
+          "pmid": 42777746,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Review",
+          "research": 0,
+          "pubDate": "2026-09-23",
+          "provisional": "False",
+          "pct": "0.00",
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "Metabolism as a missing link between diabetes, tuberculosis, and drug "
+        },
+        {
+          "pos": 5,
+          "pmid": 41889872,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Preprint",
+          "research": 0,
+          "pubDate": "2026-03-16",
+          "provisional": "False",
+          "pct": "0.00",
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "Non-canonical peptidoglycan cross-linking is essential for <i>Mycobact"
+        },
+        {
+          "pos": 6,
+          "pmid": 41040375,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Preprint",
+          "research": 0,
+          "pubDate": "2025-09-27",
+          "provisional": "True",
+          "pct": "41.10",
+          "whyRecent": "provisional",
+          "titleStart": "Pyrazinamide kills <i>Mycobacterium tuberculosis</i> via pH-driven wea"
+        },
+        {
+          "pos": 7,
+          "pmid": 39995204,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Review",
+          "research": 0,
+          "pubDate": "2025-02-24",
+          "provisional": "True",
+          "pct": "81.30",
+          "whyRecent": "provisional",
+          "titleStart": "Unraveling Mycobacterium tuberculosis acid resistance and pH homeostas"
+        }
+      ],
+      "olderWorkTop5": null,
+      "expectedSummary": {
+        "fired": [
+          "S1",
+          "S2b",
+          "S3",
+          "S4",
+          "S5"
+        ],
+        "paragraphs": [
+          "Gouzy's typical research article is cited about three times as often as a typical NIH R01-funded paper of the same field and year. Across 7 rated research articles, the median Relative Citation Ratio is 2.60.",
+          "One of Gouzy's 7 rated research articles is at or above the 90th NIH percentile. Among 660 WCM assistant professors with 5 or more rated research articles, Gouzy's 5 most influential rank #238, in the top 37%.",
+          "Gouzy is first author on 4 rated research articles. With fewer than 5 rated first- or senior-authored articles, rankings by author role are not shown yet. Gouzy is senior author on 2 research articles from 2024 and 2025, which are too recent to rate."
+        ]
+      }
+    },
+    "cnathan": {
+      "surname": "Nathan",
+      "department": "Microbiology and Immunology",
+      "eligibility": {
+        "weillfulltime": 1,
+        "facultyRank": "Full Professor",
+        "cohortEligible": 1,
+        "rankCodes": 1,
+        "personTypes": [
+          "academic-faculty",
+          "academic-faculty-fullprofessor",
+          "academic-faculty-weillfulltime"
+        ]
+      },
+      "publications": {
+        "accepted": 420,
+        "firstYear": 1971,
+        "lastYear": 2026,
+        "pubmed": 417,
+        "pre1980Pubmed": 17
+      },
+      "researchArticles": {
+        "total": 333,
+        "first": 32,
+        "senior": 155,
+        "middle": 146,
+        "soleAuthoredInSenior": 10,
+        "firstYear": 1971,
+        "lastYear": 2026
+      },
+      "rated": 305,
+      "medianRcr": {
+        "exact": "2.060",
+        "display": "2.06"
+      },
+      "atOrAbove90": {
+        "k": 87,
+        "n": 305,
+        "shareExact": "28.525",
+        "ratioTo10PctExpected": "2.852"
+      },
+      "maxRatedPct": "100.00",
+      "rated85to90": 27,
+      "recentSeniorResearch": {
+        "count": 2,
+        "years": [
+          2025
+        ]
+      },
+      "researchUnratedNotRecent": 20,
+      "pubmedNotInIciteMethodsK": 0,
+      "topN": {
+        "any": {
+          "rated": 305,
+          "tooRecentToRate": 8,
+          "top5": {
+            "exact": "99.920",
+            "display": "99.9"
+          },
+          "top10": {
+            "exact": "99.770",
+            "display": "99.8"
+          }
+        },
+        "first_or_senior": {
+          "rated": 171,
+          "tooRecentToRate": 3,
+          "top5": {
+            "exact": "99.880",
+            "display": "99.9"
+          },
+          "top10": {
+            "exact": "99.680",
+            "display": "99.7"
+          }
+        },
+        "first": {
+          "rated": 20,
+          "tooRecentToRate": 1,
+          "top5": {
+            "exact": "98.540",
+            "display": "98.5"
+          },
+          "top10": {
+            "exact": "95.420",
+            "display": "95.4"
+          }
+        },
+        "senior": {
+          "rated": 151,
+          "tooRecentToRate": 2,
+          "top5": {
+            "exact": "99.840",
+            "display": "99.8"
+          },
+          "top10": {
+            "exact": "99.620",
+            "display": "99.6"
+          }
+        }
+      },
+      "topNArticles": {
+        "any": [
+          {
+            "rn": 1,
+            "pmid": 3139757,
+            "role": "middle",
+            "year": 1988,
+            "pct": "100.00",
+            "rcr": "75.28",
+            "cites": 2566,
+            "journal": "Journal of immunology (Baltimore, Md. : "
+          },
+          {
+            "rn": 2,
+            "pmid": 1373522,
+            "role": "senior",
+            "year": 1992,
+            "pct": "99.90",
+            "rcr": "52.44",
+            "cites": 1827,
+            "journal": "Science (New York, N.Y.)"
+          },
+          {
+            "rn": 3,
+            "pmid": 7508926,
+            "role": "senior",
+            "year": 1994,
+            "pct": "99.90",
+            "rcr": "51.30",
+            "cites": 1861,
+            "journal": "The Journal of biological chemistry"
+          },
+          {
+            "rn": 4,
+            "pmid": 1846317,
+            "role": "senior",
+            "year": 1991,
+            "pct": "99.90",
+            "rcr": "49.75",
+            "cites": 2026,
+            "journal": "Cancer research"
+          },
+          {
+            "rn": 5,
+            "pmid": 2497225,
+            "role": "senior",
+            "year": 1989,
+            "pct": "99.90",
+            "rcr": "48.62",
+            "cites": 1725,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 6,
+            "pmid": 6411853,
+            "role": "first",
+            "year": 1983,
+            "pct": "99.80",
+            "rcr": "41.89",
+            "cites": 1923,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 7,
+            "pmid": 7538909,
+            "role": "middle",
+            "year": 1995,
+            "pct": "99.70",
+            "rcr": "31.54",
+            "cites": 1246,
+            "journal": "Cell"
+          },
+          {
+            "rn": 8,
+            "pmid": 1744584,
+            "role": "senior",
+            "year": 1991,
+            "pct": "99.60",
+            "rcr": "28.98",
+            "cites": 1143,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 9,
+            "pmid": 12953091,
+            "role": "middle",
+            "year": 2003,
+            "pct": "99.50",
+            "rcr": "25.90",
+            "cites": 1155,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 10,
+            "pmid": 7684434,
+            "role": "senior",
+            "year": 1993,
+            "pct": "99.50",
+            "rcr": "25.50",
+            "cites": 1016,
+            "journal": "The Journal of experimental medicine"
+          }
+        ],
+        "first_or_senior": [
+          {
+            "rn": 1,
+            "pmid": 1373522,
+            "role": "senior",
+            "year": 1992,
+            "pct": "99.90",
+            "rcr": "52.44",
+            "cites": 1827,
+            "journal": "Science (New York, N.Y.)"
+          },
+          {
+            "rn": 2,
+            "pmid": 7508926,
+            "role": "senior",
+            "year": 1994,
+            "pct": "99.90",
+            "rcr": "51.30",
+            "cites": 1861,
+            "journal": "The Journal of biological chemistry"
+          },
+          {
+            "rn": 3,
+            "pmid": 1846317,
+            "role": "senior",
+            "year": 1991,
+            "pct": "99.90",
+            "rcr": "49.75",
+            "cites": 2026,
+            "journal": "Cancer research"
+          },
+          {
+            "rn": 4,
+            "pmid": 2497225,
+            "role": "senior",
+            "year": 1989,
+            "pct": "99.90",
+            "rcr": "48.62",
+            "cites": 1725,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 5,
+            "pmid": 6411853,
+            "role": "first",
+            "year": 1983,
+            "pct": "99.80",
+            "rcr": "41.89",
+            "cites": 1923,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 6,
+            "pmid": 1744584,
+            "role": "senior",
+            "year": 1991,
+            "pct": "99.60",
+            "rcr": "28.98",
+            "cites": 1143,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 7,
+            "pmid": 7684434,
+            "role": "senior",
+            "year": 1993,
+            "pct": "99.50",
+            "rcr": "25.50",
+            "cites": 1016,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 8,
+            "pmid": 2445780,
+            "role": "senior",
+            "year": 1987,
+            "pct": "99.50",
+            "rcr": "24.11",
+            "cites": 867,
+            "journal": "The Journal of clinical investigation"
+          },
+          {
+            "rn": 9,
+            "pmid": 6447249,
+            "role": "first",
+            "year": 1980,
+            "pct": "99.40",
+            "rcr": "22.80",
+            "cites": 682,
+            "journal": "The New England journal of medicine"
+          },
+          {
+            "rn": 10,
+            "pmid": 1715579,
+            "role": "senior",
+            "year": 1991,
+            "pct": "99.40",
+            "rcr": "21.92",
+            "cites": 746,
+            "journal": "Proceedings of the National Academy of S"
+          }
+        ],
+        "first": [
+          {
+            "rn": 1,
+            "pmid": 6411853,
+            "role": "first",
+            "year": 1983,
+            "pct": "99.80",
+            "rcr": "41.89",
+            "cites": 1923,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 2,
+            "pmid": 6447249,
+            "role": "first",
+            "year": 1980,
+            "pct": "99.40",
+            "rcr": "22.80",
+            "cites": 682,
+            "journal": "The New England journal of medicine"
+          },
+          {
+            "rn": 3,
+            "pmid": 2475511,
+            "role": "first",
+            "year": 1989,
+            "pct": "98.50",
+            "rcr": "13.74",
+            "cites": 573,
+            "journal": "The Journal of cell biology"
+          },
+          {
+            "rn": 4,
+            "pmid": 25271470,
+            "role": "first",
+            "year": 2014,
+            "pct": "97.80",
+            "rcr": "10.77",
+            "cites": 293,
+            "journal": "The New England journal of medicine"
+          },
+          {
+            "rn": 5,
+            "pmid": 6206183,
+            "role": "first",
+            "year": 1984,
+            "pct": "97.20",
+            "rcr": "9.48",
+            "cites": 391,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 6,
+            "pmid": 3086725,
+            "role": "first",
+            "year": 1986,
+            "pct": "97.20",
+            "rcr": "9.33",
+            "cites": 349,
+            "journal": "The New England journal of medicine"
+          },
+          {
+            "rn": 7,
+            "pmid": 6995553,
+            "role": "first",
+            "year": 1980,
+            "pct": "94.50",
+            "rcr": "6.20",
+            "cites": 231,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 8,
+            "pmid": 7252413,
+            "role": "first",
+            "year": 1981,
+            "pct": "90.50",
+            "rcr": "4.37",
+            "cites": 155,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 9,
+            "pmid": 20303882,
+            "role": "first",
+            "year": 2010,
+            "pct": "90.10",
+            "rcr": "4.25",
+            "cites": 175,
+            "journal": "Cell"
+          },
+          {
+            "rn": 10,
+            "pmid": 16260491,
+            "role": "first",
+            "year": 2005,
+            "pct": "89.20",
+            "rcr": "4.01",
+            "cites": 178,
+            "journal": "The Journal of experimental medicine"
+          }
+        ],
+        "senior": [
+          {
+            "rn": 1,
+            "pmid": 1373522,
+            "role": "senior",
+            "year": 1992,
+            "pct": "99.90",
+            "rcr": "52.44",
+            "cites": 1827,
+            "journal": "Science (New York, N.Y.)"
+          },
+          {
+            "rn": 2,
+            "pmid": 7508926,
+            "role": "senior",
+            "year": 1994,
+            "pct": "99.90",
+            "rcr": "51.30",
+            "cites": 1861,
+            "journal": "The Journal of biological chemistry"
+          },
+          {
+            "rn": 3,
+            "pmid": 1846317,
+            "role": "senior",
+            "year": 1991,
+            "pct": "99.90",
+            "rcr": "49.75",
+            "cites": 2026,
+            "journal": "Cancer research"
+          },
+          {
+            "rn": 4,
+            "pmid": 2497225,
+            "role": "senior",
+            "year": 1989,
+            "pct": "99.90",
+            "rcr": "48.62",
+            "cites": 1725,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 5,
+            "pmid": 1744584,
+            "role": "senior",
+            "year": 1991,
+            "pct": "99.60",
+            "rcr": "28.98",
+            "cites": 1143,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 6,
+            "pmid": 7684434,
+            "role": "senior",
+            "year": 1993,
+            "pct": "99.50",
+            "rcr": "25.50",
+            "cites": 1016,
+            "journal": "The Journal of experimental medicine"
+          },
+          {
+            "rn": 7,
+            "pmid": 2445780,
+            "role": "senior",
+            "year": 1987,
+            "pct": "99.50",
+            "rcr": "24.11",
+            "cites": 867,
+            "journal": "The Journal of clinical investigation"
+          },
+          {
+            "rn": 8,
+            "pmid": 1715579,
+            "role": "senior",
+            "year": 1991,
+            "pct": "99.40",
+            "rcr": "21.92",
+            "cites": 746,
+            "journal": "Proceedings of the National Academy of S"
+          },
+          {
+            "rn": 9,
+            "pmid": 3041283,
+            "role": "senior",
+            "year": 1988,
+            "pct": "99.30",
+            "rcr": "20.96",
+            "cites": 843,
+            "journal": "Nature"
+          },
+          {
+            "rn": 10,
+            "pmid": 9144222,
+            "role": "senior",
+            "year": 1997,
+            "pct": "99.30",
+            "rcr": "20.82",
+            "cites": 917,
+            "journal": "Proceedings of the National Academy of S"
+          }
+        ]
+      },
+      "cohortCells": {
+        "any:5": {
+          "rated": 305,
+          "avgExact": "99.920",
+          "M": 385,
+          "R": 10,
+          "X": 3,
+          "tiedMembers": 3,
+          "display": "#10 of 385 (top 3%)"
+        },
+        "any:10": {
+          "rated": 305,
+          "avgExact": "99.770",
+          "M": 374,
+          "R": 7,
+          "X": 2,
+          "tiedMembers": 1,
+          "display": "#7 of 374 (top 2%)"
+        },
+        "first_or_senior:5": {
+          "rated": 171,
+          "avgExact": "99.880",
+          "M": 365,
+          "R": 3,
+          "X": 1,
+          "tiedMembers": 1,
+          "display": "#3 of 365 (top 1%)"
+        },
+        "first_or_senior:10": {
+          "rated": 171,
+          "avgExact": "99.680",
+          "M": 329,
+          "R": 2,
+          "X": 1,
+          "tiedMembers": 1,
+          "display": "#2 of 329 (top 1%)"
+        },
+        "first:5": {
+          "rated": 20,
+          "avgExact": "98.540",
+          "M": 289,
+          "R": 8,
+          "X": 3,
+          "tiedMembers": 1,
+          "display": "#8 of 289 (top 3%)"
+        },
+        "first:10": {
+          "rated": 20,
+          "avgExact": "95.420",
+          "M": 178,
+          "R": 9,
+          "X": 6,
+          "tiedMembers": 1,
+          "display": "#9 of 178 (top 6%)"
+        },
+        "senior:5": {
+          "rated": 151,
+          "avgExact": "99.840",
+          "M": 333,
+          "R": 3,
+          "X": 1,
+          "tiedMembers": 1,
+          "display": "#3 of 333 (top 1%)"
+        },
+        "senior:10": {
+          "rated": 151,
+          "avgExact": "99.620",
+          "M": 279,
+          "R": 2,
+          "X": 1,
+          "tiedMembers": 1,
+          "display": "#2 of 279 (top 1%)"
+        }
+      },
+      "headline": {
+        "cell": "first_or_senior:10",
+        "rankText": "rank #2, in the top 1%"
+      },
+      "hIndex": {
+        "h": 133,
+        "h5": 13,
+        "storedV1": {
+          "hindexNIH": 133,
+          "h5indexNIH": 13
+        }
+      },
+      "recentWork": [
+        {
+          "pos": 1,
+          "pmid": 42873802,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "senior",
+          "type": "Review",
+          "research": 0,
+          "pubDate": "2026-10-14",
+          "provisional": "False",
+          "pct": "0.00",
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "Exogenous nitric oxide as an anti-infective agent."
+        },
+        {
+          "pos": 2,
+          "pmid": -841,
+          "articleId": "OPENALEX:W7203733123",
+          "sourceType": "OPENALEX",
+          "role": "senior",
+          "type": "preprint",
+          "research": 0,
+          "pubDate": "2026-08-19",
+          "provisional": null,
+          "pct": null,
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "Effects of Exogenous Nitric Oxide Gas on Mycobacterium tuberculosis in"
+        },
+        {
+          "pos": 3,
+          "pmid": 41000987,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "senior",
+          "type": "Preprint",
+          "research": 0,
+          "pubDate": "2025-09-15",
+          "provisional": "True",
+          "pct": "56.40",
+          "whyRecent": "provisional",
+          "titleStart": "Genes required for <i>Mycobacterium tuberculosis</i> to survive the tr"
+        },
+        {
+          "pos": 4,
+          "pmid": 40100622,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "senior",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2025-03-18",
+          "provisional": "True",
+          "pct": "86.90",
+          "whyRecent": "provisional",
+          "titleStart": "ACOD1-mediated lysosomal membrane permeabilization contributes to <i>M"
+        },
+        {
+          "pos": 5,
+          "pmid": 40053362,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "senior",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2025-03-07",
+          "provisional": "True",
+          "pct": "90.00",
+          "whyRecent": "provisional",
+          "titleStart": "Candidate transmission survival genome of <i>Mycobacterium tuberculosi"
+        },
+        {
+          "pos": 6,
+          "pmid": 41997730,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "first",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2026-04-17",
+          "provisional": "False",
+          "pct": "0.00",
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "Cell-Autonomous Defense against Tuberculosis."
+        },
+        {
+          "pos": 7,
+          "pmid": 42824841,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2026-10-01",
+          "provisional": "False",
+          "pct": "0.00",
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "z-VAD-FMK triggers macrophage necroptosis during mycobacterial infecti"
+        },
+        {
+          "pos": 8,
+          "pmid": 42649407,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2026-08-26",
+          "provisional": "False",
+          "pct": "0.00",
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "Desiccation promotes DNA damage and rifampin resistance in Mycobacteri"
+        },
+        {
+          "pos": 9,
+          "pmid": 41946910,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Review",
+          "research": 0,
+          "pubDate": "2026-04-07",
+          "provisional": "False",
+          "pct": "0.00",
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "Integrating chemical, genetic, and feasibility assessments for anti-tu"
+        },
+        {
+          "pos": 10,
+          "pmid": 41494158,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2026-01-06",
+          "provisional": "False",
+          "pct": "0.00",
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "Diaryl-Aminoindazole with Extensive In Vitro Mycobactericidal Activity"
+        },
+        {
+          "pos": 11,
+          "pmid": 41264257,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2025-11-20",
+          "provisional": "True",
+          "pct": "24.10",
+          "whyRecent": "provisional",
+          "titleStart": "The immunoproteasome regulates ILC2 responses by modulating mitochondr"
+        },
+        {
+          "pos": 12,
+          "pmid": 40950000,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Preprint",
+          "research": 0,
+          "pubDate": "2025-09-02",
+          "provisional": "True",
+          "pct": "0.00",
+          "whyRecent": "provisional",
+          "titleStart": "<i>Mycobacterium tuberculosis, Mycobacterium kansasii</i> and <i>Rhodo"
+        },
+        {
+          "pos": 13,
+          "pmid": 40590790,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2025-07-01",
+          "provisional": "True",
+          "pct": "37.50",
+          "whyRecent": "provisional",
+          "titleStart": "Thioquinazolinones as Antituberculosis Agents Targeting Phosphopanteth"
+        },
+        {
+          "pos": 14,
+          "pmid": 40501622,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Preprint",
+          "research": 0,
+          "pubDate": "2025-06-04",
+          "provisional": "True",
+          "pct": "65.10",
+          "whyRecent": "provisional",
+          "titleStart": "Desiccation-induced DNA damage facilitates drug resistance in <i>Mycob"
+        }
+      ],
+      "olderWorkTop5": {
+        "olderTotal": 17,
+        "works": [
+          {
+            "pos": 1,
+            "pmid": 216763,
+            "year": 1979,
+            "cites": 610,
+            "type": "Academic Article",
+            "titleStart": "Extracellular cytolysis by activated macrophages and granulocytes. II."
+          },
+          {
+            "pos": 2,
+            "pmid": 5576335,
+            "year": 1971,
+            "cites": 549,
+            "type": "Academic Article",
+            "titleStart": "Alterations of macrophage functions by mediators from lymphocytes."
+          },
+          {
+            "pos": 3,
+            "pmid": 925614,
+            "year": 1977,
+            "cites": 503,
+            "type": "Academic Article",
+            "titleStart": "Hydrogen peroxide release from mouse peritoneal macrophages: dependenc"
+          },
+          {
+            "pos": 4,
+            "pmid": 368287,
+            "year": 1979,
+            "cites": 469,
+            "type": "Academic Article",
+            "titleStart": "Extracellular cytolysis by activated macrophages and granulocytes. I. "
+          },
+          {
+            "pos": 5,
+            "pmid": 512587,
+            "year": 1979,
+            "cites": 244,
+            "type": "Academic Article",
+            "titleStart": "Macrophage oxygen-dependent antimicrobial activity. II. The role of ox"
+          }
+        ]
+      },
+      "expectedSummary": {
+        "fired": [
+          "S1",
+          "S2a",
+          "S3"
+        ],
+        "paragraphs": [
+          "Nathan's typical research article is cited about twice as often as a typical NIH R01-funded paper of the same field and year. Across 305 rated research articles, the median Relative Citation Ratio is 2.06.",
+          "Twenty-nine percent of Nathan's 305 rated research articles are at or above the 90th NIH percentile, nearly three times the 10% expected. Among 329 WCM full professors with 10 or more rated first- or senior-authored research articles, Nathan's 10 most influential rank #2, in the top 1%."
+        ]
+      }
+    },
+    "aah2003": {
+      "surname": "Mirza",
+      "department": "Pharmacology",
+      "eligibility": {
+        "weillfulltime": 1,
+        "facultyRank": "Instructor or Lecturer",
+        "cohortEligible": 1,
+        "rankCodes": 1,
+        "personTypes": [
+          "academic-faculty",
+          "academic-faculty-instructor",
+          "academic-faculty-weillfulltime"
+        ]
+      },
+      "publications": {
+        "accepted": 40,
+        "firstYear": 2014,
+        "lastYear": 2026,
+        "pubmed": 39,
+        "pre1980Pubmed": 0
+      },
+      "researchArticles": {
+        "total": 35,
+        "first": 5,
+        "senior": 0,
+        "middle": 30,
+        "soleAuthoredInSenior": 0,
+        "firstYear": 2014,
+        "lastYear": 2026
+      },
+      "rated": 33,
+      "medianRcr": {
+        "exact": "1.090",
+        "display": "1.09"
+      },
+      "atOrAbove90": {
+        "k": 3,
+        "n": 33,
+        "shareExact": "9.091",
+        "ratioTo10PctExpected": "0.909"
+      },
+      "maxRatedPct": "92.60",
+      "rated85to90": 3,
+      "recentSeniorResearch": {
+        "count": 0,
+        "years": []
+      },
+      "researchUnratedNotRecent": 0,
+      "pubmedNotInIciteMethodsK": 0,
+      "topN": {
+        "any": {
+          "rated": 33,
+          "tooRecentToRate": 2,
+          "top5": {
+            "exact": "90.900",
+            "display": "90.9"
+          },
+          "top10": {
+            "exact": "84.610",
+            "display": "84.6"
+          }
+        },
+        "first_or_senior": {
+          "rated": 5,
+          "tooRecentToRate": 0,
+          "top5": {
+            "exact": "60.660",
+            "display": "60.7"
+          },
+          "top10": {
+            "exact": null,
+            "display": "Needs 10 rated"
+          }
+        },
+        "first": {
+          "rated": 5,
+          "tooRecentToRate": 0,
+          "top5": {
+            "exact": "60.660",
+            "display": "60.7"
+          },
+          "top10": {
+            "exact": null,
+            "display": "Needs 10 rated"
+          }
+        },
+        "senior": {
+          "rated": 0,
+          "tooRecentToRate": 0,
+          "top5": {
+            "exact": null,
+            "display": "Needs 5 rated"
+          },
+          "top10": {
+            "exact": null,
+            "display": "Needs 10 rated"
+          }
+        }
+      },
+      "topNArticles": {
+        "any": [
+          {
+            "rn": 1,
+            "pmid": 32948835,
+            "role": "middle",
+            "year": 2020,
+            "pct": "92.60",
+            "rcr": "5.14",
+            "cites": 86,
+            "journal": "Modern pathology : an official journal o"
+          },
+          {
+            "rn": 2,
+            "pmid": 25991924,
+            "role": "first",
+            "year": 2015,
+            "pct": "91.80",
+            "rcr": "4.83",
+            "cites": 154,
+            "journal": "Genome medicine"
+          },
+          {
+            "rn": 3,
+            "pmid": 31708933,
+            "role": "first",
+            "year": 2019,
+            "pct": "90.90",
+            "rcr": "4.49",
+            "cites": 93,
+            "journal": "Frontiers in immunology"
+          },
+          {
+            "rn": 4,
+            "pmid": 35853000,
+            "role": "middle",
+            "year": 2022,
+            "pct": "89.70",
+            "rcr": "4.13",
+            "cites": 63,
+            "journal": "PLoS biology"
+          },
+          {
+            "rn": 5,
+            "pmid": 35355019,
+            "role": "middle",
+            "year": 2022,
+            "pct": "89.50",
+            "rcr": "4.10",
+            "cites": 65,
+            "journal": "Nature"
+          },
+          {
+            "rn": 6,
+            "pmid": 34716417,
+            "role": "middle",
+            "year": 2021,
+            "pct": "86.70",
+            "rcr": "3.47",
+            "cites": 40,
+            "journal": "Modern pathology : an official journal o"
+          },
+          {
+            "rn": 7,
+            "pmid": 27866223,
+            "role": "middle",
+            "year": 2016,
+            "pct": "80.60",
+            "rcr": "2.61",
+            "cites": 66,
+            "journal": "Diabetologia"
+          },
+          {
+            "rn": 8,
+            "pmid": 34282353,
+            "role": "middle",
+            "year": 2021,
+            "pct": "76.20",
+            "rcr": "2.21",
+            "cites": 41,
+            "journal": "Nature metabolism"
+          },
+          {
+            "rn": 9,
+            "pmid": 28487280,
+            "role": "middle",
+            "year": 2017,
+            "pct": "74.10",
+            "rcr": "2.05",
+            "cites": 74,
+            "journal": "Genome research"
+          },
+          {
+            "rn": 10,
+            "pmid": 35858564,
+            "role": "middle",
+            "year": 2022,
+            "pct": "74.00",
+            "rcr": "2.05",
+            "cites": 30,
+            "journal": "Cell reports"
+          }
+        ],
+        "first_or_senior": [
+          {
+            "rn": 1,
+            "pmid": 25991924,
+            "role": "first",
+            "year": 2015,
+            "pct": "91.80",
+            "rcr": "4.83",
+            "cites": 154,
+            "journal": "Genome medicine"
+          },
+          {
+            "rn": 2,
+            "pmid": 31708933,
+            "role": "first",
+            "year": 2019,
+            "pct": "90.90",
+            "rcr": "4.49",
+            "cites": 93,
+            "journal": "Frontiers in immunology"
+          },
+          {
+            "rn": 3,
+            "pmid": 25144376,
+            "role": "first",
+            "year": 2014,
+            "pct": "69.00",
+            "rcr": "1.74",
+            "cites": 67,
+            "journal": "PloS one"
+          },
+          {
+            "rn": 4,
+            "pmid": 38190635,
+            "role": "first",
+            "year": 2024,
+            "pct": "38.70",
+            "rcr": "0.71",
+            "cites": 7,
+            "journal": "RNA (New York, N.Y.)"
+          },
+          {
+            "rn": 5,
+            "pmid": 30181651,
+            "role": "first",
+            "year": 2018,
+            "pct": "12.90",
+            "rcr": "0.20",
+            "cites": 4,
+            "journal": "Scientific reports"
+          }
+        ],
+        "first": [
+          {
+            "rn": 1,
+            "pmid": 25991924,
+            "role": "first",
+            "year": 2015,
+            "pct": "91.80",
+            "rcr": "4.83",
+            "cites": 154,
+            "journal": "Genome medicine"
+          },
+          {
+            "rn": 2,
+            "pmid": 31708933,
+            "role": "first",
+            "year": 2019,
+            "pct": "90.90",
+            "rcr": "4.49",
+            "cites": 93,
+            "journal": "Frontiers in immunology"
+          },
+          {
+            "rn": 3,
+            "pmid": 25144376,
+            "role": "first",
+            "year": 2014,
+            "pct": "69.00",
+            "rcr": "1.74",
+            "cites": 67,
+            "journal": "PloS one"
+          },
+          {
+            "rn": 4,
+            "pmid": 38190635,
+            "role": "first",
+            "year": 2024,
+            "pct": "38.70",
+            "rcr": "0.71",
+            "cites": 7,
+            "journal": "RNA (New York, N.Y.)"
+          },
+          {
+            "rn": 5,
+            "pmid": 30181651,
+            "role": "first",
+            "year": 2018,
+            "pct": "12.90",
+            "rcr": "0.20",
+            "cites": 4,
+            "journal": "Scientific reports"
+          }
+        ]
+      },
+      "cohortCells": "PENDING Step B: Instructor or Lecturer cohort not computed in the Step A preview; ranks come from R2 (analysis_summary_person_peer).",
+      "headline": "PENDING Step B",
+      "hIndex": {
+        "h": 21,
+        "h5": 7,
+        "storedV1": {
+          "hindexNIH": 21,
+          "h5indexNIH": 7
+        }
+      },
+      "recentWork": [
+        {
+          "pos": 1,
+          "pmid": 42531073,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2026-07-17",
+          "provisional": "False",
+          "pct": "0.00",
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "A multivalent RNA affinity tag enables selective purification of tagge"
+        },
+        {
+          "pos": 2,
+          "pmid": 42337368,
+          "articleId": null,
+          "sourceType": "PUBMED",
+          "role": "middle",
+          "type": "Academic Article",
+          "research": 1,
+          "pubDate": "2026-06-23",
+          "provisional": "False",
+          "pct": "0.00",
+          "whyRecent": "no percentile, within 24 months",
+          "titleStart": "Validation of the mRNA epitranscriptome: SCARPET reveals that mapped m"
+        }
+      ],
+      "olderWorkTop5": null,
+      "expectedSummary": {
+        "fired": [
+          "S1",
+          "S2a"
+        ],
+        "pending": "S3 is pending Step B: the headline cell and rank text come from R2's Instructor or Lecturer cohort. aah2003 is cohort-eligible on prod (weillfulltime, Instructor or Lecturer), so S7 must not fire. S4 does not fire: 5 rated first- or senior-authored research articles.",
+        "paragraphs": [
+          "Mirza's typical research article is cited about as often as a typical NIH R01-funded paper of the same field and year. Across 33 rated research articles, the median Relative Citation Ratio is 1.09.",
+          "Nine percent of Mirza's 33 rated research articles are at or above the 90th NIH percentile, in line with the 10% expected."
+        ]
+      }
+    }
+  },
+  "expectedSummaryNote": "expectedSummary is buildSummary's text for the Step A aggregates (tests/bibliometricSummary.test.mjs checks it). Step B confirms it against a prod v2 docx."
+}
