@@ -46,6 +46,9 @@ export const canCurate = async (token: any, targetUid: any): Promise<boolean> =>
     // Compare canonical forms on both sides: a curator whose role row carries `Abl9002` is
     // still curating abl9002 (and vice versa), and ` abl9002` is not someone else.
     const uid = canonicalCwid(targetUid)
+    // Only Java-strip whitespace (e.g. U+001C) -> '' here, which a malformed proxy entry would
+    // also canonicalize to. Never a person.
+    if (uid === '') return false
 
     const roles = safeJsonParse(token?.userRoles, [])
     const caps = getCapabilities(roles)

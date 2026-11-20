@@ -3,6 +3,7 @@ import { getToken } from 'next-auth/jwt';
 import { reciterConfig } from '../../../../../../config/local';
 import { isAuthorizedAdmin } from '../../../../../../controllers/db/adminAuth.controller';
 import { resolveViewAsTarget } from '../../../../../../src/utils/viewAsServer';
+import { sameCwid } from '../../../../../../src/utils/canonicalCwid';
 
 // GET ?cwid= -- looks up a "View as" candidate so the modal can show a confirm dialog with
 // the target's name/roles and a clear error before the user commits. Advisory only: jwt()
@@ -23,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         const token: any = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-        if (cwid === token?.username) {
+        if (sameCwid(cwid, token?.username)) {
             return res.status(400).send({ reason: 'self' });
         }
 
