@@ -17,6 +17,7 @@ import { hasConfiguredScope, isProxyFor } from "../../../utils/scopeResolver";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import { stripHtml } from "../../../utils/htmlText";
+import { downloadBibliometricDocx } from "../../../utils/bibliometricDownload";
 import { degreeLines } from "../../../utils/degreeLines";
 import { AUTHOR_ID_TYPES, AUTHOR_ID_TYPE_LABEL, AuthorIdRow, authorIdUrl } from "../../../utils/authorIds";
 
@@ -58,6 +59,7 @@ const Profile = ({
   const [isError, setIsError] = useState(false);
   const [identity, setIdentity] = useState<any>({});
   const [showBiblioBtn, isShowBiblioBtn] = useState<boolean>(false);
+  const [biblioLoading, setBiblioLoading] = useState<boolean>(false);
   const [exportArticleCsvLoading, setExportArticleCsvLoading] = useState<boolean>(false);
   const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
@@ -159,8 +161,9 @@ const Profile = ({
       })
   }
 
+  // 5h: anyone with an accepted publication can run the bibliometric analysis (.docx).
   const showBiblioAnalysis = async () => {
-    return await fetch('/api/db/reports/bibliometric-analysis/show-button/' + uid, {
+    return await fetch('/api/db/reports/bibliometric/show/' + encodeURIComponent(uid), {
       credentials: "same-origin",
       method: 'GET',
       headers: {
@@ -172,10 +175,10 @@ const Profile = ({
         if (response.status === 200) return response.json()
         throw { status: response.status }
       })
-      .then(data => { isShowBiblioBtn(data); })
+      .then(data => { isShowBiblioBtn(!!data?.show); })
       .catch(error => {
         console.log(error);
-        setIsError(true);
+        isShowBiblioBtn(false);
       })
   }
 
@@ -278,29 +281,24 @@ const Profile = ({
       })
   }
 
-  const generateBiblioAnalysis = () => {
-    fetch('/api/db/reports/bibliometric-analysis/' + uid, {
-      credentials: "same-origin",
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Authorization': reciterConfig.backendApiKey
+  // 5h: the bibliometric analysis .docx (with charts), straight from the drawer.
+  const generateBiblioAnalysis = async () => {
+    setBiblioLoading(true);
+    try {
+      const result = await downloadBibliometricDocx(uid, reciterConfig.backendApiKey);
+      if (result.ok === true) {
+        toast.success(`Downloaded ${result.fileName}`);
+      } else {
+        if (result.status >= 500) reportError("ERR-8012", "Unable to generate bibliometric analysis", { status: result.status });
+        toast.error(result.status >= 500 ? `${result.message} (ERR-8012)` : result.message);
       }
-    })
-      .then(response => response.blob())
-      .then(fileBlob => {
-        var link = document.createElement('a')
-        link.href = window.URL.createObjectURL(fileBlob)
-        link.download = uid + ".rtf";
-        link.click()
-        link.remove();
-      })
-      .catch(error => {
-        console.error("[ERR-8012]", error);
-        reportError("ERR-8012", "Unable to generate bibliometric analysis", error);
-        setIsError(true);
-        toast.error("Unable to generate bibliometric analysis. Please try again. (ERR-8012)");
-      })
+    } catch (error) {
+      console.error("[ERR-8012]", error);
+      reportError("ERR-8012", "Unable to generate bibliometric analysis", error);
+      toast.error("Unable to generate bibliometric analysis. Please try again. (ERR-8012)");
+    } finally {
+      setBiblioLoading(false);
+    }
   }
 
   // ── Metrics from reciter data ──
@@ -404,7 +402,9 @@ const Profile = ({
                 <Button size="sm" component={Link} href={`/curate/${uid}`} onClick={handleClose}>Curate</Button>
               ))}
               {showBiblioBtn && (
-                <Button size="sm" onClick={generateBiblioAnalysis} sx={amberTintSx}>Bibliometric analysis</Button>
+                <Button size="sm" onClick={generateBiblioAnalysis} disabled={biblioLoading} sx={amberTintSx} data-testid="profile-bibliometric">
+                  {biblioLoading ? 'Generating…' : 'Bibliometric analysis'}
+                </Button>
               )}
             </Box>
 
