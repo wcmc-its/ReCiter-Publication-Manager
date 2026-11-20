@@ -53,10 +53,15 @@ export function assignGate(o: {
 
 // Same rule as src/utils/canonicalCwid.ts, inlined because this file stays dependency-free (see
 // the header); tests/canonicalCwid.test.mjs asserts the two agree.
-const EXTERNAL_COHORT = /^(?:usc_|fh_|fredhutch_|uc[a-z]+_)/;
+// Java String.strip() whitespace (NOT JS trim(): that also strips U+00A0/U+2007/U+202F/U+FEFF
+// and keeps U+001C-U+001F), and a case-insensitive cohort prefix of which only the prefix is
+// lowercased -- i.e. ReCiter's UidCanonicalizer.
+const EXTERNAL_COHORT = /^(?:usc|fh|fredhutch|uc[a-z]+)_/i;
+const JAVA_WS = /^[\t\n\v\f\r\x1c-\x20\u1680\u2000-\u2006\u2008-\u200a\u2028\u2029\u205f\u3000]+|[\t\n\v\f\r\x1c-\x20\u1680\u2000-\u2006\u2008-\u200a\u2028\u2029\u205f\u3000]+$/g;
 export function toCanonicalCwid(typed: string): string {
-  const t = typed.trim();
-  return EXTERNAL_COHORT.test(t) ? t : t.toLowerCase();
+  const t = typed.replace(JAVA_WS, '');
+  const prefix = EXTERNAL_COHORT.exec(t);
+  return prefix ? prefix[0].toLowerCase() + t.slice(prefix[0].length) : t.toLowerCase();
 }
 
 // The identifier every write below lands in, for a cwid a curator typed by hand. Pure for the

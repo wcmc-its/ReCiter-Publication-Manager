@@ -2,8 +2,51 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { canonicalCwid, isValidCwid, parseCwid, parseCwidList, cwidParam, sameCwid, isExternalCohortId } from '../src/utils/canonicalCwid.ts'
+import { canonicalCwid, isValidCwid, parseCwid, parseCwidList, cwidParam, sameCwid, isExternalCohortId, javaStrip } from '../src/utils/canonicalCwid.ts'
 import { canonicalCwid as assignCanonical, toCanonicalCwid } from '../src/lib/assignGate.ts'
+
+// ReCiter's UidCanonicalizerTest table (reciter.utils.UidCanonicalizer, ReCiter #787/#789).
+// PM writes keys ReCiter looks up byte-exact, so every row must give the same answer here.
+const JAVA_VALID = [
+    ['abl9002', 'abl9002'], ['Abl9002', 'abl9002'], ['DLAMB', 'dlamb'], ['HAF9018', 'haf9018'],
+    ['Hlloyd', 'hlloyd'], ['ggi9001 ', 'ggi9001'], [' Isk9008', 'isk9008'], ['\tJih9026\n', 'jih9026'],
+    [' Abl9002\u3000', 'abl9002'], ['ab123', 'ab123'], ['Jason.Carmel', 'jason.carmel'],
+    ['str2025-mi', 'str2025-mi'], ['_lsw8099', '_lsw8099'], ['UC_Abc', 'uc_abc'],
+    ['fredhutch_Rachel.Rau', 'fredhutch_Rachel.Rau'], [' fredhutch_Rachel.Rau ', 'fredhutch_Rachel.Rau'],
+    ['fh_catherine.albert', 'fh_catherine.albert'], ['usc_123', 'usc_123'], ['ucsf_AbC', 'ucsf_AbC'],
+    ['ucla_Xy-1', 'ucla_Xy-1'], ['UCSF_AbC', 'ucsf_AbC'], ['FREDHUTCH_A.B', 'fredhutch_A.B'], ['Usc_123', 'usc_123'],
+]
+const JAVA_INVALID = ['', '   ', 'kims7@mskcc.org', 'ldn9002@nyp.org', 'Mahender Jangari', 'Hello, world!',
+    'abc 123', 'fredhutch_Rachel Rau', 'usc_a@b', 'abc/123', 'abc\u00e9', 'usc_', 'fh_', 'fredhutch_', 'ucsf_',
+    ' UCLA_ ', 'abc\r\n[ERROR] x', 'abc\x00x']
+
+test('Java UidCanonicalizer table: valid inputs give the same canonical uid', () => {
+    for (const [input, want] of JAVA_VALID) {
+        assert.equal(parseCwid(input), want, JSON.stringify(input))
+        assert.equal(toCanonicalCwid(input), want, `assignGate ${JSON.stringify(input)}`)
+        assert.ok(isValidCwid(want), want)
+    }
+})
+
+test('Java UidCanonicalizer table: invalid inputs are rejected', () => {
+    for (const input of JAVA_INVALID) assert.equal(parseCwid(input), null, JSON.stringify(input))
+})
+
+test('whitespace is Java String.strip(), not JS trim()', () => {
+    // Java keeps the non-breaking spaces and the BOM, so these stay invalid uids.
+    for (const ws of ['\u00a0', '\u2007', '\u202f', '\ufeff']) {
+        assert.equal(javaStrip(`${ws}abc${ws}`), `${ws}abc${ws}`)
+        assert.equal(parseCwid(`abl9002${ws}`), null, JSON.stringify(ws))
+        assert.equal(toCanonicalCwid(`abl9002${ws}`), `abl9002${ws}`)
+    }
+    // Java strips U+001C..U+001F (trim() does not) and the Unicode spaces trim() also strips.
+    for (const ws of ['\x1c', '\x1d', '\x1e', '\x1f', '\u1680', '\u2000', '\u200a', '\u2028', '\u2029', '\u205f', '\u3000', '\v', '\f', '\r']) {
+        assert.equal(parseCwid(`${ws}Abl9002${ws}`), 'abl9002', JSON.stringify(ws))
+        assert.equal(toCanonicalCwid(`${ws}Abl9002${ws}`), 'abl9002', JSON.stringify(ws))
+    }
+    // Inner whitespace is never stripped.
+    assert.equal(javaStrip(' a b '), 'a b')
+})
 
 // The families the 11-18 DynamoDB scan found, and what each must become.
 test('canonicalCwid: trims, then lowercases', () => {
@@ -34,8 +77,8 @@ test('a bare "uc" start is a real WCM CWID, not a cohort: still lowercased', () 
         assert.ok(!isExternalCohortId(id.trim()), id)
         assert.equal(canonicalCwid(id), id.toLowerCase())
     }
-    // The prefix has to be lowercase as written to count as a cohort.
-    assert.equal(canonicalCwid('FREDHUTCH_X'), 'fredhutch_x')
+    // The prefix matches case-insensitively (as in Java); only the prefix is lowercased.
+    assert.equal(canonicalCwid('FREDHUTCH_X'), 'fredhutch_X')
 })
 
 test('"uc_" alone is not a cohort prefix (uc[a-z]+_): lowercased like any id', () => {
@@ -213,4 +256,19 @@ test('feature-generator/group: bulk uids are canonicalized before they reach ReC
     assert.match(f, /getPendingFeedback\(uids, data\)/)
     assert.match(f, /sameCwid\(item\?\.personIdentifier, uid\)/)
     assert.doesNotMatch(f, /JSON\.stringify\(req\.body\)/)
+})
+
+test('self/proxy checks compare canonical forms, so a stored `Abl9002` role row still matches abl9002', () => {
+    assert.match(src('src/middleware.ts'), /let loggedInUserInfo = canonicalCwid\(userRoles\[0\]\.personIdentifier\)/)
+    assert.match(src('src/components/elements/Notifications/Notifications.tsx'), /sameCwid\(router\.query\.userId, session\.data\.username\)/)
+    assert.match(src('src/pages/api/db/admin/view-as/lookup.ts'), /sameCwid\(cwid, token\?\.username\)/)
+    const search = src('src/components/elements/Search/Search.js')
+    assert.match(search, /sameCwid\(pid, loggedInPersonIdentifier\)/)
+    assert.doesNotMatch(search, /pid === loggedInPersonIdentifier/)
+    assert.doesNotMatch(search, /isProxyFor\(proxyPersonIds,/)
+    const profile = src('src/components/elements/Profile/Profile.tsx')
+    assert.match(profile, /sameCwid\(uid, caps\.canCurate\.personIdentifier\)/)
+    assert.doesNotMatch(profile, /isProxyFor\(proxyPersonIds, uid\)/)
+    // A malformed proxy entry canonicalizes to '' and must never match an all-whitespace target.
+    assert.match(src('controllers/db/authorization.controller.ts'), /const uid = canonicalCwid\(targetUid\)[\s\S]{0,200}if \(uid === ''\) return false/)
 })
