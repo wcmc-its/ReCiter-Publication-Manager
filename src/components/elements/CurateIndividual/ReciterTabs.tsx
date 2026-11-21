@@ -13,7 +13,8 @@ import AllSourcesTab from "./AllSourcesTab";
 import AddPublicationDialog from "./AddPublicationDialog";
 import ManualEntryDialog, { ManualEntryMode } from "./ManualEntryDialog";
 import { useExternalArticles } from "./useExternalArticles";
-import { countWorks, groupExternalWorks } from "../../../utils/allSources";
+import { countWorks, groupExternalWorks, extStatusOf } from "../../../utils/allSources";
+import ImportListDialog from "./ImportListDialog";
 import { allowedPermissions } from "../../../utils/constants";
 import { useSession } from "next-auth/react";
 import { clearPubMedData, showEvidenceByDefault, reciterFetchData, pubmedFetchData, reciterUpdatePublication } from "../../../redux/actions/actions";
@@ -65,6 +66,16 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, noRun = false, 
   const [manual, setManual] = useState<ManualEntryMode | null>(null);
   // Bumped after a manual add so All sources shows its Accepted view.
   const [showAcceptedNonce, setShowAcceptedNonce] = useState(0);
+  // Import a list (plan 2026-11-20): the server says whether it is on (LIST_IMPORT); 404 = off.
+  const [importOn, setImportOn] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  useEffect(() => {
+    let live = true;
+    fetch('/api/db/import/extract', { credentials: 'same-origin', method: 'GET' })
+      .then((r) => { if (live) setImportOn(r.status === 200); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
 
   // Smart change tracking: compare current assertions to originals
   const originalAssertions = useRef<Map<number, string>>(new Map());
@@ -284,6 +295,72 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, noRun = false, 
     }
     return null;
   }
+
+  // Import a list: accept many PMIDs in ONE gold-standard write (one FeedbackLog batch, one
+  // debounced re-analysis). A PMID already in a tab (suggested or rejected) moves from there; one
+  // not in the record is fetched first, as handleAcceptPmid does, and a failed fetch is reported
+  // and left out of the write.
+  const handleAcceptPmids = async (pmids: number[]) => {
+    const ok: number[] = [];
+    const failed: { pmid: number, message: string }[] = [];
+    const moved: Record<'NULL' | 'REJECTED', any[]> = { NULL: [], REJECTED: [] };
+    const fetched: any[] = [];
+    const inTab = (pmid: number, value: string) => (((filteredData as any[]).find((t) => t.value === value)?.data) || [])
+      .find((a: any) => Number(a.pmid) === pmid);
+    for (const pmid of pmids) {
+      const st = getPmidStatus(pmid);
+      if (st === 'ACCEPTED') continue;
+      if (st === 'PENDING' || st === 'REJECTED') {
+        const from = st === 'PENDING' ? 'NULL' : 'REJECTED';
+        const a = inTab(pmid, from);
+        if (a) { moved[from].push({ ...a, userAssertion: 'ACCEPTED' }); ok.push(pmid); continue; }
+      }
+      try {
+        const r = await fetch(`/api/reciter/pubmed-article/${pmid}`, {
+          credentials: "same-origin", method: "GET",
+          headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: reciterConfig.backendApiKey },
+        });
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok || !body.article) throw new Error((body && body.message) || `HTTP ${r.status}`);
+        fetched.push(toReciterArticle(body.article, "ACCEPTED"));
+        ok.push(pmid);
+      } catch (e: any) {
+        failed.push({ pmid, message: e?.message || String(e) });
+      }
+    }
+    if (!ok.length) return { ok, failed };
+    dispatch(reciterUpdatePublication(identityData.uid, {
+      faculty: identityData,
+      publications: ok,
+      userAssertion: 'ACCEPTED',
+      manuallyAddedFlag: true,
+      userID: userId,
+      personIdentifier: reciterData?.reciter?.personIdentifier,
+    }));
+    if (fetched.length) {
+      const features = reciterData?.reciter?.reCiterArticleFeatures;
+      if (Array.isArray(features)) features.push(...fetched);
+      updatePublicationAssertionBulk(fetched, 'ACCEPTED', undefined);
+    }
+    if (moved.NULL.length) updatePublicationAssertionBulk(moved.NULL, 'ACCEPTED', 'NULL');
+    if (moved.REJECTED.length) updatePublicationAssertionBulk(moved.REJECTED, 'ACCEPTED', 'REJECTED');
+    return { ok, failed };
+  }
+
+  // What the import dialog compares pasted works with: the PubMed tabs and the external rows.
+  const yearIn = (s: any): number | null => { const m = /\b(1[89]|20)\d{2}\b/.exec(String(s || '')); return m ? Number(m[0]) : null; };
+  const importRecord = () => ({
+    pubs: (filteredData as any[]).filter((t) => t.value === 'NULL' || t.value === 'ACCEPTED' || t.value === 'REJECTED')
+      .flatMap((t) => (t.data || []).map((a: any) => ({
+        pmid: Number(a.pmid), title: a.articleTitle, doi: a.doi || null,
+        year: yearIn(a.publicationDateStandardized || a.publicationDateDisplay || a.displayDate),
+        status: (t.value === 'NULL' ? 'PENDING' : t.value) as 'PENDING' | 'ACCEPTED' | 'REJECTED',
+      }))),
+    exts: (ext.rows || []).map((r: any) => {
+      const s = extStatusOf(r);
+      return { articleId: r.articleId, title: r.title, doi: r.doi || null, year: yearIn(r.pubDate || r.pubYear || r.year), state: (s === 'ACCEPTED' ? 'accepted' : s === 'REJECTED' ? 'rejected' : 'pending') as 'accepted' | 'rejected' | 'pending' };
+    }),
+  });
 
   // Which tab updatePublicationAssertion must take this PMID OUT of, or undefined if it is in
   // none. Needed because the "Same as PMID N" candidates come from ReCiter's own candidate set
@@ -528,6 +605,19 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, noRun = false, 
           findRecordPmid={findRecordPmid}
           onOpenScopusAuthorships={() => { closeAdd(); onTabChange('ScopusAuth'); }}
           onEnterManually={manualOn ? (query) => { setAddOpen(false); setAddDeepLink(null); setManual({ kind: 'create', query, fromSearch: true }); } : undefined}
+          onImportList={importOn ? () => { setAddOpen(false); setAddDeepLink(null); setImportOpen(true); } : undefined}
+        />
+      )}
+
+      {importOpen && importOn && (
+        <ImportListDialog
+          open
+          uid={reciterData.reciter?.personIdentifier}
+          fullName={fullName}
+          {...importRecord()}
+          onClose={() => setImportOpen(false)}
+          onAcceptPmids={handleAcceptPmids}
+          onAdded={() => ext.refetch()}
         />
       )}
 
