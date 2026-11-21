@@ -67,7 +67,19 @@ const yearOf = (row: any): number | null => {
     const y = Number(String(row?.pubDate || '').slice(0, 4))
     return Number.isInteger(y) && y > 1800 ? y : null
 }
-const asCand = (row: any) => ({ title: String(row.title || ''), year: yearOf(row), row })
+// Crossref keeps a subtitle apart from the title (crossrefExternalArticleFrom shows only the title);
+// a citation usually has "Title: subtitle", so match on both.
+const subtitleOf = (row: any): string => {
+    if (row?.sourceType !== 'CROSSREF' || typeof row.rawRecord !== 'string' || !row.rawRecord.includes('"subtitle"')) return ''
+    try {
+        const sub = JSON.parse(row.rawRecord).subtitle
+        return Array.isArray(sub) && typeof sub[0] === 'string' ? sub[0].replace(/<[^>]+>/g, '').trim() : ''
+    } catch { return '' }
+}
+const asCand = (row: any) => {
+    const sub = subtitleOf(row)
+    return { title: String(row.title || '') + (sub ? ': ' + sub : ''), year: yearOf(row), row }
+}
 
 function toMatch(row: any, pmid: number | null): Match {
     return {
@@ -105,14 +117,16 @@ async function resolveOne(c: Citation): Promise<Resolved> {
         // A pasted DOI neither source holds can still be in PubMed (its title is then unchecked,
         // so the row is a possible match: shown unchecked, "is this it?").
         const pmid = await findPubmedByDoi(doi!)
-        if (pmid) return { ...c, doi, score: 0.8, match: { title: c.title, year: c.year, doi, pmid, record: null } }
+        if (pmid) return { ...c, doi, score: 0.8, match: { title: `PMID ${pmid}, found by this DOI (title not checked)`, year: c.year, doi, pmid, record: null } }
     }
-    if (!row) return { ...c, doi, score, match: null }
+    // The pasted DOI stays on the result only if its record was the match; a rejected DOI is dropped.
+    const keptDoi = row && doi && String(row.doi || '').toLowerCase() === doi ? doi : null
+    if (!row) return { ...c, doi: keptDoi, score, match: null }
 
     // PMID: OpenAlex's own, else PubMed by DOI (OpenAlex lacks it for ~21% of PubMed works).
     let pmid: number | null = row.pmid ? Number(row.pmid) : null
     if (!pmid && row.doi) pmid = await findPubmedByDoi(String(row.doi))
-    return { ...c, doi, score, match: toMatch(row, pmid) }
+    return { ...c, doi: keptDoi, score, match: toMatch(row, pmid) }
 }
 
 // Serial on purpose: one batch in flight per dialog keeps Crossref and OpenAlex under their limits.

@@ -129,8 +129,8 @@ export function cleanDoi(raw: unknown): string | null {
     return m ? m[0].replace(/[.,;)\]]+$/, '').toLowerCase() : null
 }
 
-// Validate and tidy what the model (or a parser) returned. Drops non-objects, titles that are
-// not in the source, and caps the list.
+// Validate and tidy what the model (or a parser) returned. Drops non-objects and titles that are
+// not in the source. No cap here: the dialog caps at MAX_ITEMS after dedupe and tells the person.
 export function sanitizeCitations(raw: unknown, sourceText: string): { items: Citation[], dropped: number } {
     const src = normTitle(sourceText)
     const srcLower = String(sourceText || '').toLowerCase()
@@ -152,7 +152,7 @@ export function sanitizeCitations(raw: unknown, sourceText: string): { items: Ci
             type: typeof (r as any).type === 'string' ? (r as any).type : null,
         })
     }
-    return { items: items.slice(0, MAX_ITEMS), dropped }
+    return { items, dropped }
 }
 
 // Remove duplicates inside one paste: same DOI, or same title (a preprint and its article). The
@@ -166,7 +166,10 @@ export function dedupePaste(items: Citation[]): { items: Citation[], deduped: nu
     const better = (a: Citation, b: Citation) => (!!b.venue && !a.venue) || (!!b.venue === !!a.venue && b.title.length > a.title.length)
     for (const c of items) {
         const keys = [c.doi ? 'doi:' + c.doi : '', 't:' + normTitle(c.title).replace(/ /g, '')].filter(Boolean)
-        const hit = keys.map((k) => byKey.get(k)).find((i) => i !== undefined)
+        // A DOI hit counts only if the titles agree: a DOI attached to the wrong line must not
+        // merge two different works.
+        const hit = keys.map((k) => byKey.get(k))
+            .find((i) => i !== undefined && (titleSim(kept[i].title, c.title) >= MATCHED || normTitle(kept[i].title).replace(/ /g, '') === normTitle(c.title).replace(/ /g, '')))
         if (hit === undefined) {
             kept.push(c)
             keys.forEach((k) => byKey.set(k, kept.length - 1))
@@ -300,24 +303,51 @@ export type Row = Resolved & {
     checkedByDefault: boolean,
 }
 
+// Preprint servers: a preprint and its journal article have different DOIs but are one work.
+const PREPRINT_DOI = /^10\.(1101|21203|2139|48550|20944|31234|31219|31223|36227|22541|26434|1590\/scielopreprints|5281\/zenodo)\//
+export const isPreprintDoi = (d: unknown): boolean => PREPRINT_DOI.test(normDoi(d))
+
 const normDoi = (d: unknown): string => String(d ?? '').trim().toLowerCase().replace(/^(https?:\/\/(dx\.)?doi\.org\/|doi:\s*)/, '')
 
-// Numbers and roman numerals in a title ("part 2", "II", "2019 update") tell series papers apart.
-const ROMAN = /^(i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)$/
-const titleNumbers = (t: unknown): string[] => normTitle(t).split(' ').filter((w) => /\d/.test(w) || ROMAN.test(w))
+// Numbers in a title tell series papers apart ("part 2", "Part II", "Part Two", "Part B", "2019
+// update"). Written forms differ between PubMed, Crossref and CVs ("COVID-19"/"COVID19",
+// "(18)F"/"18F"/"¹⁸F", "Type 2"/"Type II"), so numbers are compared as digit runs after removing
+// spaces and punctuation, with roman numerals and number words turned into digits first.
+const ROMAN: Record<string, string> = { i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10', xi: '11', xii: '12' }
+const WORDS: Record<string, string> = { one: '1', two: '2', three: '3', four: '4', five: '5', six: '6', seven: '7', eight: '8', nine: '9', ten: '10', first: '1', second: '2', third: '3', fourth: '4' }
+const SERIES = new Set(['part', 'phase', 'type', 'stage', 'study', 'section', 'volume', 'vol', 'trial', 'cohort'])
+export function titleNumbers(t: unknown): string[] {
+    const toks = normTitle(t).split(' ').filter(Boolean)
+    const out: string[] = []
+    toks.forEach((w, i) => {
+        const prevSeries = i > 0 && SERIES.has(toks[i - 1])
+        // Roman numerals and number words only count after a series word ("part ii"), so a
+        // pronoun "I" or "first-line therapy" is left alone.
+        const n = prevSeries ? (ROMAN[w] || WORDS[w]) : undefined
+        if (prevSeries && !n && /^[a-z]$/.test(w)) { out.push('#' + w); return }
+        // Each digit run is one number: "h 2 o 2" and "h2o2" both give 2,2; "1 42" and "1-42" give 1,42.
+        out.push(...(n || w).replace(/[^0-9]+/g, ' ').trim().split(' ').filter(Boolean))
+    })
+    return out
+}
 
 // The numbers in two titles agree. A "…"-cut title only has to agree as far as it goes.
 const numbersAgree = (a: unknown, b: unknown): boolean => {
-    const na = titleNumbers(a), nb = titleNumbers(b)
-    const cutA = ELLIPSIS.test(String(a ?? '')), cutB = ELLIPSIS.test(String(b ?? ''))
-    const n = cutA || cutB ? Math.min(na.length, nb.length) : Math.max(na.length, nb.length)
+    const na = titleNumbers(String(a ?? '').replace(ELLIPSIS, '')), nb = titleNumbers(String(b ?? '').replace(ELLIPSIS, ''))
+    const cut = ELLIPSIS.test(String(a ?? '')) || ELLIPSIS.test(String(b ?? ''))
+    const n = cut ? Math.min(na.length, nb.length) : Math.max(na.length, nb.length)
     for (let i = 0; i < n; i++) if (na[i] !== nb[i]) return false
     return true
 }
 
 // Same work by title and year (±1): the fallback for a PMID PubMed's DOI search misses.
+// "Type II" -> "Type 2", "Part One" -> "Part 1": series numerals as digits, for the similarity test.
+const SERIES_NUMERAL = /\b(part|phase|type|stage|study|section|volume|vol|trial|cohort)\s+(xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i|one|two|three|four|five|six|seven|eight|nine|ten|first|second|third|fourth)\b/gi
+const digitsForNumerals = (t: unknown): string => String(t ?? '').replace(SERIES_NUMERAL, (_m, w, n) => `${w} ${ROMAN[n.toLowerCase()] || WORDS[n.toLowerCase()]}`)
+
 export const sameWork = (aTitle: unknown, aYear: unknown, bTitle: unknown, bYear: unknown): boolean =>
-    titleSim(aTitle, bTitle) >= 0.95 && numbersAgree(aTitle, bTitle)
+    Math.max(titleSim(aTitle, bTitle), titleSim(digitsForNumerals(aTitle), digitsForNumerals(bTitle))) >= 0.95
+    && numbersAgree(aTitle, bTitle)
     && (!aYear || !bYear || Math.abs(Number(aYear) - Number(bYear)) <= 1)
 
 export function groupAgainstRecord(items: Resolved[], pubs: RecordPub[], exts: RecordExt[]): Row[] {
@@ -338,10 +368,12 @@ export function groupAgainstRecord(items: Resolved[], pubs: RecordPub[], exts: R
         // The person's PubMed record: by PMID, then DOI, then title + year. The title fallback is
         // for a PMID PubMed's DOI search missed; it never overrides a different PMID or DOI that
         // resolve found.
-        const doi = normDoi(m?.doi || it.doi)
+        // Only the DOI of the match resolve accepted: a pasted DOI it rejected must not pick a record entry.
+        const doi = normDoi(m?.doi)
         const titleHit = (p: { title?: string, year?: number | null, doi?: string | null }, pmid?: number) =>
             !(m?.pmid && pmid && Number(m.pmid) !== Number(pmid))
-            && !(doi && p.doi && normDoi(p.doi) !== doi)
+            // Two different DOIs are two works, unless one is a preprint of the other.
+            && !(doi && p.doi && normDoi(p.doi) !== doi && !isPreprintDoi(doi) && !isPreprintDoi(p.doi))
             && (sameWork(it.title, it.year, p.title, p.year) || (!!m && sameWork(m.title, m.year, p.title, p.year)))
         const pub = (m?.pmid && byPmid.get(Number(m.pmid)))
             || (doi && pubByDoi.get(doi))

@@ -5,7 +5,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
     normTitle, titleSim, matchScore, bestMatch, chunkText, groundedInSource, sanitizeCitations,
-    dedupePaste, detectFormat, parseStructured, parseCsvRows, groupAgainstRecord, cleanDoi, isUpdateNotice, sameWork, MAX_ITEMS,
+    dedupePaste, detectFormat, parseStructured, parseCsvRows, groupAgainstRecord, cleanDoi, isUpdateNotice, sameWork, titleNumbers, isPreprintDoi, MAX_ITEMS,
 } from '../src/lib/listImport.ts'
 
 const SCHOLAR = `Cited by
@@ -78,7 +78,7 @@ test('groundedInSource: an extracted title must be in the paste (first 50 charac
     assert.ok(!groundedInSource('2014', src), 'too short to trust')
 })
 
-test('sanitizeCitations: drops ungrounded and malformed rows, tidies fields, caps the list', () => {
+test('sanitizeCitations: drops ungrounded and malformed rows, tidies fields, does not cap (the dialog does, with a notice)', () => {
     const raw = [
         { title: 'Glial plumbing of the imaginary cortex: a new synthesis', year: '2014', venue: 'Journal of Fictional Neuroscience 12 (3), 101-118', doi: 'https://doi.org/10.9999/FAKE.123.' },
         { title: 'Invented by the model', year: 2020 },
@@ -93,7 +93,7 @@ test('sanitizeCitations: drops ungrounded and malformed rows, tidies fields, cap
     const withDoi = sanitizeCitations([{ title: 'Glial plumbing of the imaginary cortex', doi: '10.9999/FAKE.123' }], SCHOLAR + '\nhttps://doi.org/10.9999/fake.123')
     assert.equal(withDoi.items[0].doi, '10.9999/fake.123', 'a DOI in the paste is kept')
     const many = Array.from({ length: MAX_ITEMS + 5 }, () => ({ title: 'Glial plumbing of the imaginary cortex' }))
-    assert.equal(sanitizeCitations(many, SCHOLAR).items.length, MAX_ITEMS)
+    assert.equal(sanitizeCitations(many, SCHOLAR).items.length, MAX_ITEMS + 5)
 })
 
 test('isUpdateNotice: an erratum/correction record (update-to) is not a match candidate', () => {
@@ -119,8 +119,10 @@ test('dedupePaste: same DOI and preprint/article pairs collapse; a Scholar junk 
         { title: 'Paper A (published version)', doi: '10.9999/x' },
         { title: 'A different work' },
     ])
-    assert.equal(deduped, 2)
-    assert.equal(items.length, 5)
+    // 'Paper A' and 'Paper A (published version)' share a DOI but not a title: kept apart (a
+    // misattached DOI must not merge two works); resolve's title check sorts them out.
+    assert.equal(deduped, 1)
+    assert.equal(items.length, 6)
     assert.ok(items.some((c) => c.venue === 'Neuron Imaginary'), 'the row with a venue is kept')
     assert.ok(items.some((c) => c.title.startsWith('Consensus statement')), 'the real title survives')
 })
@@ -261,4 +263,39 @@ test('groupAgainstRecord: a possible match to an accepted paper says so', () => 
     const [r] = groupAgainstRecord([{ title: 'Glial plumbing in imaginary cortices', score: 0.8, match: m({ title: 'Glial plumbing of the imaginary cortex', pmid: 7 }) }], pubs, [])
     assert.equal(r.group, 'in_profile')
     assert.match(r.note, /Possibly this one/)
+})
+
+test('dedupePaste: one DOI on two different titles keeps both; the same DOI and title merges', () => {
+    assert.equal(dedupePaste([{ title: 'First distinct title about hearts', doi: '10.1001/x' }, { title: 'Second distinct title about lungs', doi: '10.1001/x' }]).items.length, 2)
+    assert.equal(dedupePaste([{ title: 'First distinct title about hearts', doi: '10.1001/x' }, { title: 'First distinct title about hearts.', doi: '10.1001/x' }]).items.length, 1)
+})
+
+test('titleNumbers / sameWork: written forms agree, series numbers and letters do not', () => {
+    const same = (a, b) => sameWork(a, 2020, b, 2020)
+    assert.ok(same('COVID-19 and invented outcomes in widget patients', 'COVID19 and invented outcomes in widget patients'))
+    assert.ok(same('(18)F-FDG PET/CT of invented widget lesions', '18F-FDG PET/CT of invented widget lesions'))
+    assert.ok(same('\u00b9\u2078F-FDG PET/CT of invented widget lesions', '18F-FDG PET/CT of invented widget lesions'))
+    assert.ok(same('IL-6 signaling in invented widget inflammation', 'IL6 signaling in invented widget inflammation'))
+    assert.ok(same('Type 2 diabetes and invented widget outcomes', 'Type II diabetes and invented widget outcomes'))
+    assert.ok(same('SARS-CoV-2 infection of invented widget cells', 'SARS-CoV2 infection of invented widget cells'))
+    assert.ok(!same('Consensus recommendations for invented widget disorder: Part One', 'Consensus recommendations for invented widget disorder: Part Two'))
+    assert.ok(!same('Consensus recommendations for invented widget disorder: Part A', 'Consensus recommendations for invented widget disorder: Part B'))
+    assert.ok(!same('Consensus recommendations for invented widget disorder: part 1', 'Consensus recommendations for invented widget disorder: part 2'))
+    assert.deepEqual(titleNumbers('What I learned at the first widget meeting'), [], 'a pronoun I or "first" outside a series word is not a number')
+})
+
+test('groupAgainstRecord: a preprint of an accepted article is the same work despite different DOIs', () => {
+    assert.ok(isPreprintDoi('10.1101/2021.03.01.433000'))
+    assert.ok(!isPreprintDoi('10.1016/j.neuron.2022.01.001'))
+    const pubs = [{ pmid: 34000001, title: 'Invented widget circuits drive imaginary memory', doi: '10.1016/j.neuron.2022.01.001', year: 2022, status: 'ACCEPTED' }]
+    const [r] = groupAgainstRecord([{ title: 'Invented widget circuits drive imaginary memory', year: 2021, score: 1, match: m({ title: 'Invented widget circuits drive imaginary memory', doi: '10.1101/2021.03.01.433000', year: 2021, record: { articleId: 'CROSSREF:10.1101/2021.03.01.433000' } }) }], pubs, [])
+    assert.equal(r.group, 'in_profile')
+    assert.equal(r.pmid, 34000001)
+})
+
+test('groupAgainstRecord: a pasted DOI that resolve rejected does not pick a record entry', () => {
+    const pubs = [{ pmid: 999, title: 'Some other persons paper about kidneys', doi: '10.1001/victim', year: 2021, status: 'PENDING' }]
+    const [r] = groupAgainstRecord([{ title: 'A conference abstract on widget signalling in mice', doi: '10.1001/victim', year: 2021, score: 0, match: null }], pubs, [])
+    assert.equal(r.group, 'not_found')
+    assert.equal(r.pmid, null)
 })
