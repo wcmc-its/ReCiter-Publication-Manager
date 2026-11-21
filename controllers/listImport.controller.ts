@@ -76,9 +76,12 @@ const subtitleOf = (row: any): string => {
         return Array.isArray(sub) && typeof sub[0] === 'string' ? sub[0].replace(/<[^>]+>/g, '').trim() : ''
     } catch { return '' }
 }
-const asCand = (row: any) => {
+// One candidate per form of the title: the title alone, and with its subtitle when Crossref has
+// one. bestMatch keeps the better score, so a citation with or without the subtitle matches.
+const asCands = (row: any) => {
+    const base = { title: String(row.title || ''), year: yearOf(row), row }
     const sub = subtitleOf(row)
-    return { title: String(row.title || '') + (sub ? ': ' + sub : ''), year: yearOf(row), row }
+    return sub ? [base, { ...base, title: base.title + ': ' + sub }] : [base]
 }
 
 function toMatch(row: any, pmid: number | null): Match {
@@ -99,17 +102,17 @@ async function resolveOne(c: Citation): Promise<Resolved> {
         const byDoi = (await search(searchCrossref, doi))[0] || (await search(searchOpenAlex, doi))[0] || null
         doiUnknown = !byDoi
         if (byDoi && !isUpdateNotice(byDoi)) {
-            const s = bestMatch(c, [asCand(byDoi)]).score
+            const s = bestMatch(c, asCands(byDoi)).score
             if (s >= MATCHED) { score = s; row = byDoi }
         }
     }
     if (!row) {
         const q = [c.title, c.first_author, c.venue, c.year].filter(Boolean).join(' ')
-        const cr = bestMatch(c, (await search(searchCrossref, q)).filter((r) => !isUpdateNotice(r)).map(asCand))
+        const cr = bestMatch(c, (await search(searchCrossref, q)).filter((r) => !isUpdateNotice(r)).flatMap(asCands))
         score = cr.score; row = cr.cand?.row || null
         // Crossref misses preprints, abstracts, theses and odd venues; OpenAlex holds many.
         if (score < MATCHED) {
-            const oa = bestMatch(c, (await search(searchOpenAlex, c.title.replace(/(…|\.\.\.)\s*$/, ''))).map(asCand))
+            const oa = bestMatch(c, (await search(searchOpenAlex, c.title.replace(/(…|\.\.\.)\s*$/, ''))).flatMap(asCands))
             if (oa.score > score) { score = oa.score; row = oa.cand?.row || null }
         }
     }

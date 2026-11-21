@@ -325,8 +325,11 @@ export function titleNumbers(t: unknown): string[] {
         // pronoun "I" or "first-line therapy" is left alone.
         const n = prevSeries ? (ROMAN[w] || WORDS[w]) : undefined
         if (prevSeries && !n && /^[a-z]$/.test(w)) { out.push('#' + w); return }
-        // Each digit run is one number: "h 2 o 2" and "h2o2" both give 2,2; "1 42" and "1-42" give 1,42.
-        out.push(...(n || w).replace(/[^0-9]+/g, ' ').trim().split(' ').filter(Boolean))
+        // Each digit run is one number ("1 42" and "1-42" give 1,42). A letter that ends the token
+        // right after the digits is part of it: phase 1a vs 1b, IL-17A vs 17F, 5-HT2A vs 2C differ.
+        // (Formatting-only differences such as H(2)O(2) vs H2O2 never get here: sameWork's
+        // squashed-equal test accepts them first.)
+        out.push(...((n || w).match(/\d+(?:[a-z]$)?/g) || []))
     })
     return out
 }
@@ -345,10 +348,20 @@ const numbersAgree = (a: unknown, b: unknown): boolean => {
 const SERIES_NUMERAL = /\b(part|phase|type|stage|study|section|volume|vol|trial|cohort)\s+(xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i|one|two|three|four|five|six|seven|eight|nine|ten|first|second|third|fourth)\b/gi
 const digitsForNumerals = (t: unknown): string => String(t ?? '').replace(SERIES_NUMERAL, (_m, w, n) => `${w} ${ROMAN[n.toLowerCase()] || WORDS[n.toLowerCase()]}`)
 
-export const sameWork = (aTitle: unknown, aYear: unknown, bTitle: unknown, bYear: unknown): boolean =>
-    Math.max(titleSim(aTitle, bTitle), titleSim(digitsForNumerals(aTitle), digitsForNumerals(bTitle))) >= 0.95
-    && numbersAgree(aTitle, bTitle)
-    && (!aYear || !bYear || Math.abs(Number(aYear) - Number(bYear)) <= 1)
+// A title with spaces and punctuation removed and Greek letters spelled out: equal squashed titles
+// differ only in formatting (H(2)O(2) / H2O2, COVID-19 / COVID19, (18)F / 18F, Aβ / A-beta).
+const GREEK: Record<string, string> = { 'α': 'alpha', 'β': 'beta', 'γ': 'gamma', 'δ': 'delta', 'ε': 'epsilon', 'κ': 'kappa', 'λ': 'lambda', 'μ': 'mu', 'π': 'pi', 'σ': 'sigma', 'τ': 'tau', 'ω': 'omega' }
+export const squashTitle = (t: unknown): string =>
+    String(t ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .replace(/[αβγδεκλμπστω]/g, (g) => GREEK[g]).replace(/[^\p{L}\p{N}]+/gu, '')
+
+export const sameWork = (aTitle: unknown, aYear: unknown, bTitle: unknown, bYear: unknown): boolean => {
+    if (aYear && bYear && Math.abs(Number(aYear) - Number(bYear)) > 1) return false
+    const sa = squashTitle(aTitle)
+    if (sa.length >= 12 && sa === squashTitle(bTitle)) return true
+    return Math.max(titleSim(aTitle, bTitle), titleSim(digitsForNumerals(aTitle), digitsForNumerals(bTitle))) >= 0.95
+        && numbersAgree(aTitle, bTitle)
+}
 
 export function groupAgainstRecord(items: Resolved[], pubs: RecordPub[], exts: RecordExt[]): Row[] {
     const byPmid = new Map(pubs.map((p) => [Number(p.pmid), p]))

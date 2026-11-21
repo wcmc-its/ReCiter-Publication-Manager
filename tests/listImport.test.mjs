@@ -299,3 +299,16 @@ test('groupAgainstRecord: a pasted DOI that resolve rejected does not pick a rec
     assert.equal(r.group, 'not_found')
     assert.equal(r.pmid, null)
 })
+
+test('sameWork: formatting-only differences match; letter-suffixed numbers stay distinct', () => {
+    const same = (a, b) => sameWork(a, 2020, b, 2020)
+    assert.ok(same('Mitochondrial H(2)O(2) emission in skeletal muscle of invented obese widgets', 'Mitochondrial H2O2 emission in skeletal muscle of invented obese widgets'))
+    assert.ok(same('H(2)O(2) production by mitochondria in widget cells', 'H2O2 production by mitochondria in widget cells'))
+    assert.ok(same('Plasma A-beta 1-42 and tau as predictors of invented decline', 'Plasma Aβ1-42 and tau as predictors of invented decline'))
+    assert.ok(same('Plasma A-beta 1-42 and tau as predictors of invented decline', 'Plasma Aβ(1-42) and tau as predictors of invented decline'))
+    assert.ok(!same('A phase 1a study of drug X in patients with advanced invented tumors', 'A phase 1b study of drug X in patients with advanced invented tumors'))
+    assert.ok(!same('Structural basis of IL-17A recognition by an invented widget receptor', 'Structural basis of IL-17F recognition by an invented widget receptor'))
+    assert.ok(!same('5-HT2A receptor signaling in invented widget neurons of the cortex', '5-HT2C receptor signaling in invented widget neurons of the cortex'))
+    assert.ok(!same('Outcomes of stage 3A invented widget cancer after resection', 'Outcomes of stage 3B invented widget cancer after resection'))
+    assert.ok(!sameWork('H2O2 production by mitochondria in widget cells', 2010, 'H2O2 production by mitochondria in widget cells', 2015), 'years far apart')
+})
