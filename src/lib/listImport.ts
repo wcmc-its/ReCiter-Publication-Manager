@@ -133,6 +133,7 @@ export function cleanDoi(raw: unknown): string | null {
 // not in the source, and caps the list.
 export function sanitizeCitations(raw: unknown, sourceText: string): { items: Citation[], dropped: number } {
     const src = normTitle(sourceText)
+    const srcLower = String(sourceText || '').toLowerCase()
     const arr = Array.isArray(raw) ? raw : []
     const items: Citation[] = []
     let dropped = 0
@@ -146,28 +147,25 @@ export function sanitizeCitations(raw: unknown, sourceText: string): { items: Ci
             year: Number.isInteger(y) && y > 1800 && y < 2100 ? y : null,
             venue: typeof (r as any).venue === 'string' ? (r as any).venue.trim() || null : null,
             first_author: typeof (r as any).first_author === 'string' ? (r as any).first_author.trim() || null : null,
-            doi: cleanDoi((r as any).doi),
+            // Only a DOI that is in the pasted text: a model can fill one in from memory, wrongly.
+            doi: ((d) => (d && srcLower.includes(d) ? d : null))(cleanDoi((r as any).doi)),
             type: typeof (r as any).type === 'string' ? (r as any).type : null,
         })
     }
     return { items: items.slice(0, MAX_ITEMS), dropped }
 }
 
-// Google Scholar repeats a work under a junk title (a committee list) with the same venue,
-// volume, issue and pages. The venue line with its numbers is the key.
-const pagesKey = (venue?: string | null): string | null => {
-    const v = normTitle(venue)
-    return /\d+ \d+.*\d+ \d+/.test(v) ? v : null
-}
-
-// Remove duplicates inside one paste: same DOI, same venue+pages, or same title (a preprint and
-// its article). The kept row is the one with a venue and the longer title.
+// Remove duplicates inside one paste: same DOI, or same title (a preprint and its article). The
+// kept row is the one with a venue, then the longer title. Scholar's junk twins (a committee list
+// with the same venue and pages) are NOT merged here: a venue+pages key also matches different
+// article-number papers ("Scientific reports 9 (1), 1-10"). The twin resolves to nothing and shows
+// as Not found, or to the same work and shows as "Listed twice in the paste".
 export function dedupePaste(items: Citation[]): { items: Citation[], deduped: number } {
     const kept: Citation[] = []
     const byKey = new Map<string, number>()
     const better = (a: Citation, b: Citation) => (!!b.venue && !a.venue) || (!!b.venue === !!a.venue && b.title.length > a.title.length)
     for (const c of items) {
-        const keys = [c.doi ? 'doi:' + c.doi : '', pagesKey(c.venue) ? 'pp:' + pagesKey(c.venue) : '', 't:' + normTitle(c.title).replace(/ /g, '')].filter(Boolean)
+        const keys = [c.doi ? 'doi:' + c.doi : '', 't:' + normTitle(c.title).replace(/ /g, '')].filter(Boolean)
         const hit = keys.map((k) => byKey.get(k)).find((i) => i !== undefined)
         if (hit === undefined) {
             kept.push(c)
@@ -304,9 +302,23 @@ export type Row = Resolved & {
 
 const normDoi = (d: unknown): string => String(d ?? '').trim().toLowerCase().replace(/^(https?:\/\/(dx\.)?doi\.org\/|doi:\s*)/, '')
 
+// Numbers and roman numerals in a title ("part 2", "II", "2019 update") tell series papers apart.
+const ROMAN = /^(i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)$/
+const titleNumbers = (t: unknown): string[] => normTitle(t).split(' ').filter((w) => /\d/.test(w) || ROMAN.test(w))
+
+// The numbers in two titles agree. A "…"-cut title only has to agree as far as it goes.
+const numbersAgree = (a: unknown, b: unknown): boolean => {
+    const na = titleNumbers(a), nb = titleNumbers(b)
+    const cutA = ELLIPSIS.test(String(a ?? '')), cutB = ELLIPSIS.test(String(b ?? ''))
+    const n = cutA || cutB ? Math.min(na.length, nb.length) : Math.max(na.length, nb.length)
+    for (let i = 0; i < n; i++) if (na[i] !== nb[i]) return false
+    return true
+}
+
 // Same work by title and year (±1): the fallback for a PMID PubMed's DOI search misses.
-const sameWork = (aTitle: unknown, aYear: unknown, bTitle: unknown, bYear: unknown): boolean =>
-    titleSim(aTitle, bTitle) >= 0.95 && (!aYear || !bYear || Math.abs(Number(aYear) - Number(bYear)) <= 1)
+export const sameWork = (aTitle: unknown, aYear: unknown, bTitle: unknown, bYear: unknown): boolean =>
+    titleSim(aTitle, bTitle) >= 0.95 && numbersAgree(aTitle, bTitle)
+    && (!aYear || !bYear || Math.abs(Number(aYear) - Number(bYear)) <= 1)
 
 export function groupAgainstRecord(items: Resolved[], pubs: RecordPub[], exts: RecordExt[]): Row[] {
     const byPmid = new Map(pubs.map((p) => [Number(p.pmid), p]))
@@ -316,33 +328,40 @@ export function groupAgainstRecord(items: Resolved[], pubs: RecordPub[], exts: R
     const seen = new Set<string>()
 
     return items.map((it): Row => {
-        const m = it.match
-        const possible = !!m && it.score >= POSSIBLE && it.score < MATCHED
-        // A candidate below the POSSIBLE band is not this work: carry none of its ids.
-        const base = { ...it, possible, pmid: m && it.score >= POSSIBLE ? m.pmid ?? null : null }
+        // A candidate below the POSSIBLE band is not this work: none of its ids are used, anywhere.
+        const m = it.match && it.score >= POSSIBLE ? it.match : null
+        const possible = !!m && it.score < MATCHED
+        const base = { ...it, match: m, possible, pmid: m?.pmid ?? null }
         if (it.error) return { ...base, group: 'error', checkable: false, checkedByDefault: false }
+        const possibleNote = possible ? `Possibly this one: “${m!.title}”` : undefined
 
-        // The person's PubMed record: by PMID, DOI, or title + year (pasted or matched title).
+        // The person's PubMed record: by PMID, then DOI, then title + year. The title fallback is
+        // for a PMID PubMed's DOI search missed; it never overrides a different PMID or DOI that
+        // resolve found.
         const doi = normDoi(m?.doi || it.doi)
+        const titleHit = (p: { title?: string, year?: number | null, doi?: string | null }, pmid?: number) =>
+            !(m?.pmid && pmid && Number(m.pmid) !== Number(pmid))
+            && !(doi && p.doi && normDoi(p.doi) !== doi)
+            && (sameWork(it.title, it.year, p.title, p.year) || (!!m && sameWork(m.title, m.year, p.title, p.year)))
         const pub = (m?.pmid && byPmid.get(Number(m.pmid)))
             || (doi && pubByDoi.get(doi))
-            || pubs.find((p) => sameWork(it.title, it.year, p.title, p.year) || (m && sameWork(m.title, m.year, p.title, p.year)))
+            || pubs.find((p) => titleHit(p, p.pmid))
         if (pub) {
             const row = { ...base, pmid: Number(pub.pmid) }
-            if (pub.status === 'ACCEPTED') return { ...row, group: 'in_profile', checkable: false, checkedByDefault: false }
+            if (pub.status === 'ACCEPTED') return { ...row, group: 'in_profile', note: possibleNote, checkable: false, checkedByDefault: false }
             if (pub.status === 'PENDING') return { ...row, group: 'suggestion', checkable: true, checkedByDefault: !possible }
             return { ...row, group: 'rejected', note: 'Rejected earlier in PubMed', checkable: true, checkedByDefault: false }
         }
 
         // The person's external works.
         const ext = (m?.articleId && extById.get(m.articleId)) || (doi && extByDoi.get(doi))
-            || exts.find((e) => sameWork(it.title, it.year, e.title, e.year))
+            || exts.find((e) => titleHit(e))
         if (ext) {
-            const note = ext.state === 'rejected' ? 'Rejected earlier in All sources' : ext.state === 'pending' ? 'Waiting for review in All sources' : undefined
+            const note = ext.state === 'rejected' ? 'Rejected earlier in All sources' : ext.state === 'pending' ? 'Waiting for review in All sources' : possibleNote
             return { ...base, group: 'in_profile', note, checkable: false, checkedByDefault: false }
         }
 
-        if (!m || it.score < POSSIBLE) return { ...base, match: null, group: 'not_found', checkable: false, checkedByDefault: false }
+        if (!m) return { ...base, group: 'not_found', checkable: false, checkedByDefault: false }
 
         // Within one paste, the second row that resolves to the same work adds nothing.
         const key = m.pmid ? 'p' + m.pmid : m.articleId || doi

@@ -79,12 +79,19 @@ function toMatch(row: any, pmid: number | null): Match {
 async function resolveOne(c: Citation): Promise<Resolved> {
     const doi = cleanDoi(c.doi)
     let score = 0, row: any = null
+    let doiUnknown = false // the pasted DOI is in neither Crossref nor OpenAlex
 
     if (doi) {
-        // A DOI from the paste is taken as given: look up its record (Crossref, then OpenAlex).
-        row = (await search(searchCrossref, doi))[0] || (await search(searchOpenAlex, doi))[0] || null
-        score = row ? 1 : 0
-    } else {
+        // A DOI in the paste: use its record only if the record's title is this citation's title.
+        // A DOI attached to the wrong line (or one a model got wrong) falls through to the title search.
+        const byDoi = (await search(searchCrossref, doi))[0] || (await search(searchOpenAlex, doi))[0] || null
+        doiUnknown = !byDoi
+        if (byDoi && !isUpdateNotice(byDoi)) {
+            const s = bestMatch(c, [asCand(byDoi)]).score
+            if (s >= MATCHED) { score = s; row = byDoi }
+        }
+    }
+    if (!row) {
         const q = [c.title, c.first_author, c.venue, c.year].filter(Boolean).join(' ')
         const cr = bestMatch(c, (await search(searchCrossref, q)).filter((r) => !isUpdateNotice(r)).map(asCand))
         score = cr.score; row = cr.cand?.row || null
@@ -94,11 +101,13 @@ async function resolveOne(c: Citation): Promise<Resolved> {
             if (oa.score > score) { score = oa.score; row = oa.cand?.row || null }
         }
     }
-    if (!row) {
-        // A pasted DOI neither source holds can still be in PubMed.
-        const pmid = doi ? await findPubmedByDoi(doi) : null
-        return pmid ? { ...c, doi, score: 1, match: { title: c.title, year: c.year, doi, pmid, record: null } } : { ...c, doi, score, match: null }
+    if (doiUnknown && score < MATCHED) {
+        // A pasted DOI neither source holds can still be in PubMed (its title is then unchecked,
+        // so the row is a possible match: shown unchecked, "is this it?").
+        const pmid = await findPubmedByDoi(doi!)
+        if (pmid) return { ...c, doi, score: 0.8, match: { title: c.title, year: c.year, doi, pmid, record: null } }
     }
+    if (!row) return { ...c, doi, score, match: null }
 
     // PMID: OpenAlex's own, else PubMed by DOI (OpenAlex lacks it for ~21% of PubMed works).
     let pmid: number | null = row.pmid ? Number(row.pmid) : null

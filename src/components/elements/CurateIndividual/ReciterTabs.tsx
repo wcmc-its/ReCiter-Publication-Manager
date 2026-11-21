@@ -296,10 +296,20 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, noRun = false, 
     return null;
   }
 
+  // A PMID's status as the curator sees it now. On the Suggested tab, accept and reject happen in
+  // place (the card stays in the NULL tab), so filteredData alone would still say PENDING; the
+  // in-session decision from handleAssertionChange wins.
+  const liveStatus = (pmid: number): 'ACCEPTED' | 'REJECTED' | 'PENDING' | null => {
+    const changed = changedAssertions.get(pmid);
+    if (changed === 'ACCEPTED' || changed === 'REJECTED') return changed;
+    if (changed === 'NULL') return 'PENDING';
+    return getPmidStatus(pmid);
+  }
+
   // Import a list: accept many PMIDs in ONE gold-standard write (one FeedbackLog batch, one
-  // debounced re-analysis). A PMID already in a tab (suggested or rejected) moves from there; one
-  // not in the record is fetched first, as handleAcceptPmid does, and a failed fetch is reported
-  // and left out of the write.
+  // debounced re-analysis). A PMID already in a tab moves from there; one not in the record is
+  // fetched first, as handleAcceptPmid does, and a failed fetch is reported and left out. The tabs
+  // change only after the write succeeds; a failed write reports every PMID as not added.
   const handleAcceptPmids = async (pmids: number[]) => {
     const ok: number[] = [];
     const failed: { pmid: number, message: string }[] = [];
@@ -308,10 +318,11 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, noRun = false, 
     const inTab = (pmid: number, value: string) => (((filteredData as any[]).find((t) => t.value === value)?.data) || [])
       .find((a: any) => Number(a.pmid) === pmid);
     for (const pmid of pmids) {
-      const st = getPmidStatus(pmid);
-      if (st === 'ACCEPTED') continue;
-      if (st === 'PENDING' || st === 'REJECTED') {
-        const from = st === 'PENDING' ? 'NULL' : 'REJECTED';
+      if (liveStatus(pmid) === 'ACCEPTED') continue;
+      // Where the card sits (not its live status): that is the tab it has to leave.
+      const at = getPmidStatus(pmid);
+      if (at === 'PENDING' || at === 'REJECTED') {
+        const from = at === 'PENDING' ? 'NULL' : 'REJECTED';
         const a = inTab(pmid, from);
         if (a) { moved[from].push({ ...a, userAssertion: 'ACCEPTED' }); ok.push(pmid); continue; }
       }
@@ -329,14 +340,18 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, noRun = false, 
       }
     }
     if (!ok.length) return { ok, failed };
-    dispatch(reciterUpdatePublication(identityData.uid, {
+    const written = await (dispatch(reciterUpdatePublication(identityData.uid, {
       faculty: identityData,
       publications: ok,
       userAssertion: 'ACCEPTED',
       manuallyAddedFlag: true,
       userID: userId,
       personIdentifier: reciterData?.reciter?.personIdentifier,
-    }));
+    })) as unknown as Promise<boolean>);
+    if (!written) {
+      return { ok: [], failed: failed.concat(ok.map((pmid) => ({ pmid, message: 'the gold-standard write failed' }))) };
+    }
+    ok.forEach((pmid) => handleAssertionChange(pmid, 'ACCEPTED'));
     if (fetched.length) {
       const features = reciterData?.reciter?.reCiterArticleFeatures;
       if (Array.isArray(features)) features.push(...fetched);
@@ -354,7 +369,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData, noRun = false, 
       .flatMap((t) => (t.data || []).map((a: any) => ({
         pmid: Number(a.pmid), title: a.articleTitle, doi: a.doi || null,
         year: yearIn(a.publicationDateStandardized || a.publicationDateDisplay || a.displayDate),
-        status: (t.value === 'NULL' ? 'PENDING' : t.value) as 'PENDING' | 'ACCEPTED' | 'REJECTED',
+        status: (liveStatus(Number(a.pmid)) || (t.value === 'NULL' ? 'PENDING' : t.value)) as 'PENDING' | 'ACCEPTED' | 'REJECTED',
       }))),
     exts: (ext.rows || []).map((r: any) => {
       const s = extStatusOf(r);

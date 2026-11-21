@@ -5,7 +5,7 @@ import { Button, Dialog } from "../../ui"
 import { reciterConfig } from "../../../../config/local"
 import {
     Citation, Group, GROUP_LABEL, MAX_ITEMS, MAX_PASTE_CHARS, RecordExt, RecordPub, Resolved, Row,
-    chunkText, dedupePaste, groupAgainstRecord,
+    chunkText, dedupePaste, groupAgainstRecord, parseStructured, sanitizeCitations,
 } from "../../../lib/listImport"
 
 // "Import a list" (plan 2026-11-20-import-a-list-plan.md). Paste a publication list (Google
@@ -57,11 +57,14 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
     const [stats, setStats] = useState({ dropped: 0, deduped: 0 })
     const [outcome, setOutcome] = useState<Outcome | null>(null)
     const cancelled = useRef(false)
+    // Set while Add is writing: there is no Cancel then, and a second Add is ignored.
+    const saving = useRef(false)
 
-    const regroup = (resolved: Resolved[]) => {
+    // keep: rows whose checkbox the person already set (Retry re-groups only the failed rows).
+    const regroup = (resolved: Resolved[], keep?: Set<number>) => {
         const next = groupAgainstRecord(resolved, props.pubs, props.exts)
         setRows(next)
-        setChecked(Object.fromEntries(next.map((r, i) => [i, r.checkedByDefault])))
+        setChecked((prev) => Object.fromEntries(next.map((r, i) => [i, keep?.has(i) && r.checkable ? !!prev[i] : r.checkedByDefault])))
     }
 
     const resolveAll = async (items: Citation[]): Promise<Resolved[]> => {
@@ -82,8 +85,11 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         if (text.length > MAX_PASTE_CHARS) { setNote(`That is more than ${MAX_PASTE_CHARS.toLocaleString()} characters. Split the list and import it in parts.`); return }
         cancelled.current = false
         setStep('working')
-        const chunks = chunkText(text)
         let items: Citation[] = [], dropped = 0
+        // A BibTeX / RIS / CSV export is parsed here, whole: chunking would cut its records apart.
+        const parsed = parseStructured(text)
+        if (parsed) ({ items, dropped } = sanitizeCitations(parsed, text))
+        const chunks = parsed ? [] : chunkText(text)
         for (let i = 0; i < chunks.length && !cancelled.current; i++) {
             setProgress(chunks.length > 1 ? `Reading part ${i + 1} of ${chunks.length}…` : 'Reading the list…')
             const r = await post('/api/db/import/extract', { uid: props.uid, text: chunks[i] }).catch(() => ({ status: 0, body: {} as any }))
@@ -113,9 +119,11 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         cancelled.current = false
         setStep('working')
         const again = await resolveAll(idx.map((i) => rows[i]))
+        if (cancelled.current) return
         const merged: Resolved[] = rows.slice()
         idx.forEach((i, k) => { merged[i] = again[k] })
-        regroup(merged)
+        const retried = new Set(idx)
+        regroup(merged, new Set(rows.map((_, i) => i).filter((i) => !retried.has(i))))
         setStep('review')
     }
 
@@ -128,6 +136,8 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
     }
 
     const add = async () => {
+        if (saving.current) return
+        saving.current = true
         const sel = rows.filter((r, i) => checked[i] && r.checkable)
         const pmids = Array.from(new Set(sel.filter((r) => ACCEPTS.includes(r.group) && r.pmid).map((r) => Number(r.pmid))))
         const exts = sel.filter((r) => r.group === 'external' && r.match?.record)
@@ -153,6 +163,7 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
             else out.failed.push(`${r.match!.title}: ${(res.body?.message && (res.body.message.message || res.body.message)) || `HTTP ${res.status}`}`)
         }
         if (exts.length) props.onAdded()
+        saving.current = false
         setOutcome(out)
         setStep('done')
         const total = out.accepted + out.added
@@ -197,7 +208,9 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
             <Button variant="primary" disabled={!nChecked} onClick={add}>Add {nChecked} selected</Button>
         </>
     ) : step === 'working' ? (
-        <Button onClick={() => { cancelled.current = true; setStep('paste') }}>Cancel</Button>
+        saving.current
+            ? <Button disabled>Saving…</Button>
+            : <Button onClick={() => { cancelled.current = true; setStep(rows.length ? 'review' : 'paste') }}>Cancel</Button>
     ) : step === 'done' ? (
         <Button variant="primary" onClick={props.onClose}>Done</Button>
     ) : (

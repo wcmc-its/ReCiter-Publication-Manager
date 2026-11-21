@@ -5,7 +5,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
     normTitle, titleSim, matchScore, bestMatch, chunkText, groundedInSource, sanitizeCitations,
-    dedupePaste, detectFormat, parseStructured, parseCsvRows, groupAgainstRecord, cleanDoi, isUpdateNotice, MAX_ITEMS,
+    dedupePaste, detectFormat, parseStructured, parseCsvRows, groupAgainstRecord, cleanDoi, isUpdateNotice, sameWork, MAX_ITEMS,
 } from '../src/lib/listImport.ts'
 
 const SCHOLAR = `Cited by
@@ -89,7 +89,9 @@ test('sanitizeCitations: drops ungrounded and malformed rows, tidies fields, cap
     assert.equal(items.length, 1)
     assert.equal(dropped, 3)
     assert.equal(items[0].year, 2014)
-    assert.equal(items[0].doi, '10.9999/fake.123')
+    assert.equal(items[0].doi, null, 'a DOI that is not in the pasted text is dropped')
+    const withDoi = sanitizeCitations([{ title: 'Glial plumbing of the imaginary cortex', doi: '10.9999/FAKE.123' }], SCHOLAR + '\nhttps://doi.org/10.9999/fake.123')
+    assert.equal(withDoi.items[0].doi, '10.9999/fake.123', 'a DOI in the paste is kept')
     const many = Array.from({ length: MAX_ITEMS + 5 }, () => ({ title: 'Glial plumbing of the imaginary cortex' }))
     assert.equal(sanitizeCitations(many, SCHOLAR).items.length, MAX_ITEMS)
 })
@@ -107,7 +109,7 @@ test('cleanDoi: finds a DOI in URL or prose, lowercases, trims trailing punctuat
     assert.equal(cleanDoi('no doi here'), null)
 })
 
-test('dedupePaste: Scholar junk twin (same venue+pages), same DOI, and preprint/article pairs collapse', () => {
+test('dedupePaste: same DOI and preprint/article pairs collapse; a Scholar junk twin is NOT merged', () => {
     const { items, deduped } = dedupePaste([
         { title: 'Consensus statement on fictional vascular disorders', venue: 'Stroke Imaginary 42 (9), 2672-2713', year: 2011 },
         { title: 'Committee on Things, Committee on Other Things …', venue: 'Stroke Imaginary 42 (9), 2672-2713', year: 2011 },
@@ -117,9 +119,18 @@ test('dedupePaste: Scholar junk twin (same venue+pages), same DOI, and preprint/
         { title: 'Paper A (published version)', doi: '10.9999/x' },
         { title: 'A different work' },
     ])
-    assert.equal(deduped, 3)
-    assert.equal(items.length, 4)
+    assert.equal(deduped, 2)
+    assert.equal(items.length, 5)
     assert.ok(items.some((c) => c.venue === 'Neuron Imaginary'), 'the row with a venue is kept')
+    assert.ok(items.some((c) => c.title.startsWith('Consensus statement')), 'the real title survives')
+})
+
+test('dedupePaste: different article-number papers with the same volume/pages line are both kept', () => {
+    const { items } = dedupePaste([
+        { title: 'Mapping widget expression across tissues', venue: 'Scientific reports 9 (1), 1-10', year: 2019 },
+        { title: 'A deep learning model of gadget folding', venue: 'Scientific reports 9 (1), 1-10', year: 2019 },
+    ])
+    assert.equal(items.length, 2)
 })
 
 test('detectFormat + parseStructured: BibTeX', () => {
@@ -218,4 +229,36 @@ test('groupAgainstRecord: an un-addable record (id too long) is not offered', ()
     const rows = groupAgainstRecord([{ title: 'Long DOI work', score: 1, match: m({ title: 'Long DOI work', record: { articleId: 'CROSSREF:x', notAddable: 'too long' } }) }], [], [])
     assert.equal(rows[0].group, 'not_found')
     assert.equal(rows[0].note, 'too long')
+})
+
+test('groupAgainstRecord: a low-scoring candidate never claims a record entry (wrong-PMID accept)', () => {
+    const pubs = [{ pmid: 111, title: 'Another paper by the same author', year: 2020, status: 'PENDING' }]
+    const exts = [{ articleId: 'CROSSREF:10.9/other', title: 'Some other external work', doi: '10.9/other', state: 'accepted' }]
+    const rows = groupAgainstRecord([
+        { title: 'A conference abstract on widget signalling', score: 0.35, match: m({ title: 'Another paper by the same author', pmid: 111 }) },
+        { title: 'A second abstract nobody indexed', score: 0.4, match: m({ title: 'Some other external work', articleId: 'CROSSREF:10.9/other', doi: '10.9/other' }) },
+    ], pubs, exts)
+    assert.deepEqual(rows.map((r) => [r.group, r.pmid, r.checkable]), [['not_found', null, false], ['not_found', null, false]])
+})
+
+test('groupAgainstRecord: the title fallback never overrides a different PMID/DOI, and series numbers must agree', () => {
+    const pubs = [{ pmid: 111, title: 'Long-term management of invented widget disorder: part 1', doi: '10.9/p1', year: 2020, status: 'PENDING' }]
+    const part2 = { title: 'Long-term management of invented widget disorder: part 2', year: 2020, score: 1, match: m({ title: 'Long-term management of invented widget disorder: part 2', pmid: 222, doi: '10.9/p2', year: 2020 }) }
+    const [r] = groupAgainstRecord([part2], pubs, [])
+    assert.equal(r.group, 'pubmed_new')
+    assert.equal(r.pmid, 222)
+    // Even with no PMID or DOI from resolve, "part 2" is not "part 1"; "2019" is not "2018".
+    const bare = { title: 'Long-term management of invented widget disorder: part 2', year: 2020, score: 0, match: null }
+    assert.equal(groupAgainstRecord([bare], pubs, [])[0].group, 'not_found')
+    assert.equal(sameWork('Invented society guidelines, 2018', 2018, 'Invented society guidelines, 2019', 2019), false)
+    assert.equal(sameWork('Invented society guidelines part II', null, 'Invented society guidelines part III', null), false)
+    assert.equal(sameWork('Glial plumbing of the imaginary cortex in 2014 cohorts', 2014, 'Glial Plumbing of the Imaginary Cortex in 2014 Cohorts.', 2014), true)
+    assert.equal(sameWork('Glial plumbing of the imaginary cortex in 2014 cohorts and …', 2014, 'Glial plumbing of the imaginary cortex in 2014 cohorts and 3 more things', 2014), true)
+})
+
+test('groupAgainstRecord: a possible match to an accepted paper says so', () => {
+    const pubs = [{ pmid: 7, title: 'Glial plumbing of the imaginary cortex', year: 2014, status: 'ACCEPTED' }]
+    const [r] = groupAgainstRecord([{ title: 'Glial plumbing in imaginary cortices', score: 0.8, match: m({ title: 'Glial plumbing of the imaginary cortex', pmid: 7 }) }], pubs, [])
+    assert.equal(r.group, 'in_profile')
+    assert.match(r.note, /Possibly this one/)
 })
