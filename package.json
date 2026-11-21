@@ -37,7 +37,7 @@
     "ldapts": "^8.2.0",
     "moment": "^2.31.0",
     "mysql2": "^3.23.1",
-    "next": "^15.5.28",
+    "next": "^15.5.29",
     "next-auth": "^4.24.15",
     "next-redux-wrapper": "^7.0.5",
     "nodemailer": "^10.1.4",
