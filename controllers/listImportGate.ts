@@ -4,6 +4,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { apiKeyOk, sessionOf } from './db/external.controller'
 import { canCurate } from './db/authorization.controller'
 import { listImportEnabled } from './listImport.controller'
+import { canonicalCwid } from '../src/utils/canonicalCwid'
 
 // Both routes: POST only, the flag (404 when off, so the dialog hides the choice), the
 // backendApiKey, and a session that may curate this uid. The /api/db session gate in middleware
@@ -19,5 +20,6 @@ export async function gate(req: NextApiRequest, res: NextApiResponse): Promise<s
     const s = await sessionOf(req)
     if (!s.actor) { res.status(401).send({ statusCode: 401, message: 'Your session has expired. Please sign in again.' }); return null }
     if (!(await canCurate(s.eff, uid))) { res.status(403).send({ statusCode: 403, message: "You do not have permission to curate this person's publications" }); return null }
-    return uid
+    // One spelling of the uid (#1162); the write routes the dialog then calls canonicalize too.
+    return canonicalCwid(uid)
 }
