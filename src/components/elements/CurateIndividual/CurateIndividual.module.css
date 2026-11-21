@@ -1498,3 +1498,29 @@
   .meGrid { grid-template-columns: minmax(0, 1fr); }
 }
 .exProvChip { background: var(--pm-surface-2); color: var(--pm-slate); border: 1px solid var(--pm-slate-tint-border); cursor: help; }
+
+/* Import a list (plan 2026-11-20-import-a-list-plan.md). */
+.ilArea { min-height: 220px; font-family: inherit; font-size: 13px; }
+.ilFileRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ilFileRow label { display: inline-flex; align-items: center; }
+.ilHow { font-size: 12.5px; color: var(--pm-muted-foreground); }
+.ilHow summary { cursor: pointer; font-weight: 600; color: var(--pm-slate); }
+.ilHow p { margin: 6px 0 0; line-height: 1.45; }
+.ilProgress { padding: 32px 8px; text-align: center; font-size: 13.5px; color: var(--pm-muted-foreground); }
+.ilCounts { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12.5px; align-items: baseline; }
+.ilCount b { font-weight: 700; color: var(--pm-foreground); }
+.ilMuted { font-size: 12px; color: var(--pm-muted-foreground); font-weight: 400; }
+.ilAsk { font-size: 12px; color: var(--pm-amber); margin-top: 2px; }
+.ilScroll { max-height: 52vh; overflow: auto; border: 1px solid var(--pm-border); border-radius: 8px; padding: 4px 10px; }
+.ilGroup { padding: 8px 0; border-bottom: 1px solid var(--pm-border); }
+.ilGroup:last-child { border-bottom: none; }
+.ilGroupHead { font-size: 13px; font-weight: 600; margin: 0 0 6px; cursor: default; }
+details.ilGroup > summary.ilGroupHead { cursor: pointer; }
+.ilTable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ilRow td { padding: 6px 6px; vertical-align: top; border-top: 1px solid var(--pm-surface-2); }
+.ilCheck { width: 28px; }
+.ilCheck input { width: 16px; height: 16px; margin-top: 2px; }
+.ilCheck input:focus-visible { outline: 2px solid var(--pm-ring); outline-offset: 2px; }
+.ilTitle { line-height: 1.4; }
+.ilYear { width: 48px; color: var(--pm-muted-foreground); white-space: nowrap; }
+.ilLink { width: 96px; white-space: nowrap; font-size: 12.5px; }

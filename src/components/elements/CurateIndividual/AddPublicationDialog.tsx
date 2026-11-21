@@ -31,6 +31,8 @@ interface FuncProps {
     // 3d: open the manual entry Dialog with the current query. Only passed with the external
     // record store (EXTERNAL_STORE=mysql); without it the dialog is unchanged.
     onEnterManually?: (query: string) => void,
+    // "Import a list": only passed when the server has the feature on (LIST_IMPORT).
+    onImportList?: () => void,
 }
 
 const SOURCES: [AddDialogSource, string][] = [['PUBMED', 'PubMed'], ['SCOPUS', 'Scopus'], ['OPENALEX', 'OpenAlex'], ['CROSSREF', 'Crossref']]
@@ -102,6 +104,13 @@ const AddPublicationDialog: FunctionComponent<FuncProps> = (props) => {
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                     <span className={styles.apManualText}>Not in any of these sources? A book, chapter, report or talk can be entered by hand.</span>
                     <button type="button" className={styles.apManualBtn} onClick={() => props.onEnterManually?.(query)}>Enter manually</button>
+                </div>
+            )}
+            {props.onImportList && (
+                <div className={styles.apManual}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
+                    <span className={styles.apManualText}>Have a list from Google Scholar, ResearchGate, Academia.edu or a CV? Paste it and add many at once.</span>
+                    <button type="button" className={styles.apManualBtn} onClick={props.onImportList}>Import a list</button>
                 </div>
             )}
             <form className={styles.apSearch} onSubmit={search}>

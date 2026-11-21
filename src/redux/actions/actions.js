@@ -540,7 +540,9 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=DELETE'
     }
 
-    fetchWithTimeout(url, {
+    // Resolves true when the gold-standard write succeeded, false when it failed (already toasted).
+    // Existing callers ignore it; Import a list awaits it before reporting success.
+    const goldStandardWritten = fetchWithTimeout(url, {
         credentials: "same-origin",
         method: 'POST',
         headers: {
@@ -562,6 +564,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                 }
             }
         })
+        .then(() => true)
         .catch(error => {
 
             console.log(error)
@@ -574,7 +577,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
             dispatch({
                 type: methods.RECITER_CANCEL_FETCHING
             })
-
+            return false
         })
 
     //update adminFeedbackLog table
@@ -629,6 +632,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
     }
 
 
+    return goldStandardWritten
 }
 
 export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
