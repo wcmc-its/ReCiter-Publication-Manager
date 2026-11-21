@@ -8,6 +8,7 @@ import { reciterConfig } from "../../../../config/local";
 import { getCapabilities } from "../../../utils/constants";
 import { parseJsonColumn, viewAsActive, effectiveToken, viewAsSummary, nowSeconds } from "../../../utils/viewAs";
 import { resolveViewAsTarget } from "../../../utils/viewAsServer";
+import { canonicalCwid } from "../../../utils/canonicalCwid";
 
 /*const authHandler = async (req, res) => {
     console.log('NextAuth handler called - Method:', req.method, 'URL:', req.url);
@@ -40,6 +41,8 @@ export const authOptions = {
           credentials.firstName,
           credentials.lastName
         );
+        // null = the username is not a CWID even after canonicalizing: deny cleanly.
+        if (!adminUser) return null;
 
         const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
         const userRoles = await findUserPermissions(
@@ -163,7 +166,9 @@ export const authOptions = {
 
       if (user) {
         token.user = user;
-        token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;
+        // Canonical CWID (trimmed, lowercase): an admin_users row still keyed `Abl9002` must not
+        // put the mixed case into every write this session makes. The email fallback is left as is.
+        token.username = canonicalCwid(user.databaseUser?.personIdentifier || user.personIdentifier) || user.email;
         token.email = user.email || '';
         token.databaseUser = user.databaseUser || null;
         token.userRoles = user.userRoles || [];
@@ -217,14 +222,14 @@ export const authOptions = {
             delete token.viewAs;
           }
         } else {
-          const cwid = typeof session.viewAs === 'string' ? session.viewAs.trim() : '';
+          const cwid = canonicalCwid(session.viewAs);
           const realRoles = parseJsonColumn(token.userRoles) || [];
           const canStart = getCapabilities(realRoles).canManageUsers === true;
 
           let refuseReason = null;
           if (!cwid || cwid.length > 64) refuseReason = 'invalid_cwid';
           else if (!canStart) refuseReason = 'not_superuser';
-          else if (cwid === (token.actor?.personIdentifier || token.username)) refuseReason = 'self';
+          else if (cwid === canonicalCwid(token.actor?.personIdentifier || token.username)) refuseReason = 'self';
 
           if (refuseReason) {
             console.warn(JSON.stringify({ event: 'view_as_refused', actor: token.actor?.personIdentifier, target: cwid, reason: refuseReason }));
@@ -234,7 +239,7 @@ export const authOptions = {
               console.warn(JSON.stringify({ event: 'view_as_refused', actor: token.actor?.personIdentifier, target: cwid, reason: result.reason }));
             } else {
               token.viewAs = {
-                targetCwid: result.target.personIdentifier,
+                targetCwid: canonicalCwid(result.target.personIdentifier),
                 startedAt: nowSeconds(),
                 name: result.target.name,
                 databaseUser: result.target.databaseUser,

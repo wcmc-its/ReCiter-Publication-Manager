@@ -19,6 +19,7 @@ import { reportError } from "../../../utils/reportError";
 import { stripHtml } from "../../../utils/htmlText";
 import { degreeLines } from "../../../utils/degreeLines";
 import { AUTHOR_ID_TYPES, AUTHOR_ID_TYPE_LABEL, AuthorIdRow, authorIdUrl } from "../../../utils/authorIds";
+import { canonicalCwid, sameCwid } from "../../../utils/canonicalCwid";
 
 // Title/journal fields can carry PubMed inline markup (<i>, <sub>, …); strip to
 // plain text for spreadsheet cells, which can't render HTML.
@@ -323,8 +324,8 @@ const Profile = ({
   const scopeData = safeParse((session?.data as any)?.scopeData, null);
   const proxyPersonIds = safeParse((session?.data as any)?.proxyPersonIds, []);
   const canCurateThisPerson = caps.canCurate.all || caps.canCurate.scoped || hasConfiguredScope(scopeData)
-    || isProxyFor(proxyPersonIds, uid)
-    || (caps.canCurate.self && uid === caps.canCurate.personIdentifier);
+    || (!!canonicalCwid(uid) && Array.isArray(proxyPersonIds) && isProxyFor(proxyPersonIds.map(canonicalCwid), canonicalCwid(uid)))
+    || (caps.canCurate.self && sameCwid(uid, caps.canCurate.personIdentifier));
   // Opened from that person's own Curate page, the button just closes the sheet.
   const onThisCuratePage = router.pathname === '/curate/[id]' && router.query.id === uid;
 

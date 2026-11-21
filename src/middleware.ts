@@ -3,6 +3,7 @@ import { allowedPermissions } from './utils/constants'
 import { getToken } from "next-auth/jwt";
 import { effectiveToken } from './utils/viewAs'
 import { hasConfiguredScope } from './utils/scopeResolver'
+import { canonicalCwid, sameCwid } from './utils/canonicalCwid'
 
 
 //middleware should run for these router paths
@@ -63,7 +64,11 @@ export async function middleware(request: NextRequest) {
           let userRoles = allUserRoles && allUserRoles?.length > 0 && JSON.parse(allUserRoles)
           userRoles = JSON.parse(userRoles.userRoles);
           if (userRoles && userRoles.length > 0) {
-            let loggedInUserInfo = userRoles[0].personIdentifier;
+            // Role rows carry admin_users.personIdentifier as stored (possibly `Abl9002`), while
+            // token.username and the Header's /notifications|/manageprofile links are canonical.
+            // Canonicalize so the self-redirects below agree with them instead of bouncing
+            // /notifications/abl9002 to /notifications/Abl9002.
+            let loggedInUserInfo = canonicalCwid(userRoles[0].personIdentifier);
             let isCuratorSelf = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_Self)
             let isSuperUser = userRoles.some((role) => role.roleLabel === allowedPermissions.Superuser)
             let isCuratorAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_All)
@@ -78,7 +83,7 @@ export async function middleware(request: NextRequest) {
               if (Array.isArray(parsed)) proxyPersonIds = parsed;
             } catch (e) { /* malformed token field -> no proxy allowance */ }
             const curateTarget = pathName.startsWith('/curate/') ? decodeURIComponent(pathName.split('/')[2] || '') : '';
-            const isProxiedTarget = curateTarget.length > 0 && proxyPersonIds.includes(curateTarget);
+            const isProxiedTarget = curateTarget.length > 0 && proxyPersonIds.some((pid) => sameCwid(pid, curateTarget));
             // A configured Curator_Scoped scope (admin_users.scope_person_types/scope_org_units)
             // is self-sufficient the same way a proxy grant is, above -- and got the same gap:
             // canCurate.ts and Search.js were both updated to let a non-empty scope through

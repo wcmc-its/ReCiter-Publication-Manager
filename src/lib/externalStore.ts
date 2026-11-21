@@ -20,6 +20,7 @@ import {
 import { checkExternalDup, conflictBody, orderedPair, type DupContext, type DupResult } from './externalDupCheck'
 import { recordFromInput, apiRecordOf, rejectionKeysOf, ShapeError, normDoi } from './externalRecordShape'
 import { isPubType, PUB_ROLES } from './pubTypes'
+import { canonicalCwid, parseCwid } from '../utils/canonicalCwid'
 
 export type ExternalStoreMode = 'reciter' | 'mysql'
 
@@ -216,8 +217,10 @@ export type CreateResult =
 // Add publication, manual entry, Authorships accept/assign: duplicate check, then the row and its
 // ADD event in one transaction. A work whose own row was REJECTED/REMOVED is revived ("Add anyway").
 export async function createRecord(o: CreateOptions): Promise<CreateResult> {
-  const uid = String(o.uid || '').trim()
-  if (!uid) throw new StoreError(400, 'uid is required')
+  // Converted on the way in (trim, lowercase): external records are keyed by uid.
+  if (!String(o.uid ?? '').trim()) throw new StoreError(400, 'uid is required')
+  const uid = parseCwid(o.uid)
+  if (!uid) throw new StoreError(400, `Not a valid uid: ${JSON.stringify(o.uid)}`)
   let record: Record<string, any>
   try {
     record = recordFromInput({ ...o.body, provenance: o.provenance ?? o.body?.provenance })
@@ -524,7 +527,10 @@ export async function editRecord(r: { id: number; patch: any; actor: Actor; canC
 
 // "Different papers" verdicts (3e)
 
-export async function addDupVerdict(v: { uid: string; a: string; b: string; scopeCwid?: string | null; actor: Actor; transaction?: Transaction }) {
+export async function addDupVerdict(raw: { uid: string; a: string; b: string; scopeCwid?: string | null; actor: Actor; transaction?: Transaction }) {
+  const uid = parseCwid(raw.uid)
+  if (!uid) throw new StoreError(400, `Not a valid uid: ${JSON.stringify(raw.uid)}`)
+  const v = { ...raw, uid, scopeCwid: raw.scopeCwid ? canonicalCwid(raw.scopeCwid) : null }
   const [key_a, key_b] = orderedPair(v.a, v.b)
   await models.ExternalDupVerdict.bulkCreate(
     [{ uid: v.uid, key_a, key_b, verdict: 'DIFFERENT', scope_cwid: v.scopeCwid ?? null, decided_by: actorId(v.actor), decided_at: new Date() }],
@@ -533,7 +539,8 @@ export async function addDupVerdict(v: { uid: string; a: string; b: string; scop
   return { uid: v.uid, keyA: key_a, keyB: key_b, scopeCwid: v.scopeCwid ?? null }
 }
 
-export async function removeDupVerdict(v: { uid: string; a: string; b: string; scopeCwid?: string | null; transaction?: Transaction }) {
+export async function removeDupVerdict(raw: { uid: string; a: string; b: string; scopeCwid?: string | null; transaction?: Transaction }) {
+  const v = { ...raw, uid: canonicalCwid(raw.uid), scopeCwid: raw.scopeCwid ? canonicalCwid(raw.scopeCwid) : null }
   const [key_a, key_b] = orderedPair(v.a, v.b)
   return models.ExternalDupVerdict.destroy({ where: { uid: v.uid, key_a, key_b, scope_cwid: v.scopeCwid ?? null }, transaction: v.transaction })
 }

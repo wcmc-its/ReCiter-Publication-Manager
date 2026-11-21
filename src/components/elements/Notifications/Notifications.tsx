@@ -12,6 +12,7 @@ import { reciterConfig } from "../../../../config/local";
 import { allowedPermissions } from "../../../utils/constants";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
+import { sameCwid } from "../../../utils/canonicalCwid";
 
 
 const Notifications = () => {
@@ -49,7 +50,8 @@ const Notifications = () => {
     let curatorAllfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All);
     let superUserRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser);
 
-    if(router.query.userId === session.data.username ){
+    // token.username is canonical; the route can carry the admin_users row's stored case.
+    if (sameCwid(router.query.userId, session.data.username)) {
       if (!curatorSelfRole) {
         if (superUserRole || curatorAllfRole) {
           SetIsSuperUserORCuratorAll(true)

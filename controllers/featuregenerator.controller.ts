@@ -4,16 +4,23 @@ import httpBuildQuery from 'http-build-query'
 import url from 'url'
 import { deleteUserFeedback, findUserFeedback } from './userfeedback.controller'
 import { attachArticleProvenance } from '../src/lib/articleProvenance'
+import { cwidParam } from '../src/utils/canonicalCwid'
 
-export async function getPublications(uid: string | string[], req: NextApiRequest)  {
+export async function getPublications(rawUid: string | string[], req: NextApiRequest)  {
+    // A feature-generator run WRITES ReCiter's Analysis under this exact key, so convert the
+    // uid on the way in (trim, lowercase): /curate/Abl9002 must run abl9002, not mint Abl9002.
+    const uid = cwidParam(rawUid)
+    if (!uid) {
+        return { statusCode: 400, statusText: `Not a valid uid: ${JSON.stringify(rawUid)}` as any }
+    }
 
-    let uri = `${reciterConfig.reciter.featureGenerator.featureGeneratorEndpoint}` +'?uid=' + uid + '&' + `${httpBuildQuery(reciterConfig.reciter.featureGenerator.featutreGeneratorApiParams)}`
+    let uri = `${reciterConfig.reciter.featureGenerator.featureGeneratorEndpoint}` +'?uid=' + encodeURIComponent(uid) + '&' + `${httpBuildQuery(reciterConfig.reciter.featureGenerator.featutreGeneratorApiParams)}`
     const {
         query: { analysisRefreshFlag, retrievalRefreshFlag }
       } = req;
 
     if(analysisRefreshFlag && retrievalRefreshFlag) {
-        uri = `${reciterConfig.reciter.featureGenerator.featureGeneratorEndpoint}`+ '?uid=' + uid + '&analysisRefreshFlag=' + analysisRefreshFlag + '&retrievalRefreshFlag=' + retrievalRefreshFlag
+        uri = `${reciterConfig.reciter.featureGenerator.featureGeneratorEndpoint}`+ '?uid=' + encodeURIComponent(uid) + '&analysisRefreshFlag=' + analysisRefreshFlag + '&retrievalRefreshFlag=' + retrievalRefreshFlag
             clearPendingFeedback(uid)
     }
     

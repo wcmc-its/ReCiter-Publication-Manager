@@ -12,7 +12,8 @@ import {
   externalStoreMode, createRecord, transitionRecords, recordsByArticleIds, reconcileSupersedeAfterGoldStandard,
 } from "../../src/lib/externalStore";
 import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldStandardRejections";
-import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
+import { assignGate, canonicalCwid, homonymRejections, toCanonicalCwid } from "../../src/lib/assignGate";
+import { parseCwid } from "../../src/utils/canonicalCwid";
 import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
 import { externalSourceLabel, isExternalSource, openalexWorkId } from "../../src/lib/externalSource";
@@ -2550,8 +2551,15 @@ async function resolveCurator(req: NextApiRequest): Promise<{ userID?: number; c
 // Gold-standard MERGE/DELETE via the ReCiter Java endpoint (pubmed rows only), tagged with
 // the AAR source and the curator's numeric userID. Returns the upstream HTTP status.
 async function writeGoldStandard(
-  uid: string, pmid: number, kind: "known" | "rejected", flag: "UPDATE" | "DELETE", curatedBy?: number,
+  rawUid: string, pmid: number, kind: "known" | "rejected", flag: "UPDATE" | "DELETE", curatedBy?: number,
 ): Promise<number> {
+  // Convert on the way in: GoldStandard is keyed by the exact string, and reject-others used
+  // to re-create `Abl9002`-style keys from candidate lists. Not an identifier -> no write (400).
+  const uid = parseCwid(rawUid);
+  if (!uid) {
+    console.log(`[authorships] gold-standard write skipped for non-CWID uid ${JSON.stringify(rawUid)}`);
+    return 400;
+  }
   const body: any = { uid };
   if (kind === "known") body.knownPmids = [pmid]; else body.rejectedPmids = [pmid];
   const curatedByQ = curatedBy != null ? `&curatedBy=${curatedBy}` : "";
@@ -2596,7 +2604,13 @@ async function writeGoldStandard(
 // Returns the upstream status; the caller aborts on anything but 200 rather than proceeding to
 // a gold-standard write against an identity that may not exist. Note ReCiter answers a failed
 // mandatory-field validation with 500 and a plain-text body, not a 4xx.
-async function mintIdentity(identity: Record<string, any>): Promise<number> {
+async function mintIdentity(rawIdentity: Record<string, any>): Promise<number> {
+  const uid = parseCwid(rawIdentity?.uid);
+  if (!uid) {
+    console.log(`[authorships] mint identity skipped for non-CWID uid ${JSON.stringify(rawIdentity?.uid)}`);
+    return 400;
+  }
+  const identity = { ...rawIdentity, uid };
   try {
     const resp = await fetch(`${reciterConfig.reciter.reciterApiBaseUrl}/reciter/identity/`, {
       method: "POST",
@@ -2641,7 +2655,9 @@ async function mintIdentity(identity: Record<string, any>): Promise<number> {
 // request here would leave the curator staring at a 502 for an assign that actually succeeded.
 // The source table has no unique constraint (see the ad-hoc runbook), hence the explicit
 // existence check rather than an upsert.
-async function registerForFeatureGenerator(uid: string) {
+async function registerForFeatureGenerator(rawUid: string) {
+  const uid = parseCwid(rawUid);
+  if (!uid) { console.log(`[authorships] ad-hoc enrolment skipped for non-CWID uid ${JSON.stringify(rawUid)}`); return; }
   const existing: any[] = await sequelize.query(
     "SELECT personIdentifier FROM reporting_ad_hoc_feature_generator_execution WHERE personIdentifier = :uid LIMIT 1",
     { replacements: { uid }, type: QueryTypes.SELECT });
@@ -2653,7 +2669,9 @@ async function registerForFeatureGenerator(uid: string) {
 }
 
 // Append an AdminFeedbackLog row (pubmed accept/reject/assign only — PMID-keyed).
-async function appendFeedbackLog(userID: number, personIdentifier: string, pmid: number, feedback: "ACCEPTED" | "REJECTED") {
+async function appendFeedbackLog(userID: number, rawPersonIdentifier: string, pmid: number, feedback: "ACCEPTED" | "REJECTED") {
+  const personIdentifier = parseCwid(rawPersonIdentifier);
+  if (!personIdentifier) throw new Error(`not a CWID: ${JSON.stringify(rawPersonIdentifier)}`);
   const active: any = await models.AdminUser.findOne({ where: { userID, status: 1 }, attributes: ["userID"] });
   if (!active) throw new Error(`userID ${userID} is not an active AdminUser`);
   await models.AdminFeedbackLog.create({
@@ -2819,7 +2837,9 @@ function candidateCwidsFromRow(row: any): string[] {
   const list = Array.isArray(parsed)
     ? parsed.map((c: any) => (typeof c === "string" ? c : c?.cwid)).filter(Boolean).map(String)
     : [];
-  return Array.from(new Set([row.top_cwid, ...list].filter(Boolean).map(String)));
+  // Canonical, like `target`: a candidate list carrying `Abl9002` must neither escape the
+  // `c !== target` comparison nor drive a reject-others write under the mixed-case key.
+  return Array.from(new Set([row.top_cwid, ...list].filter(Boolean).map((c) => toCanonicalCwid(String(c))).filter(Boolean)));
 }
 
 // The live half of homonymRejections(): which of this row's non-chosen candidates may be
@@ -2884,7 +2904,9 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
 
     const isExternal = isExternalSource(row);
     const pmid = row.pmid != null ? Number(row.pmid) : null;
-    const cwid = row.top_cwid as string | undefined;
+    // Canonical, like every write below it: a producer-baked `Abl9002` must hit the same
+    // identity / retired checks and resolution_cwid as the gold-standard write, or it orphans.
+    const cwid = row.top_cwid ? toCanonicalCwid(String(row.top_cwid)) : undefined;
     const reviewer = curator.cwid || String(curator.userID);
     const force = String(body.force) === "true";
 
@@ -3028,8 +3050,8 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // confirming filed the authorship as a local-only record that never reaches their
         // publication list. Asking for the typed form and its lowercase together costs one extra
         // key in the same BatchGetItem, and nothing at all when the cwid is already lowercase
-        // (reciterIdentitySet dedupes). See canonicalCwid for why an exact hit beats the
-        // lowercased one rather than the other way round.
+        // (reciterIdentitySet dedupes). See canonicalCwid for why the canonical form always
+        // wins now, even over a byte-exact mixed-case hit (2026-11-18 cwid normalization).
         const found = await reciterIdentitySet([chosen, chosen.toLowerCase()]);
         let target = canonicalCwid(chosen, found);
         let hasIdentity = found.has(target);
@@ -3064,14 +3086,16 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           // since 2026-09-20). bridgedFrom is what lets the off-candidate message explain the
           // substitution.
           if (dir?.wcmCwid) {
-            const bridge = await reciterIdentitySet([dir.wcmCwid]);
+            // ED / Cornell can publish the cwid in any case; ReCiter keys it canonical.
+            const wcmCwid = toCanonicalCwid(dir.wcmCwid);
+            const bridge = await reciterIdentitySet([wcmCwid]);
             bridgedFrom = target;
-            target = dir.wcmCwid;
-            if (bridge.has(dir.wcmCwid)) {
+            target = wcmCwid;
+            if (bridge.has(wcmCwid)) {
               hasIdentity = true;
               dir = null; // they already exist; there is nothing to mint
             } else {
-              dir = { ...dir, id: dir.wcmCwid }; // mint under the cwid, not the netid
+              dir = { ...dir, id: wcmCwid }; // mint under the cwid, not the netid
             }
           }
         }
