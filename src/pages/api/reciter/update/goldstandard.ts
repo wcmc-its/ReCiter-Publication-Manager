@@ -5,6 +5,7 @@ import { canCurate } from "../../../../../controllers/db/authorization.controlle
 import { reciterConfig } from '../../../../../config/local'
 import { effectiveToken } from '../../../../../src/utils/viewAs'
 import { reconcileSupersedeAfterGoldStandard } from '../../../../../src/lib/externalStore'
+import { parseCwid } from '../../../../../src/utils/canonicalCwid'
 
 type Error = {
     statusCode: number,
@@ -41,7 +42,14 @@ export default async function handler(
         // own server code -- it says nothing about which curator is behind it or who they're
         // allowed to curate. Enforce that here. Was previously enforced nowhere: Curator_Self
         // and Curator_All were exactly as unchecked as Curator_Scoped is without this. See PM#849.
-        const targetUid = req.body?.uid
+        // Convert the uid on the way in: ReCiter keys GoldStandard by the exact string, so
+        // `Abl9002` or `ggi9001 ` would open a second record beside the real person's.
+        const targetUid = parseCwid(req.body?.uid)
+        if (!targetUid) {
+            res.status(400).send({ statusCode: 400, message: `Not a valid uid: ${JSON.stringify(req.body?.uid)}` })
+            return
+        }
+        req.body.uid = targetUid
         const allowed = await canCurate(effectiveToken(token), targetUid)
         if (!allowed) {
             res.status(403).send({

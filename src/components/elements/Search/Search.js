@@ -17,6 +17,7 @@ import Profile from "../Profile/Profile";
 import ProxyBadge from './ProxyBadge';
 import ScopeFilterCheckbox from './ScopeFilterCheckbox';
 import { hasConfiguredScope, isProxyFor, rowInScopeCanCurate, withoutScopeKeys } from '../../../utils/scopeResolver';
+import { canonicalCwid, sameCwid } from '../../../utils/canonicalCwid';
 import { searchTokens, newSearchRequest, matchedPersonIds, reportHandoffCapped, REPORT_HANDOFF_CAP, peopleRowActions, pendingCell, personDisplayName, cwidListNotFound, peopleEmptyState } from '../../../utils/searchRequest';
 import RowActions from './RowActions';
 import { Button as UiButton, Switch } from '../../ui';
@@ -583,6 +584,12 @@ const Search = () => {
   // the per-row `inScope` flag decides instead: /api/db/users computes it from the session's own
   // scope, the same rule canCurate applies, and sends it only to scoped viewers. Without it a
   // scoped curator who unchecked "only people I can curate" was offered Curate on everyone.
+  // Canonical on both sides (as canCurate does server-side): a grant or role row stored as
+  // `Abl9002` still names abl9002.
+  const isProxyForPerson = (pid) => {
+    const c = canonicalCwid(pid);
+    return c !== '' && Array.isArray(proxyPersonIds) && isProxyFor(proxyPersonIds.map(canonicalCwid), c);
+  };
   const canCuratePerson = (identity) => {
     if (isSuperUser) return true;
     const pid = identity?.personIdentifier;
@@ -590,11 +597,11 @@ const Search = () => {
     // for it: treat every row as out of scope (proxy and own row still allowed).
     const inScope = identity?.inScope ?? (showScopeFilter && !hasScope ? 0 : null);
     if (identity && inScope !== null) {
-      return rowInScopeCanCurate(inScope,isProxyFor(proxyPersonIds, pid), caps.canCurate.self && pid === loggedInPersonIdentifier);
+      return rowInScopeCanCurate(inScope,isProxyForPerson(pid), caps.canCurate.self && sameCwid(pid, loggedInPersonIdentifier));
     }
     if (isCuratorAll) return true;
-    if (isProxyFor(proxyPersonIds, pid)) return true;
-    if (isCuratorSelf) return pid === loggedInPersonIdentifier;
+    if (isProxyForPerson(pid)) return true;
+    if (isCuratorSelf) return sameCwid(pid, loggedInPersonIdentifier);
     return false;
   };			 
   // Note: an earlier RoleSplitDropdown() helper duplicated this same role-branching logic to
@@ -640,7 +647,7 @@ const Search = () => {
       return <tr key={identity.personIdentifier || identityIndex} className={openName ? styles.rowClickable : undefined} onClick={onRowClick}>
         <td className={styles.colName}>
           <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={openName}
-            cornellOnly={cornellOnly} isProxy={!cornellOnly && isProxyFor(proxyPersonIds, identity.personIdentifier)} />
+            cornellOnly={cornellOnly} isProxy={!cornellOnly && isProxyForPerson(identity.personIdentifier)} />
         </td>
         <td className={styles.colOrg}>
           {identity.primaryOrganizationalUnit}

@@ -137,7 +137,7 @@ assert(/trigger\s*===\s*'update'/.test(nextauthSrc), "trigger === 'update' check
 assert(/Object\.prototype\.hasOwnProperty\.call\(session,\s*'viewAs'\)/.test(nextauthSrc), "hasOwnProperty.call(session, 'viewAs') guard");
 assert(/session\.viewAs\s*===\s*null/.test(nextauthSrc), "session.viewAs === null (stop) branch");
 assert(/getCapabilities\(realRoles\)\.canManageUsers\s*===\s*true/.test(nextauthSrc), "canManageUsers gate on the REAL token's roles");
-assert(/cwid\s*===\s*\(token\.actor\?\.personIdentifier \|\| token\.username\)/.test(nextauthSrc), "self-target refused (cwid === actor personIdentifier, falling back to token.username for pre-deploy sessions)");
+assert(/cwid\s*===\s*canonicalCwid\(token\.actor\?\.personIdentifier \|\| token\.username\)/.test(nextauthSrc), "self-target refused (cwid === canonical actor personIdentifier, falling back to token.username for pre-deploy sessions)");
 assert(/resolveViewAsTarget\(cwid\)/.test(nextauthSrc), "resolveViewAsTarget(cwid) called");
 assert(/view_as_started/.test(nextauthSrc) && /view_as_ended/.test(nextauthSrc) && /view_as_refused/.test(nextauthSrc), "all three log events present (view_as_started/ended/refused)");
 assert(/const eff\s*=\s*effectiveToken\(token\)/.test(nextauthSrc), "session() calls effectiveToken(token)");
@@ -178,7 +178,7 @@ assert(/canCurate\(effectiveToken\(token\)/.test(userfeedbackSrc), "userfeedback
 console.log("\n6. admin.feedbacklog.controller.ts -- server-resolved actor:");
 assert(/import\s*\{\s*getToken\s*\}\s*from\s*['"]next-auth\/jwt['"]/.test(feedbacklogSrc), "getToken imported from next-auth/jwt");
 assert(!/const\s*\{\s*userID,\s*personIdentifier,\s*articleIdentifier,\s*feedback\s*\}\s*=\s*req\.body/.test(feedbacklogSrc), "req.body destructure no longer includes userID");
-assert(/const\s*\{\s*personIdentifier,\s*articleIdentifier,\s*feedback\s*\}\s*=\s*req\.body/.test(feedbacklogSrc), "req.body destructure now reads only personIdentifier/articleIdentifier/feedback");
+assert(/const\s*\{\s*articleIdentifier,\s*feedback\s*\}\s*=\s*req\.body/.test(feedbacklogSrc) && /const personIdentifier = parseCwid\(req\.body\?\.personIdentifier\)/.test(feedbacklogSrc), "req.body read is only personIdentifier (canonicalized)/articleIdentifier/feedback");
 assert(/Number\(token\?\.databaseUser\?\.userID\)/.test(feedbacklogSrc), "userID resolved from the JWT (Number(token?.databaseUser?.userID))");
 assert(/Not signed in/.test(feedbacklogSrc), "401 'Not signed in' on a missing/invalid token");
 assert(/status:\s*1/.test(feedbacklogSrc), "existing status: 1 DB check kept");

@@ -10,6 +10,7 @@ import { reportError } from "../../../utils/reportError";
 import { allowedPermissions } from "../../../utils/constants";
 import Loader from "../Common/Loader";
 import AuthorIdsCard from "./AuthorIdsCard";
+import { sameCwid } from "../../../utils/canonicalCwid";
 
 const ManageProfle = () => {
     const dispatch = useDispatch()
@@ -36,7 +37,7 @@ const ManageProfle = () => {
         let curatorAllfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All);
         let superUserRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser);
 
-        if (router.query.userId === session.data.username) {
+        if (sameCwid(router.query.userId, session.data.username)) {
             if (!curatorSelfRole) {
                 if (superUserRole || curatorAllfRole) {
                     SetIsSuperUserORCuratorAll(true)

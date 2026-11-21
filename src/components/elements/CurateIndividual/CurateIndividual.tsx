@@ -22,6 +22,7 @@ import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import GrantProxyModal from "./GrantProxyModal";
 import { AddDeepLink, ADD_DEEP_LINK_PARAMS, parseAddDeepLink } from "../../../utils/externalAddSearch";
+import { canonicalCwid } from "../../../utils/canonicalCwid";
 
 
 
@@ -38,7 +39,10 @@ const KW_COLLAPSED_MAX = 6;
 
 const CurateIndividual = () => {
   const router = useRouter()
-  const { id } = router.query;
+  // Canonical uid (trimmed, lowercase) before any lookup or write: /curate/Abl9002 and
+  // /curate/abl9002 are one person, and every fetch below keys ReCiter by this exact string.
+  const rawId = router.query.id;
+  const id = canonicalCwid(Array.isArray(rawId) ? rawId[0] : rawId) || undefined;
   const [newId, setNewId] = useState<any>();
   const dispatch = useDispatch();
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)

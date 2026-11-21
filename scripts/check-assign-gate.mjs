@@ -96,14 +96,17 @@ check("mis-cased cwid resolves to the stored lowercase identity",
   canonicalCwid("Aaa2014", ddb("aaa2014")), "aaa2014");
 check("an already-lowercase cwid is left exactly alone",
   canonicalCwid("aaa2014", ddb("aaa2014")), "aaa2014");
-check("unknown in either case: nothing to canonicalize, keep what was typed",
-  canonicalCwid("Zzz9999", ddb()), "Zzz9999");
-// 13 of the 35,052 DynamoDB uids have a lowercase twin that is a SEPARATE Identity row, and
-// the mixed-case one is frequently the live one ('DLAMB' 131 person_article rows, 'dlamb' 0).
-// 'Kym9003' and 'kym9003' are two different people. Lowercasing unconditionally would file
-// the authorship under the wrong record; a byte-exact hit therefore wins.
-check("byte-exact hit beats the lowercase twin when BOTH exist",
-  canonicalCwid("DLAMB", ddb("DLAMB", "dlamb")), "DLAMB");
+check("unknown in either case: the canonical form, never the typed case",
+  canonicalCwid("Zzz9999", ddb()), "zzz9999");
+check("surrounding whitespace is trimmed",
+  canonicalCwid(" aaa2014 ", ddb("aaa2014")), "aaa2014");
+// 2026-11-18 cwid normalization: the mixed-case twins were merged into their canonical uid
+// and every write converts on the way in, so the canonical form now wins even over a
+// byte-exact mixed-case hit (it used to be the other way round).
+check("canonical form beats a byte-exact mixed-case twin when BOTH exist",
+  canonicalCwid("DLAMB", ddb("DLAMB", "dlamb")), "dlamb");
+check("a mixed-case record the cleanup missed is not written to (canonical, no identity)",
+  canonicalCwid("DLAMB", ddb("DLAMB")), "dlamb");
 check("...and the lowercase form of a colliding pair still resolves to itself",
   canonicalCwid("dlamb", ddb("DLAMB", "dlamb")), "dlamb");
 

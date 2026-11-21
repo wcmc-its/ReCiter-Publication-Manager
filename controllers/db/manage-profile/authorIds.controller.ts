@@ -3,6 +3,7 @@ import sequelize from "../../../src/db/db";
 import {
     AuthorIdAction, AuthorIdRow, AuthorIdType, parseEvidence, planAuthorIdAction, sortAuthorIds,
 } from "../../../src/utils/authorIds";
+import { canonicalCwid, parseCwid } from "../../../src/utils/canonicalCwid";
 
 // reciterdb.person_author_id arrives with ReCiterDB DDL v3.8. Until it is applied to a given
 // reciterdb, reads report the feature as unavailable (the card hides) and writes return 503.
@@ -38,7 +39,7 @@ const toRow = (r: any): AuthorIdRow => {
 
 export const listAuthorIds = async (uid: string): Promise<{ available: boolean, ids: AuthorIdRow[] }> => {
     try {
-        const rows = await models.PersonAuthorId.findAll({ where: { uid: uid.toLowerCase() }, raw: true })
+        const rows = await models.PersonAuthorId.findAll({ where: { uid: canonicalCwid(uid) }, raw: true })
         return { available: true, ids: sortAuthorIds(rows.map(toRow)) }
     } catch (e) {
         if (isMissingTable(e)) return { available: false, ids: [] }
@@ -55,15 +56,17 @@ export type AuthorIdWriteResult =
 export const applyAuthorIdAction = async (
     uid: string, actor: string, action: AuthorIdAction, idType: AuthorIdType, idValue: string,
 ): Promise<AuthorIdWriteResult> => {
-    const person = uid.toLowerCase()
+    // Converted on the way in (trim, then lowercase -- external cohort ids keep their case).
+    const person = parseCwid(uid)
+    if (!person) return { http: 400, message: `Not a valid uid: ${JSON.stringify(uid)}` }
     const attempt = () => sequelize.transaction(async (transaction): Promise<AuthorIdWriteResult> => {
         const holders: any[] = await models.PersonAuthorId.findAll({
             where: { id_type: idType, id_value: idValue },
             lock: transaction.LOCK.UPDATE, transaction, raw: true,
         })
-        const mine = holders.find((h) => String(h.uid).toLowerCase() === person) || null
+        const mine = holders.find((h) => canonicalCwid(h.uid) === person) || null
         const existing = mine ? toRow(mine) : null
-        const confirmedBy = holders.find((h) => String(h.uid).toLowerCase() !== person && h.status === 'CONFIRMED')?.uid || null
+        const confirmedBy = holders.find((h) => canonicalCwid(h.uid) !== person && h.status === 'CONFIRMED')?.uid || null
         const plan = planAuthorIdAction(action, existing, confirmedBy)
         const now = new Date()
 
@@ -76,7 +79,7 @@ export const applyAuthorIdAction = async (
         const decided = plan.decided ? { decided_by: actor, decided_at: now } : { decided_by: null, decided_at: null }
         if (plan.kind === 'insert') {
             // Informational, like the nightly's: another uid holding it as SUGGESTED.
-            const suggestedFor = holders.find((h) => String(h.uid).toLowerCase() !== person && h.status === 'SUGGESTED')?.uid || null
+            const suggestedFor = holders.find((h) => canonicalCwid(h.uid) !== person && h.status === 'SUGGESTED')?.uid || null
             await models.PersonAuthorId.create({
                 uid: person, id_type: idType, id_value: idValue, status: plan.status, method: plan.method,
                 votes: 0, resolvable: 0, share: null, evidence_json: null, conflict_uid: suggestedFor,

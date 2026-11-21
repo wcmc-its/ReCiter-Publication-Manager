@@ -4,6 +4,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
 import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
+import { parseCwid } from "../../../src/utils/canonicalCwid";
+import { findExistingAdminUser } from "../admin.users.controller";
 models.AdminUser.hasMany(models.AdminUsersDepartment, {as:'AdminUserDept', constraints: false,foreignKey:"userID" });
 models.AdminUser.hasOne(models.Person, {as:'person', constraints: false,foreignKey:"personIdentifier" });
 models.AdminUser.hasMany(models.AdminDepartment, {as:'AdminDepartment', constraints: false,foreignKey:"departmentID" });
@@ -324,10 +326,25 @@ export const createOrUpdateAdminUser = async (
       }
     } 
     else {
+      // Convert the CWID on the way in (trim, lowercase) so a new account is never keyed
+      // `Abl9002` or `ggi9001 `; anything still not an identifier is refused.
+      const canonical = parseCwid(cwid);
+      if (!canonical) {
+        res.status(400).send({ message: `Not a valid CWID: ${JSON.stringify(cwid)}` });
+        return;
+      }
+
+      // One account per person: never insert a second admin_users row for a CWID (or email)
+      // that already has one -- the same lookup a login uses. Edit that row instead.
+      const existingUser = await findExistingAdminUser(canonical, email || undefined);
+      if (existingUser) {
+        res.status(409).send({ message: `An account already exists for ${canonical} (userID ${existingUser.userID})`, userID: existingUser.userID });
+        return;
+      }
 
       //Create admin user Payload
       let createUserPayload = {
-        'personIdentifier': cwid,
+        'personIdentifier': canonical,
         'nameFirst': firstName,
         'nameMiddle': middleName,
         'nameLast': lastName,
