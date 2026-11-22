@@ -66,7 +66,8 @@ export const findExistingAdminUser = async (uid: string | undefined, email: stri
         if (byCwid) return byCwid
     }
     if (email) {
-        const byEmail = await models.AdminUser.findOne({ where: { email }, order: [['userID', 'ASC']] })
+        // Never a Cornell NetID account (`netid@cornell.edu`), whatever its email says.
+        const byEmail = await models.AdminUser.findOne({ where: { email, personIdentifier: { [Op.notLike]: '%@%' } }, order: [['userID', 'ASC']] })
         if (byEmail) return byEmail
     }
     return null
@@ -143,7 +144,10 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
 export const provisionPartnerAdminUser = async (key: string, email?: string, firstName?: string, lastName?: string) => {
     const netid = netidFromPartnerKey(key)
     if (!netid) return null
-    const typeRows: any[] = await models.PersonPersonType.findAll({ where: { personIdentifier: netid }, attributes: ['personType'], raw: true })
+    const person: any = await models.Person.findOne({ where: { personIdentifier: netid }, attributes: ['personIdentifier'], raw: true })
+    const typeRows: any[] = person
+        ? await models.PersonPersonType.findAll({ where: { personIdentifier: netid }, attributes: ['personType'], raw: true })
+        : []
     const existingRow: any = await models.AdminUser.findOne({ where: { personIdentifier: key }, order: [['userID', 'ASC']] })
     const existing = existingRow ? existingRow.get({ plain: true }) : null
     const decision = decidePartnerLogin(key, typeRows.map((r) => r.personType), existing)
@@ -157,7 +161,9 @@ export const provisionPartnerAdminUser = async (key: string, email?: string, fir
             personIdentifier: key,
             nameFirst: firstName || null,
             nameLast: lastName || null,
-            email: email || null,
+            // No email on Cornell rows: the login and role queries both fall back to matching by
+            // email alone, and a WCM login must never land on (or take roles from) this row.
+            email: null,
             status: 1,
             proxy_person_ids: [decision.netid],
             createTimestamp: new Date(),

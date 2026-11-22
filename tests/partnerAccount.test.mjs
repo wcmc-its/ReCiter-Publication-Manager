@@ -52,3 +52,14 @@ test('reciterActor never sends a Cornell key (or its bare NetID) to ReCiter', as
     assert.equal(reciterActor(''), undefined)
     assert.equal(reciterActor(undefined), undefined)
 })
+
+test('Cornell rows stay out of the email fallbacks and settings need an admin', async () => {
+    const { readFileSync } = await import('node:fs')
+    const users = readFileSync(new URL('../controllers/db/admin.users.controller.ts', import.meta.url), 'utf8')
+    const provision = users.slice(users.indexOf('export const provisionPartnerAdminUser'))
+    assert.match(provision, /email: null,/)
+    assert.match(provision, /models\.Person\.findOne/)
+    assert.match(users, /where: \{ email, personIdentifier: \{ \[Op\.notLike\]: '%@%' \} \}/)
+    const settings = readFileSync(new URL('../src/pages/api/db/admin/settings/updateSettings/index.ts', import.meta.url), 'utf8')
+    assert.ok(settings.indexOf('isAuthorizedAdmin(req)') > 0 && settings.indexOf('isAuthorizedAdmin(req)') < settings.indexOf('await updateAdminSettings'))
+})
