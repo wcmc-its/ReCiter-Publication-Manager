@@ -1,5 +1,6 @@
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
+import { classifySamlAttributes, cornellLoginEnabled } from "../../../utils/samlIdentity"
 
 export async function validateSAML(samlResponse) {
   console.log('=== SAML VALIDATE START ===');
@@ -36,12 +37,8 @@ export async function validateSAML(samlResponse) {
       const attrs = saml_response.user?.attributes || {};
       console.log('SAML validate - Extracted attributes:', JSON.stringify(attrs, null, 2));
       
-      const samlUser = {
-        email: attrs["user.email"]?.[0] || attrs["email"]?.[0] || attrs['userPrincipalName']?.[0],
-        personIdentifier: attrs["CWID"]?.[0] || attrs["uid"]?.[0],
-        firstName: attrs["urn:oid:2.5.4.42"]?.[0] || "",
-        lastName: attrs["urn:oid:2.5.4.4"]?.[0] || "",
-      };
+      // WCM (unchanged), Cornell (full ePPN as the key) or refused -- see src/utils/samlIdentity.ts.
+      const samlUser = classifySamlAttributes(attrs, { cornellLogin: cornellLoginEnabled() });
       
       console.log('SAML validate - Final samlUser object:', JSON.stringify(samlUser, null, 2));
       console.log('=== SAML VALIDATE END ===');

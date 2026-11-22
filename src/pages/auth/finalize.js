@@ -19,6 +19,8 @@ export default function Finalize() {
 
         if (result?.error) {
         console.error("Sign in failed with error:", result.error);
+        // e.g. a Cornell NetID with no provisioned account: say so instead of a blank page.
+        router.replace('/noaccess');
         } else if (result?.ok) {
         console.log("Finalize - Sign in successful, redirecting to:", result.url);
         router.push(result.url || '/search');

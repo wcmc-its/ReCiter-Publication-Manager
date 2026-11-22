@@ -1,4 +1,4 @@
-import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from "../../controllers/db/admin.users.controller"
+import { findOrCreateAdminUsers,findOrCreateAdminUserRole,findExistingAdminUser } from "../../controllers/db/admin.users.controller"
 import {findOneAdminSettings} from '../../controllers/db/admin.settings.controller';
 import { findOnePerson } from "../../controllers/db/person.controller";
 import { findUserPermissions } from '../../services/db/userroles.service';
@@ -8,6 +8,39 @@ import jwt from 'jsonwebtoken';
 
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+// Cornell NetID logins (src/utils/samlIdentity.ts): admitted ONLY against an admin_users row an
+// administrator created under the exact key `netid@cornell.edu`. Never created on the fly, never
+// matched by email, no default roles and no Curator_Self from `person` (a NetID can equal a WCM
+// CWID there). Roles are read with the ROW's stored email, not the SAML mail: the role query also
+// matches a unique email on its own, and a Cornell mail must never pick up a WCM user's roles.
+export const findPartnerAdminUser = async (partnerKey) => {
+    if (!partnerKey || !partnerKey.includes('@')) return null
+    const row = await findExistingAdminUser(partnerKey, undefined)
+    if (!row) return null
+    const adminUser = row.get({ plain: true })
+    if (adminUser.personIdentifier?.toLowerCase() !== partnerKey) return null
+    const userRoles = await findUserPermissions(["personIdentifier", "email"], [adminUser.personIdentifier, adminUser.email || ""])
+    if (!userRoles || JSON.parse(userRoles).length === 0) return null
+    adminUser.userRoles = userRoles
+    adminUser.databaseUser = {
+        userID: adminUser.userID,
+        personIdentifier: adminUser.personIdentifier,
+        nameFirst: adminUser.nameFirst,
+        nameMiddle: adminUser.nameMiddle,
+        nameLast: adminUser.nameLast,
+        email: adminUser.email,
+        status: adminUser.status,
+        createTimestamp: adminUser.createTimestamp,
+        modifyTimestamp: adminUser.modifyTimestamp,
+        scope_person_types: adminUser.scope_person_types,
+        scope_org_units: adminUser.scope_org_units,
+        scope_institutions: adminUser.scope_institutions,
+        proxy_person_ids: adminUser.proxy_person_ids,
+    }
+    return adminUser
+}
+
 export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
