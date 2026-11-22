@@ -2,6 +2,8 @@ import models from '../../src/db/sequelize'
 import { getCapabilities } from '../../src/utils/constants'
 import { hasConfiguredScope, isPersonInScope, isProxyFor } from '../../src/utils/scopeResolver'
 import { canonicalCwid, sameCwid } from '../../src/utils/canonicalCwid'
+import { getToken } from 'next-auth/jwt'
+import { effectiveToken } from '../../src/utils/viewAs'
 
 // Minimal per-person lookup for scope checks -- org unit + institution + person types only, nothing else
 // the curate-write path needs.
@@ -83,5 +85,19 @@ export const canCurate = async (token: any, targetUid: any): Promise<boolean> =>
         return isPersonInScope(scopeData, target.orgUnit, target.personTypes, target.institution)
     }
 
+    return false
+}
+
+/**
+ * Route guard: true when the signed-in user may curate `uid`; otherwise sends 403 and returns
+ * false. For /api/db routes that act on a person named by the client (feedback log,
+ * notifications, ORCID): the backendApiKey is public and the middleware only proves a session,
+ * so without this any signed-in user -- including a self-registered Cornell NetID account --
+ * could act on anyone.
+ */
+export const refuseUnlessCanCurate = async (req: any, res: any, uid: any): Promise<boolean> => {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+    if (token && await canCurate(effectiveToken(token), uid)) return true
+    res.status(403).send({ statusCode: 403, message: "You do not have permission to curate this person's publications" })
     return false
 }

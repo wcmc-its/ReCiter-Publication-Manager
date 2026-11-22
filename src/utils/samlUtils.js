@@ -1,4 +1,4 @@
-import { findOrCreateAdminUsers,findOrCreateAdminUserRole,findExistingAdminUser } from "../../controllers/db/admin.users.controller"
+import { findOrCreateAdminUsers,findOrCreateAdminUserRole,provisionPartnerAdminUser } from "../../controllers/db/admin.users.controller"
 import {findOneAdminSettings} from '../../controllers/db/admin.settings.controller';
 import { findOnePerson } from "../../controllers/db/person.controller";
 import { findUserPermissions } from '../../services/db/userroles.service';
@@ -9,17 +9,16 @@ import jwt from 'jsonwebtoken';
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-// Cornell NetID logins (src/utils/samlIdentity.ts): admitted ONLY against an admin_users row an
-// administrator created under the exact key `netid@cornell.edu`. Never created on the fly, never
-// matched by email, no default roles and no Curator_Self from `person` (a NetID can equal a WCM
-// CWID there). Roles are read with the ROW's stored email, not the SAML mail: the role query also
-// matches a unique email on its own, and a Cornell mail must never pick up a WCM user's roles.
-export const findPartnerAdminUser = async (partnerKey) => {
-    if (!partnerKey || !partnerKey.includes('@')) return null
-    const row = await findExistingAdminUser(partnerKey, undefined)
-    if (!row) return null
-    const adminUser = row.get({ plain: true })
-    if (adminUser.personIdentifier?.toLowerCase() !== partnerKey) return null
+// Cornell NetID logins (src/utils/samlIdentity.ts): the account is keyed `netid@cornell.edu`,
+// created on first login for anyone on the Cornell Ithaca roster, with Reporter_All and a proxy
+// grant to their own person row (provisionPartnerAdminUser; rules in src/utils/partnerAccount.ts).
+// Never matched by email, no default roles from admin settings, no Curator_Self from `person` (a
+// NetID can equal a WCM CWID there). Roles are read with the ROW's stored email, not the SAML mail:
+// the role query also matches a unique email on its own, and a Cornell mail must never pick up a
+// WCM user's roles.
+export const findOrProvisionPartnerUser = async (partnerKey, email, firstName, lastName) => {
+    const adminUser = await provisionPartnerAdminUser(partnerKey, email, firstName, lastName)
+    if (!adminUser) return null
     const userRoles = await findUserPermissions(["personIdentifier", "email"], [adminUser.personIdentifier, adminUser.email || ""])
     if (!userRoles || JSON.parse(userRoles).length === 0) return null
     adminUser.userRoles = userRoles

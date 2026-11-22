@@ -8,6 +8,7 @@ import { getIdentity } from "../../identity.controller";
 import { scholarsStatus, scholarsChangeUrl, identityOrcidUpdate, SCHOLARS_ACTIVE_MAX_AGE_HOURS } from "../../../src/utils/scholarsOrcid";
 import { reciterConfig } from "../../../config/local";
 import { canonicalCwid, cwidParam } from "../../../src/utils/canonicalCwid";
+import { refuseUnlessCanCurate } from "../authorization.controller";
 
 // Who owns this person's ORCID, from reciterdb.scholar_active (written by SPS, prod only).
 // Any failure, including the table not existing (PM dev's reciterdb), is 'unknown'.
@@ -148,6 +149,7 @@ export const saveORCIDProfile = async (
         res.status(400).send(`Not a valid personIdentifier: ${JSON.stringify(req.body?.personIdentifier)}`)
         return
     }
+    if (!(await refuseUnlessCanCurate(req, res, personIdentifier))) return
 
     try {
         if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(String(orcid))) {
@@ -186,6 +188,7 @@ export const resetProfileORCID = async (
         res.status(400).send(`Not a valid personIdentifier: ${JSON.stringify(req.query.personIdentifier)}`)
         return
     }
+    if (!(await refuseUnlessCanCurate(req, res, personIdentifier))) return
     try {
         const status = await refuseIfScholars(String(personIdentifier), res)
         if (!status) return

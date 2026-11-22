@@ -211,7 +211,7 @@ test('admin_users: a login reuses the CWID row, then the email row, before creat
     const f = src('controllers/db/admin.users.controller.ts')
     assert.doesNotMatch(f, /AdminUser\.findOrCreate\(/)
     const byCwid = f.indexOf("where: { personIdentifier: uid }, order })")
-    const byEmail = f.indexOf("where: { email }, order: [['userID', 'ASC']]")
+    const byEmail = f.indexOf("where: { email, personIdentifier: { [Op.notLike]: '%@%' } }, order: [['userID', 'ASC']]")
     assert.ok(byCwid > 0 && byEmail > byCwid, 'CWID row preferred over email row, lowest userID')
     const reuse = f.indexOf('const existing = await findExistingAdminUser(uid, samlEmail)')
     const create = f.indexOf('models.AdminUser.create(')

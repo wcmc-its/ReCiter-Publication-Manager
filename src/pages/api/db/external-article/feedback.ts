@@ -6,6 +6,7 @@ import { reciterConfig } from '../../../../../config/local'
 import { effectiveToken } from '../../../../../src/utils/viewAs'
 import { externalStoreMode } from '../../../../../src/lib/externalStore'
 import { send, sessionOf, feedbackExternal } from '../../../../../controllers/db/external.controller'
+import { netidFromPartnerKey, PARTNER_EXTERNAL_FEEDBACK_MESSAGE } from '../../../../../src/utils/partnerAccount'
 import { cwidParam } from '../../../../../src/utils/canonicalCwid'
 
 // POST /api/db/external-article/feedback — curate per-source tabs (Option C, Phase 1):
@@ -66,6 +67,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     // The Java endpoint rejects a blank actor with a 400. Fail fast with a clear
     // re-login hint instead of surfacing that as an opaque error mid-curation.
+    if (netidFromPartnerKey(actorPersonIdentifier)) {
+        return res.status(409).send({ statusCode: 409, message: PARTNER_EXTERNAL_FEEDBACK_MESSAGE })
+    }
     if (!actorPersonIdentifier) {
         return res.status(401).send({ statusCode: 401, message: 'Your session has expired. Please sign in again.' })
     }

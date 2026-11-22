@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials"
 import { authenticate } from "../../../../controllers/authentication.controller";
 import { findUserPermissions } from '../../../../services/db/userroles.service';
-import {findOrcreateAdminUser,findPartnerAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
+import {findOrcreateAdminUser,findOrProvisionPartnerUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { decrypt } from "../saml/crypto";
 import { reciterConfig } from "../../../../config/local";
 import { getCapabilities } from "../../../utils/constants";
@@ -96,7 +96,7 @@ export const authOptions = {
             // Only an explicit WCM classification may reach the CWID path below; a bridge cookie
             // without `kind` (minted before this change, 60 s TTL) is treated as refused.
             if (samlUser?.kind === 'cornell') {
-                const partnerUser = await findPartnerAdminUser(samlUser.personIdentifier);
+                const partnerUser = await findOrProvisionPartnerUser(samlUser.personIdentifier, samlUser.email, samlUser.firstName, samlUser.lastName);
                 console.warn(JSON.stringify({ event: partnerUser ? 'partner_login' : 'partner_login_refused', key: samlUser.personIdentifier }));
                 return partnerUser || null;
             }
