@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials"
 import { authenticate } from "../../../../controllers/authentication.controller";
 import { findUserPermissions } from '../../../../services/db/userroles.service';
-import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
+import {findOrcreateAdminUser,findPartnerAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { decrypt } from "../saml/crypto";
 import { reciterConfig } from "../../../../config/local";
 import { getCapabilities } from "../../../utils/constants";
@@ -92,7 +92,18 @@ export const authOptions = {
             console.log('SAML bridgeCookie found:', !!bridgeCookie);
             if (!bridgeCookie) return null;
             const samlUser = JSON.parse(decrypt(decodeURIComponent(bridgeCookie)));
-            console.log("samlUser in authorize method read from cookie:", samlUser?.personIdentifier);                                
+            console.log("samlUser in authorize method read from cookie:", samlUser?.personIdentifier);
+            // Only an explicit WCM classification may reach the CWID path below; a bridge cookie
+            // without `kind` (minted before this change, 60 s TTL) is treated as refused.
+            if (samlUser?.kind === 'cornell') {
+                const partnerUser = await findPartnerAdminUser(samlUser.personIdentifier);
+                console.warn(JSON.stringify({ event: partnerUser ? 'partner_login' : 'partner_login_refused', key: samlUser.personIdentifier }));
+                return partnerUser || null;
+            }
+            if (samlUser?.kind !== 'wcm') {
+                console.warn(JSON.stringify({ event: 'saml_login_refused', reason: samlUser?.reason || 'unclassified' }));
+                return null;
+            }
             const samlUserEmail = samlUser?.email;
             const cwid = samlUser?.personIdentifier;
             const firstName = samlUser?.firstName;
