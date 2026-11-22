@@ -10,6 +10,7 @@ import { reciterConfig } from '../../../../../config/local'
 import { effectiveToken } from '../../../../../src/utils/viewAs'
 import { cwidParam } from '../../../../../src/utils/canonicalCwid'
 import { externalStoreMode } from '../../../../../src/lib/externalStore'
+import { reciterActor } from '../../../../../src/utils/partnerAccount'
 import { send, sessionOf, listExternal, addExternal, removeExternal } from '../../../../../controllers/db/external.controller'
 
 // PM#771 — external-source (OpenAlex) manual-add publications for a person.
@@ -116,7 +117,7 @@ export default async function handler(
         // POST — resolve the curating user's CWID from the JWT for addedBy.
         // Left undefined when the token has no username -> ReCiter records it as unknown.
         let addedBy: string | undefined = undefined
-        if (token && token.username) addedBy = String(token.username)
+        if (token && token.username) addedBy = reciterActor(token.username)
 
         const force = String(req.query.force) === 'true'
         const apiResponse = await addExternalArticle(uid, req.body, addedBy, force)

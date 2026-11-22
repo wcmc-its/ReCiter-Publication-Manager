@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { signIn } from 'next-auth/react';
+import { signIn, getSession } from 'next-auth/react';
+import { netidFromPartnerKey } from '../../utils/partnerAccount';
 import { useRouter } from 'next/router'; // Use this for Pages Router
 
 export default function Finalize() {
@@ -23,7 +24,9 @@ export default function Finalize() {
         router.replace('/noaccess');
         } else if (result?.ok) {
         console.log("Finalize - Sign in successful, redirecting to:", result.url);
-        router.push(result.url || '/search');
+        // A Cornell NetID account curates only its own record: land there, not on Find People.
+        const netid = netidFromPartnerKey((await getSession())?.data?.username);
+        router.push(netid ? `/curate/${netid}` : (result.url || '/search'));
         //window.location.href = result.url;
         } else {
         console.warn("Finalize - Unexpected result:", result);

@@ -2534,18 +2534,21 @@ export const authorshipRecentActivity = async (req: NextApiRequest, res: NextApi
 // Superuser/Curator_All authz (getEffectiveRolesScope) is a dev_Upd-only feature not on
 // this branch, so we match dev's backendApiKey-only convention and stamp the audit
 // identity (curatedBy / reviewer / addedBy) from the real signed-in AdminUser.
-// ponytail: no in-endpoint role gate — page middleware + backendApiKey + a resolvable
-// active AdminUser are the trust boundary here; add a role check if dev is hardened.
-async function resolveCurator(req: NextApiRequest): Promise<{ userID?: number; cwid?: string }> {
+async function resolveCurator(req: NextApiRequest): Promise<{ userID?: number; cwid?: string; mayReview?: boolean }> {
   const token: any = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return {};
+  // Same rule as the /authorships page in src/middleware.ts: Curator_All or Superuser only.
+  // The api key is public, so without this any signed-in user could curate anyone here.
+  let roles: any[] = [];
+  try { roles = JSON.parse(token.userRoles || "[]"); } catch { roles = []; }
+  const mayReview = Array.isArray(roles) && roles.some((r: any) => r?.roleLabel === "Curator_All" || r?.roleLabel === "Superuser");
   const cwid: string | undefined = token.username ? String(token.username) : undefined;
   let userID: number | undefined = token.databaseUser?.userID;
   if (!userID && cwid) {
     const au: any = await models.AdminUser.findOne({ where: { personIdentifier: cwid }, attributes: ["userID"] });
     userID = au?.userID;
   }
-  return { userID, cwid };
+  return { userID, cwid, mayReview };
 }
 
 // Gold-standard MERGE/DELETE via the ReCiter Java endpoint (pubmed rows only), tagged with
@@ -2893,6 +2896,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
   try {
     const curator = await resolveCurator(req);
     if (!curator.userID) return res.status(401).send("Could not resolve curator identity");
+    if (!curator.mayReview) return res.status(403).send("Authorships review is limited to Curator_All and Superuser");
 
     const body = req.body || {};
     const id = Number(body.id);

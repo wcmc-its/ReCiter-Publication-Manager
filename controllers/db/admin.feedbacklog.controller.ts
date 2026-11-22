@@ -1,6 +1,7 @@
 import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getToken } from 'next-auth/jwt'
+import { refuseUnlessCanCurate } from './authorization.controller'
 import { updatePendingArticleCount } from './person.controller'
 import { canonicalCwid, parseCwid } from '../../src/utils/canonicalCwid'
 
@@ -48,6 +49,8 @@ export const createFeedbackLog = async (req: NextApiRequest, res: NextApiRespons
             res.status(401).send('Not signed in')
             return
         }
+        // Written only after a curation write: same permission as that write.
+        if (!(await refuseUnlessCanCurate(req, res, personIdentifier))) return
         if(userID && personIdentifier && articleIdentifier && feedback) {
             const isUserExistAndActive = await models.AdminUser.findOne({
                 where: {

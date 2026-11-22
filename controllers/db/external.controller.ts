@@ -14,6 +14,7 @@ import {
 import { isExternalStatus } from '../../src/lib/externalLifecycle'
 import { ShapeError } from '../../src/lib/externalRecordShape'
 import { storeTargetOf } from '../../src/utils/allSources'
+import { netidFromPartnerKey, reciterActor, PARTNER_EXTERNAL_FEEDBACK_MESSAGE } from '../../src/utils/partnerAccount'
 import { validateManualBody } from '../../src/utils/manualEntry'
 
 // The 3c API (plan 3b-3e, "PM API"): /api/db/external/**, plus the legacy external-article routes
@@ -100,7 +101,7 @@ export async function addExternal(uid: string, body: any, s: Session, force: boo
   // MANUAL source, so with the store off a manual add is refused, not proxied.
   if (isManualBody(body) && externalStoreMode() !== 'mysql') return storeOff()
   if (externalStoreMode() !== 'mysql') {
-    const addedBy = s.token?.username ? String(s.token.username) : undefined
+    const addedBy = reciterActor(s.token?.username)
     return javaReply(await addExternalArticle(uid, body, addedBy, force), [200, 201])
   }
   if (!s.actor) return noSession()
@@ -139,7 +140,8 @@ export async function removeExternal(uid: string, articleId: string, s: Session)
 export async function feedbackExternal(uid: string, articleId: string, action: 'ACCEPTED' | 'REJECTED' | 'PENDING', s: Session, note?: string): Promise<Reply> {
   if (!(await canCurate(s.eff, uid))) return forbidden()
   if (externalStoreMode() !== 'mysql') {
-    const actorId = s.token?.username ? String(s.token.username) : undefined
+    if (netidFromPartnerKey(s.token?.username)) return fail(409, PARTNER_EXTERNAL_FEEDBACK_MESSAGE)
+    const actorId = reciterActor(s.token?.username)
     if (!actorId) return noSession()
     return javaReply(await recordExternalArticleFeedback(uid, articleId, action, actorId, note), [200])
   }

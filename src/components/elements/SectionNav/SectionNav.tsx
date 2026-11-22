@@ -5,6 +5,7 @@ import { useSelector } from "react-redux";
 import { useSession } from "next-auth/react";
 import { hasConfiguredScope, withoutScopeKeys } from '../../../utils/scopeResolver';
 import { RootStateOrAny } from "../../../types/redux";
+import { netidFromPartnerKey } from "../../../utils/partnerAccount";
 import { useNextPerson } from "../../../hooks/useNextPerson";
 import styles from "./SectionNav.module.css";
 
@@ -40,7 +41,13 @@ const SectionNav = () => {
     (role: any) => role.roleLabel === "Curator_Self" && role.personIdentifier
   );
 
+  // A Cornell NetID session (key `netid@cornell.edu`) curates its own record through a proxy
+  // grant, not Curator_Self, so it gets a direct link to /curate/<netid> instead.
+  const partnerNetid = netidFromPartnerKey((session as any)?.data?.username);
+  const ownProxyLink = partnerNetid ? `/curate/${partnerNetid}` : null;
+
   const items = [
+    ...(ownProxyLink ? [{ title: "My publications", to: ownProxyLink, disabled: false, allowedRoleNames: [] as string[] }] : []),
     { title: "People", to: "/search", disabled: false, allowedRoleNames: ["Superuser", "Curator_All", "Reporter_All"] },
     {
       title: "Curate",
@@ -50,7 +57,7 @@ const SectionNav = () => {
     },
     { title: "Authorships", to: "/authorships", disabled: false, allowedRoleNames: ["Superuser", "Curator_All"] },
     { title: "Reports", to: "/report", disabled: false, allowedRoleNames: ["Superuser", "Reporter_All", "Curator_All", "Curator_Self", "Curator_Scoped"] },
-  ].filter((item) => (item.to === "/search" && hasScope)
+  ].filter((item) => item.to === ownProxyLink || (item.to === "/search" && hasScope)
     || roles.some((role: any) => item.allowedRoleNames.includes(role.roleLabel)));
 
   if (items.length === 0) return null;

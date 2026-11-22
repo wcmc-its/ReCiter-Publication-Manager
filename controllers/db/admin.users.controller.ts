@@ -3,6 +3,7 @@ import sequelize from '../../src/db/db'
 import { findOnePerson } from './person.controller'
 import { Op} from "sequelize"
 import { canonicalCwid, isValidCwid } from '../../src/utils/canonicalCwid'
+import { decidePartnerLogin, netidFromPartnerKey, PARTNER_ROLE } from '../../src/utils/partnerAccount'
 
 const EMAIL ='email'
 const PERSONIDENTIFIER  = 'personIdentifier'
@@ -135,3 +136,42 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
         console.log(e)
     }
 };
+
+// Cornell NetID login: find or create the `netid@cornell.edu` account, keep its proxy grant at
+// [netid] and make sure it holds Reporter_All. Rules in src/utils/partnerAccount.ts. Returns the
+// plain row, or null to refuse. Errors propagate so the caller fails closed.
+export const provisionPartnerAdminUser = async (key: string, email?: string, firstName?: string, lastName?: string) => {
+    const netid = netidFromPartnerKey(key)
+    if (!netid) return null
+    const typeRows: any[] = await models.PersonPersonType.findAll({ where: { personIdentifier: netid }, attributes: ['personType'], raw: true })
+    const existingRow: any = await models.AdminUser.findOne({ where: { personIdentifier: key }, order: [['userID', 'ASC']] })
+    const existing = existingRow ? existingRow.get({ plain: true }) : null
+    const decision = decidePartnerLogin(key, typeRows.map((r) => r.personType), existing)
+    if ('reason' in decision) {
+        console.warn(JSON.stringify({ event: 'partner_login_refused', key, reason: decision.reason }))
+        return null
+    }
+    let row: any = existingRow
+    if (decision.create) {
+        row = await models.AdminUser.create({
+            personIdentifier: key,
+            nameFirst: firstName || null,
+            nameLast: lastName || null,
+            email: email || null,
+            status: 1,
+            proxy_person_ids: [decision.netid],
+            createTimestamp: new Date(),
+            modifyTimestamp: new Date(),
+        } as any)
+        console.warn(JSON.stringify({ event: 'partner_account_created', key, userID: row.userID }))
+    } else if (decision.setProxy) {
+        await row.update({ proxy_person_ids: [decision.netid], modifyTimestamp: new Date() })
+    }
+    const role: any = await models.AdminRole.findOne({ where: { roleLabel: PARTNER_ROLE }, raw: true })
+    if (!role) throw new Error(`admin_roles has no ${PARTNER_ROLE}`)
+    await models.AdminUsersRole.findOrCreate({
+        where: { userID: row.userID, roleID: role.roleID },
+        defaults: { userID: row.userID, roleID: role.roleID, createTimestamp: new Date() } as any,
+    })
+    return row.get({ plain: true })
+}

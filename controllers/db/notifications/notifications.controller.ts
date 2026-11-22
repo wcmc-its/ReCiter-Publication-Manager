@@ -5,6 +5,7 @@ import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
 import { sendEmailNotification } from "./../../../src/utils/emailUtilityHelper";
 import { cwidParam } from "../../../src/utils/canonicalCwid";
+import { refuseUnlessCanCurate } from "../authorization.controller";
 
 
 export const saveNotifications = async (
@@ -18,6 +19,7 @@ export const saveNotifications = async (
         res.status(400).send(`Not a valid personIdentifier: ${JSON.stringify(req.body?.personIdentifier)}`)
         return
     }
+    if (!(await refuseUnlessCanCurate(req, res, personIdentifier))) return
     try {
         let createUserPayload = {
             'frequency': frequency,
@@ -94,6 +96,7 @@ export const disableNotificationByID = async (
     res: NextApiResponse
 ) => {
     const { frequency, accepted, status, minimumThreshold, userId ,suggested} = req.body;
+    if (!(await refuseUnlessCanCurate(req, res, cwidParam(userId) || ''))) return
 
     try {
 
