@@ -599,8 +599,8 @@ export async function lookupDirectoryPerson(id: string): Promise<DirectoryPerson
 // each token ALSO matches at the start of any LATER word of a value (`* tok*`), which is what
 // finds a multi-word surname from its second half: mal4002 is sn "Lu Wang", so "marcos wang"
 // found nothing prefix-only (#1019). Only the WCM call site asks for it. Cornell stays
-// prefix-only — its directory enforces a hard 200-entry cap per search and is a lookup
-// interface, not a bulk one, and the substring form could not be tried against it (no bind
+// prefix-only — it is a lookup interface, not a bulk one (the "hard 200-entry cap" once cited
+// here was disproven 2026-09-07), and the substring form could not be tried against it (no bind
 // available on 2026-09-12); a search it rejected would be swallowed by safe() and silently drop
 // every Cornell result, which is worse than the miss.
 // `exact` drops the wildcards: each token must EQUAL a name attribute. It exists because the
@@ -684,11 +684,30 @@ export function affiliationDeptMatch(depts: string[], affil: string | null | und
 export const cornellFallback = (found: { depts: string[]; exactName?: boolean }[], affil: string): boolean =>
   !found.some((p) => affiliationDeptMatch(p.depts, affil) || !!p.exactName) && /cornell\s+university/i.test(affil);
 
+/** Which institution(s) the byline names, clause by clause (`;`-separated). Owner rule
+ *  2026-11-23: the lookup prefers people from the institution in the byline. Without it a
+ *  Vet-school byline ("Population MEDICINE ...") put every WCM "Medicine" homonym above the
+ *  Ithaca postdoc who wrote it. "Weill Institute for Cell and Molecular Biology" is an Ithaca
+ *  unit, hence `weill cornell` / `weill medical college` and not bare `weill`. Pure — asserted
+ *  by scripts/check-directory-fallback.mjs. */
+export function bylineCampuses(affil: string | null | undefined): Set<"wcm" | "cornell"> {
+  const out = new Set<"wcm" | "cornell">();
+  for (const clause of String(affil || "").toLowerCase().split(";")) {
+    if (/weill\s+cornell|weill\s+medical\s+college|new\s*york[- ]presbyterian/.test(clause)) out.add("wcm");
+    else if (/cornell\s+university|ithaca|cornell\s+tech/.test(clause)) out.add("cornell");
+  }
+  return out;
+}
+
 /** `sources` narrows the search to one directory; both by default. The routine (auto) lookup
  *  on a weak /authorships row asks WCM alone first and Cornell only as a fallback (see
- *  authorshipLookupCwid), so a WCM byline is not padded with Ithaca homonyms. */
+ *  authorshipLookupCwid), so a WCM byline is not padded with Ithaca homonyms.
+ *  `enrich` fills blank title/department from our own roster before ranking: Cornell strips
+ *  both once someone is alumni / former postdoc (71 of the 100 "a singh" entries, 2026-11-23),
+ *  so without it the right person has nothing to match the byline's department on. */
 export async function searchDirectoryPeople(q: string, limit = 8, retry = true, affil = "",
-  sources: { wcm?: boolean; cornell?: boolean } = {}): Promise<DirectoryPerson[]> {
+  sources: { wcm?: boolean; cornell?: boolean } = {},
+  enrich?: (people: DirectoryPerson[]) => Promise<void>): Promise<DirectoryPerson[]> {
   const term = q.trim();
   if (term.length < 3) return [];
   const wcm = sources.wcm === false ? null : wcmEnv();
@@ -715,9 +734,13 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true, 
     cornell ? safe("cornell exact", () => search(
       cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"], false, true),
       CORNELL_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
-    cornell ? safe("cornell search", () => search(
-      cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]),
-      CORNELL_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
+    // Paged like WCM when the affiliation is known. Capped at `limit`, "a singh" came back as 8
+    // alumni and never the Ithaca postdoc (as3527) in the 100-entry cohort (2026-11-23 probe;
+    // the Cornell directory pages fine and has no 200-entry cap, disproven 2026-09-07).
+    cornell ? safe("cornell search", () => wide
+      ? searchPaged(cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]), CORNELL_ATTRS)
+      : search(cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]), CORNELL_ATTRS, limit),
+    [] as Record<string, unknown>[]) : Promise.resolve([]),
   ]);
   // Exact hits also come back from the prefix pass (`li` matches `li*`): keep the first sighting.
   const seen = new Set<string>();
@@ -727,10 +750,17 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true, 
     ...cx.map((e) => tag(projectCornellPerson(e), true)), ...c.map((e) => tag(projectCornellPerson(e), false)),
   ].filter((p): p is DirectoryPerson => p !== null && !seen.has(`${p.source}:${p.id}`) && !!seen.add(`${p.source}:${p.id}`)));
   if (wide) await addSorDepts(all);
-  const matched = wide ? all.filter((p) => affiliationDeptMatch(p.depts, affil)) : [];
-  const people = [...matched, ...all.filter((p) => !matched.includes(p)).slice(0, limit * 2)].slice(0, limit * 4);
+  if (enrich) await enrich(all);
+  // Byline institution first, then a department the byline names; both survive the page cap.
+  const campuses = bylineCampuses(affil);
+  const lead = (p: DirectoryPerson) =>
+    (campuses.has(p.source) ? 2 : 0) + (wide && affiliationDeptMatch(p.depts, affil) ? 1 : 0);
+  const ranked = all.map((p, i) => ({ p, i })).sort((a, b) => lead(b.p) - lead(a.p) || a.i - b.i).map((x) => x.p);
+  // `limit` slots stay for everyone else, so 100 Ithaca homonyms cannot push every WCM person
+  // (a dual appointee, a mis-stated byline) off the list.
+  const people = [...ranked.filter((p) => lead(p) > 0).slice(0, limit * 3), ...ranked.filter((p) => !lead(p)).slice(0, limit)];
   const cut = !people.length && retry ? nearMissQuery(term) : null;
-  if (cut) return searchDirectoryPeople(cut, limit, false, affil, sources);
+  if (cut) return searchDirectoryPeople(cut, limit, false, affil, sources, enrich);
   // One extra search, and only when this page actually holds a retired cwid — so the ordinary
   // search pays nothing. Awaited rather than fired-and-forgotten: the successor's name is what
   // makes the blocked row actionable ("retired — use ssy9009") instead of a dead end.

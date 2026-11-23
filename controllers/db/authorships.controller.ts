@@ -20,7 +20,7 @@ import { externalSourceLabel, isExternalSource, openalexWorkId } from "../../src
 import { storedConflictJson } from "../../src/lib/acceptConflictMatches";
 import {
   lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured, cornellFallback,
-  affiliationDeptMatch,
+  affiliationDeptMatch, bylineCampuses,
   retiredCwidIndex,
   type DirectoryPerson,
 } from "../../src/lib/directory";
@@ -711,6 +711,33 @@ async function reciterIdentitySet(cwids: Array<string | undefined | null>): Prom
   return out;
 }
 
+// Blank directory title/department filled from reciterdb `identity` (both campuses; Cornell rows
+// come from the monthly HR feed). Cornell strips both once someone is alumni / former postdoc:
+// as3527 is a bare "former postdoc" there and "Post Dr Assoc, Population Medicine & Diagnostic
+// Science" here. Only fills blanks, never overrides the directory. Fails open: a lookup without
+// enrichment beats no lookup.
+async function rosterFill(people: DirectoryPerson[]): Promise<void> {
+  const ids = [...new Set(people.filter((p) => !p.title || !p.depts.length).map((p) => p.id.toLowerCase()))];
+  if (!ids.length) return;
+  try {
+    const rows: any[] = await sequelize.query(
+      "SELECT cwid, primaryTitle, primaryAcademicDepartment FROM identity WHERE cwid IN (:ids)",
+      { replacements: { ids }, type: QueryTypes.SELECT });
+    const by = new Map(rows.map((r) => [String(r.cwid).toLowerCase(), r]));
+    for (const p of people) {
+      const r = by.get(p.id.toLowerCase());
+      if (!r) continue;
+      if (!p.title && r.primaryTitle) p.title = r.primaryTitle;
+      if (!p.depts.length && r.primaryAcademicDepartment) {
+        p.depts = [r.primaryAcademicDepartment];
+        p.dept = r.primaryAcademicDepartment;
+      }
+    }
+  } catch (e) {
+    console.log("[lookup] roster fill failed (non-fatal):", e);
+  }
+}
+
 // Display name per cwid from the same `person` mirror, "First Middle Last" — the shape the
 // AAR producer bakes into top_name/candidate_cwids_json, so a looked-up name reads the same
 // as a produced one.
@@ -959,9 +986,13 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
       // pubmed ledger 587 of 3,022 weak rows say "Cornell University", so most rows pay one.
       const auto = String(req.body?.auto || "") === "1";
       const deptMatch = (p: { depts: string[] }) => affiliationDeptMatch(p.depts, affil);
-      let found = await searchDirectoryPeople(q, 8, true, affil, auto ? { cornell: false } : {});
-      if (auto && cornellFallback(found, affil)) {
-        found = [...found, ...await searchDirectoryPeople(q, 8, true, affil, { wcm: false })];
+      // An Ithaca byline asks both directories up front: the WCM-first fallback never reached
+      // Cornell there, because "Population Medicine" matches every WCM "Medicine" dept.
+      const campuses = bylineCampuses(affil);
+      const wcmFirst = auto && !campuses.has("cornell");
+      let found = await searchDirectoryPeople(q, 8, true, affil, wcmFirst ? { cornell: false } : {}, rosterFill);
+      if (wcmFirst && cornellFallback(found, affil)) {
+        found = [...found, ...await searchDirectoryPeople(q, 8, true, affil, { wcm: false }, rosterFill)];
       }
       // Which of these does ReCiter already know? A curator searching by name must be told
       // "this one is already in ReCiter" so they pick the identity that exists rather than
@@ -975,8 +1006,9 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
       // three that separate the live biostatistician from four expired affiliates who share her
       // name; 2026-09-15, "Jessica Kim": the right one sat sixth). Stable, so ties keep the
       // directories' own order. Nothing is removed; expired people stay assignable.
+      // The byline's institution outranks everything (owner rule, 2026-11-23).
       const score = (p: typeof found[number]) =>
-        (deptMatch(p) ? 8 : 0) + (known.has(p.id) || known.has(p.id.toLowerCase()) ? 4 : 0) + (p.active ? 2 : 0) + (p.exactName ? 1 : 0);
+        (campuses.has(p.source) ? 16 : 0) + (deptMatch(p) ? 8 : 0) + (known.has(p.id) || known.has(p.id.toLowerCase()) ? 4 : 0) + (p.active ? 2 : 0) + (p.exactName ? 1 : 0);
       const people = found.map((p, i) => ({ p, i })).sort((a, b) => score(b.p) - score(a.p) || a.i - b.i).map((x) => x.p);
       return res.send({
         configured: directoryConfigured(),
