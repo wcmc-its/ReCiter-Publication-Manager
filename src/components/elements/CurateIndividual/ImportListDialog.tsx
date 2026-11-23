@@ -5,7 +5,7 @@ import { Button, Dialog } from "../../ui"
 import { reciterConfig } from "../../../../config/local"
 import {
     Citation, Group, GROUP_LABEL, MAX_ITEMS, MAX_PASTE_CHARS, RecordExt, RecordPub, Resolved, Row,
-    chunkText, dedupePaste, groupAgainstRecord, parseStructured, sanitizeCitations,
+    chunkText, dedupePaste, groupAgainstRecord, knownInRecord, parseStructured, sanitizeCitations,
 } from "../../../lib/listImport"
 
 // "Import a list" (plan 2026-11-20-import-a-list-plan.md). Paste a publication list (Google
@@ -67,15 +67,24 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         setChecked((prev) => Object.fromEntries(next.map((r, i) => [i, keep?.has(i) && r.checkable ? !!prev[i] : r.checkedByDefault])))
     }
 
+    // Two batches of 10 in flight; each batch is serial on the server, so Crossref and OpenAlex
+    // see at most two requests at a time from one dialog (429s back off server-side).
     const resolveAll = async (items: Citation[]): Promise<Resolved[]> => {
-        const out: Resolved[] = []
-        for (let i = 0; i < items.length && !cancelled.current; i += 10) {
-            setProgress(`Matching ${Math.min(i + 10, items.length)} of ${items.length}…`)
-            const batch = items.slice(i, i + 10)
-            const r = await post('/api/db/import/resolve', { uid: props.uid, items: batch }).catch(() => ({ status: 0, body: {} as any }))
-            if (r.status === 200 && Array.isArray(r.body.results)) out.push(...r.body.results)
-            else out.push(...batch.map((c) => ({ ...c, score: 0, match: null, error: r.body?.message || `HTTP ${r.status || 'network error'}` })))
+        const out: Resolved[] = new Array(items.length)
+        let next = 0, done = 0
+        const worker = async () => {
+            while (next < items.length && !cancelled.current) {
+                const i = next; next += 10
+                const batch = items.slice(i, i + 10)
+                const r = await post('/api/db/import/resolve', { uid: props.uid, items: batch }).catch(() => ({ status: 0, body: {} as any }))
+                const res: Resolved[] = r.status === 200 && Array.isArray(r.body.results) && r.body.results.length === batch.length ? r.body.results
+                    : batch.map((c) => ({ ...c, score: 0, match: null, error: r.body?.message || `HTTP ${r.status || 'network error'}` }))
+                res.forEach((x, k) => { out[i + k] = x })
+                done += batch.length
+                setProgress(`Matching ${done} of ${items.length}…`)
+            }
         }
+        await Promise.all([worker(), worker()])
         return out
     }
 
@@ -124,9 +133,12 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         setStats({ dropped, deduped: d.deduped })
         if (!capped.length) { setStep('paste'); setNote('No publications were found in that text.'); return }
         if (d.items.length > MAX_ITEMS) toast.info(`Only the first ${MAX_ITEMS} publications are imported; import the rest separately.`)
-        const resolved = await resolveAll(capped)
+        // Works the record already holds need no lookup (most of a long profile).
+        const known = capped.map((c) => knownInRecord(c, props.pubs, props.exts))
+        const looked = await resolveAll(capped.filter((_, i) => !known[i]))
         if (cancelled.current) return
-        regroup(resolved)
+        let k = 0
+        regroup(capped.map((c, i) => (known[i] ? { ...c, score: 0, match: null } : looked[k++])))
         setStep('review')
     }
 
@@ -238,7 +250,10 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
     )
 
     return (
-        <Dialog open={props.open} onClose={props.onClose} width={900} title="Import a list"
+        <Dialog open={props.open} width={900}
+            // A long run lives only in this dialog: Esc or a backdrop click must not throw it away
+            // while it works (Cancel stops it). ponytail: no resume after a reload; add sessionStorage if asked.
+            onClose={step === 'working' ? () => undefined : props.onClose} title="Import a list"
             description={`for ${props.fullName || props.uid} · nothing is saved until you click Add`} footer={footer}>
             {step === 'paste' && (
                 <div className={styles.meBody}>

@@ -29,7 +29,8 @@ export type Match = {
 export type Resolved = Citation & { score: number, match: Match | null, error?: string }
 
 export const MAX_PASTE_CHARS = 300_000
-export const MAX_ITEMS = 300
+// A full Google Scholar profile runs to ~700 works; most are already in the record and skip lookup.
+export const MAX_ITEMS = 1000
 export const CHUNK_CHARS = 12_000
 const CHUNK_OVERLAP = 600
 
@@ -417,6 +418,20 @@ export function groupAgainstRecord(items: Resolved[], pubs: RecordPub[], exts: R
         if (m.record && !m.record.notAddable) return { ...base, group: 'external', checkable: true, checkedByDefault: !possible }
         return { ...base, group: 'not_found', note: m.record?.notAddable, checkable: false, checkedByDefault: false }
     })
+}
+
+// A citation the person's record already settles with no lookup: its title + year is the first
+// record hit (the same one groupAgainstRecord's title fallback finds) and that hit is accepted, or
+// it is one of their external works. A pasted DOI that differs from the hit's DOI means another
+// work, so it goes to lookup. Grouping such a citation with match null lands it in in_profile.
+export function knownInRecord(c: Citation, pubs: RecordPub[], exts: RecordExt[]): boolean {
+    const doi = normDoi(cleanDoi(c.doi))
+    const hit = (p: { title?: string, year?: number | null, doi?: string | null }) =>
+        !(doi && p.doi && normDoi(p.doi) !== doi && !isPreprintDoi(doi) && !isPreprintDoi(p.doi))
+        && sameWork(c.title, c.year, p.title, p.year)
+    const pub = pubs.find(hit)
+    if (pub) return pub.status === 'ACCEPTED'
+    return exts.some(hit)
 }
 
 export const GROUP_LABEL: Record<Group, string> = {
