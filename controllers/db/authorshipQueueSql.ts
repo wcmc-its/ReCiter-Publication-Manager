@@ -80,8 +80,8 @@ export function precisionWhere(precision: unknown): any {
 }
 
 // "Select all N matching" inside the ORCID match lane: the SQL copy of orcidLaneBulkOk
-// (src/utils/authorshipRow.ts), which has the rule and the reason. A Cornell Ithaca top pick,
-// or a top pick whose iD is confirmed in Scholars. candidate_cwids_json is longtext, not a JSON
+// (src/utils/authorshipRow.ts), which has the rule and the reason. A Cornell Ithaca top pick
+// whose iD is not only inferred, or a top pick whose iD is confirmed in Scholars. candidate_cwids_json is longtext, not a JSON
 // column, so it is read only when it is valid JSON and an array ($[0] on a bare object would
 // read the object itself): NULL or malformed text yields NULL for both keys, which leaves an
 // Ithaca row to its top_person_type and a WCM row out, and never raises.
@@ -92,6 +92,7 @@ export function orcidLaneBulkWhere(): any {
   const top = (key: string) => "JSON_UNQUOTE(JSON_EXTRACT(IF(CASE WHEN JSON_VALID(" + json + ") THEN JSON_TYPE(" + json + ") = 'ARRAY' END, "
     + json + ", NULL), '$[0]." + key + "'))";
   return literal(
-    "(COALESCE(NULLIF(" + top("campus") + ", 'null') = 'cornell-ithaca', `AuthorshipReview`.`top_person_type` LIKE 'Cornell%', 0)"
+    "((COALESCE(NULLIF(" + top("campus") + ", 'null') = 'cornell-ithaca', `AuthorshipReview`.`top_person_type` LIKE 'Cornell%', 0)"
+    + " AND COALESCE(" + top("orcid_source") + ", '') <> 'inferred')"
     + " OR COALESCE(" + top("orcid_source") + " = 'scholars', 0))");
 }

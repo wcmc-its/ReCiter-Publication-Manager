@@ -73,8 +73,10 @@ export const topOrcidSource = (json?: string | null): string | undefined => {
 };
 
 // Bulk selection inside the "ORCID match" lane (owner decision, 2026-11-18). A Cornell Ithaca
-// top pick is selectable as before. A WCM top pick is selectable only when its iD is confirmed
-// in Scholars: an inferred iD, or a row with no orcid_source, is reviewed one row at a time.
+// top pick is selectable as before, unless its iD is only inferred: since ReCiterDB routes the
+// inferred list to the Ithaca roster too (2026-11-23), an inferred iD is reviewed one row at a
+// time on either campus. A WCM top pick is selectable only when its iD is confirmed in
+// Scholars: an inferred iD, or a row with no orcid_source, is reviewed one row at a time.
 // Ithaca = the top candidate's campus is "cornell-ithaca", the only value the producer writes
 // (ReCiterDB identity_index.py CAMPUS_ITHACA; a WCM candidate carries no campus key). Candidates
 // written before `campus` existed have none and are Ithaca when top_person_type starts with
@@ -84,7 +86,7 @@ export const topOrcidSource = (json?: string | null): string | undefined => {
 export const orcidLaneBulkOk = (row: { top_person_type?: string | null; candidate_cwids_json?: string | null }): boolean => {
   const top = topCandidate(row.candidate_cwids_json);
   const ithaca = top?.campus != null ? top.campus === "cornell-ithaca" : (row.top_person_type || "").startsWith("Cornell");
-  return ithaca || top?.orcid_source === "scholars";
+  return (ithaca && top?.orcid_source !== "inferred") || top?.orcid_source === "scholars";
 };
 
 // Institution on the role line, shortened the way the prototype writes it ("WCM").
