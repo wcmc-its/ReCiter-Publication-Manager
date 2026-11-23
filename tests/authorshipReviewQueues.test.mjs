@@ -88,15 +88,16 @@ test('precisionWhere: orcid is every row whose name-matched top pick the byline 
 })
 
 // The server's copy of orcidLaneBulkOk (tests/authorshipRow.test.mjs has the cases).
-test('orcidLaneBulkWhere: Ithaca by campus or, without one, by person type; otherwise a Scholars iD', () => {
+test('orcidLaneBulkWhere: Ithaca by campus or, without one, by person type, unless only inferred; otherwise a Scholars iD', () => {
     const j = '`AuthorshipReview`.`candidate_cwids_json`'
     const top = (k) => `JSON_UNQUOTE(JSON_EXTRACT(IF(CASE WHEN JSON_VALID(${j}) THEN JSON_TYPE(${j}) = 'ARRAY' END, ${j}, NULL), '$[0].${k}'))`
     assert.equal(whereSql(orcidLaneBulkWhere()),
-        "(COALESCE(NULLIF(" + top('campus') + ", 'null') = 'cornell-ithaca', `AuthorshipReview`.`top_person_type` LIKE 'Cornell%', 0)"
+        "((COALESCE(NULLIF(" + top('campus') + ", 'null') = 'cornell-ithaca', `AuthorshipReview`.`top_person_type` LIKE 'Cornell%', 0)"
+        + " AND COALESCE(" + top('orcid_source') + ", '') <> 'inferred')"
         + " OR COALESCE(" + top('orcid_source') + " = 'scholars', 0))")
     // ANDs onto the lane's own predicate as one parenthesised term
     assert.match(whereSql({ [Op.and]: [precisionWhere('orcid'), { single_candidate: true }, orcidLaneBulkWhere()] }),
-        /^\(`top_orcid_match` = true AND `single_candidate` = true AND \(COALESCE\(.+\)\)$/)
+        /^\(`top_orcid_match` = true AND `single_candidate` = true AND \(\(COALESCE\(.+\)\)$/)
 })
 
 const sortKeys = (sort) => SORTS[sort].map(([k, dir]) => (typeof k === 'string' ? `${k} ${dir}` : `<expr> ${dir}`))

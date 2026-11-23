@@ -75,9 +75,14 @@ test('orcidLaneBulkOk: a WCM top pick is bulk-selectable only with a Scholars-co
     assert.equal(orcidLaneBulkOk(orcidRow('Cornell Ithaca', { ...wcm, campus: 'wcm' })), false)
 })
 
-test('orcidLaneBulkOk: a Cornell Ithaca top pick is selectable whatever its orcid_source', () => {
+test('orcidLaneBulkOk: a Cornell Ithaca top pick is selectable unless its iD is only inferred', () => {
     const ith = { cwid: 'aa123', person_type: 'Cornell faculty', orcid_match: true }
-    for (const src of [{}, { orcid_source: 'scholars' }, { orcid_source: 'affiliation_manager' }, { orcid_source: 'inferred' }]) {
+    for (const src of [{ orcid_source: 'inferred' }]) {
+        assert.equal(orcidLaneBulkOk(orcidRow('Cornell faculty', { ...ith, ...src })), false)
+        assert.equal(orcidLaneBulkOk(orcidRow('Cornell faculty', { ...ith, campus: 'cornell-ithaca', ...src })), false)
+        assert.equal(orcidLaneBulkOk(orcidRow(null, { ...ith, campus: 'cornell-ithaca', ...src })), false)
+    }
+    for (const src of [{}, { orcid_source: 'scholars' }, { orcid_source: 'affiliation_manager' }, { orcid_source: null }]) {
         assert.equal(orcidLaneBulkOk(orcidRow('Cornell faculty', { ...ith, ...src })), true)                    // no campus key: person type
         assert.equal(orcidLaneBulkOk(orcidRow('Cornell faculty', { ...ith, campus: 'cornell-ithaca', ...src })), true)
         assert.equal(orcidLaneBulkOk(orcidRow(null, { ...ith, campus: 'cornell-ithaca', ...src })), true)               // campus alone is enough
