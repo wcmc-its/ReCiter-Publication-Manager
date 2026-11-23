@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { extractCitations } from '../../../../../controllers/listImport.controller'
-import { gate } from '../../../../../controllers/listImportGate'
+import { gate, refuse } from '../../../../../controllers/listImportGate'
 import { CHUNK_CHARS } from '../../../../lib/listImport'
 
 // "Import a list" step 2 (plan 2026-11-20-import-a-list-plan.md).
@@ -10,9 +10,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const uid = await gate(req, res)
     if (!uid) return
     const text = req.body?.text
-    if (typeof text !== 'string' || !text.trim()) return res.status(400).send({ statusCode: 400, message: 'text is required' })
+    if (typeof text !== 'string' || !text.trim()) return refuse(res, req, 400, 'text is required')
     // The client sends chunks of CHUNK_CHARS split on line boundaries; allow some slack.
-    if (text.length > CHUNK_CHARS * 2) return res.status(413).send({ statusCode: 413, message: 'Send the text in smaller pieces.' })
+    if (text.length > CHUNK_CHARS * 2) return refuse(res, req, 413, 'Send the text in smaller pieces.')
     try {
         const out = await extractCitations(text)
         console.log(`[import/extract] uid=${uid} chars=${text.length} via=${out.via} items=${out.items.length} dropped=${out.dropped}`)

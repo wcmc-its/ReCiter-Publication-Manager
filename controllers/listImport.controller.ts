@@ -25,6 +25,24 @@ Keep each title exactly as written, including a trailing "…" if the text cuts 
 For "venue", copy the venue line as written, with any volume, issue and pages.
 One entry per listed item, even if two items look like the same work.`
 
+const nullable = (type: string) => ({ type: [type, 'null'] })
+const PUBS_SCHEMA = {
+    type: 'object', additionalProperties: false, required: ['pubs'],
+    properties: {
+        pubs: {
+            type: 'array',
+            items: {
+                type: 'object', additionalProperties: false,
+                required: ['title', 'year', 'venue', 'first_author', 'doi', 'type'],
+                properties: {
+                    title: { type: 'string' }, year: nullable('integer'), venue: nullable('string'),
+                    first_author: nullable('string'), doi: nullable('string'), type: nullable('string'),
+                },
+            },
+        },
+    },
+}
+
 async function llmExtract(text: string): Promise<unknown[]> {
     const res = await bedrock().send(new InvokeModelCommand({
         modelId: MODEL_ID(),
@@ -32,16 +50,20 @@ async function llmExtract(text: string): Promise<unknown[]> {
         accept: 'application/json',
         body: JSON.stringify({
             anthropic_version: 'bedrock-2023-05-31',
-            max_tokens: 8000,
+            // A 12k-character chunk needs about 6k output tokens. Thinking is off: Sonnet 5 otherwise
+            // spent up to 6.8k of an 8k budget thinking and cut the JSON off (few2001, 11-21).
+            max_tokens: 16000,
+            thinking: { type: 'disabled' },
+            // Schema-constrained output: a title with inner quotes no longer breaks the JSON.
+            output_config: { format: { type: 'json_schema', schema: PUBS_SCHEMA } },
             system: PROMPT,
             messages: [{ role: 'user', content: [{ type: 'text', text }] }],
         }),
     }))
     const body = JSON.parse(new TextDecoder().decode(res.body))
+    if (body.stop_reason !== 'end_turn') throw new Error(`model stopped early: ${body.stop_reason}`)
     const out = (Array.isArray(body.content) ? body.content : []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
-    const a = out.indexOf('{'), b = out.lastIndexOf('}')
-    if (a < 0 || b < a) throw new Error('model returned no JSON')
-    const pubs = JSON.parse(out.slice(a, b + 1)).pubs
+    const pubs = JSON.parse(out).pubs
     if (!Array.isArray(pubs)) throw new Error('model JSON has no pubs list')
     return pubs
 }

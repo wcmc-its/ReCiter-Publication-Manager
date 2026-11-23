@@ -90,18 +90,35 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         const parsed = parseStructured(text)
         if (parsed) ({ items, dropped } = sanitizeCitations(parsed, text))
         const chunks = parsed ? [] : chunkText(text)
-        for (let i = 0; i < chunks.length && !cancelled.current; i++) {
-            setProgress(chunks.length > 1 ? `Reading part ${i + 1} of ${chunks.length}…` : 'Reading the list…')
-            const r = await post('/api/db/import/extract', { uid: props.uid, text: chunks[i] }).catch(() => ({ status: 0, body: {} as any }))
-            if (r.status !== 200) {
-                setStep('paste')
-                setNote(r.body?.message || `Could not read the list (HTTP ${r.status || 'network error'}).`)
-                return
+        // Three parts in flight (a part takes ~40 s); a failed part is retried once, then skipped
+        // and named, so one bad part no longer throws away the rest of a long paste.
+        const got: Citation[][] = [], failed: number[] = []
+        let next = 0, done = 0, lastError = ''
+        const worker = async () => {
+            while (next < chunks.length && !cancelled.current) {
+                const i = next++
+                let r = { status: 0, body: {} as any }
+                for (let attempt = 0; attempt < 2 && r.status !== 200 && !cancelled.current; attempt++) {
+                    r = await post('/api/db/import/extract', { uid: props.uid, text: chunks[i] }).catch(() => ({ status: 0, body: {} as any }))
+                    // 4xx (session, permission, size) will not change on a retry.
+                    if (r.status >= 400 && r.status < 500) break
+                }
+                if (r.status === 200) { got[i] = r.body.items || []; dropped += Number(r.body.dropped) || 0 }
+                else { failed.push(i + 1); lastError = r.body?.message || `HTTP ${r.status || 'network error'}` }
+                done++
+                if (chunks.length > 1) setProgress(`Read ${done} of ${chunks.length} parts…`)
             }
-            items = items.concat(r.body.items || [])
-            dropped += Number(r.body.dropped) || 0
         }
+        setProgress(chunks.length > 1 ? `Reading ${chunks.length} parts…` : 'Reading the list…')
+        await Promise.all([worker(), worker(), worker()])
         if (cancelled.current) return
+        if (chunks.length && failed.length === chunks.length) {
+            setStep('paste')
+            setNote(lastError.startsWith('HTTP') ? `Could not read the list (${lastError}).` : lastError)
+            return
+        }
+        items = items.concat(...got.filter(Boolean))
+        if (failed.length) toast.warning(`Part${failed.length === 1 ? '' : 's'} ${failed.sort((a, b) => a - b).join(', ')} of ${chunks.length} could not be read (${lastError}); publications in ${failed.length === 1 ? 'it' : 'them'} are missing from the list below.`)
         const d = dedupePaste(items)
         const capped = d.items.slice(0, MAX_ITEMS)
         setStats({ dropped, deduped: d.deduped })
