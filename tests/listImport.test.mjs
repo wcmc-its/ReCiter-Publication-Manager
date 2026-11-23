@@ -5,7 +5,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
     normTitle, titleSim, matchScore, bestMatch, chunkText, groundedInSource, sanitizeCitations,
-    dedupePaste, detectFormat, parseStructured, parseCsvRows, groupAgainstRecord, cleanDoi, isUpdateNotice, sameWork, titleNumbers, isPreprintDoi, MAX_ITEMS,
+    dedupePaste, detectFormat, parseStructured, parseCsvRows, groupAgainstRecord, cleanDoi, isUpdateNotice, sameWork, titleNumbers, isPreprintDoi, MAX_ITEMS, knownInRecord,
 } from '../src/lib/listImport.ts'
 
 const SCHOLAR = `Cited by
@@ -311,4 +311,25 @@ test('sameWork: formatting-only differences match; letter-suffixed numbers stay 
     assert.ok(!same('5-HT2A receptor signaling in invented widget neurons of the cortex', '5-HT2C receptor signaling in invented widget neurons of the cortex'))
     assert.ok(!same('Outcomes of stage 3A invented widget cancer after resection', 'Outcomes of stage 3B invented widget cancer after resection'))
     assert.ok(!sameWork('H2O2 production by mitochondria in widget cells', 2010, 'H2O2 production by mitochondria in widget cells', 2015), 'years far apart')
+})
+
+test('knownInRecord: accepted or external title hits skip lookup and still group as in_profile', () => {
+    const pubs = [
+        { pmid: 11, title: 'Invented lattice models of imaginary sleep', year: 2019, doi: '10.9999/a', status: 'ACCEPTED' },
+        { pmid: 12, title: 'Synthetic widget pathways part 2', year: 2020, status: 'ACCEPTED' },
+        { pmid: 13, title: 'Pending invented cortex atlas', year: 2021, status: 'PENDING' },
+    ]
+    const exts = [{ articleId: 'OPENALEX:W1', title: 'Fictional conference paper on widgets', year: 2018, state: 'accepted' }]
+    const c = (title, year, doi) => ({ title, year, doi })
+    assert.equal(knownInRecord(c('Invented lattice models of imaginary sleep', 2019), pubs, exts), true)
+    assert.equal(knownInRecord(c('Invented lattice models of imaginary sleep', 2019, '10.9999/other'), pubs, exts), false) // different DOI
+    assert.equal(knownInRecord(c('Synthetic widget pathways part 3', 2020), pubs, exts), false) // numbers differ
+    assert.equal(knownInRecord(c('Pending invented cortex atlas', 2021), pubs, exts), false) // pending: needs lookup
+    assert.equal(knownInRecord(c('Fictional conference paper on widgets', 2018), pubs, exts), true)
+    assert.equal(knownInRecord(c('Invented lattice models of imaginary sleep', 2012), pubs, exts), false) // year off
+    const rows = groupAgainstRecord([
+        { ...c('Invented lattice models of imaginary sleep', 2019), score: 0, match: null },
+        { ...c('Fictional conference paper on widgets', 2018), score: 0, match: null },
+    ], pubs, exts)
+    assert.deepEqual(rows.map((r) => r.group), ['in_profile', 'in_profile'])
 })

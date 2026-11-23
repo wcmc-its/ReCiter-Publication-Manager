@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { resolveCitations } from '../../../../../controllers/listImport.controller'
-import { gate } from '../../../../../controllers/listImportGate'
+import { gate, refuse } from '../../../../../controllers/listImportGate'
 import { sanitizeCitations } from '../../../../lib/listImport'
 
 // "Import a list" step 3 (plan 2026-11-20-import-a-list-plan.md).
@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!uid) return
     const raw = req.body?.items
     if (!Array.isArray(raw) || raw.length === 0 || raw.length > 10) {
-        return res.status(400).send({ statusCode: 400, message: 'items must be a list of 1 to 10 citations' })
+        return refuse(res, req, 400, 'items must be a list of 1 to 10 citations')
     }
     // Same shape check as extract; the titles' own text is the source here, so nothing is "invented".
     const { items } = sanitizeCitations(raw, raw.map((r: any) => (r && typeof r.title === 'string' ? r.title : '')).join('\n'))

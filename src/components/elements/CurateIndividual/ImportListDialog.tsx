@@ -5,7 +5,7 @@ import { Button, Dialog } from "../../ui"
 import { reciterConfig } from "../../../../config/local"
 import {
     Citation, Group, GROUP_LABEL, MAX_ITEMS, MAX_PASTE_CHARS, RecordExt, RecordPub, Resolved, Row,
-    chunkText, dedupePaste, groupAgainstRecord, parseStructured, sanitizeCitations,
+    chunkText, dedupePaste, groupAgainstRecord, knownInRecord, parseStructured, sanitizeCitations,
 } from "../../../lib/listImport"
 
 // "Import a list" (plan 2026-11-20-import-a-list-plan.md). Paste a publication list (Google
@@ -67,15 +67,24 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         setChecked((prev) => Object.fromEntries(next.map((r, i) => [i, keep?.has(i) && r.checkable ? !!prev[i] : r.checkedByDefault])))
     }
 
+    // Two batches of 10 in flight; each batch is serial on the server, so Crossref and OpenAlex
+    // see at most two requests at a time from one dialog (429s back off server-side).
     const resolveAll = async (items: Citation[]): Promise<Resolved[]> => {
-        const out: Resolved[] = []
-        for (let i = 0; i < items.length && !cancelled.current; i += 10) {
-            setProgress(`Matching ${Math.min(i + 10, items.length)} of ${items.length}…`)
-            const batch = items.slice(i, i + 10)
-            const r = await post('/api/db/import/resolve', { uid: props.uid, items: batch }).catch(() => ({ status: 0, body: {} as any }))
-            if (r.status === 200 && Array.isArray(r.body.results)) out.push(...r.body.results)
-            else out.push(...batch.map((c) => ({ ...c, score: 0, match: null, error: r.body?.message || `HTTP ${r.status || 'network error'}` })))
+        const out: Resolved[] = new Array(items.length)
+        let next = 0, done = 0
+        const worker = async () => {
+            while (next < items.length && !cancelled.current) {
+                const i = next; next += 10
+                const batch = items.slice(i, i + 10)
+                const r = await post('/api/db/import/resolve', { uid: props.uid, items: batch }).catch(() => ({ status: 0, body: {} as any }))
+                const res: Resolved[] = r.status === 200 && Array.isArray(r.body.results) && r.body.results.length === batch.length ? r.body.results
+                    : batch.map((c) => ({ ...c, score: 0, match: null, error: r.body?.message || `HTTP ${r.status || 'network error'}` }))
+                res.forEach((x, k) => { out[i + k] = x })
+                done += batch.length
+                setProgress(`Matching ${done} of ${items.length}…`)
+            }
         }
+        await Promise.all([worker(), worker()])
         return out
     }
 
@@ -90,26 +99,46 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         const parsed = parseStructured(text)
         if (parsed) ({ items, dropped } = sanitizeCitations(parsed, text))
         const chunks = parsed ? [] : chunkText(text)
-        for (let i = 0; i < chunks.length && !cancelled.current; i++) {
-            setProgress(chunks.length > 1 ? `Reading part ${i + 1} of ${chunks.length}…` : 'Reading the list…')
-            const r = await post('/api/db/import/extract', { uid: props.uid, text: chunks[i] }).catch(() => ({ status: 0, body: {} as any }))
-            if (r.status !== 200) {
-                setStep('paste')
-                setNote(r.body?.message || `Could not read the list (HTTP ${r.status || 'network error'}).`)
-                return
+        // Three parts in flight (a part takes ~40 s); a failed part is retried once, then skipped
+        // and named, so one bad part no longer throws away the rest of a long paste.
+        const got: Citation[][] = [], failed: number[] = []
+        let next = 0, done = 0, lastError = ''
+        const worker = async () => {
+            while (next < chunks.length && !cancelled.current) {
+                const i = next++
+                let r = { status: 0, body: {} as any }
+                for (let attempt = 0; attempt < 2 && r.status !== 200 && !cancelled.current; attempt++) {
+                    r = await post('/api/db/import/extract', { uid: props.uid, text: chunks[i] }).catch(() => ({ status: 0, body: {} as any }))
+                    // 4xx (session, permission, size) will not change on a retry.
+                    if (r.status >= 400 && r.status < 500) break
+                }
+                if (r.status === 200) { got[i] = r.body.items || []; dropped += Number(r.body.dropped) || 0 }
+                else { failed.push(i + 1); lastError = r.body?.message || `HTTP ${r.status || 'network error'}` }
+                done++
+                if (chunks.length > 1) setProgress(`Read ${done} of ${chunks.length} parts…`)
             }
-            items = items.concat(r.body.items || [])
-            dropped += Number(r.body.dropped) || 0
         }
+        setProgress(chunks.length > 1 ? `Reading ${chunks.length} parts…` : 'Reading the list…')
+        await Promise.all([worker(), worker(), worker()])
         if (cancelled.current) return
+        if (chunks.length && failed.length === chunks.length) {
+            setStep('paste')
+            setNote(lastError.startsWith('HTTP') ? `Could not read the list (${lastError}).` : lastError)
+            return
+        }
+        items = items.concat(...got.filter(Boolean))
+        if (failed.length) toast.warning(`Part${failed.length === 1 ? '' : 's'} ${failed.sort((a, b) => a - b).join(', ')} of ${chunks.length} could not be read (${lastError}); publications in ${failed.length === 1 ? 'it' : 'them'} are missing from the list below.`)
         const d = dedupePaste(items)
         const capped = d.items.slice(0, MAX_ITEMS)
         setStats({ dropped, deduped: d.deduped })
         if (!capped.length) { setStep('paste'); setNote('No publications were found in that text.'); return }
         if (d.items.length > MAX_ITEMS) toast.info(`Only the first ${MAX_ITEMS} publications are imported; import the rest separately.`)
-        const resolved = await resolveAll(capped)
+        // Works the record already holds need no lookup (most of a long profile).
+        const known = capped.map((c) => knownInRecord(c, props.pubs, props.exts))
+        const looked = await resolveAll(capped.filter((_, i) => !known[i]))
         if (cancelled.current) return
-        regroup(resolved)
+        let k = 0
+        regroup(capped.map((c, i) => (known[i] ? { ...c, score: 0, match: null } : looked[k++])))
         setStep('review')
     }
 
@@ -221,7 +250,10 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
     )
 
     return (
-        <Dialog open={props.open} onClose={props.onClose} width={900} title="Import a list"
+        <Dialog open={props.open} width={900}
+            // A long run lives only in this dialog: Esc or a backdrop click must not throw it away
+            // while it works (Cancel stops it). ponytail: no resume after a reload; add sessionStorage if asked.
+            onClose={step === 'working' ? () => undefined : props.onClose} title="Import a list"
             description={`for ${props.fullName || props.uid} · nothing is saved until you click Add`} footer={footer}>
             {step === 'paste' && (
                 <div className={styles.meBody}>
