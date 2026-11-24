@@ -302,3 +302,13 @@ export const emptyState = (args: { statusView: string; queueTotal: number | null
     canReset: filtersOn,
   };
 };
+
+// "Eliot T. Miller" -> "Eliot Miller": the directory search's second try when the byline name
+// finds nobody, since ED rarely carries the middle initial a byline prints. Only single-letter
+// tokens BETWEEN the first and last are dropped; returns null when there is nothing to drop.
+export function dropMiddleInitials(name: string): string | null {
+  const t = name.trim().split(/\s+/);
+  if (t.length < 3) return null;
+  const mid = t.slice(1, -1).filter((w) => !/^([A-Za-z]\.){1,2}$|^[A-Za-z]$/.test(w)); // T, T., T.J. (not "Li")
+  return mid.length === t.length - 2 ? null : [t[0], ...mid, t[t.length - 1]].join(" ");
+}

@@ -16,6 +16,7 @@ import { assignGate, canonicalCwid, homonymRejections, toCanonicalCwid } from ".
 import { parseCwid } from "../../src/utils/canonicalCwid";
 import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
+import { dropMiddleInitials } from "../../src/utils/authorshipRow";
 import { externalSourceLabel, isExternalSource, openalexWorkId } from "../../src/lib/externalSource";
 import { storedConflictJson } from "../../src/lib/acceptConflictMatches";
 import {
@@ -990,10 +991,18 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
       // Cornell there, because "Population Medicine" matches every WCM "Medicine" dept.
       const campuses = bylineCampuses(affil);
       const wcmFirst = auto && !campuses.has("cornell");
-      let found = await searchDirectoryPeople(q, 8, true, affil, wcmFirst ? { cornell: false } : {}, rosterFill);
-      if (wcmFirst && cornellFallback(found, affil)) {
-        found = [...found, ...await searchDirectoryPeople(q, 8, true, affil, { wcm: false }, rosterFill)];
-      }
+      const searchFor = async (term: string) => {
+        let hits = await searchDirectoryPeople(term, 8, true, affil, wcmFirst ? { cornell: false } : {}, rosterFill);
+        if (wcmFirst && cornellFallback(hits, affil)) {
+          hits = [...hits, ...await searchDirectoryPeople(term, 8, true, affil, { wcm: false }, rosterFill)];
+        }
+        return hits;
+      };
+      let found = await searchFor(q);
+      // Nobody under "Eliot T. Miller" -> try "Eliot Miller"; the client says it widened.
+      // ponytail: one extra LDAP round-trip only on an empty answer with a middle initial.
+      const widened = found.length === 0 ? dropMiddleInitials(q) : null;
+      if (widened) found = await searchFor(widened);
       // Which of these does ReCiter already know? A curator searching by name must be told
       // "this one is already in ReCiter" so they pick the identity that exists rather than
       // minting a duplicate of it — and for a Cornell person that also means surfacing the WCM
@@ -1012,6 +1021,7 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
       const people = found.map((p, i) => ({ p, i })).sort((a, b) => score(b.p) - score(a.p) || a.i - b.i).map((x) => x.p);
       return res.send({
         configured: directoryConfigured(),
+        widened: widened && found.length ? widened : null,
         matches: people.map((p) => ({
           id: p.id, source: p.source, name: p.name, title: p.title, dept: p.dept,
           // The assembled legal name, which is not always what displayName carries: ED holds a
