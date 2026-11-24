@@ -15,8 +15,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Same shape check as extract; the titles' own text is the source here, so nothing is "invented".
     const { items } = sanitizeCitations(raw, raw.map((r: any) => (r && typeof r.title === 'string' ? r.title : '')).join('\n'))
     try {
+        const t0 = Date.now()
         const results = await resolveCitations(items)
-        console.log(`[import/resolve] uid=${uid} items=${items.length} matched=${results.filter((r) => r.match).length} errors=${results.filter((r) => r.error).length}`)
+        // Why lookups failed, counted (never the titles): "Crossref HTTP 429 x3".
+        const why: Record<string, number> = {}
+        results.forEach((r) => { if (r.error) why[r.error] = (why[r.error] || 0) + 1 })
+        const reasons = Object.entries(why).map(([e, n]) => `${e} x${n}`).join(', ')
+        console.log(`[import/resolve] uid=${uid} items=${items.length} matched=${results.filter((r) => r.match).length} errors=${results.filter((r) => r.error).length} ms=${Date.now() - t0}${reasons ? ` reasons=${reasons}` : ''}`)
         return res.status(200).send({ statusCode: 200, results })
     } catch (err: any) {
         console.error(`[import/resolve] uid=${uid} failed: ${err?.message || err}`)

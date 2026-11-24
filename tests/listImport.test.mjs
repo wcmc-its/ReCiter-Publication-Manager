@@ -5,7 +5,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
     normTitle, titleSim, matchScore, bestMatch, chunkText, groundedInSource, sanitizeCitations,
-    dedupePaste, detectFormat, parseStructured, parseCsvRows, groupAgainstRecord, cleanDoi, isUpdateNotice, sameWork, titleNumbers, isPreprintDoi, MAX_ITEMS, knownInRecord,
+    dedupePaste, detectFormat, parseStructured, parseCsvRows, groupAgainstRecord, cleanDoi, isUpdateNotice, sameWork, titleNumbers, isPreprintDoi, MAX_ITEMS, knownInRecord, timeLeft,
 } from '../src/lib/listImport.ts'
 
 const SCHOLAR = `Cited by
@@ -332,4 +332,13 @@ test('knownInRecord: accepted or external title hits skip lookup and still group
         { ...c('Fictional conference paper on widgets', 2018), score: 0, match: null },
     ], pubs, exts)
     assert.deepEqual(rows.map((r) => r.group), ['in_profile', 'in_profile'])
+})
+
+test('timeLeft: guess until something finishes, then the measured rate', () => {
+    const start = 0
+    assert.equal(timeLeft({ done: 0, total: 451, start, guessMs: 800 }, 0), 'about 6 minutes left')
+    // 100 done in 2 min: 351 left at 1.2 s each is ~7 min, whatever the guess said.
+    assert.equal(timeLeft({ done: 100, total: 451, start, guessMs: 800 }, 120000), 'about 7 minutes left')
+    assert.equal(timeLeft({ done: 9, total: 10, start, guessMs: 800 }, 9000), 'less than a minute left')
+    assert.equal(timeLeft({ done: 10, total: 10, start, guessMs: 800 }, 9000), '')
 })
