@@ -277,6 +277,9 @@ test('deptLabel: generic Cornell Tech HR units read "Cornell Tech", with a title
     assert.equal(deptLabel(' Tech Instruction '), 'Cornell Tech')
     assert.equal(deptLabel('JTC Instruction', 'Assistant Professor'), 'Cornell Tech · Assistant Professor')
     assert.equal(deptLabel('faculty and research', '  '), 'Cornell Tech')
+    // the name the producer now stores
+    assert.equal(deptLabel('Cornell Tech', 'Professor'), 'Cornell Tech · Professor')
+    assert.equal(deptLabel('Cornell Tech'), 'Cornell Tech')
     // every other department as it comes, title or not
     assert.equal(deptLabel('CALS Animal Science', 'Professor'), 'CALS Animal Science')
     assert.equal(deptLabel(' Medicine '), 'Medicine')

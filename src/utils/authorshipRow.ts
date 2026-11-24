@@ -43,9 +43,10 @@ export const venueFitBand = (fit?: number | null): VenueFitBand | null =>
 
 // A candidate's department as the page shows it. Cornell Tech's HR units "Faculty and Research",
 // "Tech Instruction" and "JTC Instruction" say nothing about the field, so they read "Cornell
-// Tech", with the person's title after it when the candidate carries one. Every other
-// department shows as it comes (no title: the candidate lines are kept to one short line).
-const CORNELL_TECH_UNITS = new Set(["faculty and research", "tech instruction", "jtc instruction"]);
+// Tech", with the person's title after it when the candidate carries one. The producer now
+// stores that name itself (ReCiterDB #311), so it is in the set too. Every other department
+// shows as it comes (no title: the candidate lines are kept to one short line).
+const CORNELL_TECH_UNITS = new Set(["cornell tech", "faculty and research", "tech instruction", "jtc instruction"]);
 export const deptLabel = (dept?: string | null, title?: string | null): string => {
   const d = (dept || "").trim();
   if (!CORNELL_TECH_UNITS.has(d.toLowerCase())) return d;
