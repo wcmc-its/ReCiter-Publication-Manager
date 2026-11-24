@@ -443,3 +443,14 @@ export const GROUP_LABEL: Record<Group, string> = {
     not_found: 'Not found',
     error: 'Lookup failed',
 }
+
+// Time left: the measured rate once something has finished, else the guess.
+export const timeLeft = (p: { done: number, total: number, start: number, guessMs: number }, now: number): string => {
+    const left = p.total - p.done
+    if (left <= 0) return ''
+    const elapsed = now - p.start
+    const ms = p.done ? (elapsed / p.done) * left : p.guessMs * p.total - elapsed
+    if (ms < 15000) return 'less than a minute left'
+    if (ms < 90000) return 'about a minute left'
+    return `about ${Math.round(ms / 60000)} minutes left`
+}

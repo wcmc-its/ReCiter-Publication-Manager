@@ -74,13 +74,16 @@ export async function extractCitations(text: string): Promise<{ items: Citation[
     return { ...sanitizeCitations(raw, text), via: parsed ? 'parser' : 'model' }
 }
 
-// The three lookups answer {statusCode, statusText}; retry a 429 with backoff (1, 2, 4, 8 s).
+// The lookups answer {statusCode, statusText}. Retry a 429 (rate limit) or a 502-504 (the source
+// dropped the connection, e.g. ECONNRESET) with backoff (1, 2, 4, 8 s); the error names the source.
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const RETRY = new Set([429, 502, 503, 504])
 async function search(fn: (req: any) => Promise<any>, query: string): Promise<any[]> {
+    const source = fn === searchCrossref ? 'Crossref' : 'OpenAlex'
     for (let i = 0; ; i++) {
         const r = await fn({ body: { query } })
         if (r.statusCode === 200) return Array.isArray(r.statusText) ? r.statusText : []
-        if (r.statusCode !== 429 || i === 4) throw new Error(`lookup HTTP ${r.statusCode}`)
+        if (!RETRY.has(r.statusCode) || i === 4) throw new Error(`${source} HTTP ${r.statusCode}`)
         await sleep(1000 * 2 ** i)
     }
 }
@@ -154,7 +157,7 @@ async function resolveOne(c: Citation): Promise<Resolved> {
     return { ...c, doi: keptDoi, score, match: toMatch(row, pmid) }
 }
 
-// Serial on purpose: one batch in flight per dialog keeps Crossref and OpenAlex under their limits.
+// Serial within a batch; the dialog keeps two batches in flight and backs off when lookups fail.
 export async function resolveCitations(items: Citation[]): Promise<Resolved[]> {
     const out: Resolved[] = []
     for (const c of items) {

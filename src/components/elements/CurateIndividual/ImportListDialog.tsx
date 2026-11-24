@@ -1,11 +1,11 @@
-import React, { FunctionComponent, useRef, useState } from "react"
+import React, { FunctionComponent, useEffect, useRef, useState } from "react"
 import { toast } from "react-toastify"
 import styles from "./CurateIndividual.module.css"
 import { Button, Dialog } from "../../ui"
 import { reciterConfig } from "../../../../config/local"
 import {
     Citation, Group, GROUP_LABEL, MAX_ITEMS, MAX_PASTE_CHARS, RecordExt, RecordPub, Resolved, Row,
-    chunkText, dedupePaste, groupAgainstRecord, knownInRecord, parseStructured, sanitizeCitations,
+    chunkText, dedupePaste, groupAgainstRecord, knownInRecord, parseStructured, sanitizeCitations, timeLeft,
 } from "../../../lib/listImport"
 
 // "Import a list" (plan 2026-11-20-import-a-list-plan.md). Paste a publication list (Google
@@ -26,6 +26,10 @@ interface FuncProps {
 }
 
 type Step = 'paste' | 'working' | 'review' | 'done'
+// A long step's live view: a bar, counts, time left and the latest results, so a 10-minute run
+// visibly moves. guessMs is the expected wall-clock per unit until real timings come in.
+type Seen = { title: string, what: string, bad?: boolean }
+type Prog = { label: string, unit: string, done: number, total: number, start: number, guessMs: number, counts: string, note: string, recent: Seen[] }
 type Outcome = { accepted: number, added: number, already: number, warn: string[], failed: string[] }
 
 const apiHeaders = { Accept: "application/json", "Content-Type": "application/json", Authorization: reciterConfig.backendApiKey }
@@ -46,12 +50,29 @@ const linkOf = (r: Row): { href: string, label: string } | null => {
     return null
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const clock = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
+const seenOf = (r: Resolved): Seen => ({
+    title: r.title,
+    what: r.error ? `lookup failed: ${r.error}` : r.match?.pmid ? `found, PMID ${r.match.pmid}` : r.match ? 'found, not in PubMed' : 'not found',
+    bad: !!r.error,
+})
+
 const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
     const short = (props.fullName || '').trim().split(/\s+/)[0] || 'this person'
     const [step, setStep] = useState<Step>('paste')
     const [text, setText] = useState('')
     const [note, setNote] = useState('')
     const [progress, setProgress] = useState('')
+    const [prog, setProg] = useState<Prog | null>(null)
+    // Re-render once a second while working, so the elapsed time and time left keep moving.
+    const [, setTick] = useState(0)
+    useEffect(() => {
+        if (step !== 'working') return
+        const t = setInterval(() => setTick((n) => n + 1), 1000)
+        return () => clearInterval(t)
+    }, [step])
+    const say = (msg: string) => { setProg(null); setProgress(msg) }
     const [rows, setRows] = useState<Row[]>([])
     const [checked, setChecked] = useState<Record<number, boolean>>({})
     const [stats, setStats] = useState({ dropped: 0, deduped: 0 })
@@ -67,24 +88,55 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         setChecked((prev) => Object.fromEntries(next.map((r, i) => [i, keep?.has(i) && r.checkable ? !!prev[i] : r.checkedByDefault])))
     }
 
-    // Two batches of 10 in flight; each batch is serial on the server, so Crossref and OpenAlex
-    // see at most two requests at a time from one dialog (429s back off server-side).
-    const resolveAll = async (items: Citation[]): Promise<Resolved[]> => {
+    // Two batches of 10 in flight; each batch is serial on the server. A batch with failed lookups
+    // (Crossref or OpenAlex refusing) pauses both workers, 5 s doubling to 60 s, easing off after
+    // clean batches. Lookups that still failed are retried once at the end, after a pause.
+    const resolveAll = async (items: Citation[], label: string): Promise<Resolved[]> => {
         const out: Resolved[] = new Array(items.length)
-        let next = 0, done = 0
-        const worker = async () => {
-            while (next < items.length && !cancelled.current) {
-                const i = next; next += 10
-                const batch = items.slice(i, i + 10)
-                const r = await post('/api/db/import/resolve', { uid: props.uid, items: batch }).catch(() => ({ status: 0, body: {} as any }))
-                const res: Resolved[] = r.status === 200 && Array.isArray(r.body.results) && r.body.results.length === batch.length ? r.body.results
-                    : batch.map((c) => ({ ...c, score: 0, match: null, error: r.body?.message || `HTTP ${r.status || 'network error'}` }))
-                res.forEach((x, k) => { out[i + k] = x })
-                done += batch.length
-                setProgress(`Matching ${done} of ${items.length}…`)
-            }
+        let pauseUntil = 0, backoff = 0
+        const p: Prog = { label, unit: 'looked up', done: 0, total: items.length, start: Date.now(), guessMs: 800, counts: '', note: '', recent: [] }
+        const show = () => {
+            const got = out.filter(Boolean)
+            const found = got.filter((x) => x.match).length, failed = got.filter((x) => x.error).length
+            p.counts = `${found} found · ${got.length - found - failed} not found${failed ? ` · ${failed} failed` : ''}`
+            setProg({ ...p })
         }
-        await Promise.all([worker(), worker()])
+        const pass = async (idx: number[]) => {
+            let next = 0
+            const worker = async () => {
+                while (next < idx.length && !cancelled.current) {
+                    const wait = pauseUntil - Date.now()
+                    if (wait > 0) {
+                        p.note = `The lookup services are busy; pausing ${Math.ceil(wait / 1000)} s.`
+                        show()
+                        await sleep(wait)
+                        continue
+                    }
+                    const slice = idx.slice(next, next + 10); next += 10
+                    const batch = slice.map((i) => items[i])
+                    const r = await post('/api/db/import/resolve', { uid: props.uid, items: batch }).catch(() => ({ status: 0, body: {} as any }))
+                    const res: Resolved[] = r.status === 200 && Array.isArray(r.body.results) && r.body.results.length === batch.length ? r.body.results
+                        : batch.map((c) => ({ ...c, score: 0, match: null, error: r.body?.message || `HTTP ${r.status || 'network error'}` }))
+                    res.forEach((x, k) => { out[slice[k]] = x })
+                    if (res.some((x) => x.error)) { backoff = Math.min(backoff ? backoff * 2 : 5000, 60000); pauseUntil = Date.now() + backoff }
+                    else { backoff = backoff > 5000 ? backoff / 2 : 0; p.note = '' }
+                    p.done += batch.length
+                    p.recent = [...res.map(seenOf), ...p.recent].slice(0, 6)
+                    show()
+                }
+            }
+            await Promise.all([worker(), worker()])
+        }
+        show()
+        await pass(items.map((_, i) => i))
+        const failed = out.map((x, i) => (x?.error ? i : -1)).filter((i) => i >= 0)
+        if (failed.length && !cancelled.current) {
+            Object.assign(p, { label: `Retrying ${failed.length} lookup${failed.length === 1 ? '' : 's'} that failed`, done: 0, total: failed.length, start: Date.now(), note: 'Pausing so the lookup services recover…' })
+            show()
+            await sleep(Math.max(10000, backoff))
+            p.note = ''; pauseUntil = 0; backoff = 0
+            await pass(failed)
+        }
         return out
     }
 
@@ -114,11 +166,15 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
                 }
                 if (r.status === 200) { got[i] = r.body.items || []; dropped += Number(r.body.dropped) || 0 }
                 else { failed.push(i + 1); lastError = r.body?.message || `HTTP ${r.status || 'network error'}` }
-                done++
-                if (chunks.length > 1) setProgress(`Read ${done} of ${chunks.length} parts…`)
+                p.done++
+                p.counts = `${got.filter(Boolean).reduce((n, g) => n + g.length, 0)} publications so far${failed.length ? ` · ${failed.length} part${failed.length === 1 ? '' : 's'} failed` : ''}`
+                p.recent = [{ title: `Part ${i + 1}`, what: r.status === 200 ? `${(r.body.items || []).length} publications` : `could not be read (${lastError})`, bad: r.status !== 200 }, ...p.recent].slice(0, 6)
+                setProg({ ...p })
             }
         }
-        setProgress(chunks.length > 1 ? `Reading ${chunks.length} parts…` : 'Reading the list…')
+        // A part takes ~40 s on its own; three run at once.
+        const p: Prog = { label: 'Step 1 of 2: reading the list', unit: 'parts read', done: 0, total: chunks.length, start: Date.now(), guessMs: 40000 / Math.min(3, chunks.length || 1), counts: '', note: '', recent: [] }
+        if (chunks.length) setProg({ ...p }); else say('Reading the file…')
         await Promise.all([worker(), worker(), worker()])
         if (cancelled.current) return
         if (chunks.length && failed.length === chunks.length) {
@@ -135,7 +191,9 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         if (d.items.length > MAX_ITEMS) toast.info(`Only the first ${MAX_ITEMS} publications are imported; import the rest separately.`)
         // Works the record already holds need no lookup (most of a long profile).
         const known = capped.map((c) => knownInRecord(c, props.pubs, props.exts))
-        const looked = await resolveAll(capped.filter((_, i) => !known[i]))
+        const nKnown = known.filter(Boolean).length
+        const looked = await resolveAll(capped.filter((_, i) => !known[i]),
+            `Step 2 of 2: looking up ${capped.length - nKnown} publications${nKnown ? ` (${nKnown} already in the profile need no lookup)` : ''}`)
         if (cancelled.current) return
         let k = 0
         regroup(capped.map((c, i) => (known[i] ? { ...c, score: 0, match: null } : looked[k++])))
@@ -147,7 +205,7 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         if (!idx.length) return
         cancelled.current = false
         setStep('working')
-        const again = await resolveAll(idx.map((i) => rows[i]))
+        const again = await resolveAll(idx.map((i) => rows[i]), `Retrying ${idx.length} lookup${idx.length === 1 ? '' : 's'}`)
         if (cancelled.current) return
         const merged: Resolved[] = rows.slice()
         idx.forEach((i, k) => { merged[i] = again[k] })
@@ -173,7 +231,7 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
         setStep('working')
         const out: Outcome = { accepted: 0, added: 0, already: 0, warn: [], failed: [] }
         if (pmids.length) {
-            setProgress(`Accepting ${pmids.length} PubMed publication${pmids.length === 1 ? '' : 's'}…`)
+            say(`Accepting ${pmids.length} PubMed publication${pmids.length === 1 ? '' : 's'}…`)
             try {
                 const r = await props.onAcceptPmids(pmids)
                 out.accepted = r.ok.length
@@ -182,14 +240,17 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
                 out.failed.push(`PubMed accept: ${e?.message || e}`)
             }
         }
+        const p: Prog = { label: 'Adding publications not in PubMed', unit: 'added', done: 0, total: exts.length, start: Date.now(), guessMs: 1500, counts: '', note: '', recent: [] }
         for (let i = 0; i < exts.length; i++) {
             const r = exts[i]
-            setProgress(`Adding ${i + 1} of ${exts.length} publications not in PubMed…`)
+            p.done = i
+            setProg({ ...p })
             const res = await post(`/api/db/external/${encodeURIComponent(props.uid)}`, r.match!.record).catch(() => ({ status: 0, body: {} as any }))
             if (res.status === 200 || res.status === 201) out.added++
             else if (res.status === 409 && (res.body?.message || {}).status === 'WARNING') out.warn.push(r.match!.title)
             else if (res.status === 409) out.already++
             else out.failed.push(`${r.match!.title}: ${(res.body?.message && (res.body.message.message || res.body.message)) || `HTTP ${res.status}`}`)
+            p.recent = [{ title: r.match!.title, what: res.status === 200 || res.status === 201 ? 'added' : res.status === 409 ? 'already there' : 'failed', bad: res.status !== 200 && res.status !== 201 && res.status !== 409 }, ...p.recent].slice(0, 6)
         }
         if (exts.length) props.onAdded()
         saving.current = false
@@ -276,7 +337,20 @@ const ImportListDialog: FunctionComponent<FuncProps> = (props) => {
                     {note && <div className={styles.apWarn} role="status">{note}</div>}
                 </div>
             )}
-            {step === 'working' && <div className={styles.ilProgress} role="status" aria-live="polite">{progress}</div>}
+            {step === 'working' && (prog ? (
+                <div className={styles.ilProgress}>
+                    <div role="status" aria-live="polite"><b>{prog.label}</b></div>
+                    <progress className={styles.ilBar} max={prog.total || 1} value={prog.done} />
+                    <div>{prog.done} of {prog.total} {prog.unit}{prog.counts && ` · ${prog.counts}`}</div>
+                    <div className={styles.ilMuted}>{clock(Date.now() - prog.start)} elapsed{timeLeft(prog, Date.now()) && ` · ${timeLeft(prog, Date.now())}`}</div>
+                    {prog.note && <div className={styles.ilAsk}>{prog.note}</div>}
+                    {prog.recent.length > 0 && (
+                        <ul className={styles.ilRecent} aria-label="Latest">
+                            {prog.recent.map((r, i) => <li key={i} className={r.bad ? styles.ilAsk : undefined}><span>{r.title}</span> · {r.what}</li>)}
+                        </ul>
+                    )}
+                </div>
+            ) : <div className={styles.ilProgress} role="status" aria-live="polite">{progress}</div>)}
             {step === 'review' && (
                 <div className={styles.meBody}>
                     <div className={styles.ilCounts} role="status">
