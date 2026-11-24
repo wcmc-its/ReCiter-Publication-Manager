@@ -7,7 +7,7 @@ import {
     ioBand, ioBadgeText, ioBadge, shortInstitution, roleLine, formatRowDate,
     splitAffiliation, sourceBadgeText, shortcutsLine, parkedNote,
     ioScoreText, fgLine, bylineParts, rankCandidates, confidenceLevel, confidenceTip, CONFIDENCE_HIGH, CONFIDENCE_MEDIUM, compareHint, shareLine, venueFitBand, orcidMatchTip, topOrcidSource, orcidLaneBulkOk, isDeliberateClick,
-    deptLabel, venueFitRatio, venueFitMarker, venueFitTip, venuePointsTo, venuePointsTip, VENUE_POINTS_GAP,
+    deptLabel, venueFitRatio, venueFitMarker, directoryRole, netidAfterPaper, venueFitTip, venuePointsTo, venuePointsTip, VENUE_POINTS_GAP,
 } from '../src/utils/authorshipRow.ts'
 
 test('ioBand uses the page bands (90 / 50)', () => {
@@ -362,4 +362,25 @@ test('venuePointsTo: nothing unless the top candidate leads every other fit by >
     // top_cwid not among the candidates
     assert.equal(venuePointsTo(FENG, 'zz9'), null)
     assert.equal(venuePointsTo([], 'a'), null)
+})
+
+test('directoryRole names Cornell roles instead of the campus marker; WCM is unchanged', () => {
+    assert.equal(directoryRole(['cornell-ithaca', 'cornell-alumni']), 'alumni')
+    assert.equal(directoryRole(['cornell-ithaca', 'cornell-alumni', 'cornell-former-postdoc']), 'alumni, former postdoc')
+    assert.equal(directoryRole(['cornell-ithaca']), '')
+    assert.equal(directoryRole(['academic', 'academic-faculty']), 'academic +1')
+    assert.equal(directoryRole(['wcm-directory']), 'wcm-directory')
+    assert.equal(directoryRole(undefined), '')
+})
+
+test('netidAfterPaper flags a Cornell NetID created a year or more after the paper', () => {
+    const c = (created) => ({ source: 'cornell', created })
+    assert.equal(netidAfterPaper(c('2026-04-03'), '2022-04-07'), 'NetID 3 years after paper')
+    assert.equal(netidAfterPaper(c('2023-04-07'), '2022-04-07'), '') // 365 days, under a year
+    assert.equal(netidAfterPaper(c('2023-05-07'), '2022-04-07'), 'NetID 1 year after paper')
+    assert.equal(netidAfterPaper(c('2015-07-08'), '2022-04-07'), '')
+    assert.equal(netidAfterPaper(c('2001-08-04'), '1995-01-01'), '') // bulk load
+    assert.equal(netidAfterPaper({ source: 'wcm', created: '2026-04-03' }, '2022-04-07'), '')
+    assert.equal(netidAfterPaper(c(null), '2022-04-07'), '')
+    assert.equal(netidAfterPaper(c('2026-04-03'), null), '')
 })
