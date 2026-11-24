@@ -3076,6 +3076,18 @@ const AuthorshipsTabs = () => {
   // The prototype's "Reset all" shows once anything differs from the defaults, the source tab
   // and the search box included.
   const canReset = chips.length > 0 || !!search.trim() || !!searchInput.trim() || source !== FILTER_DEFAULTS.source;
+  // The empty state offers to undo the most recently applied filter, not just "Reset filters".
+  // Order is the order each filter turned on in this session; ones on at load keep chip order.
+  type ActiveFilter = { id: string; label: string; remove: () => void };
+  const activeFilters: ActiveFilter[] = [
+    ...chips.map((c) => ({ id: c.id, label: c.label, remove: () => (c.preset ? applyDatePreset(c.preset) : patchFilters(c.patch)) })),
+    ...(search.trim() ? [{ id: "search", label: `Search “${search.trim()}”`, remove: () => { setSearchInput(""); setSearch(""); } }] : []),
+    ...(source !== FILTER_DEFAULTS.source ? [{ id: "source", label: `Source: ${({ pubmed: "PubMed", scopus: "Scopus", openalex: "OpenAlex" } as Record<string, string>)[source] || source}`, remove: () => setSource(FILTER_DEFAULTS.source) }] : []),
+  ];
+  const filterOrder = useRef<string[]>([]);
+  const activeIds = activeFilters.map((a) => a.id);
+  filterOrder.current = [...filterOrder.current.filter((id) => activeIds.includes(id)), ...activeIds.filter((id) => !filterOrder.current.includes(id))];
+  const lastFilter = activeFilters.find((a) => a.id === filterOrder.current[filterOrder.current.length - 1]);
   // The duplicates queue carries its own grey band (DuplicatesView), so the slate one would repeat it.
   const banner = reportView || statusView === "duplicates" ? null : drillBanner({ likeAuthor, count: loading || listError ? null : count, expected: likeExpected, statusView });
   // Queue counts the summary actually has: the queue on screen (its total) and the two review
@@ -3553,7 +3565,8 @@ const AuthorshipsTabs = () => {
             <button type="button" onClick={() => fetchData()} style={btn("ghost")}>Retry</button>
           </div>
         )}
-        {listEmpty && <EmptyState {...emptyState({ statusView, queueTotal: queueTotalNow, filtersOn: canReset })} onReset={resetFiltersKeepQueue} />}
+        {listEmpty && <EmptyState {...emptyState({ statusView, queueTotal: queueTotalNow, filtersOn: canReset })} onReset={resetFiltersKeepQueue}
+          undoLast={lastFilter && activeFilters.length > 1 ? { label: lastFilter.label, onClick: lastFilter.remove } : undefined} />}
         {!loading && rows.map((r) => (
           <AuthorshipCard
             key={r.id}
@@ -4548,11 +4561,9 @@ const AuthorshipCard = ({
                       <div key={c.cwid} data-cand={c.cwid}
                         {...(live ? { role: "button", tabIndex: 0, className: "pm-arow-cand",
                           "aria-label": [`Assign to ${c.name || c.cwid}`, c.orcid_match ? "ORCID match" : "", level ? `${level} match confidence` : "", warn].filter(Boolean).join(", ") } : {})}
-                        title={[live ? `Assign to ${c.name || c.cwid} (${c.cwid})` : `${c.name || c.cwid} (${c.cwid})`, c.person_type, c.dept,
-                          c.io_score != null ? `IO ${Math.floor(c.io_score)}` : "", level ? `${confidenceTip(c.confidence)} (${level})` : "", warn].filter(Boolean).join(" · ")}
                         onClick={(e) => { if (live && isDeliberateClick(e.detail, window.getSelection()?.toString() || "")) assign(); }}
                         onKeyDown={(e) => { if (live && e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); assign(); } }}
-                        onMouseEnter={() => openHover(c.cwid)} onMouseLeave={closeHover}
+                        onMouseLeave={closeHover}
                         style={{ position: "relative", display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "center",
                           padding: "4px 6px", borderRadius: 6, cursor: live ? "pointer" : "default", fontSize: 12.5 }}>
                         <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -4574,6 +4585,15 @@ const AuthorshipCard = ({
                             </span>
                           )}
                           <span title="Identity-Only Score">{c.io_score != null ? Math.floor(c.io_score) : "—"}</span>
+                          {/* The identity card opens from this button only, not from the whole option:
+                              hovering down a list of 5 namesakes used to pop a card over the next ones.
+                              Leaving the option (card included, it is a child) closes it. */}
+                          <button type="button" data-cand-info aria-label={`About ${c.name || c.cwid}`} aria-expanded={hoverCwid === c.cwid}
+                            onMouseEnter={() => openHover(c.cwid)} onFocus={() => openHover(c.cwid)} onBlur={closeHover}
+                            onClick={(e) => { e.stopPropagation(); cancelHover(); if (hoverCwid === c.cwid) setHoverCwid(null); else { setHoverCwid(c.cwid); onHoverIdentity(c.cwid); } }}
+                            style={{ border: 0, background: "none", padding: 2, display: "inline-flex", color: "var(--pm-muted-foreground)", cursor: "help", borderRadius: 4 }}>
+                            <IconInfo size={14} />
+                          </button>
                         </span>
                         {hoverCwid === c.cwid && (
                           <span style={{ position: "absolute", top: "100%", left: 6, width: 0, height: 0 }}>
@@ -5204,6 +5224,8 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
   // [] = searched and nobody matched. Cleared on every keystroke alongside lookupState, for the
   // same reason: a stale list must never outlive the string that produced it.
   const [matches, setMatches] = useState<any[] | null>(null);
+  // The server found nobody under the name as typed and searched this (middle initial dropped).
+  const [widened, setWidened] = useState<string | null>(null);
   // The name the hit list below answers, when it came from "Look up <byline>" or the search an
   // opened row runs by itself rather than from the box.
   const [searched, setSearched] = useState<string | null>(null);
@@ -5245,7 +5267,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
     (isIdentifier ? post({ cwid: val }) : post(nameQuery).then((d) => ({ searchOnly: d })))
       .then(async (d: any) => {
         if (requestSeq.current !== seq) return;
-        if (d.searchOnly) { setLookupState({ status: "idle" }); setMatches(d.searchOnly.matches || []); return; }
+        if (d.searchOnly) { setLookupState({ status: "idle" }); setWidened(d.searchOnly.widened || null); setMatches(d.searchOnly.matches || []); return; }
         const resolved: TypedCwidLookupState = {
           status: "resolved", cwid: String(d.cwid || val),
           name: d.name ?? null, hasIdentity: !!d.hasIdentity, directory: d.directory ?? null,
@@ -5261,6 +5283,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
         if (!d.hasIdentity && !d.directory) {
           const s = await post(nameQuery);
           if (requestSeq.current !== seq) return;
+          setWidened(s.widened || null);
           setMatches(s.matches || []);
         }
       })
@@ -5312,7 +5335,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     requestSeq.current += 1; // invalidate any in-flight/pending lookup for the old value
     setLookupState({ status: "idle" }); // EVERY keystroke — a resolved answer never outlives its string
-    setMatches(null);
+    setMatches(null); setWidened(null);
     setPickedHit(null);
     const q = val.trim();
     setSearched(q.length < 3 ? null : q);
@@ -5358,12 +5381,12 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
     const seq = requestSeq.current;
     setOtherCwid("");
     setLookupState({ status: "idle" });
-    setMatches(null);
+    setMatches(null); setWidened(null);
     setPickedHit(null);
     setSearched(q);
     setAutoPending(true);
     post({ q, affil: affiliation || "", auto: auto ? "1" : "" })
-      .then((d: any) => { if (requestSeq.current === seq) setMatches(d.matches || []); })
+      .then((d: any) => { if (requestSeq.current === seq) { setWidened(d.widened || null); setMatches(d.matches || []); } })
       .catch(() => { if (requestSeq.current === seq) setMatches([]); })
       .finally(() => { if (requestSeq.current === seq) setAutoPending(false); });
   }, [post, affiliation]);
@@ -5374,7 +5397,7 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
   const cancel = () => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     requestSeq.current += 1;
-    setOtherCwid(""); setLookupState({ status: "idle" }); setMatches(null); setPickedHit(null); setSearched(null); setAutoPending(false);
+    setOtherCwid(""); setLookupState({ status: "idle" }); setMatches(null); setWidened(null); setPickedHit(null); setSearched(null); setAutoPending(false);
   };
   const dirHead: CSSProperties = { fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--pm-muted-foreground)" };
 
@@ -5429,6 +5452,9 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
       )}
       {matches !== null && matches.length === 0 && (
         <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>No directory match{searched ? ` for ${searched}` : ""}. Type a CWID or another name.</span>
+      )}
+      {matches !== null && matches.length > 0 && widened && (
+        <span style={{ fontSize: 12.5, color: "var(--pm-muted-foreground)" }}>No directory match for {searched}. Showing {widened}.</span>
       )}
       {matches !== null && matches.length > 0 && (
         <>
@@ -5587,11 +5613,19 @@ const CounterpartActions = ({ row: r, acting, onAction }: {
 
 // The in-card empty state (prototype markup ~1222-1229): serif title, a muted line, and an
 // outline "Reset filters" when a filter is on.
-const EmptyState = ({ title, body, canReset, onReset }: { title: string; body: string; canReset: boolean; onReset: () => void }) => (
+const EmptyState = ({ title, body, canReset, onReset, undoLast }: {
+  title: string; body: string; canReset: boolean; onReset: () => void;
+  undoLast?: { label: string; onClick: () => void }; // remove only the filter applied last
+}) => (
   <div data-empty style={{ padding: "64px 24px", textAlign: "center", display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
     <div style={{ fontFamily: "var(--font-display-serif)", fontSize: 22, fontWeight: 600, color: "var(--pm-foreground)" }}>{title}</div>
     <div style={{ fontSize: 13.5, color: "var(--pm-muted-foreground)", maxWidth: 460, textWrap: "pretty" } as CSSProperties}>{body}</div>
-    {canReset && <div style={{ marginTop: 8 }}><Button variant="secondary" onClick={onReset}>Reset filters</Button></div>}
+    {canReset && (
+      <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+        {undoLast && <Button variant="primary" onClick={undoLast.onClick}>Remove {undoLast.label}</Button>}
+        <Button variant="secondary" onClick={onReset}>Reset filters</Button>
+      </div>
+    )}
   </div>
 );
 

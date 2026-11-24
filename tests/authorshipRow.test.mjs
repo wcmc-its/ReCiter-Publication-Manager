@@ -259,3 +259,14 @@ test('isDeliberateClick: a single click with nothing selected, never a double-cl
     assert.equal(isDeliberateClick(2, ''), false)
     assert.equal(isDeliberateClick(1, 'abc2001'), false)
 })
+
+test('dropMiddleInitials drops only middle initials', async () => {
+    const { dropMiddleInitials } = await import('../src/utils/authorshipRow.ts')
+    assert.equal(dropMiddleInitials('Eliot T. Miller'), 'Eliot Miller')
+    assert.equal(dropMiddleInitials('Eliot T Miller'), 'Eliot Miller')
+    assert.equal(dropMiddleInitials('Mary J.K. Smith'), 'Mary Smith')
+    assert.equal(dropMiddleInitials('Yan Chun Zhu'), null)
+    assert.equal(dropMiddleInitials('Yan Li Zhu'), null)
+    assert.equal(dropMiddleInitials('K. Cummings'), null)
+    assert.equal(dropMiddleInitials('Eliot Miller'), null)
+})
