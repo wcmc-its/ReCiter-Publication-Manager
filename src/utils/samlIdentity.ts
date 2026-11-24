@@ -8,6 +8,8 @@
 //
 //   no ePPN                -> WCM, unchanged (CWID, then uid), as before this file existed
 //   ePPN @med.cornell.edu  -> WCM, unchanged
+//   ePPN @qatar-med.cornell.edu -> WCM, unchanged: WCM-Qatar signs in through its own Entra tenant,
+//                             which sends the Qatar UPN as ePPN (ED itself stores @med.cornell.edu)
 //   ePPN @cornell.edu      -> Cornell: the key is the FULL ePPN (netid@cornell.edu), never the
 //                             NetID alone and never CWID/uid. Refused unless CORNELL_LOGIN=on.
 //   any other scope        -> refused (HSS, MSK, NYP, ... are not enabled for this app)
@@ -17,7 +19,7 @@
 // created under that exact key (see findPartnerAdminUser).
 
 export const EPPN_ATTRIBUTES = ['urn:oid:1.3.6.1.4.1.5923.1.1.1.6', 'eduPersonPrincipalName']
-export const WCM_EPPN_SCOPE = 'med.cornell.edu'
+export const WCM_EPPN_SCOPES = ['med.cornell.edu', 'qatar-med.cornell.edu']
 export const CORNELL_EPPN_SCOPE = 'cornell.edu'
 // Cornell NetIDs are letters and digits only (e.g. abc123).
 const NETID = /^[a-z0-9]{2,16}$/
@@ -49,7 +51,7 @@ export function classifySamlAttributes(attrs: Attrs | null | undefined, opts: { 
     const eppn = first(a, ...EPPN_ATTRIBUTES)?.toLowerCase()
     const scope = eppn && eppn.includes('@') ? eppn.slice(eppn.lastIndexOf('@') + 1) : undefined
 
-    if (!eppn || scope === WCM_EPPN_SCOPE) {
+    if (!eppn || (scope && WCM_EPPN_SCOPES.includes(scope))) {
         return {
             kind: 'wcm',
             personIdentifier: first(a, 'CWID', 'uid'),
