@@ -41,6 +41,9 @@ phases:
             aws s3 cp s3://reciter-config/config/prod/saml/idp.crt ./config/certs/idp.crt
             aws s3 cp s3://reciter-config/config/prod/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
             aws s3 cp s3://reciter-config/config/prod/saml/reciter-saml.key ./config/certs/reciter-saml.key
+            # Rotation overlap: second SP keypair, loaded by config/saml.ts if present
+            aws s3 cp s3://reciter-config/config/prod/saml/next/reciter-saml.crt ./config/certs/reciter-saml-alt.crt || true
+            aws s3 cp s3://reciter-config/config/prod/saml/next/reciter-saml.key ./config/certs/reciter-saml-alt.key || true
           fi
         - |
           if expr "${BRANCH}" : ".*master_Next14" >/dev/null; then
