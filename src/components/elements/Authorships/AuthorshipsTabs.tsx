@@ -32,6 +32,7 @@ import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import {
   bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
   confidenceLevel, confidenceTip, conflictIdentities, conflictKeep, emptyState, isDeliberateClick, orcidLaneBulkOk, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, topOrcidSource, venueFitBand,
+  deptLabel, venueFitMarker, venuePointsTip, venuePointsTo,
 } from "../../../utils/authorshipRow";
 
 // ---- types ---------------------------------------------------------------
@@ -248,6 +249,11 @@ interface Candidate {
   name_n?: number;
   person_type?: string;
   dept?: string;
+  // The person's title, when the producer writes one (optional; see deptLabel).
+  title?: string;
+  // ln(this person's department's share of accepted papers in the venue's subfield / the
+  // campus-wide share); see venueFitMarker. null or absent when the producer has none.
+  venue_fit?: number | null;
   io_score?: number;
   final_score?: number;
   confidence?: number;
@@ -1024,6 +1030,19 @@ const Chip = ({ kind, children, style }: { kind: "ok" | "warn" | "neutral"; chil
 // The ORCID and confidence chips on a multi-candidate row's options: the Chip, one size down.
 const CAND_CHIP: CSSProperties = { fontSize: 10.5, padding: "0 6px", lineHeight: "16px" };
 
+// A candidate's graded venue fit ("4× field" / "1/29 field"), shown only at 2x or more either
+// way: the confident style when the department publishes in the field more than Cornell
+// overall, muted when less. Native title, like the other option chips.
+const VenueFitChip = ({ fit, dept }: { fit?: number | null; dept?: string }) => {
+  const m = venueFitMarker(fit, dept);
+  if (!m) return null;
+  return (
+    <span data-cand-venue={m.tone} title={m.tip}>
+      <Chip kind={m.tone === "up" ? "ok" : "neutral"} style={{ ...CAND_CHIP, whiteSpace: "nowrap", ...(m.tone === "down" ? { color: "var(--pm-muted-foreground)" } : null) }}>{m.text}</Chip>
+    </span>
+  );
+};
+
 // The small pill after a candidate's name saying which of their names it is (Candidate.name_source).
 const NAME_SOURCE_LABEL: Record<string, string> = {
   primary: "Primary name", directory: "Directory name", alternate: "Alternate name", accepted: "Name on accepted pubs",
@@ -1291,7 +1310,8 @@ const IdentityHoverCard = ({ subject, priorNames, byline, pills }: {
   }, [priorNames]);
   const label: CSSProperties = { fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--pm-muted-foreground)" };
   const muted: CSSProperties = { color: "var(--pm-muted-foreground)" };
-  const org = [r.dept, r.division || id?.division, r.person_type, r.institution].map((x) => (x || "").trim()).filter(Boolean).join(" · ");
+  // deptLabel without a title: the card prints the title on its own line below.
+  const org = [deptLabel(r.dept), r.division || id?.division, r.person_type, r.institution].map((x) => (x || "").trim()).filter(Boolean).join(" · ");
   const formTotal = (priorNames?.names || []).reduce((t, p) => t + p.n, 0) || 1;
   const thisForm = (p: { first: string; last: string }) => !!byline && formKey(`${p.first} ${p.last}`) === formKey(byline);
   const topN = (xs: Array<{ label: string; n: number }>) => xs.map((x) => (x.n > 1 ? `${x.label} (${x.n.toLocaleString()})` : x.label)).join(" · ");
@@ -3705,7 +3725,7 @@ const AuthorshipsTabs = () => {
               <div style={{ maxHeight: 320, overflow: "auto", display: "flex", flexDirection: "column", padding: "0 6px 6px" }}>
                 {orderAssignOptions(assignCandidateUnion, assignScoresOf).map((c) => {
                   const sum = assignOptionSummary(assignScoresOf(c.cwid), selectedRows.length, c.matches);
-                  const role = [c.person_type, c.dept].filter(Boolean).join(" · ");
+                  const role = [c.person_type, deptLabel(c.dept)].filter(Boolean).join(" · ");
                   return (
                     <button key={c.cwid} type="button" className="pm-assign-opt" disabled={!!assignLookupCwid}
                       onClick={() => chooseAssignTarget(c.cwid)}
@@ -4463,7 +4483,11 @@ const AuthorshipCard = ({
   const rejectBlock = noSuggestion ? "No candidate to reject" : null;
   const affiliation = r.author_affiliation ? splitAffiliation(r.author_affiliation, WCM_RE) : null;
   const dateText = formatRowDate(r.entrez_date);
+  // Only the warning half of the old binary pill is kept ("Unusual venue for this department");
+  // the "good" half said little (it showed on most rows) and is replaced by venuePointsTo below.
   const venueFit = venueFitBand(r.top_venue_fit);
+  const venuePoints = isMulti ? venuePointsTo(candidates, r.top_cwid) : null;
+  const topDeptLabel = deptLabel(r.top_dept, topCand?.title);
   const orcidMatch = !!r.top_orcid_match;
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
@@ -4560,7 +4584,7 @@ const AuthorshipCard = ({
                     return (
                       <div key={c.cwid} data-cand={c.cwid}
                         {...(live ? { role: "button", tabIndex: 0, className: "pm-arow-cand",
-                          "aria-label": [`Assign to ${c.name || c.cwid}`, c.orcid_match ? "ORCID match" : "", level ? `${level} match confidence` : "", warn].filter(Boolean).join(", ") } : {})}
+                          "aria-label": [`Assign to ${c.name || c.cwid}`, c.orcid_match ? "ORCID match" : "", venueFitMarker(c.venue_fit)?.text || "", level ? `${level} match confidence` : "", warn].filter(Boolean).join(", ") } : {})}
                         onClick={(e) => { if (live && isDeliberateClick(e.detail, window.getSelection()?.toString() || "")) assign(); }}
                         onKeyDown={(e) => { if (live && e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); assign(); } }}
                         onMouseLeave={closeHover}
@@ -4568,7 +4592,7 @@ const AuthorshipCard = ({
                           padding: "4px 6px", borderRadius: 6, cursor: live ? "pointer" : "default", fontSize: 12.5 }}>
                         <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           <span style={{ fontWeight: 500, color: warn ? "var(--pm-red)" : "var(--pm-foreground)" }}>{c.name || c.cwid}</span>
-                          {c.dept && <span style={{ color: "var(--pm-muted-foreground)" }}> · {c.dept}</span>}
+                          {c.dept && <span style={{ color: "var(--pm-muted-foreground)" }}> · {deptLabel(c.dept, c.title)}</span>}
                           {warn && <span style={{ color: "var(--pm-red)" }}> · {c.already_rejected ? "already rejected" : "accepted this article"}</span>}
                         </span>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums" }}>
@@ -4578,6 +4602,8 @@ const AuthorshipCard = ({
                           {c.orcid_match === true && (
                             <span data-cand-orcid title={orcidMatchTip(r.byline_orcid, c.orcid_source)}><Chip kind="ok" style={CAND_CHIP}>ORCID</Chip></span>
                           )}
+                          {/* How often this person's department publishes in the venue's field. */}
+                          <VenueFitChip fit={c.venue_fit} dept={deptLabel(c.dept, c.title)} />
                           {/* Match confidence in words (High / Medium / Low), the percentage on hover. */}
                           {level && (
                             <span data-cand-conf title={confidenceTip(c.confidence)}>
@@ -4635,10 +4661,11 @@ const AuthorshipCard = ({
                     style={{ fontSize: 12, color: "var(--pm-slate)", textDecoration: "none" }}>{r.top_cwid}</a>
                 )}
                 {nameSourceBadge(topCand)}
+                <VenueFitChip fit={topCand?.venue_fit ?? r.top_venue_fit} dept={topDeptLabel} />
               </div>
-              {roleLine(r.top_person_type, r.top_dept, r.top_institution) && (
+              {roleLine(r.top_person_type, topDeptLabel, r.top_institution) && (
                 <span data-role style={{ fontSize: 12, color: "var(--pm-muted-foreground)", paddingLeft: 16 }}>
-                  {roleLine(r.top_person_type, r.top_dept, r.top_institution)}
+                  {roleLine(r.top_person_type, topDeptLabel, r.top_institution)}
                 </span>
               )}
               {/* Why this row can't be accepted, in words, where the prototype puts its
@@ -4724,10 +4751,11 @@ const AuthorshipCard = ({
           )}
           {/* exact-DOI duplicate precheck, and the producer's PubMed-twin heuristic (#951): two
               separate signals. The twin chip clears once a curator records a verdict. */}
-          {(orcidMatch || venueFit || r.dup_flag || (r.matched_pmid != null && !r.matched_pmid_verdict)) && (
+          {(orcidMatch || venueFit === "poor" || venuePoints || r.dup_flag || (r.matched_pmid != null && !r.matched_pmid_verdict)) && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
-              {/* venue fit (ReCiterDB v3.14): does the proposed person's department publish in
-                  this venue's field. Quiet when it does, a caution when it rarely does. */}
+              {/* venue fit (ReCiterDB v3.14): "Venue points to" when the top candidate's
+                  department fits the venue's field clearly better than every other
+                  candidate's (venuePointsTo), a caution when the top pick's rarely publishes there. */}
               {/* byline ORCID (ReCiterDB v3.15): it is on file for the proposed person. Shown
                   beside the venue pill when a row has both. */}
               {orcidMatch && (
@@ -4735,9 +4763,9 @@ const AuthorshipCard = ({
                   <span><Chip kind="ok">ORCID match</Chip></span>
                 </Tip>
               )}
-              {venueFit === "good" && (
-                <Tip title="This department often publishes in this venue's field" placement="top" arrow>
-                  <span><Chip kind="ok">Venue fits department</Chip></span>
+              {venuePoints && (
+                <Tip title={venuePointsTip(venuePoints)} placement="top" arrow>
+                  <span data-venue-points><Chip kind="ok">Venue points to {venuePoints.top.name || venuePoints.top.cwid}</Chip></span>
                 </Tip>
               )}
               {venueFit === "poor" && (
@@ -5055,7 +5083,7 @@ const SingleEvidenceTable = ({ row: r, ev }: { row: AuthorshipRow; ev: ReturnTyp
   const year = Number((r.entrez_date || "").slice(0, 4)) || null;
   const rows = buildCandidateEvidence(
     { byline: r.wcm_author, affiliation: r.author_affiliation, journal: r.journal, year, source: r.source, coauthors: ev.data.coauthors },
-    { cwid: r.top_cwid, name: r.top_name, dept: r.top_dept, io_score: r.top_io_score, given_match: r.top_given_match,
+    { cwid: r.top_cwid, name: r.top_name, dept: deptLabel(r.top_dept), io_score: r.top_io_score, given_match: r.top_given_match,
       affil_dept_match: r.top_affil_match, already_rejected: r.top_already_rejected },
     ev.data.facts[r.top_cwid || ""],
   );
@@ -5131,7 +5159,7 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, ev, onPick, priorNam
     year: Number((r.entrez_date || "").slice(0, 4)) || null, source: r.source,
     coauthors: ev.status === "ok" ? ev.data.coauthors : null };
   const cols = ev.status === "ok" && candidates.length >= 1
-    ? orderByEvidence(candidates, (c) => buildCandidateEvidence(rowInput, c, ev.data.facts[c.cwid])) : null;
+    ? orderByEvidence(candidates, (c) => buildCandidateEvidence(rowInput, { ...c, dept: deptLabel(c.dept, c.title) }, ev.data.facts[c.cwid])) : null;
   // Name, hover card and warning badges: the grid's column header.
   const head = (c: Candidate) => {
     const rejected = c.already_rejected === true;
@@ -5146,8 +5174,9 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, ev, onPick, priorNam
               priorNames={c.cwid ? priorNamesByCwid[c.cwid] : undefined} byline={r.wcm_author} pills={hoverPills(c, r.author_affiliation)} />
           )}
         </span>
-        {(rejected || acceptedElsewhere) && (
+        {(rejected || acceptedElsewhere || venueFitMarker(c.venue_fit)) && (
           <span style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+            <VenueFitChip fit={c.venue_fit} dept={deptLabel(c.dept, c.title)} />
             {rejected && <Chip kind="warn">Already rejected</Chip>}
             {acceptedElsewhere && <Chip kind="warn">Accepted this article</Chip>}
           </span>
