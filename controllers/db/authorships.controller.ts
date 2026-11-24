@@ -27,6 +27,7 @@ import {
 } from "../../src/lib/directory";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { scheduleAnalysisRefresh } from "../analysisRefresh";
+import { getOrcidRecord, isOrcid } from "../../src/lib/orcidRecord";
 import { SORTS, precisionWhere, orcidLaneBulkWhere } from "./authorshipQueueSql";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
@@ -2412,6 +2413,30 @@ export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResp
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));
+  }
+};
+
+// POST /api/db/authorships/orcid-record {id} — the public ORCID record of the row's byline iD, for
+// the opened row. Takes a row id, not an iD, so it only ever reads iDs the queue already holds.
+// record is null when ORCID has no public record; 502 when ORCID didn't answer.
+export const authorshipOrcidRecord = async (req: NextApiRequest, res: NextApiResponse) => {
+  const id = Number(req.body?.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).send("id is required");
+  let orcid: string;
+  try {
+    const row: any = await models.AuthorshipReview.findByPk(id, { attributes: ["id", "byline_orcid"], raw: true });
+    if (!row) return res.status(404).send("No such row");
+    orcid = String(row.byline_orcid || "").trim();
+  } catch (e: any) {
+    console.error("[authorshipOrcidRecord] ERROR:", e?.message);
+    return res.status(500).send("Could not read the row");
+  }
+  if (!isOrcid(orcid)) return res.send({ record: null });
+  try {
+    return res.send({ record: await getOrcidRecord(orcid) });
+  } catch (e: any) {
+    console.error("[authorshipOrcidRecord] ORCID:", e?.message);
+    return res.status(502).send("ORCID did not answer");
   }
 };
 

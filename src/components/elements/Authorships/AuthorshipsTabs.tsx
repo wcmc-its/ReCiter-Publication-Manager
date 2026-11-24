@@ -29,6 +29,7 @@ import { curatorConflictMessage, matchIdText, matchWhereText, parseStoredConflic
 import type { StoredConflict } from "../../../lib/acceptConflictMatches";
 import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } from "./CandidateEvidence";
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
+import OrcidPanel from "./OrcidPanel";
 import {
   bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
   confidenceLevel, confidenceTip, conflictIdentities, conflictKeep, directoryRole, emptyState, isDeliberateClick, netidAfterPaper, orcidLaneBulkOk, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, topOrcidSource, venueFitBand,
@@ -4991,6 +4992,7 @@ const ExpandedPanel = ({ row: r, candidates, acting, statusView, onAction,
       {r.matched_pmid != null && (
         <CounterpartPanel row={r} acting={acting} onAction={onAction} />
       )}
+      {r.byline_orcid && <OrcidPanel rowId={r.id} orcid={r.byline_orcid} byline={r.wcm_author} />}
       <RecordFooter row={r} ev={ev} />
       {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
           single-candidate row is precisely where the producer was CONFIDENTLY wrong, so it's the
