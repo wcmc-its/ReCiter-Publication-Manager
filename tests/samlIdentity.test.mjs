@@ -14,6 +14,14 @@ test('WCM login with ePPN @med.cornell.edu keeps the CWID path', () => {
     assert.deepEqual(r, { kind: 'wcm', personIdentifier: 'abc1234', email: 'a@med.cornell.edu', firstName: 'Ann', lastName: '' })
 })
 
+test('WCM-Qatar login (ePPN @qatar-med.cornell.edu) keeps the CWID path', () => {
+    const r = classifySamlAttributes({ CWID: ['abc1234'], [EPPN]: ['abc1234@qatar-med.cornell.edu'], 'user.email': ['abc1234@qatar-med.cornell.edu'] }, ON)
+    assert.equal(r.kind, 'wcm')
+    assert.equal(r.personIdentifier, 'abc1234')
+    assert.equal(r.email, 'abc1234@qatar-med.cornell.edu')
+    assert.equal(classifySamlAttributes({ CWID: ['x'], [EPPN]: ['x@evil.qatar-med.cornell.edu'] }, ON).reason, 'untrusted_scope')
+})
+
 test('assertion without an ePPN keeps the legacy CWID || uid path', () => {
     assert.equal(classifySamlAttributes({ uid: ['abc1234'] }, OFF).personIdentifier, 'abc1234')
     assert.equal(classifySamlAttributes({ CWID: ['x'], uid: ['y'] }, OFF).personIdentifier, 'x')
