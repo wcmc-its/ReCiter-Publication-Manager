@@ -202,12 +202,34 @@ export const formatRowDate = (iso?: string | null): string => {
   return m[3] ? `${m[1]} ${mon} ${Number(m[3])}` : `${m[1]} ${mon}`;
 };
 
-// Split an affiliation around its first match of `re`, for a bold institution inside an
-// ellipsized single line. No match → the whole string in `pre`.
+// Split an affiliation around its first match of `re`, for a bold institution inside the
+// clamped affiliation. No match → the whole string in `pre`.
 export const splitAffiliation = (text: string, re: RegExp): { pre: string; hit: string; post: string } => {
   const m = text.match(re);
   if (!m || m.index === undefined) return { pre: text, hit: "", post: "" };
   return { pre: text.slice(0, m.index), hit: m[0], post: text.slice(m.index + m[0].length) };
+};
+
+// The role line under Org in the lookup table. A Cornell record's first type is always the campus
+// marker, which says nothing the Org cell does not, so it is dropped and every real role is named.
+export const directoryRole = (types?: string[] | null): string => {
+  const list = types || [];
+  if (list[0] !== "cornell-ithaca") return list.length > 1 ? `${list[0]} +${list.length - 1}` : list[0] || "";
+  return list.slice(1).map((t) => t.replace(/^cornell-/, "").replace(/-/g, " ")).join(", ");
+};
+
+// "NetID 3 years after paper" for a Cornell hit created at least a year after the paper, else "".
+// On curator-assigned Ithaca rows (2026-11-24) the matcher's pick was wrong 511 times and right
+// 15 when its NetID was that much newer. 2001 is left out: Cornell bulk-loaded everyone then.
+export const netidAfterPaper = (
+  m: { source?: string; created?: string | null }, paperDate?: string | null,
+): string => {
+  const made = Date.parse(m.created || ""), paper = Date.parse(paperDate || "");
+  if (m.source !== "cornell" || Number.isNaN(made) || Number.isNaN(paper) || /^2001/.test(m.created || "")) return "";
+  const years = (made - paper) / (365.25 * 86400e3);
+  if (years < 1) return "";
+  const n = Math.floor(years);
+  return `NetID ${n} year${n === 1 ? "" : "s"} after paper`;
 };
 
 // The source badge before the affiliation.

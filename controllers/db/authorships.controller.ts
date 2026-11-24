@@ -1035,6 +1035,7 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
             return full && norm(full) !== norm(p.name) ? full : null;
           })(),
           depts: p.depts,
+          college: p.college ?? null,
           // One of `depts` is named in the byline's affiliation (see the ranking above); the
           // client marks the cell so the curator sees WHY this row leads.
           deptMatch: deptMatch(p),

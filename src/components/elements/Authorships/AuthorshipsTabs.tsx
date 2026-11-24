@@ -31,7 +31,7 @@ import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } fro
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import {
   bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
-  confidenceLevel, confidenceTip, conflictIdentities, conflictKeep, emptyState, isDeliberateClick, orcidLaneBulkOk, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, topOrcidSource, venueFitBand,
+  confidenceLevel, confidenceTip, conflictIdentities, conflictKeep, directoryRole, emptyState, isDeliberateClick, netidAfterPaper, orcidLaneBulkOk, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, topOrcidSource, venueFitBand,
   deptLabel, venueFitMarker, venuePointsTip, venuePointsTo,
 } from "../../../utils/authorshipRow";
 
@@ -4730,14 +4730,15 @@ const AuthorshipCard = ({
             )}
             {r.pub_type && <>{(r.journal || dateText) ? " · " : ""}{r.pub_type}</>}
           </span>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: "var(--pm-muted-foreground)", minWidth: 0 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 12, color: "var(--pm-muted-foreground)", minWidth: 0 }}>
             <span data-src style={{
               height: 18, padding: "0 6px", display: "inline-flex", alignItems: "center", borderRadius: 4, fontSize: 10.5, fontWeight: 600,
               letterSpacing: "0.02em", whiteSpace: "nowrap", flexShrink: 0,
               background: isExternalSource(r) ? "var(--pm-amber-tint)" : "var(--pm-slate-tint)",
               color: isExternalSource(r) ? "var(--pm-amber)" : "var(--pm-slate)",
             }}>{sourceBadgeText(r.source)}</span>
-            <span title={r.author_affiliation || ""} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+            {/* up to three lines; a longer affiliation is cut there and the full text is the tooltip */}
+            <span title={r.author_affiliation || ""} style={{ ...clampStyle(3), lineHeight: "18px", overflowWrap: "anywhere", minWidth: 0 }}>
               {affiliation ? (
                 <>{affiliation.pre}{affiliation.hit && <strong style={{ fontWeight: 600, color: "var(--pm-slate)" }}>{affiliation.hit}</strong>}{affiliation.post}</>
               ) : "No affiliation on the byline"}
@@ -4998,7 +4999,7 @@ const ExpandedPanel = ({ row: r, candidates, acting, statusView, onAction,
           the box itself starts empty, as in the prototype. */}
       {(
         <AssignOther rowId={r.id} acting={acting} onAction={onAction} authorName={r.wcm_author} oneClick={statusView === "open"}
-          affiliation={r.author_affiliation} prefill={assignPrefill} autoSearch={!assignPrefill}
+          affiliation={r.author_affiliation} paperDate={r.entrez_date} prefill={assignPrefill} autoSearch={!assignPrefill}
           // One note for the box and the radios. `listed` is candidates-minus-one, `typed` is all
           // of them: someone typed in is by definition not a listed candidate. F-2: a
           // single-candidate row records the same "not mine" for its one proposed candidate when
@@ -5232,13 +5233,14 @@ const MultiEvidence = ({ row: r, candidates: allCandidates, ev, onPick, priorNam
 // ponytail: the "lookup route feeding the box" upgrade path landed — #948 built POST
 // /api/db/authorships/lookup for the bulk dialog, so the box debounces into it and a resolved
 // Assign/Enter writes in one click; unresolved (debouncing/errored) falls back to the plain call.
-const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName, affiliation, note, oneClick }: {
+const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName, affiliation, paperDate, note, oneClick }: {
   oneClick?: boolean; // Open queue only: a directory hit already in ReCiter assigns on click
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
   prefill?: string; // a name to look up straight away (the ⋯ menu's "Assign to someone else…")
   autoSearch?: boolean; // the row was simply opened: look up the byline name, WCM first
   authorName?: string; // the byline name — "Look up <name>" searches it instead of retyping it
   affiliation?: string; // the byline's affiliation — ranks directory hits in that department first
+  paperDate?: string | null; // flags a Cornell hit whose NetID is newer than the paper
   note?: ReactNode; // what assigning also records, beside the controls
 }) => {
   const [otherCwid, setOtherCwid] = useState("");
@@ -5546,16 +5548,16 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
                         m.personTypes?.length ? m.personTypes.join(", ") : null,
                       ].filter(Boolean).join(" · ")}>
                       <span style={{ fontWeight: 600 }}>{m.primaryOrg || (m.source === "wcm" ? "WCM" : "Cornell")}</span>
-                      {m.personTypes?.length > 0 && (
+                      {directoryRole(m.personTypes) && (
                         <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)", overflowWrap: "anywhere" }}>
-                          {m.personTypes[0]}{m.personTypes.length > 1 ? ` +${m.personTypes.length - 1}` : ""}
+                          {directoryRole(m.personTypes)}
                         </span>
                       )}
                       {m.active === false && <span style={{ fontSize: 11.5, color: "var(--pm-muted-foreground)" }}>expired</span>}
                     </span>
                     <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{m.title || "—"}</span>
                     <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, overflowWrap: "anywhere" }}>
-                      <span>{m.depts?.length ? m.depts.join(" · ") : (m.dept || "—")}</span>
+                      <span>{m.depts?.length ? m.depts.join(" · ") : (m.dept || m.college || "—")}</span>
                       {m.deptMatch && <span style={{ fontSize: 11, fontWeight: 600, color: "var(--pm-slate)" }}>Named in byline</span>}
                     </span>
                     {/* What picking this row will do: land on an existing identity, redirect to the
@@ -5565,6 +5567,10 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
                       <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
                         color: m.retiredCwid ? "var(--pm-muted-foreground)" : m.hasIdentity || m.wcmCwidHasIdentity ? "var(--pm-slate)" : "var(--pm-amber)" }}>{status}</span>
                       {m.created && <span style={{ fontSize: 11, color: "var(--pm-muted-foreground)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>since {m.created}</span>}
+                      {netidAfterPaper(m, paperDate) && (
+                        <span title="Cornell created this NetID well after the paper came out, so this person was probably not at Cornell when it was written"
+                          style={{ fontSize: 11, fontWeight: 600, color: "var(--pm-amber)" }}>{netidAfterPaper(m, paperDate)}</span>
+                      )}
                     </span>
                   </div>
                 );

@@ -63,6 +63,9 @@ export type DirectoryPerson = {
   /** ED department attributes are multi-valued and a person can genuinely hold several
    *  (joint appointments). `dept` alone silently dropped all but the first. */
   depts: string[];
+  /** Cornell only: a student's college, display only. Never a department: it must not rank a
+   *  hit against the byline or reach a minted identity. */
+  college?: string | null;
   /** `weillCornellEduPrimaryOrg` — the organisation the person primarily belongs to, WCM ED's
    *  own answer rather than one derived from which directory answered. This is NOT 1:1 with
    *  `source`: ou=people carries NewYork-Presbyterian people too (gallric is NYP), so a WCM ED
@@ -423,7 +426,7 @@ const CORNELL_ATTRS = [
   "edupersonnickname", "cornelleduwrkngtitle1", "cornelleduunivtitle1", "cornelledudeptname1",
   "cornellEduOrganizationalUnitName", "mail", "cornelledupublishedemail",
   "cornelleduprimaryaffiliation", "cornelleduaffiliation", "cornelledutype", "cornellEduCWID",
-  "cornelledudeptname2", ...CREATED_ATTRS,
+  "cornelledudeptname2", "cornelleduacadcollege", ...CREATED_ATTRS,
 ] as const;
 
 // The canonical Cornell person-type vocabulary, and the only place it is spelled in this repo.
@@ -468,6 +471,11 @@ export function cornellPersonTypes(raw: string[]): string[] {
   return [...out].sort();
 }
 
+// A student's record has no department, only this code. GR is the one code confirmed by hand
+// (2026-11-24); any other is shown as the code itself rather than guessed at.
+const cornellCollege = (code: string | null | undefined) =>
+  !code ? null : code.toUpperCase() === "GR" ? "Graduate School" : `College ${code}`;
+
 export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerson | null {
   const id = first(e.uid);
   if (!id) return null;
@@ -492,6 +500,7 @@ export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerso
     title: first(e.cornelleduwrkngtitle1) || first(e.cornelleduunivtitle1),
     dept: depts[0] ?? null,
     depts,
+    college: cornellCollege(first(e.cornelleduacadcollege)),
     // Cornell publishes no primary-org equivalent; the campus marker in personTypes is the
     // nearest thing and is already carried there.
     primaryOrg: null,
