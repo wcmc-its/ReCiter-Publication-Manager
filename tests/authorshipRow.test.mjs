@@ -7,6 +7,7 @@ import {
     ioBand, ioBadgeText, ioBadge, shortInstitution, roleLine, formatRowDate,
     splitAffiliation, sourceBadgeText, shortcutsLine, parkedNote,
     ioScoreText, fgLine, bylineParts, rankCandidates, confidenceLevel, confidenceTip, CONFIDENCE_HIGH, CONFIDENCE_MEDIUM, compareHint, shareLine, venueFitBand, orcidMatchTip, topOrcidSource, orcidLaneBulkOk, isDeliberateClick,
+    deptLabel, venueFitRatio, venueFitMarker, venueFitTip, venuePointsTo, venuePointsTip, VENUE_POINTS_GAP,
 } from '../src/utils/authorshipRow.ts'
 
 test('ioBand uses the page bands (90 / 50)', () => {
@@ -269,4 +270,93 @@ test('dropMiddleInitials drops only middle initials', async () => {
     assert.equal(dropMiddleInitials('Yan Li Zhu'), null)
     assert.equal(dropMiddleInitials('K. Cummings'), null)
     assert.equal(dropMiddleInitials('Eliot Miller'), null)
+})
+
+test('deptLabel: generic Cornell Tech HR units read "Cornell Tech", with a title when there is one', () => {
+    assert.equal(deptLabel('Faculty and Research'), 'Cornell Tech')
+    assert.equal(deptLabel(' Tech Instruction '), 'Cornell Tech')
+    assert.equal(deptLabel('JTC Instruction', 'Assistant Professor'), 'Cornell Tech · Assistant Professor')
+    assert.equal(deptLabel('faculty and research', '  '), 'Cornell Tech')
+    // every other department as it comes, title or not
+    assert.equal(deptLabel('CALS Animal Science', 'Professor'), 'CALS Animal Science')
+    assert.equal(deptLabel(' Medicine '), 'Medicine')
+    assert.equal(deptLabel(null, 'Professor'), '')
+    assert.equal(deptLabel(undefined), '')
+})
+
+test('venueFitRatio: whole numbers from 2x, one decimal in between, capped at 50', () => {
+    assert.equal(venueFitRatio(1.354), '4×')
+    assert.equal(venueFitRatio(-3.381), '1/29')
+    assert.equal(venueFitRatio(-2.35), '1/10')
+    assert.equal(venueFitRatio(-3.577), '1/36')
+    assert.equal(venueFitRatio(-4.257), '<1/50')
+    assert.equal(venueFitRatio(4.5), '>50×')
+    assert.equal(venueFitRatio(Math.LN2), '2×')
+    assert.equal(venueFitRatio(-Math.LN2), '1/2')
+    assert.equal(venueFitRatio(0.26), '1.3×')
+    assert.equal(venueFitRatio(-0.2), '0.8×')
+    assert.equal(venueFitRatio(0), '1.0×')
+    assert.equal(venueFitRatio(null), '')
+    assert.equal(venueFitRatio(undefined), '')
+    assert.equal(venueFitRatio(NaN), '')
+})
+
+test('venueFitMarker: only at 2x or more either way, up or down, with a sentence tip', () => {
+    assert.deepEqual(venueFitMarker(1.354, 'Cornell Tech'),
+        { text: '4× field', tone: 'up', tip: "Cornell Tech publishes in this venue's field 4× as often as Cornell overall" })
+    assert.deepEqual(venueFitMarker(-3.381, 'CALS Animal Science'),
+        { text: '1/29 field', tone: 'down', tip: "CALS Animal Science publishes in this venue's field 1/29 as often as Cornell overall" })
+    assert.equal(venueFitMarker(-4.257).text, '<1/50 field')
+    assert.equal(venueFitMarker(-4.257).tip, "This department publishes in this venue's field less than 1/50 as often as Cornell overall")
+    assert.equal(venueFitMarker(5).tip, "This department publishes in this venue's field more than 50× as often as Cornell overall")
+    assert.equal(venueFitMarker(Math.LN2).text, '2× field')
+    assert.equal(venueFitMarker(-Math.LN2).text, '1/2 field')
+    assert.equal(venueFitMarker(0.69), null)
+    assert.equal(venueFitMarker(-0.5), null)
+    assert.equal(venueFitMarker(0), null)
+    assert.equal(venueFitMarker(null), null)
+    assert.equal(venueFitMarker(undefined), null)
+    assert.equal(venueFitTip(null, 'X'), '')
+})
+
+const FENG = [
+    { cwid: 'cf1', name: 'Chao Feng', dept: 'Faculty and Research', venue_fit: 1.354 },
+    { cwid: 'cf2', name: 'Chenhan Feng', dept: 'CALS Animal Science', venue_fit: -3.381 },
+    { cwid: 'cf3', name: 'Chen Feng', dept: 'Engineering', venue_fit: -2.35 },
+    { cwid: 'cf4', name: 'Chenxi Feng', dept: 'Physics', venue_fit: -4.257 },
+    { cwid: 'cf5', name: 'Cheng Feng', dept: 'Chemistry', venue_fit: -3.577 },
+]
+
+test('venuePointsTo: the example row points to Chao Feng, 3.70 ahead of Chen Feng', () => {
+    const p = venuePointsTo(FENG, 'cf1')
+    assert.equal(p.top.name, 'Chao Feng')
+    assert.equal(p.second.name, 'Chen Feng')
+    assert.equal(p.gap.toFixed(2), '3.70')
+    assert.equal(venuePointsTip(p),
+        "Chao Feng's department (Cornell Tech) publishes in this venue's field 4× as often as Cornell overall; " +
+        "the next best candidate, Chen Feng's department (Engineering) publishes in this venue's field 1/10 as often as Cornell overall.")
+    // no top_cwid: the producer's first entry is the top
+    assert.equal(venuePointsTo(FENG).top.cwid, 'cf1')
+    // case-insensitive cwid match
+    assert.equal(venuePointsTo(FENG, 'CF1').top.cwid, 'cf1')
+})
+
+test('venuePointsTo: nothing unless the top candidate leads every other fit by >= 2', () => {
+    assert.equal(VENUE_POINTS_GAP, 2)
+    // the top candidate is not the best fit
+    assert.equal(venuePointsTo(FENG, 'cf3'), null)
+    // gap just under 2, and exactly 2
+    assert.equal(venuePointsTo([{ cwid: 'a', venue_fit: 1.5 }, { cwid: 'b', venue_fit: -0.49 }], 'a'), null)
+    assert.equal(venuePointsTo([{ cwid: 'a', venue_fit: 1.5 }, { cwid: 'b', venue_fit: -0.5 }], 'a').second.cwid, 'b')
+    // a single candidate, or only one with a fit: nothing to compare
+    assert.equal(venuePointsTo([{ cwid: 'a', venue_fit: 3 }], 'a'), null)
+    assert.equal(venuePointsTo([{ cwid: 'a', venue_fit: 3 }, { cwid: 'b', venue_fit: null }, { cwid: 'c' }], 'a'), null)
+    // the top candidate has no fit
+    assert.equal(venuePointsTo([{ cwid: 'a', venue_fit: null }, { cwid: 'b', venue_fit: -3 }, { cwid: 'c', venue_fit: -4 }], 'a'), null)
+    // a retired cwid does not count as a competitor, nor as the top
+    assert.equal(venuePointsTo([{ cwid: 'a', venue_fit: 2 }, { cwid: 'r', venue_fit: 1.5, retired_cwid: true }, { cwid: 'b', venue_fit: -1 }], 'a').second.cwid, 'b')
+    assert.equal(venuePointsTo([{ cwid: 'a', venue_fit: 2, retired_cwid: true }, { cwid: 'b', venue_fit: -1 }, { cwid: 'c', venue_fit: -2 }], 'a'), null)
+    // top_cwid not among the candidates
+    assert.equal(venuePointsTo(FENG, 'zz9'), null)
+    assert.equal(venuePointsTo([], 'a'), null)
 })

@@ -34,10 +34,94 @@ export type VenueFitBand = "good" | "poor";
 // The venue-fit pill on a row, from authorship_review.top_venue_fit: ln(the proposed person's
 // department's share of its accepted papers in the venue's subfield / the campus-wide share).
 // >= 1 is a good fit, < -1 a poor one; in between, and when the producer has no value, no pill.
+// The page shows only "poor" now (the "Unusual venue" warning); the row's positive pill is
+// venuePointsTo, which compares candidates instead of reading the top pick alone.
 // The "Initials + venue fit" lane's SQL (precisionWhere in controllers/db/authorshipQueueSql.ts)
 // uses the same >= 1.
 export const venueFitBand = (fit?: number | null): VenueFitBand | null =>
   fit == null || Number.isNaN(fit) ? null : fit >= 1 ? "good" : fit < -1 ? "poor" : null;
+
+// A candidate's department as the page shows it. Cornell Tech's HR units "Faculty and Research",
+// "Tech Instruction" and "JTC Instruction" say nothing about the field, so they read "Cornell
+// Tech", with the person's title after it when the candidate carries one. Every other
+// department shows as it comes (no title: the candidate lines are kept to one short line).
+const CORNELL_TECH_UNITS = new Set(["faculty and research", "tech instruction", "jtc instruction"]);
+export const deptLabel = (dept?: string | null, title?: string | null): string => {
+  const d = (dept || "").trim();
+  if (!CORNELL_TECH_UNITS.has(d.toLowerCase())) return d;
+  const t = (title || "").trim();
+  return t ? `Cornell Tech · ${t}` : "Cornell Tech";
+};
+
+// ---- graded venue fit ---------------------------------------------------------------------
+// A candidate's venue_fit is ln(their department's share of accepted papers in this venue's
+// Science-Metrix subfield / the campus-wide share), so e^fit is a rate ratio: 1.354 is about
+// 4x as often, -3.381 about 1/29 as often. Shown as whole numbers, capped at 50 either way.
+const VENUE_FIT_CAP = 50;
+const finite = (x?: number | null): x is number => typeof x === "number" && Number.isFinite(x);
+
+// "4×", "1/29", ">50×", "<1/50"; "1.3×" / "0.8×" for ratios between 1/2 and 2. "" when unknown.
+export const venueFitRatio = (fit?: number | null): string => {
+  if (!finite(fit)) return "";
+  const r = Math.exp(fit);
+  if (r > VENUE_FIT_CAP) return `>${VENUE_FIT_CAP}×`;
+  if (r < 1 / VENUE_FIT_CAP) return `<1/${VENUE_FIT_CAP}`;
+  if (r >= 2) return `${Math.round(r)}×`;
+  if (r <= 0.5) return `1/${Math.round(1 / r)}`;
+  return `${r.toFixed(1)}×`;
+};
+
+// The same ratio inside a sentence: "4× as often", "1/29 as often", "more than 50× as often".
+const ratioPhrase = (fit: number): string => {
+  const r = Math.exp(fit);
+  if (r > VENUE_FIT_CAP) return `more than ${VENUE_FIT_CAP}× as often`;
+  if (r < 1 / VENUE_FIT_CAP) return `less than 1/${VENUE_FIT_CAP} as often`;
+  return `${venueFitRatio(fit)} as often`;
+};
+
+// The marker on a candidate line: only when the ratio is at least 2x either way.
+export type VenueFitMarker = { text: string; tone: "up" | "down"; tip: string };
+export const venueFitMarker = (fit?: number | null, dept?: string | null): VenueFitMarker | null => {
+  if (!finite(fit) || Math.abs(fit) < Math.LN2 - 1e-9) return null;
+  return { text: `${venueFitRatio(fit)} field`, tone: fit > 0 ? "up" : "down", tip: venueFitTip(fit, dept) };
+};
+
+// "Cornell Tech publishes in this venue's field 4× as often as Cornell overall".
+export const venueFitTip = (fit?: number | null, dept?: string | null): string => {
+  if (!finite(fit)) return "";
+  const who = (dept || "").trim() || "This department";
+  return `${who} publishes in this venue's field ${ratioPhrase(fit)} as Cornell overall`;
+};
+
+// The row pill "Venue points to <name>": the row's top candidate has the highest venue fit
+// among its candidates and leads the next highest by at least 2 (a rate ratio of about 7x).
+// Measured on 1,059 resolved multi-candidate rows, the highest fit agreed with the curator 97.5%
+// of the time at a gap >= 3 and 93.9% at 2-3, against 68.9% at 1-2. Needs at least two
+// candidates with a fit; retired CWIDs don't count.
+export const VENUE_POINTS_GAP = 2;
+export type VenueFitCandidate = { cwid?: string; name?: string; dept?: string; title?: string; venue_fit?: number | null; retired_cwid?: boolean };
+export const venuePointsTo = <C extends VenueFitCandidate>(cands: C[], topCwid?: string | null):
+  { top: C; second: C; gap: number } | null => {
+  const same = (c: C) => String(c.cwid || "").toLowerCase() === String(topCwid || "").toLowerCase();
+  const scored = cands.filter((c) => !c.retired_cwid && finite(c.venue_fit));
+  if (scored.length < 2) return null;
+  // The top candidate is the row's top_cwid, or the producer's first entry when none is given.
+  const top = topCwid ? scored.find(same) : scored.find((c) => c === cands[0]);
+  if (!top) return null;
+  const others = scored.filter((c) => c !== top);
+  const second = others.reduce((a, b) => ((b.venue_fit as number) > (a.venue_fit as number) ? b : a));
+  const gap = (top.venue_fit as number) - (second.venue_fit as number);
+  return gap >= VENUE_POINTS_GAP ? { top, second, gap } : null;
+};
+
+// Its tooltip, with both ratios.
+export const venuePointsTip = (p: { top: VenueFitCandidate; second: VenueFitCandidate }): string => {
+  const name = (c: VenueFitCandidate) => c.name || c.cwid || "this candidate";
+  const dept = (c: VenueFitCandidate) => deptLabel(c.dept, c.title);
+  const part = (c: VenueFitCandidate) =>
+    `${name(c)}'s department${dept(c) ? ` (${dept(c)})` : ""} publishes in this venue's field ${ratioPhrase(c.venue_fit as number)} as Cornell overall`;
+  return `${part(p.top)}; the next best candidate, ${part(p.second)}.`;
+};
 
 // The tooltip on a row's "ORCID match" pill (authorship_review.top_orcid_match = 1): the byline
 // author's ORCID is on file for the proposed person. Names the ORCID when the row carries it.
