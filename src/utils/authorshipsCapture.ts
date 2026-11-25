@@ -37,6 +37,17 @@ export interface FeedbackTarget {
   capture: Record<string, Block>;
 }
 
+/** A report being written, as far as its evidence goes: the dialog's Draft adds its own state. */
+export interface DraftEvidence {
+  target: FeedbackTarget;
+  form: FeedbackForm;
+  fetched: Record<string, Block>;           // fetched_for_report parts
+  again: Recapture[];                       // taken when it was reopened after the comment was begun
+  againDropped: number;
+}
+export interface Recapture { capture: Record<string, Block>; fetched: Record<string, Block> }
+const AGAIN_MAX = 3;
+
 const now = () => new Date().toISOString();
 const block = (status: BlockStatus, data?: any, extra: Partial<Block> = {}): Block =>
   ({ status, at: now(), ...(data === undefined ? {} : { data }), ...extra });
@@ -53,9 +64,10 @@ export const combine = (parts: Record<string, Block>): Block => {
   return block(WORST.find((s) => all.includes(s)) ?? "not_applicable", parts);
 };
 
-const isEmptyAnswer = (e: CallEntry): boolean =>
-  e.response == null || (e.endpoint === "/orcid-record" && e.response.record == null)
-  || (e.endpoint === "/lookup" && Array.isArray(e.response.matches) && e.response.matches.length === 0);
+export const isEmptyAnswer = (endpoint: string, request: any, response: any): boolean =>
+  response == null || (endpoint === "/orcid-record" && response.record == null)
+  || (endpoint === "/lookup" && Array.isArray(response.matches) && response.matches.length === 0)
+  || (endpoint === "/prior-names" && response.accepted?.[request?.cwid] === 0 && !response.names?.[request.cwid]?.length);
 
 /** One remembered call as a block. An aborted or unfinished call gave the page nothing: not_loaded. */
 export const callBlock = (e: CallEntry | null): Block => {
@@ -68,7 +80,19 @@ export const callBlock = (e: CallEntry | null): Block => {
   if (e.outcome !== "ok") {
     return block("error", data, { ...base, error: { name: e.error?.name || "HTTP", code: e.status == null ? null : String(e.status) } });
   }
-  return block(isEmptyAnswer(e) ? "empty" : "ok", data, base);
+  if (e.endpoint === "/lookup" && e.response?.configured === false) return block("unavailable", data, base);
+  const empty = isEmptyAnswer(e.endpoint, e.request, e.response);
+  // No match from a directory that did not answer is not "nobody by that name".
+  if (empty && Object.values(e.response?.debug?.perDirectory || {}).some((d: any) => d?.failed)) {
+    return block("error", data, { ...base, error: { name: "DirectoryFailed", code: null } });
+  }
+  return block(empty ? "empty" : "ok", data, base);
+};
+
+// The newest call of a ring that was answered or failed, as a block's status.
+const newest = (ring: CallEntry[]): Block | null => {
+  const e = [...ring].reverse().find((x) => x.outcome !== "pending" && x.outcome !== "aborted");
+  return e ? callBlock(e) : null;
 };
 
 // ---------------------------------------------------------------------------- the card
@@ -139,6 +163,8 @@ const actionBlock = (id: number | null, activityIds: number[]): Block => {
     this_row: lastCall("/action", id),
     recent_activity: Object.fromEntries(activityIds.map((a) => [a, lastCall("/action", a)]).filter(([, e]) => e)),
   };
+  const last = newest(data.last);
+  if (last?.status === "error") return block("error", data, { error: last.error });
   return block(data.last.length || data.refused_in_browser.length || data.bulk_runs.length ? "ok" : "empty", data);
 };
 
@@ -152,7 +178,7 @@ export function captureReport(i: CaptureInput): FeedbackTarget {
   const list = ringOf("list"), summary = ringOf("summary"), activity = ringOf("activity"), reports = ringOf("reports");
   const capture: Record<string, Block> = {
     shown_row: onRow(() => ({
-      ...block(row ? "ok" : "empty", row ?? null), at: loaded?.at ?? now(), loader: loaded?.site ?? null,
+      ...block(row ? "ok" : "not_loaded", row ?? null), at: loaded?.at ?? now(), loader: loaded?.site ?? null,
       ...(i.activity ? { activity: i.activity } : {}),
     })),
     card: captureCard(i.el),
@@ -169,8 +195,12 @@ export function captureReport(i: CaptureInput): FeedbackTarget {
       const calls = lookupsOf(id ?? 0).map(callBlock);
       return calls.length ? block(WORST.find((s) => calls.some((c) => c.status === s))!, calls) : block("not_loaded");
     }),
-    calls_recent: guarded(() => block(list.length || summary.length ? "ok" : "not_loaded",
-      { list, summary, summary_with_affiliation_facet: lastFacetSummary(), activity, reports })),
+    calls_recent: guarded(() => {
+      const data = { list, summary, summary_with_affiliation_facet: lastFacetSummary(), activity, reports };
+      const bad = [list, summary].map(newest).find((b) => b?.status === "error");
+      if (bad) return block("error", data, { error: bad.error });
+      return block([list, summary, activity, reports].some(newest) ? "ok" : "not_loaded", data);
+    }),
     actions: guarded(() => actionBlock(id, i.activityIds || [])),
     conflict: onRow(() => {
       const log = (i.conflictLog || []).filter((c) => c?.id === id);
@@ -195,33 +225,71 @@ export const uuid4 = (): string => {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 };
 
-export const buildReport = (uuid: string, target: FeedbackTarget, form: FeedbackForm, fetched: Block) => ({
+/**
+ * A draft that is opened again, with what the page shows now. A comment stays with what was on
+ * screen when it was begun, and the new capture is added. Without one (a category, say) the new
+ * capture replaces the old: nothing has been said about that one yet.
+ */
+export const reopenDraft = (d: DraftEvidence, target: FeedbackTarget) => {
+  const { people } = d.target;
+  if (d.form.comment.trim()) {
+    d.again.push({ capture: target.capture, fetched: {} });
+    if (d.again.length > AGAIN_MAX) { d.again.shift(); d.againDropped++; }
+    d.target = { ...d.target, people: [...people, ...target.people.filter((p) => !people.some((q) => q.cwid === p.cwid))] };
+    return;
+  }
+  // Whoever is ticked stays on offer, so that they can be unticked.
+  const ticked = people.filter((p) => d.form.about.includes(p.cwid) && !target.people.some((q) => q.cwid === p.cwid));
+  d.target = { ...target, people: [...target.people, ...ticked] };
+  d.fetched = {};
+  d.again = [];
+  d.againDropped = 0;
+};
+
+export const fetchedBlock = (parts: Record<string, Block>): Block => (Object.keys(parts).length ? combine(parts) : NA());
+
+const recapturedBlock = (d: DraftEvidence): Block => (!d.again.length ? NA() : block("ok",
+  d.again.map((a) => ({ ...a.capture, fetched_for_report: fetchedBlock(a.fetched) })), { dropped: d.againDropped }));
+
+export const buildReport = (uuid: string, d: DraftEvidence) => ({
   client_uuid: uuid,
-  trigger_place: target.place,
-  category: form.category,
-  about_cwids: form.about,
-  ...(form.expected.trim() ? { expected: form.expected.trim() } : {}),
-  ...(target.place === "page" && form.typedRef.trim() ? { typed_ref: form.typedRef.trim() } : {}),
-  comment: form.comment,
-  review_id: target.reviewId,
+  trigger_place: d.target.place,
+  category: d.form.category,
+  about_cwids: d.form.about,
+  ...(d.form.expected.trim() ? { expected: d.form.expected.trim() } : {}),
+  ...(d.target.place === "page" && d.form.typedRef.trim() ? { typed_ref: d.form.typedRef.trim() } : {}),
+  comment: d.form.comment,
+  review_id: d.target.reviewId,
   snapshot_version: 1,
-  client_build: target.capture.env?.data?.build ?? null,
+  client_build: d.target.capture.env?.data?.build ?? null,
   client_snapshot: {
-    form: { ...form, offered: target.people, sent_at: now() },
-    ...target.capture,
-    fetched_for_report: fetched,
+    form: { ...d.form, offered: d.target.people, sent_at: now() },
+    ...d.target.capture,
+    fetched_for_report: fetchedBlock(d.fetched),
+    recaptured: recapturedBlock(d),
   },
 });
 
 export const reportJson = (report: unknown): string =>
   JSON.stringify(report, (k, v) => (EMAIL_KEY.test(k) ? undefined : v));
 
+const dropBlocks = (snap: any, drop: (k: string) => boolean) => Object.keys(snap).filter(drop).forEach((k) => {
+  if (["ok", "error", "empty"].includes(snap[k]?.status)) snap[k] = { status: "too_large", at: snap[k].at };
+});
+
 /** For the one retry after a 413: the comment, row and card always fit, the call logs may not. */
 export const trimReport = (report: ReturnType<typeof buildReport>) => {
   const snap: any = { ...report.client_snapshot };
-  Object.keys(snap).filter((k) => k.startsWith("calls_")).forEach((k) => {
-    if (["ok", "error", "empty"].includes(snap[k].status)) snap[k] = { status: "too_large", at: snap[k].at };
-  });
+  dropBlocks(snap, (k) => k.startsWith("calls_"));
+  // Up to three more captures. Their action logs mostly repeat the first one's: keep this row's.
+  if (Array.isArray(snap.recaptured?.data)) {
+    snap.recaptured = { ...snap.recaptured, trimmed: true, data: snap.recaptured.data.map((c: any) => {
+      const one = { ...c };
+      dropBlocks(one, (k) => k.startsWith("calls_") || k === "fetched_for_report");
+      if (one.actions?.data) one.actions = { ...one.actions, trimmed: true, data: { this_row: one.actions.data.this_row ?? null } };
+      return one;
+    }) };
+  }
   // Up to 100 failed calls, each with its whole row.
   const acts = snap.actions?.data;
   if (acts) snap.actions = { ...snap.actions, trimmed: true, data: { ...acts, failed: acts.failed?.map(({ row, ...rest }: any) => rest) } };

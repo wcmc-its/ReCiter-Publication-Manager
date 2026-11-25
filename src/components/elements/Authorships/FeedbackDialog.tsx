@@ -9,13 +9,15 @@ import { Button, Checkbox, Dialog, Input, Select } from "../../ui";
 import { reciterConfig } from "../../../../config/local";
 import { parseCwid } from "../../../utils/canonicalCwid";
 import { setRecording } from "../../../utils/authorshipsCalls";
-import { buildReport, combine, reportJson, trimReport, uuid4 } from "../../../utils/authorshipsCapture";
-import type { Block, FeedbackForm, FeedbackTarget } from "../../../utils/authorshipsCapture";
+import { buildReport, isEmptyAnswer, reopenDraft, reportJson, trimReport, uuid4 } from "../../../utils/authorshipsCapture";
+import type { Block, DraftEvidence, FeedbackForm, FeedbackTarget } from "../../../utils/authorshipsCapture";
 
 const FEEDBACK_URL = "/api/db/authorships/feedback";
 const headers = { Accept: "application/json", "Content-Type": "application/json", Authorization: reciterConfig.backendApiKey };
 const COMMENT_MAX = 5000;
 const FETCH_WAIT_MS = 3000;
+const SEND_WAIT_MS = 30000;
+const RETRY_LOAD_MS = [3000, 15000];
 
 const CATEGORIES: Array<{ value: string; label: string }> = [
   { value: "wrong_person", label: "Wrong person" },
@@ -38,60 +40,57 @@ export interface FeedbackReport {
   trigger_place: string; status: string; resolution_url: string | null;
 }
 
-interface Draft {
-  target: FeedbackTarget;
-  form: FeedbackForm;
+interface Draft extends DraftEvidence {
   uuid: string;
   tried: string | null;                    // the form as last sent
   sending: boolean;
   error: string | null;
-  fetched: Record<string, Block>;          // fetched_for_report parts
   waiting: Promise<unknown>[];
+  begun: Date;
+  latest: FeedbackTarget;                  // what "Start over" starts from
+  reopened: boolean;
 }
 
 const newDraft = (target: FeedbackTarget): Draft => ({
   target, form: { category: "", about: [], expected: "", typedRef: "", comment: "" }, uuid: uuid4(),
-  tried: null, sending: false, error: null, fetched: {}, waiting: [],
+  tried: null, sending: false, error: null, fetched: {}, again: [], againDropped: 0, waiting: [],
+  begun: new Date(), latest: target, reopened: false,
 });
 const touched = ({ form: f }: Draft) => !!(f.category || f.about.length || f.expected.trim() || f.typedRef.trim() || f.comment.trim());
 
 // What the page had not loaded about the row and its people, asked for once the dialog is open.
 // Plain fetch into the draft only: not the page's caches and not the call recorder, so reporting
 // never changes the page or what a later report says the page had.
-const fetchPart = (d: Draft, key: string, path: string, body: unknown) => {
-  if (d.fetched[key]) return;
+const fetchPart = (d: Draft, parts: Record<string, Block>, key: string, path: string, body: unknown) => {
+  if (parts[key]) return;
   const t0 = Date.now();
-  const put = (b: Omit<Block, "at" | "ms">) => { d.fetched[key] = { ...b, at: new Date().toISOString(), ms: Date.now() - t0 } as Block; };
-  d.fetched[key] = { status: "timeout", at: new Date().toISOString() }; // until it answers
+  const put = (b: Omit<Block, "at" | "ms">) => { parts[key] = { ...b, at: new Date().toISOString(), ms: Date.now() - t0 } as Block; };
+  parts[key] = { status: "timeout", at: new Date().toISOString() }; // until it answers
   d.waiting.push(fetch(`/api/db/authorships${path}`, { credentials: "same-origin", method: "POST", headers, body: JSON.stringify(body) })
     .then(async (r) => {
       const text = await r.text();
       if (!r.ok) { put({ status: "error", error: { name: "HTTP", code: String(r.status) }, data: { raw: text.slice(0, 4096) } }); return; }
       const data = JSON.parse(text);
-      put({ status: data == null ? "empty" : "ok", data });
+      put({ status: isEmptyAnswer(path, body, data) ? "empty" : "ok", data });
     })
     .catch((e) => put({ status: "error", error: { name: String(e?.name || "Error"), code: null } })));
 };
 const loadedInPage = (b: Block | undefined, key: string) => ["ok", "empty"].includes(b?.data?.[key]?.status);
-const fetchForReport = (d: Draft) => {
-  const { reviewId, people, capture } = d.target;
+const fetchForReport = (d: Draft, { reviewId, people, capture }: FeedbackTarget, parts: Record<string, Block>) => {
   if (reviewId != null && !loadedInPage(capture.calls_row, "candidate_evidence")) {
-    fetchPart(d, "candidate_evidence", "/candidate-evidence", { id: reviewId });
+    fetchPart(d, parts, "candidate_evidence", "/candidate-evidence", { id: reviewId });
   }
   people.forEach((p) => {
-    if (!loadedInPage(capture.calls_people, p.cwid)) fetchPart(d, `prior_names:${p.cwid}`, "/prior-names", { cwid: p.cwid });
+    if (!loadedInPage(capture.calls_people, p.cwid)) fetchPart(d, parts, `prior_names:${p.cwid}`, "/prior-names", { cwid: p.cwid });
   });
 };
 // "Who should it be" takes a cwid, a NetID or a name: the identifier in it, if any.
-const expectedCwid = (text: string): string | null => parseCwid(/\b[a-z]{2,4}\d{1,5}\b/i.exec(text)?.[0]);
+const expectedCwid = (text: string): string | null => parseCwid(/\b(?!pmid)[a-z]{2,4}\d{1,5}\b/i.exec(text)?.[0]);
 const fetchExpected = (d: Draft) => {
   const cwid = expectedCwid(d.form.expected);
   if (!cwid || d.target.people.some((p) => parseCwid(p.cwid) === cwid)) return;
-  fetchPart(d, `prior_names:${cwid}`, "/prior-names", { cwid });
+  fetchPart(d, d.fetched, `prior_names:${cwid}`, "/prior-names", { cwid });
 };
-
-export const draftReport = (d: Draft) => buildReport(d.uuid, d.target, d.form,
-  Object.keys(d.fetched).length ? combine(d.fetched) : { status: "not_applicable", at: new Date().toISOString() });
 
 const errorText = async (r: Response): Promise<string> => {
   let body: any = null;
@@ -116,36 +115,60 @@ export function useAuthorshipFeedback() {
   const openRef = useRef<Draft | null>(null);
   useEffect(() => { openRef.current = open; }, [open]);
 
-  const load = useCallback(() => {
+  const known = useRef(false);             // the server has said this person may report
+  const load = useCallback((): Promise<boolean> =>
     fetch(FEEDBACK_URL, { credentials: "same-origin", headers })
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => {
-        setEnabled(d?.enabled === true);
-        setRecording(d?.enabled === true);
+        known.current = d?.enabled === true;
+        setEnabled(known.current);
+        setRecording(known.current);
         setReports({ list: Array.isArray(d?.reports) ? d.reports : [], failed: !!d?.reportsError });
+        return true;
       })
-      .catch(() => setReports((r) => ({ ...r, failed: true })));
-  }, []);
-  useEffect(() => { load(); }, [load]);
+      .catch(() => { setReports((r) => ({ ...r, failed: true })); return false; }), []);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined, gone = false;
+    const attempt = async (n: number) => {
+      if (await load() || gone || known.current) return;
+      if (n < RETRY_LOAD_MS.length) timer = setTimeout(() => attempt(n + 1), RETRY_LOAD_MS[n]);
+      else setRecording(false);            // nobody could read what it keeps
+    };
+    attempt(0);
+    return () => { gone = true; clearTimeout(timer); };
+  }, [load]);
 
   const start = useCallback((target: FeedbackTarget) => {
     let d = drafts.current.get(target.key);
-    // Something typed: the same draft with what was captured when it was begun. Nothing typed: anew.
+    // Something entered: the same draft, with what is on screen now as well. Nothing entered: anew.
     if (!d || (!touched(d) && !d.sending)) {
       d = newDraft(target);
       drafts.current.set(target.key, d);
+    } else {
+      d.reopened = true;
+      d.latest = target;
+      reopenDraft(d, target);
+      // It holds more than what was sent, so under the same id the server would store nothing.
+      if (d.tried !== null) { d.uuid = uuid4(); d.tried = null; }
     }
-    fetchForReport(d);
+    fetchForReport(d, target, d.again[d.again.length - 1]?.fetched ?? d.fetched);
     if (target.place === "page") load();
     setOpen(d);
   }, [load]);
   const hide = useCallback(() => setOpen(null), []);
+  const startOver = useCallback((d: Draft) => {
+    if (d.sending) return;
+    Object.assign(d, newDraft(d.latest));
+    fetchForReport(d, d.target, d.fetched);
+    redraw();
+  }, []);
 
   const send = useCallback(async (d: Draft) => {
     if (d.sending) return;
     d.sending = true;
     d.error = null;
     redraw();
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       fetchExpected(d);
       await Promise.race([Promise.all(d.waiting), new Promise((r) => setTimeout(r, FETCH_WAIT_MS))]);
@@ -154,8 +177,10 @@ export function useAuthorshipFeedback() {
       const form = JSON.stringify(d.form);
       if (d.tried !== null && d.tried !== form) d.uuid = uuid4();
       d.tried = form;
-      const report = draftReport(d);
-      const post = (body: string) => fetch(FEEDBACK_URL, { credentials: "same-origin", method: "POST", headers, body });
+      const report = buildReport(d.uuid, d);
+      const abort = new AbortController();
+      timer = setTimeout(() => abort.abort(), SEND_WAIT_MS);
+      const post = (body: string) => fetch(FEEDBACK_URL, { credentials: "same-origin", method: "POST", headers, body, signal: abort.signal });
       let r = await post(reportJson(report));
       if (r.status === 413) r = await post(reportJson(trimReport(report)));
       if (!r.ok) throw new Error(await errorText(r));
@@ -165,34 +190,36 @@ export function useAuthorshipFeedback() {
       setOpen((o) => (o === d ? null : o));
       toast(`Reported #${id}`, { autoClose: 5000 });
     } catch (e: any) {
-      d.error = e instanceof TypeError ? "The server couldn't be reached."
+      d.error = e?.name === "AbortError" ? `The server didn't answer within ${SEND_WAIT_MS / 1000} seconds.`
+        : e instanceof TypeError ? "The server couldn't be reached."
         : e instanceof SyntaxError ? "The server's answer couldn't be read. You may be signed out."
           : String(e?.message || e);
       if (openRef.current !== d) toast.error("A problem report was not saved. Open it again from the same place to retry.", { autoClose: 8000 });
     } finally {
+      clearTimeout(timer);
       d.sending = false;
       redraw();
     }
   }, []);
 
-  return { enabled, reports, open, start, hide, send };
+  return { enabled, reports, open, start, hide, send, startOver };
 }
 
 const labelStyle: CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4, color: "var(--pm-foreground)" };
 const hint: CSSProperties = { fontSize: 12, color: "var(--pm-muted-foreground)" };
 const errorStyle: CSSProperties = { fontSize: 12.5, color: "var(--pm-red)", marginTop: 4 };
 
-export const FeedbackDialog = ({ draft: d, reports, onHide, onSend }: {
+export const FeedbackDialog = ({ draft: d, reports, onHide, onSend, onStartOver }: {
   draft: Draft;
   reports: { list: FeedbackReport[]; failed: boolean };
-  onHide: () => void; onSend: (d: Draft) => void;
+  onHide: () => void; onSend: (d: Draft) => void; onStartOver: (d: Draft) => void;
 }) => {
   const [form, setForm] = useState(d.form);
   const [missing, setMissing] = useState<{ category?: boolean; comment?: boolean }>({});
   const [copied, setCopied] = useState<"" | "yes" | string>(""); // "yes", or the text to copy by hand
   const categoryRef = useRef<{ focus: () => void }>(null); // MUI Select's handle
   const commentRef = useRef<HTMLTextAreaElement>(null);
-  // Not while it is being sent: the draft is dropped once that save lands.
+  // Not while it is being sent (the fields are read-only then): the draft is dropped once that save lands.
   const patch = (p: Partial<FeedbackForm>) => { if (d.sending) return; const next = { ...form, ...p }; d.form = next; setForm(next); };
   const page = d.target.place === "page";
 
@@ -205,9 +232,16 @@ export const FeedbackDialog = ({ draft: d, reports, onHide, onSend }: {
     setCopied("");
     onSend(d);
   };
+  const startOver = () => {
+    onStartOver(d);
+    setForm(d.form);
+    setMissing({});
+    setCopied("");
+    categoryRef.current?.focus();          // the button that had focus is gone
+  };
   const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); } };
   const copy = async () => {
-    const text = reportJson(draftReport(d));
+    const text = reportJson(buildReport(d.uuid, d));
     try { await navigator.clipboard.writeText(text); setCopied("yes"); } catch { setCopied(text); }
   };
 
@@ -220,11 +254,17 @@ export const FeedbackDialog = ({ draft: d, reports, onHide, onSend }: {
         <Button variant="primary" type="submit" form="pm-feedback-form" disabled={d.sending}>{d.sending ? "Sending…" : "Send report"}</Button>
       </>}>
       <form id="pm-feedback-form" noValidate onSubmit={submit} onKeyDown={onKeyDown} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {d.reopened && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <span style={hint}>Started {d.begun.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. What is on screen now is saved with it.</span>
+            <Button size="sm" variant="ghost" disabled={d.sending} onClick={startOver}>Start over</Button>
+          </div>
+        )}
         <div>
           <label id="pm-feedback-category-label" style={labelStyle}>What is wrong?</label>
           <Select value={form.category} onChange={(category) => patch({ category })} fullWidth displayEmpty autoFocus
             id="pm-feedback-category" labelId="pm-feedback-category-label" error={!!missing.category && !form.category}
-            inputRef={categoryRef}
+            inputRef={categoryRef} readOnly={d.sending}
             SelectDisplayProps={{ "aria-required": true, "aria-invalid": !!missing.category && !form.category, "aria-describedby": "pm-feedback-category-error" } as any}
             options={[{ value: "", label: "Choose one", disabled: true }, ...CATEGORIES]} />
           <div id="pm-feedback-category-error" role="alert" style={errorStyle}>{missing.category && !form.category ? "Choose what kind of problem this is." : ""}</div>
@@ -235,7 +275,7 @@ export const FeedbackDialog = ({ draft: d, reports, onHide, onSend }: {
             <legend style={{ ...labelStyle, float: "none", width: "auto", padding: 0 }}>Who is it about? <span style={hint}>(optional)</span></legend>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
               {d.target.people.map((p) => (
-                <Checkbox key={p.cwid} checked={form.about.includes(p.cwid)} label={`${p.name || p.cwid} (${p.cwid})`}
+                <Checkbox key={p.cwid} checked={form.about.includes(p.cwid)} disabled={d.sending} label={`${p.name || p.cwid} (${p.cwid})`}
                   onChange={(_, on) => patch({ about: on ? [...form.about, p.cwid] : form.about.filter((c) => c !== p.cwid) })} />
               ))}
             </div>
@@ -244,21 +284,21 @@ export const FeedbackDialog = ({ draft: d, reports, onHide, onSend }: {
 
         <div>
           <label htmlFor="pm-feedback-expected" style={labelStyle}>Who should it be? <span style={hint}>(optional: CWID, NetID or name)</span></label>
-          <Input id="pm-feedback-expected" fullWidth value={form.expected} inputProps={{ maxLength: 255, autoComplete: "off" }}
+          <Input id="pm-feedback-expected" fullWidth readOnly={d.sending} value={form.expected} inputProps={{ maxLength: 255, autoComplete: "off" }}
             onChange={(e) => patch({ expected: e.target.value })} onBlur={() => fetchExpected(d)} />
         </div>
 
         {page && (
           <div>
             <label htmlFor="pm-feedback-ref" style={labelStyle}>PMID or DOI <span style={hint}>(optional, for a paper that is not in the list)</span></label>
-            <Input id="pm-feedback-ref" fullWidth value={form.typedRef} inputProps={{ maxLength: 255, autoComplete: "off" }}
+            <Input id="pm-feedback-ref" fullWidth readOnly={d.sending} value={form.typedRef} inputProps={{ maxLength: 255, autoComplete: "off" }}
               onChange={(e) => patch({ typedRef: e.target.value })} />
           </div>
         )}
 
         <div>
           <label htmlFor="pm-feedback-comment" style={labelStyle}>What happened, and what did you expect?</label>
-          <Input id="pm-feedback-comment" fullWidth multiline minRows={4} maxRows={12} value={form.comment} inputRef={commentRef}
+          <Input id="pm-feedback-comment" fullWidth multiline minRows={4} maxRows={12} readOnly={d.sending} value={form.comment} inputRef={commentRef}
             error={!!missing.comment && !form.comment.trim()}
             inputProps={{ maxLength: COMMENT_MAX, "aria-required": true, "aria-describedby": "pm-feedback-comment-hint pm-feedback-comment-error" }}
             onChange={(e) => patch({ comment: e.target.value })} />

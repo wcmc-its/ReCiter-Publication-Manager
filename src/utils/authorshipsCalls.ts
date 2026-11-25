@@ -158,12 +158,20 @@ const noteList = (e: CallEntry, d: any) => {
 const onResponse = (e: CallEntry, r: Response) => {
   e.status = r.status;
   if (r.ok && LIST_ENDPOINTS.includes(e.endpoint)) {
-    // Read along with the caller's own r.json() instead of a second copy of 5,000 rows.
-    const json = r.json.bind(r);
-    r.json = () => {
-      const p = json();
-      p.then((d) => { safely(() => noteList(e, d)); settle(e, "ok"); }, (err) => failed(e, err, "unread")).catch(() => {});
-      return p;
+    // Read along with the caller's own r.json() instead of a second copy of 5,000 rows. As text
+    // first, so an answer that is not JSON (a login or proxy page) is still there to keep.
+    r.json = async () => {
+      let text = "";
+      try {
+        text = await r.text();
+        const d = JSON.parse(text);
+        safely(() => { noteList(e, d); settle(e, "ok"); });
+        return d;
+      } catch (err) {
+        if (text) e.raw = text.slice(0, RAW_MAX);
+        safely(() => failed(e, err, "unread"));
+        throw err;
+      }
     };
     return;
   }

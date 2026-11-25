@@ -709,8 +709,9 @@ export function bylineCampuses(affil: string | null | undefined): Set<"wcm" | "c
 }
 
 /** Per directory asked: people found before the page cap, and whether any were left out (by the
- *  cap, or by the server's size limit). Filled in for the lookup's `debug` block. */
-export type DirectorySearchStats = Partial<Record<"wcm" | "cornell", { count: number; truncated: boolean }>>;
+ *  cap, or by the server's size limit). `failed`: a search of it did not answer, so the count is
+ *  not "nobody". Filled in for the lookup's `debug` block. */
+export type DirectorySearchStats = Partial<Record<"wcm" | "cornell", { count: number; truncated: boolean; failed?: true }>>;
 
 /** `sources` narrows the search to one directory; both by default. The routine (auto) lookup
  *  on a weak /authorships row asks WCM alone first and Cornell only as a fallback (see
@@ -734,25 +735,27 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true, 
   // kept ahead of the page cap. Without an affiliation nothing here changes.
   const deptToks = affilTokens(affil);
   const wide = deptToks.size > 0;
+  const failed = new Set<"wcm" | "cornell">(); // safe() below makes a failed search an empty one
+  const watch = <T,>(src: "wcm" | "cornell", p: Promise<T>) => p.catch((e): T => { failed.add(src); throw e; });
   // Exact-equality pass first (see buildNameFilter's `exact`), then the prefix pass — the
   // searches fly together, so the extra passes cost no wall-clock.
   const [wx, w, cx, c] = await Promise.all([
-    wcm ? safe("wcm exact", () => search(
+    wcm ? safe("wcm exact", () => watch("wcm", search(
       wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, false, true),
-      WCM_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
-    wcm ? safe("wcm search", () => wide
+      WCM_ATTRS, limit)), [] as Record<string, unknown>[]) : Promise.resolve([]),
+    wcm ? safe("wcm search", () => watch("wcm", wide
       ? searchPaged(wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true), WCM_ATTRS)
-      : search(wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true), WCM_ATTRS, limit),
+      : search(wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true), WCM_ATTRS, limit)),
     [] as Record<string, unknown>[]) : Promise.resolve([]),
-    cornell ? safe("cornell exact", () => search(
+    cornell ? safe("cornell exact", () => watch("cornell", search(
       cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"], false, true),
-      CORNELL_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
+      CORNELL_ATTRS, limit)), [] as Record<string, unknown>[]) : Promise.resolve([]),
     // Paged like WCM when the affiliation is known. Capped at `limit`, "a singh" came back as 8
     // alumni and never the Ithaca postdoc (as3527) in the 100-entry cohort (2026-11-23 probe;
     // the Cornell directory pages fine and has no 200-entry cap, disproven 2026-09-07).
-    cornell ? safe("cornell search", () => wide
+    cornell ? safe("cornell search", () => watch("cornell", wide
       ? searchPaged(cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]), CORNELL_ATTRS)
-      : search(cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]), CORNELL_ATTRS, limit),
+      : search(cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]), CORNELL_ATTRS, limit)),
     [] as Record<string, unknown>[]) : Promise.resolve([]),
   ]);
   // Exact hits also come back from the prefix pass (`li` matches `li*`): keep the first sighting.
@@ -781,6 +784,7 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true, 
         count,
         truncated: people.filter((p) => p.source === src).length < count ||
           (!wide && raw.some((r) => r.length >= limit)),
+        ...(failed.has(src) || stats[src]?.failed ? { failed: true as const } : {}),
       };
     }
   }

@@ -9,7 +9,7 @@ import { toast } from "react-toastify";
 import { showUndoToast } from "../ToastHost/ToastHost";
 import { Button, Input, Select } from "../../ui";
 import { actionErrorToast, actionToast, plainReason } from "../../../utils/authorshipMessages";
-import { KEY_LEGEND, chipText, drillBanner, keyCommand, singleChipText } from "../../../utils/authorshipChips";
+import { KEY_LEGEND, chipText, drillBanner, enterIsTaken, keyCommand, singleChipText } from "../../../utils/authorshipChips";
 import FilterChip, { Chevron, optionRowClass, popoverPaper } from "./FilterChip";
 import type { ChipOption } from "./FilterChip";
 import { reciterConfig } from "../../../../config/local";
@@ -31,7 +31,7 @@ import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } fro
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import OrcidPanel from "./OrcidPanel";
 import { FeedbackDialog, useAuthorshipFeedback } from "./FeedbackDialog";
-import { markCall, noteBulk, noteRefusal, noteRows, recordedFetch } from "../../../utils/authorshipsCalls";
+import { lastCall, markCall, noteBulk, noteRefusal, noteRows, recordedFetch } from "../../../utils/authorshipsCalls";
 import type { CallMeta } from "../../../utils/authorshipsCalls";
 import { captureReport, noteHover } from "../../../utils/authorshipsCapture";
 import type { FeedbackTarget, TriggerPlace } from "../../../utils/authorshipsCapture";
@@ -1476,8 +1476,12 @@ const AuthorshipsTabs = () => {
   // The search box inside the two affiliation lists. Cleared whenever a chip opens.
   const [affilQuery, setAffilQuery] = useState("");
   // The last list opened, for a problem report: opening the report closes the list.
-  const lastChip = useRef<string | null>(null);
-  useEffect(() => { if (chipMenu) lastChip.current = chipMenu; }, [chipMenu]);
+  const lastChip = useRef<{ chip: string; opened_at: string; closed_at: string | null } | null>(null);
+  useEffect(() => {
+    const at = new Date().toISOString();
+    if (chipMenu) lastChip.current = { chip: chipMenu, opened_at: at, closed_at: null };
+    else if (lastChip.current) lastChip.current.closed_at = at;
+  }, [chipMenu]);
   const [keysAnchor, setKeysAnchor] = useState<HTMLElement | null>(null);
   const keysBtnRef = useRef<HTMLButtonElement>(null);
   // The sort Select's own menu. Tracked so the row shortcuts stand down while it is open.
@@ -2705,8 +2709,9 @@ const AuthorshipsTabs = () => {
       recordedFetch("/api/db/authorships/action", {
         credentials: "same-origin", method: "POST", headers: apiHeaders,
         body: JSON.stringify({ id: row.id, action: "reopen" }),
-      }, { site: "undo", row }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
+      }, { site: "undo", row }).then((r) => { if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { status: r.status }); })
     )).then((results) => {
+      if (batch.length > 1) noteBulk("undo", results);
       if (results.some((r) => r.status === "rejected")) showError("Undo failed for one or more rows.");
       // silent — undo restores rows in place, same as the action-catch path above.
     }).finally(() => { fetchData(true); fetchSummary(); fetchRecentActivity(); });
@@ -2929,6 +2934,7 @@ const AuthorshipsTabs = () => {
       if (tag === "input" || tag === "select" || tag === "textarea") return;
       const cmd = keyCommand(e);
       if (!cmd) return;
+      if (cmd === "open" && enterIsTaken(e)) return;
       // "?" opens and closes the shortcut list itself, so it is the one key that works while that
       // list (an overlay) is up; every other overlay still blocks it.
       if (cmd === "legend") {
@@ -3176,26 +3182,31 @@ const AuthorshipsTabs = () => {
   } : undefined);
 
   // A problem report: everything on screen and behind it, taken before any state changes.
-  const captureFor = (place: TriggerPlace, el: Element | null, row: AuthorshipRow | null = null, activity?: ActivityEntry) => captureReport({
-    place, el, row, activity,
-    heading: (row || activity) ? [(row || activity)!.wcm_author, stripHtml((row || activity)!.title || "")].filter(Boolean).join(" · ") : "",
-    people: [
-      ...(row ? [{ cwid: row.top_cwid, name: row.top_name }, ...parseCandidates(row.candidate_cwids_json), ...(row.accepted_by || [])] : []),
-      ...(activity ? [{ cwid: activity.resolution_cwid, name: activity.resolution_name }, { cwid: activity.top_cwid, name: activity.top_name }] : []),
-    ].flatMap((p) => (p.cwid ? [{ cwid: String(p.cwid), name: p.name }] : [])),
-    conflict: row ? (place === "dup_pair" ? conflicts[row.id] : shownConflict(row)) : undefined,
-    conflictLog, activityIds: recentActivity.map((a) => a.id),
-    view: {
-      filters, date_preset: datePreset, search_box: searchInput, list_body: JSON.parse(listBody()), summary_body: JSON.parse(summaryBody),
-      page, queue: statusView, report: reportView, count, rows_on_screen: rows.length, row_index: row ? rows.findIndex((x) => x.id === row.id) : null,
-      loading, list_error: listError, report_error: reportError || null,
-      summary_matches_filters: summaryFor === summaryBody, affiliation_facet_current: affilFacetKey === baseSummaryBody,
-      hide_counts_current: hideCountsKey === baseSummaryBody, last_open_filter: lastChip.current, filter_search_text: affilQuery,
-      expanded, selected: { count: selected.size, ids: [...selected].slice(0, 200), all_matching: allMatching?.length ?? null },
-      in_flight: { acting: actingId, removed: [...pendingRemoved.current], bulk: bulkProgress },
-      like_expected: likeExpected, queue_total: queueTotalNow,
-    },
-  });
+  const captureFor = (place: TriggerPlace, el: Element | null, row: AuthorshipRow | null = null, activity?: ActivityEntry) => {
+    // A Recent activity entry is already decided; its card as it was, if this session decided it.
+    const card = row ?? (activity ? (lastCall("/action", activity.id)?.row as AuthorshipRow | undefined) ?? null : null);
+    return captureReport({
+      place, el, row, activity,
+      heading: (row || activity) ? [(row || activity)!.wcm_author, stripHtml((row || activity)!.title || "")].filter(Boolean).join(" · ") : "",
+      people: [
+        ...(card ? [{ cwid: card.top_cwid, name: card.top_name }, ...parseCandidates(card.candidate_cwids_json), ...(card.accepted_by || [])] : []),
+        ...(activity ? [{ cwid: activity.resolution_cwid, name: activity.resolution_name }, { cwid: activity.top_cwid, name: activity.top_name }] : []),
+      ].flatMap((p) => (p.cwid ? [{ cwid: String(p.cwid), name: p.name }] : [])),
+      conflict: place === "dup_pair" ? conflicts[row!.id] : card ? shownConflict(card) : activity ? conflicts[activity.id] : undefined,
+      conflictLog, activityIds: recentActivity.map((a) => a.id),
+      view: {
+        filters, date_preset: datePreset, search_box: searchInput, list_body: JSON.parse(listBody()), summary_body: JSON.parse(summaryBody),
+        page, queue: statusView, report: reportView, count, rows_on_screen: rows.length, row_index: row ? rows.findIndex((x) => x.id === row.id) : null,
+        loading, list_error: listError, report_error: reportError || null, report_loading: reportLoading,
+        report_body: reportBody ? JSON.parse(reportBody) : null,
+        summary_matches_filters: summaryFor === summaryBody, affiliation_facet_current: affilFacetKey === baseSummaryBody,
+        hide_counts_current: hideCountsKey === baseSummaryBody, last_open_filter: lastChip.current && { ...lastChip.current }, filter_search_text: affilQuery,
+        expanded, selected: { count: selected.size, ids: [...selected].slice(0, 200), all_matching: allMatching?.length ?? null },
+        in_flight: { acting: actingId, removed: [...pendingRemoved.current], bulk: bulkProgress },
+        like_expected: likeExpected, queue_total: queueTotalNow,
+      },
+    });
+  };
 
   return (
     <div style={{ fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif", color: "#0f172a" }}>
@@ -4024,7 +4035,7 @@ const AuthorshipsTabs = () => {
       </Menu>
       {feedback.open && (
         <FeedbackDialog key={feedback.open.target.key} draft={feedback.open} reports={feedback.reports}
-          onHide={feedback.hide} onSend={feedback.send} />
+          onHide={feedback.hide} onSend={feedback.send} onStartOver={feedback.startOver} />
       )}
 
 

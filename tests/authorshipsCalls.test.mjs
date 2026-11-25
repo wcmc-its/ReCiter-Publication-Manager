@@ -16,7 +16,8 @@ registerHooks({
 const {
   recordedFetch, setRecording, markCall, noteRows, rowLoaded, noteRefusal, noteBulk, lastCall, ringOf, lookupsOf, lastFacetSummary,
 } = await import('../src/utils/authorshipsCalls.ts')
-const { callBlock, captureReport, buildReport, reportJson, trimReport, uuid4, combine } = await import('../src/utils/authorshipsCapture.ts')
+const { callBlock, captureReport, buildReport, reopenDraft, reportJson, trimReport, uuid4 } = await import('../src/utils/authorshipsCapture.ts')
+const { enterIsTaken } = await import('../src/utils/authorshipChips.ts')
 const { parseFeedbackBody } = await import('../src/lib/authorshipFeedback.ts')
 
 const API = '/api/db/authorships'
@@ -25,6 +26,8 @@ let answer
 const unhandled = []
 process.on('unhandledRejection', (e) => unhandled.push(e))
 globalThis.fetch = async (url, init) => answer(url, init)
+const draft = (target, form) => ({ target, fetched: {}, again: [], againDropped: 0,
+  form: { category: 'idea', about: [], expected: '', typedRef: '', comment: 'c', ...form } })
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status })
 const post = (body, extra = {}) => ({ method: 'POST', headers: { Authorization: 'SECRET' }, body: JSON.stringify(body), ...extra })
 
@@ -188,13 +191,13 @@ test('a captured report has every block, passes the server\'s check and never ho
   noteBulk('accept', [{ status: 'fulfilled' }, { status: 'rejected', reason: { status: 409 } }])
   const t = captureReport({ place: 'menu', row, people: [{ cwid: 'abc1001' }, { cwid: 'abc1001' }], view: { page: 0 }, heading: 'h' })
   const form = { category: 'wrong_person', about: ['abc1001'], expected: ' xyz2002 ', typedRef: 'ignored', comment: 'c' }
-  const report = buildReport(uuid4(), t, form, combine({}))
+  const report = buildReport(uuid4(), draft(t, form))
   const sent = JSON.parse(reportJson(report))
   const { input, message } = parseFeedbackBody(sent)
   assert.equal(message, undefined)
   assert.deepEqual([input.review_id, input.expected, input.typed_ref, input.about_cwids], [9, 'xyz2002', null, ['abc1001']])
   assert.deepEqual(Object.keys(sent.client_snapshot), ['form', 'shown_row', 'card', 'last_hover', 'calls_row', 'calls_people',
-    'calls_lookup', 'calls_recent', 'actions', 'conflict', 'view', 'env', 'fetched_for_report'])
+    'calls_lookup', 'calls_recent', 'actions', 'conflict', 'view', 'env', 'fetched_for_report', 'recaptured'])
   for (const [k, b] of Object.entries(sent.client_snapshot)) if (k !== 'form') assert.ok(b.status && b.at, k)
   assert.equal(sent.client_snapshot.shown_row.loader, 'fetchData')
   assert.ok(!('email' in sent.client_snapshot.shown_row.data))
@@ -208,7 +211,7 @@ test('page-level: row blocks are not applicable; a 413 retry drops only the call
   const t = captureReport({ place: 'page', view: {} })
   assert.deepEqual(['shown_row', 'card', 'last_hover', 'calls_row', 'calls_people', 'conflict'].map((k) => t.capture[k].status), Array(6).fill('not_applicable'))
   t.capture.calls_recent = { status: 'ok', at: 'x', data: { list: [1] } }
-  const report = buildReport(uuid4(), t, { category: 'idea', about: [], expected: '', typedRef: 'PMID 1', comment: 'c' }, combine({}))
+  const report = buildReport(uuid4(), draft(t, { typedRef: 'PMID 1' }))
   assert.equal(report.typed_ref, 'PMID 1')
   const small = trimReport(report)
   assert.deepEqual(small.client_snapshot.calls_recent, { status: 'too_large', at: 'x' })
@@ -226,5 +229,104 @@ test('Recent activity: the entry, plus the row as it was when this session acted
   assert.deepEqual([t.capture.shown_row.status, t.capture.shown_row.data, t.capture.shown_row.activity.status], ['ok', row, 'accepted'])
   assert.deepEqual(Object.keys(t.capture.actions.data.recent_activity), ['12'])
   const other = captureReport({ place: 'activity', activity: { id: 13 }, view: {} })
-  assert.deepEqual([other.capture.shown_row.status, other.capture.shown_row.data], ['empty', null])
+  assert.deepEqual([other.capture.shown_row.status, other.capture.shown_row.data], ['not_loaded', null])
+})
+
+test('a list answered 200 with a page that is not JSON keeps the body, and the caller still fails', async () => {
+  answer = () => new Response('<html>' + 'x'.repeat(9000))
+  const r = await recordedFetch(API, post({}), { site: 'fetchData' })
+  await assert.rejects(r.json(), SyntaxError)
+  const e = ringOf('list')[0]
+  assert.deepEqual([e.outcome, e.status, e.error.name, e.raw.length], ['unread', 200, 'SyntaxError', 4096])
+  assert.deepEqual(unhandled, [])
+})
+
+test('a lookup that found nobody is empty; one that could not look is not', async () => {
+  const look = async (body) => {
+    answer = () => json({ matches: [], ...body })
+    await recordedFetch(`${API}/lookup`, post({ q: 'name' }), { site: 'assignOther', rowId: 1 })
+    await tick()
+    return callBlock(lookupsOf(1).at(-1)).status
+  }
+  assert.equal(await look({ configured: true, debug: { perDirectory: { wcm: { count: 0, truncated: false } } } }), 'empty')
+  assert.equal(await look({ configured: false }), 'unavailable')
+  assert.equal(await look({ configured: true, debug: { perDirectory: { wcm: { count: 0, truncated: false, failed: true } } } }), 'error')
+})
+
+test('prior names: nobody accepted is empty, names or nameless papers are not', async () => {
+  const ask = async (names, accepted) => {
+    answer = () => json({ names: { abc1001: names }, accepted: { abc1001: accepted } })
+    await recordedFetch(`${API}/prior-names`, post({ cwid: 'abc1001' }), { site: 'hoverCard' })
+    await tick()
+    return callBlock(lastCall('/prior-names', 'abc1001')).status
+  }
+  assert.deepEqual([await ask([], 0), await ask([], 2), await ask([{ last: 'x' }], 2)], ['empty', 'ok', 'ok'])
+})
+
+test('calls_recent and actions say what the newest call came to', async () => {
+  const status = (k) => captureReport({ place: 'page', view: {} }).capture[k].status
+  assert.deepEqual([status('calls_recent'), status('actions')], ['not_loaded', 'empty'])
+  answer = () => json({ rows: [] })
+  await recordedFetch(`${API}/recent-activity`, post({}), { site: 'fetchRecentActivity' })
+  await tick()
+  assert.equal(status('calls_recent'), 'ok')
+  answer = () => new Response('boom', { status: 500 })
+  await recordedFetch(API, post({}), { site: 'fetchData' })
+  await recordedFetch(`${API}/action`, post({ id: 1, action: 'accept' }), { site: 'doAction' })
+  await tick()
+  assert.deepEqual([status('calls_recent'), status('actions')], ['error', 'error'])
+  answer = () => json({ rows: [] })
+  await (await recordedFetch(API, post({}), { site: 'fetchData' })).json()
+  await recordedFetch(`${API}/action`, post({ id: 1, action: 'accept' }), { site: 'doAction' })
+  await tick()
+  assert.deepEqual([status('calls_recent'), status('actions')], ['ok', 'ok'])
+})
+
+test('a draft opened again: a comment keeps its capture and gains the new one; a category alone moves to the new one', () => {
+  const at = (n, extra = {}) => captureReport({ place: 'page', view: { n }, people: [{ cwid: `abc100${n}` }], ...extra })
+  const views = (d) => {
+    const s = buildReport(uuid4(), d).client_snapshot
+    return [s.view.data.n, s.recaptured.status, (s.recaptured.data || []).map((c) => c.view.data.n)]
+  }
+  const bare = draft(at(1), { comment: ' ', about: ['abc1001'] })
+  bare.fetched = { x: { status: 'ok', at: 'x' } }
+  reopenDraft(bare, at(2))
+  assert.deepEqual(views(bare), [2, 'not_applicable', []])
+  assert.deepEqual([bare.form.about, bare.target.people.map((p) => p.cwid), bare.fetched], [['abc1001'], ['abc1002', 'abc1001'], {}])
+
+  const d = draft(at(1))
+  reopenDraft(d, at(2))
+  d.again[0].fetched.x = { status: 'ok', at: 'x', data: 1 }
+  assert.deepEqual(views(d), [1, 'ok', [2]])
+  const { client_snapshot: snap } = buildReport(uuid4(), d)
+  assert.deepEqual([snap.form.comment, snap.recaptured.data[0].fetched_for_report.data.x.data], ['c', 1])
+  assert.deepEqual(d.target.people.map((p) => p.cwid), ['abc1001', 'abc1002'])
+  for (const n of [3, 4, 5]) reopenDraft(d, at(n))
+  assert.deepEqual(views(d), [1, 'ok', [3, 4, 5]])
+  assert.equal(buildReport(uuid4(), d).client_snapshot.recaptured.dropped, 1)
+})
+
+test('a 413 retry trims the added captures too, and stays small', () => {
+  const big = 'x'.repeat(15000), many = Array.from({ length: 100 }, () => ({ row: { big }, raw: 'x'.repeat(4096) }))
+  const full = () => {
+    const t = captureReport({ place: 'page', view: { n: 1 } })
+    t.capture.calls_recent = { status: 'error', at: 'x', data: { big: big.repeat(20) } }
+    t.capture.actions = { status: 'error', at: 'x', data: { last: many.slice(0, 10), failed: many, this_row: { big }, recent_activity: {} } }
+    return t
+  }
+  const d = draft(full())
+  for (let i = 0; i < 3; i++) reopenDraft(d, full())
+  const report = buildReport(uuid4(), d)
+  assert.ok(reportJson(report).length > 2 * 1024 * 1024)
+  const small = trimReport(report)
+  assert.ok(reportJson(small).length < 1024 * 1024)
+  const [c] = small.client_snapshot.recaptured.data
+  assert.deepEqual([c.calls_recent.status, c.view.data.n, c.actions.trimmed, Object.keys(c.actions.data)], ['too_large', 1, true, ['this_row']])
+  assert.equal(report.client_snapshot.recaptured.data[0].calls_recent.status, 'error') // the report itself is untouched
+})
+
+test('Enter on a focused control, or one already handled, is not the row shortcut', () => {
+  const inside = { closest: () => ({}) }, card = { closest: () => null }
+  assert.deepEqual([[false, inside], [true, card], [false, card], [false, null]].map(([defaultPrevented, target]) => enterIsTaken({ defaultPrevented, target })),
+    [true, true, false, false])
 })

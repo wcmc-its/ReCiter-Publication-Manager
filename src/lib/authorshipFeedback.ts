@@ -8,7 +8,7 @@
 
 import { parseCwid } from '../utils/canonicalCwid'
 import { isExternalSource, openalexWorkId } from './externalSource'
-import { normDoi } from './externalRecordShape'
+import { normDoi, titleYearKey } from './externalRecordShape'
 
 // ---------------------------------------------------------------------------- access
 
@@ -97,13 +97,18 @@ export function parseTypedRef(ref: string | null): { pmid: number | null; doi: s
   const s = String(ref || '').trim()
   const doi = normDoi(/10\.\d{4,9}\/\S+/.exec(s)?.[0].replace(/[.,;]+$/, ''))
   if (doi) return { pmid: null, doi }
-  const pmid = /^(?:pmid\s*:?\s*)?(\d{1,9})$/i.exec(s)?.[1] ?? /pubmed\.ncbi\.nlm\.nih\.gov\/(\d{1,9})/i.exec(s)?.[1]
+  // Text may follow a PMID that is labelled or long enough not to be a year or a count.
+  const pmid = /^pmid\s*:?\s*(\d{1,9})(?=$|[\s.,;])/i.exec(s)?.[1] ?? /^(\d{1,9})[\s.,;]*$/.exec(s)?.[1]
+    ?? /^(\d{6,9})(?=[\s.,;])/.exec(s)?.[1] ?? /pubmed\.ncbi\.nlm\.nih\.gov\/(\d{1,9})/i.exec(s)?.[1]
   return { pmid: pmid ? Number(pmid) : null, doi: null }
 }
 
 /** The "who should it be" box takes a cwid, a NetID or a name: the identifier in it, if any. */
 export function expectedCwid(expected: string | null): string | null {
-  return parseCwid(expected) ?? parseCwid(/\b[a-z]{2,4}\d{1,5}\b/i.exec(String(expected || ''))?.[0])
+  // parseCwid is not shape-checked, so the whole text counts only when it cannot be a surname or a PMID.
+  const whole = parseCwid(expected)
+  if (whole && /[a-z]/i.test(whole) && /[\d_]/.test(whole) && !/^pmid/.test(whole)) return whole
+  return parseCwid(/\b(?!pmid)[a-z]{2,4}\d{1,5}\b/i.exec(String(expected || ''))?.[0])
 }
 
 /** Only a PR or issue in these two repositories becomes a link; the value is written by an agent. */
@@ -123,16 +128,17 @@ export interface RowKeys {
   doiNorm: string | null
   externalId: string | null
   articleId: string | null // SOURCE:external_id, external lanes only
+  titleYear: string | null // the external store's title+year key, stored rows only
 }
 
 const num = (v: any): number | null => (v == null || v === '' || !(Number(v) > 0) ? null : Number(v))
 const text = (v: any): string | null => String(v ?? '').trim() || null
 
 function keys(from: 'row' | 'typed', pmid: number | null, matchedPmid: number | null, doi: string | null,
-  externalId: string | null, articleId: string | null): RowKeys {
+  externalId: string | null, articleId: string | null, titleYear: string | null): RowKeys {
   const doiNorm = normDoi(doi)
   return {
-    from, pmid, matchedPmid, externalId, articleId, doiNorm,
+    from, pmid, matchedPmid, externalId, articleId, doiNorm, titleYear,
     pmids: [...new Set([pmid, matchedPmid])].filter((p): p is number => p != null),
     dois: [...new Set([doi, doiNorm])].filter((d): d is string => !!d),
   }
@@ -143,13 +149,14 @@ export function rowKeys(row: any): RowKeys {
   const ext = text(row.external_id)
   const articleId = !ext || !isExternalSource(row) ? null
     : row.source === 'openalex' ? `OPENALEX:${openalexWorkId(ext)}` : `${String(row.source).toUpperCase()}:${ext}`
-  return keys('row', num(row.pmid), num(row.matched_pmid), text(row.doi), ext, articleId)
+  return keys('row', num(row.pmid), num(row.matched_pmid), text(row.doi), ext, articleId,
+    titleYearKey(row.title, row.entrez_date))
 }
 
 /** Page-level report: what the reporter typed. null when it is neither a PMID nor a DOI. */
 export function typedKeys(ref: string | null): RowKeys | null {
   const t = parseTypedRef(ref)
-  return t.pmid || t.doi ? keys('typed', t.pmid, null, t.doi, null, null) : null
+  return t.pmid || t.doi ? keys('typed', t.pmid, null, t.doi, null, null, null) : null
 }
 
 /** cwids in candidate_cwids_json, as rendered and in order. Malformed JSON = none. */
@@ -166,6 +173,10 @@ export function bylineSurnames(name: any): string[] {
   const parts = String(name ?? '').trim().replace(/[\s,]+(jr|sr|ii|iii|iv)\.?$/i, '').split(/\s+/).filter(Boolean)
   return [1, 2, 3].filter((n) => n <= parts.length).map((n) => parts.slice(-n).join(' '))
 }
+
+/** Accents, spaces and punctuation off, as the producer keys its surname cohort. */
+export const normSurname = (s: string): string =>
+  s.normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '').toLowerCase()
 
 /** Bare and URL forms of one ORCID iD: cornell_pub_orcid_mapping stores the URL. */
 export function orcidForms(orcid: any): string[] {
@@ -199,6 +210,18 @@ export function buildPeople(seeds: Array<{ cwid: any; why: string }>, cap = PEOP
 /** Every key to look a set of people up under: as rendered and canonical. */
 export const personKeys = (people: PersonRef[]): string[] =>
   [...new Set(people.flatMap((p) => [p.as_rendered, p.canonical]).filter((c): c is string => !!c))]
+
+/**
+ * Why a people block is not asked for, or null to ask. Ids that were never read (the row, its
+ * byline or its siblings failed) are not_loaded: not_applicable would say there are none.
+ */
+export function peopleBlockSkip(i: {
+  people: number; needsPmid: boolean; pmids: number; rowUnread: boolean; seedsFailed: boolean
+}): BlockStatus | null {
+  if (i.needsPmid && i.rowUnread) return 'not_loaded'
+  if (!i.people) return i.rowUnread || i.seedsFailed ? 'not_loaded' : 'not_applicable'
+  return i.needsPmid && !i.pmids ? 'not_applicable' : null
+}
 
 // ---------------------------------------------------------------------------- blocks
 
@@ -326,8 +349,25 @@ export function createRunner({ concurrency = 3, overallMs = 20000 } = {}) {
   return { run, expired }
 }
 
+export const blockFailed = (b: any): boolean => ['error', 'timeout', 'too_large'].includes(b?.status)
+
 /** partial = any block error, timeout or too_large. `people.list` is not a block. */
 export function snapshotState(snapshot: { row: any; people: any; run: any }): 'complete' | 'partial' {
   const blocks = [snapshot.row, snapshot.people, snapshot.run].flatMap((g) => Object.values(g || {}))
-  return blocks.some((b: any) => ['error', 'timeout', 'too_large'].includes(b?.status)) ? 'partial' : 'complete'
+  return blocks.some(blockFailed) ? 'partial' : 'complete'
+}
+
+/**
+ * Writes what was collected, again once if that fails, and then only the keys and raw_row: the
+ * producer refreshes the row in place, so raw_row is the one block nobody can read again later.
+ * Throws the last error when even that is refused.
+ */
+export async function writeSnapshot<T extends { server_snapshot: string; snapshot_state: string }>(
+  update: (values: T) => Promise<unknown>, found: T, onFail: (e: any) => void,
+): Promise<void> {
+  for (let i = 0; i < 2; i++) {
+    try { await update(found); return } catch (e) { onFail(e) }
+  }
+  const { raw_row } = JSON.parse(found.server_snapshot).row
+  await update({ ...found, server_snapshot: JSON.stringify({ row: { raw_row } }), snapshot_state: 'partial' })
 }

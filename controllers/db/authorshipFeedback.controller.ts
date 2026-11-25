@@ -7,7 +7,7 @@ import { viewAsActive, scopeFieldsFromDbUser, viewAsSummary } from "../../src/ut
 import { externalStoreMode } from "../../src/lib/externalStore";
 import { absentCwidCacheInfo } from "./authorships.controller";
 import {
-  errorInfo, feedbackAllowed, isDuplicateKey, isMissingTable, parseFeedbackBody, realCwid, resolutionUrl,
+  errorInfo, feedbackAllowed, isDuplicateKey, isMissingTable, parseFeedbackBody, realCwid, resolutionUrl, writeSnapshot,
 } from "../../src/lib/authorshipFeedback";
 import { enrichFeedback } from "../../src/lib/authorshipFeedbackEnrich";
 
@@ -30,6 +30,9 @@ let serverBuild: Promise<string | null> | null = null;
 const getServerBuild = () => (serverBuild ??= readFile(path.join(process.cwd(), ".next", "BUILD_ID"), "utf8")
   .then((s) => s.trim().slice(0, 64) || null, () => null));
 
+// A query against an exhausted pool waits 30 s, and the page draws no control until this answers.
+const REPORTS_WAIT_MS = 2000;
+
 // GET -> { enabled, reports, reportsError? }. `enabled` reads no table, so the page's control still
 // opens during a database outage; the list of the caller's own reports is best effort.
 export const feedbackStatus = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -37,12 +40,16 @@ export const feedbackStatus = async (req: NextApiRequest, res: NextApiResponse) 
     const token = await sessionToken(req);
     if (!token) return res.status(401).json({ message: "Not signed in" });
     if (!allowed(token)) return res.send({ enabled: false, reports: [] });
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const rows: any[] = await models.AuthorshipFeedback.findAll({
+      const query = models.AuthorshipFeedback.findAll({
         attributes: ["id", "created_at", "category", "comment", "review_id", "trigger_place", "status", "resolution_ref"],
         where: { reported_by: realCwid(token)! },
         order: [["id", "DESC"]], limit: 50, raw: true, logging: false,
       });
+      const rows: any[] = await Promise.race([query, new Promise<never>((_, rej) => {
+        timer = setTimeout(() => rej(Object.assign(new Error(), { name: "ReportsTimeout" })), REPORTS_WAIT_MS);
+      })]);
       return res.send({
         enabled: true,
         reports: rows.map(({ resolution_ref, ...r }) => ({ ...r, resolution_url: resolutionUrl(resolution_ref) })),
@@ -50,6 +57,8 @@ export const feedbackStatus = async (req: NextApiRequest, res: NextApiResponse) 
     } catch (e) {
       logFailure("list", e);
       return res.send({ enabled: true, reports: [], reportsError: true });
+    } finally {
+      clearTimeout(timer);
     }
   } catch (e) {
     logFailure("session", e);
@@ -152,7 +161,8 @@ export const feedbackCreate = async (req: NextApiRequest, res: NextApiResponse) 
       reviewId: input.review_id, typedRef: input.typed_ref, expected: input.expected, aboutCwids: input.about_cwids,
       env: await runEnv(req, token),
     });
-    await models.AuthorshipFeedback.update(found, { where: { id }, logging: false });
+    await writeSnapshot((values) => models.AuthorshipFeedback.update(values, { where: { id }, logging: false }), found,
+      (e) => logFailure("snapshot update", e, id));
   } catch (e) {
     logFailure("enrichment", e, id);
   }

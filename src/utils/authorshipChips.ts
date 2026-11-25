@@ -78,6 +78,10 @@ export const keyCommand = (e: { key: string; metaKey?: boolean; ctrlKey?: boolea
   return KEYS[e.key.toLowerCase()] ?? null;
 };
 
+/** Enter belongs to the control that has focus, or to whatever already handled it, not to the row. */
+export const enterIsTaken = (e: { defaultPrevented: boolean; target: EventTarget | null }): boolean =>
+  e.defaultPrevented || !!(e.target as Element | null)?.closest?.("button,a,summary,[role=button],[role=menuitem],[role=option],[role=checkbox],[role=radio]");
+
 // The "?" legend, in the prototype's order. Enter is this page's own addition.
 export const KEY_LEGEND: Array<{ key: string; label: string }> = [
   { key: "J / ↓", label: "Next row" },

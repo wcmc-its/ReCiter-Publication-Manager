@@ -9,7 +9,7 @@
 //
 // logging: false on every query: Sequelize prints replacements in its SQL log. Columns are checked
 // against information_schema before they are selected, because dev and prod differ and one unknown
-// column would lose the whole block.
+// column would lose the whole block; one a query cannot do without makes the block unavailable.
 
 import { AsyncLocalStorage } from 'async_hooks'
 import { QueryTypes } from 'sequelize'
@@ -18,9 +18,9 @@ import sequelize from '../db/db'
 import { getGoldStandardStrict } from './goldStandardRejections'
 import { retiredCwidIndex, retiredCensusInfo } from './directory'
 import {
-  Block, BlockStop, PEOPLE_DETAIL_CAP, PersonRef, RowKeys, asBlock, buildPeople, bylineSurnames, candidateCwids,
-  combineParts, createRunner, dataBlock, errorInfo, expectedCwid, orcidForms, part, personKeys, rowKeys,
-  snapshotState, statusBlock, typedKeys,
+  Block, BlockStop, PEOPLE_DETAIL_CAP, PersonRef, RowKeys, asBlock, blockFailed, buildPeople, bylineSurnames, candidateCwids,
+  combineParts, createRunner, dataBlock, errorInfo, expectedCwid, normSurname, orcidForms, part, peopleBlockSkip, personKeys,
+  rowKeys, snapshotState, statusBlock, typedKeys,
 } from './authorshipFeedback'
 
 const SIBLING_CAP = 50
@@ -90,10 +90,10 @@ async function loadSchema(): Promise<Schema> {
   return schema
 }
 
-/** "`a`, `b`" for the wanted columns this database has; a table it lacks stops the block. */
-async function cols(table: string, alias = ''): Promise<string> {
+/** "`a`, `b`" for the wanted columns this database has; a table or `needed` column it lacks stops the block. */
+async function cols(table: string, alias = '', needed: string[] = []): Promise<string> {
   const have = (await loadSchema()).get(table)
-  if (!have) throw new BlockStop('unavailable')
+  if (!have || needed.some((c) => !have.has(c))) throw new BlockStop('unavailable')
   return TABLES[table].filter((c) => have.has(c)).map((c) => `${alias}\`${c}\``).join(', ')
 }
 
@@ -107,13 +107,14 @@ async function siblings(k: RowKeys, selfId: number | null) {
   if (!have) throw new BlockStop('unavailable')
   const list = [...have].filter((c) => !SIBLING_OMIT.includes(c)).map((c) => `\`${c}\``).join(', ')
   // Separate queries: an OR over these columns cannot use their indexes. The PubMed twin goes both
-  // ways through matched_pmid. Blank ids are null here and never asked about.
+  // ways through matched_pmid, and comes first so the cap never cuts it. Blank ids are null here
+  // and never asked about.
   const wheres: Array<[string, Record<string, any>] | null> = [
+    k.matchedPmid != null ? ['`pmid` = :v', { v: k.matchedPmid }] : null,
+    k.pmid != null ? ['`matched_pmid` = :v', { v: k.pmid }] : null,
     k.pmid != null ? ['`pmid` = :v', { v: k.pmid }] : null,
     k.dois.length ? ['`doi` IN (:v)', { v: k.dois }] : null,
     k.externalId ? ['`external_id` = :v', { v: k.externalId }] : null,
-    k.matchedPmid != null ? ['`pmid` = :v', { v: k.matchedPmid }] : null,
-    k.pmid != null ? ['`matched_pmid` = :v', { v: k.pmid }] : null,
   ]
   const found: any[] = []
   for (const w of wheres) {
@@ -141,21 +142,28 @@ async function byline(k: RowKeys) {
 }
 
 async function duplicates(k: RowKeys, cwids: string[]) {
-  const both = async (table: string, doiColumn: string, dois: string[], key: (r: any) => string) => {
-    const list = await cols(table)
+  // Asked by DOI, and for these people by article id and (external_record) title+year.
+  const both = async (table: string, doiColumn: string, dois: string[], key: (r: any) => string, titleYear: string | null = null) => {
+    if (!dois.length && !(cwids.length && (k.articleId || titleYear))) throw new BlockStop('not_applicable')
+    const list = await cols(table, '', [...(dois.length ? [doiColumn] : []), ...(titleYear ? ['title_year_key'] : [])])
     const found: any[] = []
     if (dois.length) found.push(...await q(`SELECT ${list} FROM \`${table}\` WHERE \`${doiColumn}\` IN (:dois) LIMIT 100`, { dois }))
     if (k.articleId && cwids.length) {
       found.push(...await q(`SELECT ${list} FROM \`${table}\` WHERE \`uid\` IN (:cwids) AND \`article_id\` = :aid LIMIT 100`,
         { cwids, aid: k.articleId }))
     }
+    if (titleYear && cwids.length) {
+      found.push(...await q(`SELECT ${list} FROM \`${table}\` WHERE \`uid\` IN (:cwids) AND \`title_year_key\` = :ty LIMIT 100`,
+        { cwids, ty: titleYear }))
+    }
     return { rows: uniqueBy(found, key) }
   }
-  const rejectionKeys = [k.articleId, k.doiNorm, k.externalId].filter(Boolean)
+  // As rejections are written: SOURCE_ID, DOI, TITLE_YEAR.
+  const rejectionKeys = [k.articleId, k.doiNorm, k.externalId, k.titleYear].filter(Boolean)
   return combineParts({
     external_article: await part(() => both('external_article', 'doi', k.dois, (r) => `${r.uid}|${r.article_id}`)),
-    external_record: await part(() => both('external_record', 'doi_norm', k.doiNorm ? [k.doiNorm] : [], (r) => String(r.id))),
-    external_rejection: !cwids.length ? statusBlock('not_applicable') : await part(async () => rowsOf(
+    external_record: await part(() => both('external_record', 'doi_norm', k.doiNorm ? [k.doiNorm] : [], (r) => String(r.id), k.titleYear)),
+    external_rejection: !cwids.length || !rejectionKeys.length ? statusBlock('not_applicable') : await part(async () => rowsOf(
       `SELECT ${await cols('external_rejection')} FROM \`external_rejection\` WHERE \`uid\` IN (:cwids) AND \`key_value\` IN (:keys) LIMIT 200`,
       { cwids, keys: rejectionKeys })),
   })
@@ -165,30 +173,35 @@ async function orcid(forms: string[]) {
   const r = { forms }
   return combineParts({
     scholar_active: await part(async () => rowsOf(
-      `SELECT ${await cols('scholar_active')} FROM \`scholar_active\` WHERE \`orcid\` IN (:forms)`, r)),
+      `SELECT ${await cols('scholar_active', '', ['orcid'])} FROM \`scholar_active\` WHERE \`orcid\` IN (:forms)`, r)),
     pubsource_orcid_person: await part(async () => rowsOf(
-      `SELECT ${await cols('pubsource_orcid_person')} FROM \`pubsource_orcid_person\` ` +
+      `SELECT ${await cols('pubsource_orcid_person', '', ['orcid'])} FROM \`pubsource_orcid_person\` ` +
       "WHERE `orcid` IN (:forms) AND `personIdentifierType` = 'CWID' LIMIT 200", r)),
     cornell_pub_orcid_mapping: await part(async () => rowsOf(
-      `SELECT ${await cols('cornell_pub_orcid_mapping')} FROM \`cornell_pub_orcid_mapping\` WHERE \`orcid\` IN (:forms) LIMIT 200`, r)),
+      `SELECT ${await cols('cornell_pub_orcid_mapping', '', ['orcid'])} FROM \`cornell_pub_orcid_mapping\` WHERE \`orcid\` IN (:forms) LIMIT 200`, r)),
   })
 }
 
 // Cohort size drives single_candidate and the confidence, and only five candidates are stored.
+// Compared without spaces and punctuation, as the producer keys it ("Example-Sample", "Example
+// Sample" and "ExampleSample" are one cohort); the collation folds case and accents.
+const SURNAME_MARKS = '[[:space:][:punct:]\u2018\u2019\u02BC\u2010\u2011\u2013]'
 async function surnameCohort(surnames: string[]) {
+  const normalised = [...new Set(surnames.map(normSurname).filter(Boolean))]
+  if (!normalised.length) throw new BlockStop('not_applicable')
   // COLLATE on identity.cwid, the driving side, so person's own index answers the join.
   const rows = await q(
     `SELECT ${await cols('identity', 'i.')}, p.\`firstName\` AS personFirstName, p.\`middleName\` AS personMiddleName, ` +
     'p.`lastName` AS personLastName FROM `identity` i LEFT JOIN `person` p ' +
     'ON p.`personIdentifier` = i.`cwid` COLLATE utf8mb4_unicode_ci ' +
-    'WHERE i.`surname` IN (:surnames) OR p.`lastName` IN (:surnames) ' +
-    `ORDER BY i.\`cwid\` LIMIT ${COHORT_CAP + 1}`, { surnames })
+    "WHERE REGEXP_REPLACE(i.`surname`, :marks, '') IN (:normalised) OR REGEXP_REPLACE(p.`lastName`, :marks, '') IN (:normalised) " +
+    `ORDER BY i.\`cwid\` LIMIT ${COHORT_CAP + 1}`, { normalised, marks: SURNAME_MARKS })
   const kept = rows.slice(0, COHORT_CAP)
   const cwids = [...new Set(kept.map((r) => String(r.cwid || '')).filter(Boolean))]
   const types = !cwids.length ? [] : await q(
     'SELECT `personIdentifier`, `personType` FROM `person_person_type` ' +
     "WHERE `personIdentifier` IN (:cwids) AND `personType` LIKE 'cornell-%'", { cwids })
-  return { surnames, rows: kept, capped: rows.length > COHORT_CAP, cornell_types: types }
+  return { surnames, normalised, rows: kept, capped: rows.length > COHORT_CAP, cornell_types: types }
 }
 
 // ---------------------------------------------------------------------------- D: each person
@@ -250,7 +263,7 @@ async function goldStandard(uids: string[], pmids: number[]) {
 
 async function orcidByCwid(cwids: string[]) {
   const by = (table: string, column: string) => part(async () => rowsOf(
-    `SELECT ${await cols(table)} FROM \`${table}\` WHERE \`${column}\` IN (:cwids) LIMIT 500`, { cwids }))
+    `SELECT ${await cols(table, '', [column])} FROM \`${table}\` WHERE \`${column}\` IN (:cwids) LIMIT 500`, { cwids }))
   return combineParts({
     scholar_active: await by('scholar_active', 'cwid'),
     pubsource_orcid_person: await by('pubsource_orcid_person', 'personIdentifier'),
@@ -304,7 +317,8 @@ async function collect(input: EnrichInput, run: (fn: () => Promise<any>) => Prom
   const row: any = rawRow.status === 'ok' ? rawRow.data : null
   const keys = row ? rowKeys(row) : typedKeys(input.typedRef)
   // Ids unknown because the row could not be read, as against a report that has no row.
-  const noKeys = (): Block => statusBlock(['error', 'timeout', 'too_large'].includes(rawRow.status) ? 'not_loaded' : 'not_applicable')
+  const rowUnread = !keys && blockFailed(rawRow)
+  const noKeys = (): Block => statusBlock(rowUnread ? 'not_loaded' : 'not_applicable')
   const when = async (applies: any, fn: () => Promise<any>): Promise<Block> => {
     if (!keys) return noKeys()
     const b = applies ? await run(fn) : statusBlock('not_applicable')
@@ -320,7 +334,7 @@ async function collect(input: EnrichInput, run: (fn: () => Promise<any>) => Prom
     when(surnames.length, () => surnameCohort(surnames)),
     run(async () => rowsOf(`SELECT ${await cols('aar_lane_guard')} FROM \`aar_lane_guard\``, {})),
     run(async () => {
-      await cols('scholar_active') // stops the block when the table is absent
+      await cols('scholar_active', '', ['refreshed_at']) // stops the block when the table is absent
       return rowsOf('SELECT MAX(`refreshed_at`) AS refreshed_at, COUNT(*) AS n FROM `scholar_active`', {})
     }),
   ])
@@ -351,35 +365,39 @@ async function collect(input: EnrichInput, run: (fn: () => Promise<any>) => Prom
   const cwids = personKeys(list)
   const detail = personKeys(list.slice(0, PEOPLE_DETAIL_CAP))
   const pmids = keys?.pmids ?? []
-  const forPeople = async (applies: any, fn: () => Promise<any>): Promise<Block> =>
-    list.length && applies ? run(fn) : statusBlock('not_applicable')
+  const forPeople = async (needsPmid: boolean, fn: () => Promise<any>): Promise<Block> => {
+    const skip = peopleBlockSkip({
+      people: list.length, needsPmid, pmids: pmids.length, rowUnread, seedsFailed: blockFailed(by) || blockFailed(sib),
+    })
+    return skip ? statusBlock(skip) : run(fn)
+  }
   const byColumn = (table: string, column: string, ids: string[], extra = '') => async () => rowsOf(
-    `SELECT ${await cols(table)} FROM \`${table}\` WHERE \`${column}\` IN (:ids)${extra}`, { ids })
+    `SELECT ${await cols(table, '', [column])} FROM \`${table}\` WHERE \`${column}\` IN (:ids)${extra}`, { ids })
 
   const [dup, identity, person, personTypes, cornellDirectory, dynamoIdentity, gold, feedbackLog, bylines, orcids, retiredBlock] =
     await Promise.all([
-      when(keys?.dois.length || keys?.articleId, () => duplicates(keys!, cwids)),
-      forPeople(true, byColumn('identity', 'cwid', detail)),
+      when(keys?.dois.length || keys?.articleId || keys?.titleYear, () => duplicates(keys!, cwids)),
+      forPeople(false, byColumn('identity', 'cwid', detail)),
       // ALL rows: one cwid can have several.
-      forPeople(true, byColumn('person', 'personIdentifier', detail, ' ORDER BY `personIdentifier`, `id`')),
-      forPeople(true, byColumn('person_person_type', 'personIdentifier', detail)),
-      forPeople(true, async () => rowsOf(
+      forPeople(false, byColumn('person', 'personIdentifier', detail, ' ORDER BY `personIdentifier`, `id`')),
+      forPeople(false, byColumn('person_person_type', 'personIdentifier', detail)),
+      forPeople(false, async () => rowsOf(
         `SELECT ${await cols('identity_cornell_directory')} FROM \`identity_cornell_directory\` ` +
         'WHERE `netid` IN (:ids) OR `cwid` IN (:ids)', { ids: detail })),
-      forPeople(true, () => ddbIdentity(detail)),
-      forPeople(pmids.length, () => goldStandard(cwids, pmids)),
-      forPeople(pmids.length, async () => rowsOf(
-        `SELECT ${await cols('admin_feedback_log', 'f.')}, u.\`personIdentifier\` AS actor_cwid, v.\`personIdentifier\` AS impersonator_cwid ` +
+      forPeople(false, () => ddbIdentity(detail)),
+      forPeople(true, () => goldStandard(cwids, pmids)),
+      forPeople(true, async () => rowsOf(
+        `SELECT ${await cols('admin_feedback_log', 'f.', ['impersonatedByUserID'])}, u.\`personIdentifier\` AS actor_cwid, v.\`personIdentifier\` AS impersonator_cwid ` +
         'FROM `admin_feedback_log` f LEFT JOIN `admin_users` u ON u.`userID` = f.`userID` ' +
         'LEFT JOIN `admin_users` v ON v.`userID` = f.`impersonatedByUserID` ' +
         'WHERE f.`personIdentifier` IN (:cwids) AND f.`articleIdentifier` IN (:pmids) ORDER BY f.`feedbackID`', { cwids, pmids })),
       // Uncut: the matcher needs two or more papers under a form.
-      forPeople(true, () => rowsOf(
+      forPeople(false, () => rowsOf(
         'SELECT `personIdentifier`, `articleAuthorNameFirstName`, `articleAuthorNameLastName`, COUNT(*) AS n, ' +
         "MAX(NULLIF(`articleYear`, 0)) AS last_year FROM `person_article` WHERE `personIdentifier` IN (:cwids) AND `userAssertion` = 'ACCEPTED' " +
         'GROUP BY `personIdentifier`, `articleAuthorNameFirstName`, `articleAuthorNameLastName`', { cwids })),
-      forPeople(true, () => orcidByCwid(cwids)),
-      forPeople(true, () => retired(list)),
+      forPeople(false, () => orcidByCwid(cwids)),
+      forPeople(false, () => retired(list)),
     ])
 
   const snapshot = {

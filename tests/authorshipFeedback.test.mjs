@@ -15,7 +15,7 @@ registerHooks({
 const {
   feedbackAllowed, realCwid, parseFeedbackBody, parseTypedRef, expectedCwid, resolutionUrl, rowKeys, typedKeys, candidateCwids,
   bylineSurnames, orcidForms, buildPeople, personKeys, errorInfo, errorBlock, isMissingTable, isDuplicateKey, dataBlock,
-  combineParts, statusBlock, part, createRunner, snapshotState, BlockStop,
+  combineParts, statusBlock, part, createRunner, snapshotState, BlockStop, normSurname, peopleBlockSkip, writeSnapshot,
 } = await import('../src/lib/authorshipFeedback.ts')
 
 const roles = (...labels) => JSON.stringify(labels.map((roleLabel) => ({ roleLabel })))
@@ -68,6 +68,9 @@ test('body: each invalid field is refused without echoing it', () => {
 test('typed reference, expected person, resolution link', () => {
   for (const s of ['1', 'PMID: 1', 'pmid 1', 'https://pubmed.ncbi.nlm.nih.gov/1/']) assert.deepEqual(parseTypedRef(s), { pmid: 1, doi: null }, s)
   for (const s of ['10.1234/ABC', 'doi:10.1234/abc', 'https://doi.org/10.1234/abc.']) assert.deepEqual(parseTypedRef(s), { pmid: null, doi: '10.1234/abc' }, s)
+  for (const s of ['1.', 'PMID 1; title', 'PMID: 1 title']) assert.equal(parseTypedRef(s).pmid, 1, s)
+  for (const s of ['1000001.', '1000001; title', '1000001 title']) assert.equal(parseTypedRef(s).pmid, 1000001, s)
+  for (const s of ['2024 title', '3 papers', '10.1234', '1.5']) assert.equal(parseTypedRef(s).pmid, null, s)
   assert.equal(typedKeys('some title'), null)
   assert.equal(typedKeys(null), null)
   assert.equal(typedKeys('1').from, 'typed')
@@ -75,6 +78,9 @@ test('typed reference, expected person, resolution link', () => {
   assert.equal(expectedCwid('Pat Example (abc1001)'), 'abc1001')
   assert.equal(expectedCwid('Pat Example'), null)
   assert.equal(expectedCwid(null), null)
+  for (const s of ['Example', 'Example-Sample', 'see PMID12345', 'PMID12345', '12345678']) assert.equal(expectedCwid(s), null, s)
+  assert.equal(expectedCwid('not PMID12345 but abc1001'), 'abc1001')
+  assert.equal(expectedCwid('usc_P.Example'), 'usc_P.Example')
   const ok = 'https://github.com/wcmc-its/ReCiterDB/pull/1'
   assert.equal(resolutionUrl(ok), ok)
   for (const bad of ['javascript:alert(1)', ok + '?x', 'x ' + ok, 'https://github.com/other/ReCiterDB/pull/1', null]) assert.equal(resolutionUrl(bad), null)
@@ -90,6 +96,12 @@ test('row keys: blank ids are skipped, never matched', () => {
   for (const bad of ['{', null, '{}']) assert.deepEqual(candidateCwids(bad), [])
   assert.deepEqual(bylineSurnames('Pat van der Example Jr.'), ['Example', 'der Example', 'van der Example'])
   assert.deepEqual(bylineSurnames(null), [])
+  for (const s of ['Exámple-Sample', "Example Sample", 'ExampleSample', 'Example\u2019sample']) assert.equal(normSurname(s), 'examplesample')
+  // Title+year is the only key an external rejection of a paper with no DOI is remembered under.
+  const ty = { source: 'pubmed', pmid: 1, title: 'A title', entrez_date: '2024-01-01' }
+  assert.match(rowKeys(ty).titleYear, /^[0-9a-f]{40}$/)
+  assert.equal(rowKeys({ ...ty, entrez_date: null }).titleYear, null)
+  assert.equal(typedKeys('1').titleYear, null)
   assert.deepEqual(orcidForms('https://orcid.org/0000-0000-0000-000x'),
     ['0000-0000-0000-000X', 'https://orcid.org/0000-0000-0000-000X', 'http://orcid.org/0000-0000-0000-000X'])
   assert.deepEqual(orcidForms(null), [])
@@ -163,4 +175,31 @@ test('snapshot state', () => {
   const snap = (status) => ({ row: { raw_row: statusBlock(status) }, people: { list: [], identity: statusBlock('empty') }, run: {} })
   for (const s of ['ok', 'empty', 'not_applicable', 'unavailable', 'not_loaded']) assert.equal(snapshotState(snap(s)), 'complete', s)
   for (const s of ['error', 'timeout', 'too_large']) assert.equal(snapshotState(snap(s)), 'partial', s)
+})
+
+test('a people block whose ids were never read is not_loaded, not not_applicable', () => {
+  const skip = (i) => peopleBlockSkip({ people: 1, needsPmid: false, pmids: 1, rowUnread: false, seedsFailed: false, ...i })
+  assert.equal(skip({}), null)
+  assert.equal(skip({ rowUnread: true }), null) // the people are known
+  assert.equal(skip({ needsPmid: true, pmids: 0, rowUnread: true }), 'not_loaded')
+  assert.equal(skip({ needsPmid: true, pmids: 0 }), 'not_applicable')
+  assert.equal(skip({ people: 0 }), 'not_applicable')
+  assert.equal(skip({ people: 0, rowUnread: true }), 'not_loaded')
+  assert.equal(skip({ people: 0, seedsFailed: true }), 'not_loaded')
+})
+
+test('a failed snapshot write is tried again, then cut to raw_row and the keys', async () => {
+  const found = { server_snapshot: JSON.stringify({ row: { raw_row: { status: 'ok', data: { id: 5 } }, siblings: {} }, people: {}, run: {} }),
+    snapshot_state: 'complete', author_key: 'k', pmid: 1 }
+  const run = async (failures) => {
+    const sent = [], errors = []
+    await writeSnapshot(async (v) => { sent.push(v); if (sent.length <= failures) throw sqlError(1213, 'ER_LOCK_DEADLOCK') }, found, (e) => errors.push(e))
+    return [sent, errors.length]
+  }
+  assert.deepEqual(await run(0), [[found], 0])
+  assert.deepEqual(await run(1), [[found, found], 1])
+  const [sent, n] = await run(2)
+  assert.equal(n, 2)
+  assert.deepEqual(sent[2], { ...found, snapshot_state: 'partial', server_snapshot: '{"row":{"raw_row":{"status":"ok","data":{"id":5}}}}' })
+  await assert.rejects(run(3))
 })
