@@ -1,33 +1,3 @@
-/* ── OVERLAY ── */
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(26,33,51,0.45);
-  z-index: 1200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ── MODAL SHELL ── */
-.modal {
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 8px 40px rgba(26,33,51,0.18), 0 2px 8px rgba(26,33,51,0.1);
-  overflow: hidden;
-  width: 420px;
-  max-width: calc(100vw - 40px);
-}
-
-/* ── HEADER ── */
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 22px 16px;
-  border-bottom: 1px solid #e8e2d9;
-}
-
 .titleWrap {
   display: flex;
   align-items: center;
@@ -57,43 +27,6 @@
 .iconCsv {
   background: #edf7f2;
   color: #1a7a4a;
-}
-
-.title {
-  font-family: 'Inter', var(--font-serif), sans-serif;
-  font-weight: 500;
-  font-size: 17px;
-  letter-spacing: -0.02em;
-  color: #1a2133;
-}
-
-.closeBtn {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #8a94a6;
-  transition: background 0.12s, color 0.12s;
-}
-
-.closeBtn:hover {
-  background: #eeeae4;
-  color: #1a2133;
-}
-
-.closeBtn svg {
-  width: 14px;
-  height: 14px;
-}
-
-/* ── BODY ── */
-.body {
-  padding: 20px 22px;
 }
 
 /* ── SUMMARY ROW ── */
@@ -191,16 +124,6 @@
   height: 14px;
   flex-shrink: 0;
   opacity: 0.7;
-}
-
-/* ── FOOTER ── */
-.footer {
-  padding: 14px 22px;
-  background: #faf8f5;
-  border-top: 1px solid #e8e2d9;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 /* ── BUTTONS ── */

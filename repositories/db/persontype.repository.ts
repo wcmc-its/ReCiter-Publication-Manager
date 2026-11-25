@@ -13,6 +13,11 @@ export function queryDistinctPersonTypes() {
             [Op.and]: [
                 { personType: { [Op.ne]: '' } },
                 { personType: { [Op.ne]: null } },
+                // Cornell Ithaca people carry cornell-* types via DynamoDB Identity but are never
+                // retrieved or scored, so they have no person rows, and every filter that consumes
+                // this list joins person; the options would be dead. Prefix match on purpose:
+                // affiliate-cornell is a WCM type and must stay.
+                { personType: { [Op.notLike]: 'cornell-%' } },
             ],
         },
     })

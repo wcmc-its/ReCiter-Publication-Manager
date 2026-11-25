@@ -2,6 +2,40 @@ import { reciterConfig } from '../config/local'
 import { NextApiRequest } from 'next'
 import dayjs from 'dayjs'
 import {getPublications} from './featuregenerator.controller';
+import { cornellReciterStatus, storedAssertions } from '../src/lib/cornellReciter';
+import { cwidParam } from '../src/utils/canonicalCwid';
+
+// Hardening follow-up to the 2026-09-01 stuck-spinner incident — neither upstream fetch
+// carried a timeout, so a hung PubMed tool (e.g. an NCBI connection reset with no upstream
+// retry) left the request open until the client's own 300s race fired, and a rejected fetch
+// (a TypeError has no .status) came back here as statusCode: undefined with no logging at
+// all. Bound both hops and always return a numeric statusCode + a { status, message } body.
+const COUNT_FETCH_TIMEOUT_MS = 30_000
+const SEARCH_FETCH_TIMEOUT_MS = 240_000
+
+function isTimeoutError(error: any): boolean {
+    return !!error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+}
+
+function logPubmedFailure(hop: string, req: NextApiRequest, detail: string) {
+    const strategyQuery = req.body && req.body['strategy-query']
+    const personIdentifier = req.body && req.body.personIdentifier
+    console.error(`[search/pubmed] ${hop} failed for query="${strategyQuery}" person=${personIdentifier}: ${detail}`)
+}
+
+// The Add tab's PubMed search leaves out papers the person has already accepted or rejected, and
+// reads those from their feature-generator result. For a Cornell-only person who isn't
+// ReCiter-eligible yet (src/utils/cornellOnly.ts) that call would run ReCiter on them
+// (getPublications has no guard of its own), so their GoldStandard stands in, in the same shape.
+async function curatedFor(req: NextApiRequest): Promise<any> {
+    // One canonical uid for both the Cornell-eligibility check and the feature-generator call.
+    const uid = cwidParam(req.body.personIdentifier)
+    if (!uid) return { statusCode: 400, statusText: `Not a valid uid: ${JSON.stringify(req.body.personIdentifier)}` }
+    if (!(await cornellReciterStatus(uid).catch(() => null))?.blocked) return getPublications(uid, req)
+    const features = await storedAssertions(uid).catch(() => [])
+    // undefined, not []: retrieveFirstNew100PubMedArticles returns nothing for an empty array.
+    return { statusCode: 200, statusText: { reciterData: { reCiterArticleFeatures: features.length ? features : undefined } } }
+}
 
 export async function searchPubmed(req: NextApiRequest)  {
    return fetch(`${reciterConfig.reciterPubmed.searchPubmedCountEndpoint}`, {
@@ -10,29 +44,37 @@ export async function searchPubmed(req: NextApiRequest)  {
             'Content-Type': 'application/json',
             'User-Agent': 'reciter-pub-manager-server'
         },
-        body: JSON.stringify(req.body)
+        body: JSON.stringify(req.body),
+        signal: AbortSignal.timeout(COUNT_FETCH_TIMEOUT_MS)
     })
         .then(async(res)=> {
             if(res.status !== 200) {
-                let responseText = await res.json()
+                let responseText: any
+                try {
+                    responseText = await res.json()
+                } catch (parseError) {
+                    responseText = { status: 500, message: `PubMed count request failed with HTTP ${res.status}` }
+                }
+                logPubmedFailure('count', req, `HTTP ${res.status}`)
                 return {
                     statusCode: res.status,
                     statusText: responseText
                 }
             } else {
                 let data: any = await res.json()
-                  if(parseInt(data, 10) <= 1000) { 
+                  if(parseInt(data, 10) <= 1000) {
                     return fetch(`${reciterConfig.reciterPubmed.searchPubmedEndpoint}`, {
                         method: "POST",
                         headers: {
                             'Content-Type': 'application/json',
                             'User-Agent': 'reciter-pub-manager-server'
                         },
-                        body: JSON.stringify(req.body)
+                        body: JSON.stringify(req.body),
+                        signal: AbortSignal.timeout(SEARCH_FETCH_TIMEOUT_MS)
                     })
                     .then(async (res) => {
                         let data: any = await res.json()
-                        let featureGeneratorData = await getPublications(req.body.personIdentifier,req);
+                        let featureGeneratorData = await curatedFor(req);
                          let first100PubData = retrieveFirstNew100PubMedArticles(data,featureGeneratorData)
                         return {
                             statusCode: res.status,
@@ -40,9 +82,19 @@ export async function searchPubmed(req: NextApiRequest)  {
                         }
                      })
                      .catch((error) => {
+                         if (isTimeoutError(error)) {
+                             const message = `PubMed search timed out after ${SEARCH_FETCH_TIMEOUT_MS / 1000} s`
+                             logPubmedFailure('search', req, message)
+                             return {
+                                statusCode: 504,
+                                statusText: { status: 504, message }
+                             }
+                         }
+                         const message = `PubMed service unavailable: ${error.message}`
+                         logPubmedFailure('search', req, message)
                          return {
-                            statusCode: error.status,
-                            statusText: error
+                            statusCode: 502,
+                            statusText: { status: 502, message }
                         }
                      });
                 }
@@ -77,9 +129,19 @@ export async function searchPubmed(req: NextApiRequest)  {
             }
         })
         .catch((error) => {
+            if (isTimeoutError(error)) {
+                const message = `PubMed search timed out after ${COUNT_FETCH_TIMEOUT_MS / 1000} s`
+                logPubmedFailure('count', req, message)
+                return {
+                    statusCode: 504,
+                    statusText: { status: 504, message }
+                }
+            }
+            const message = `PubMed service unavailable: ${error.message}`
+            logPubmedFailure('count', req, message)
             return {
-                statusCode: error.status,
-                statusText: error
+                statusCode: 502,
+                statusText: { status: 502, message }
             }
         });
 }
@@ -144,7 +206,7 @@ function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorDat
 
 }
 
-function formatPubmedSearch(data: any,greaterThan100 : boolean) {
+export function formatPubmedSearch(data: any,greaterThan100 : boolean) {
     const PublicationsReciter: any[] = []
     
     if(data.filter100PubMedArticles !== undefined) {

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { Op, Sequelize, QueryTypes } from 'sequelize';
 import models from '../../src/db/sequelize';
 import sequelize from '../../src/db/db';
+import { cwidParam, parseCwid } from '../../src/utils/canonicalCwid';
 
 /**
  * Helper: parse a JSON column value that may come back as a string or array
@@ -19,6 +20,19 @@ function parseJsonColumn(value: unknown): string[] {
         }
     }
     return [];
+}
+
+/**
+ * admin_users rows whose proxy list names `canonicalId` in any spelling. JSON_CONTAINS
+ * compares case-sensitively, so a grant stored before canonicalization ('Abl9002',
+ * 'abl9002 ') would be invisible to it; match in JS on the canonical form instead.
+ */
+async function usersProxyingFor(canonicalId: string, columns: string): Promise<any[]> {
+    const rows: any[] = await sequelize.query(
+        `SELECT ${columns}, proxy_person_ids FROM admin_users WHERE proxy_person_ids IS NOT NULL`,
+        { type: QueryTypes.SELECT }
+    );
+    return rows.filter((r: any) => parseJsonColumn(r.proxy_person_ids).some((pid: string) => parseCwid(pid) === canonicalId));
 }
 
 /**
@@ -69,18 +83,17 @@ export const getProxiesForUser = async (req: NextApiRequest, res: NextApiRespons
  */
 export const getProxiesForPerson = async (req: NextApiRequest, res: NextApiResponse) => {
     try {
-        const personIdentifier = req.query.personIdentifier as string;
-        if (!personIdentifier) {
+        if (!req.query.personIdentifier) {
             return res.status(400).json({ error: 'personIdentifier query param required' });
         }
+        // Look the person up by canonical form; usersProxyingFor matches any stored spelling.
+        const personIdentifier = cwidParam(req.query.personIdentifier);
+        if (!personIdentifier) {
+            return res.status(400).json({ error: 'personIdentifier is not a valid uid' });
+        }
 
-        const users = await sequelize.query(
-            'SELECT userID, personIdentifier, nameFirst, nameMiddle, nameLast FROM admin_users WHERE JSON_CONTAINS(proxy_person_ids, ?)',
-            {
-                replacements: [JSON.stringify(personIdentifier)],
-                type: QueryTypes.SELECT
-            }
-        );
+        const users = (await usersProxyingFor(personIdentifier, 'userID, personIdentifier, nameFirst, nameMiddle, nameLast'))
+            .map(({ proxy_person_ids, ...rest }: any) => rest);
 
         return res.status(200).json(users);
     } catch (error) {
@@ -96,10 +109,21 @@ export const getProxiesForPerson = async (req: NextApiRequest, res: NextApiRespo
  */
 export const saveProxiesForUser = async (req: NextApiRequest, res: NextApiResponse) => {
     try {
-        const { userID, personIdentifiers } = req.body;
+        const { userID, personIdentifiers: rawPersonIdentifiers } = req.body;
 
         if (!userID) {
             return res.status(400).json({ error: 'userID is required' });
+        }
+
+        // Convert every proxied uid on the way in (trim, lowercase); refuse the whole save if
+        // one is still not an identifier, rather than storing a key no lookup can match.
+        let personIdentifiers: string[] = [];
+        if (Array.isArray(rawPersonIdentifiers)) {
+            const invalid = rawPersonIdentifiers.filter((p: unknown) => parseCwid(p) === null);
+            if (invalid.length > 0) {
+                return res.status(400).json({ error: `Not valid uids: ${JSON.stringify(invalid)}` });
+            }
+            personIdentifiers = Array.from(new Set(rawPersonIdentifiers.map((p: unknown) => parseCwid(p) as string)));
         }
 
         // Validate user exists
@@ -112,7 +136,7 @@ export const saveProxiesForUser = async (req: NextApiRequest, res: NextApiRespon
         // Passing a JSON.stringify'd value here double-encodes it (matches the scope_person_types/
         // scope_org_units save pattern in user.controller.ts, see PM#849).
         await models.AdminUser.update(
-            { proxy_person_ids: Array.isArray(personIdentifiers) && personIdentifiers.length > 0 ? personIdentifiers : null },
+            { proxy_person_ids: personIdentifiers.length > 0 ? personIdentifiers : null },
             { where: { userID } }
         );
 
@@ -133,23 +157,21 @@ export const saveProxiesForUser = async (req: NextApiRequest, res: NextApiRespon
  */
 export const grantProxyForPerson = async (req: NextApiRequest, res: NextApiResponse) => {
     try {
-        const { personIdentifier, userIds } = req.body;
+        const { personIdentifier: rawPersonIdentifier, userIds } = req.body;
 
-        if (!personIdentifier) {
+        if (!rawPersonIdentifier) {
             return res.status(400).json({ error: 'personIdentifier is required' });
+        }
+        const personIdentifier = parseCwid(rawPersonIdentifier);
+        if (!personIdentifier) {
+            return res.status(400).json({ error: 'personIdentifier is not a valid uid' });
         }
         if (!Array.isArray(userIds)) {
             return res.status(400).json({ error: 'userIds must be an array' });
         }
 
         // Step 1: Find all users who currently have this personIdentifier in proxy_person_ids
-        const currentProxiers: any[] = await sequelize.query(
-            'SELECT userID, proxy_person_ids FROM admin_users WHERE JSON_CONTAINS(proxy_person_ids, ?)',
-            {
-                replacements: [JSON.stringify(personIdentifier)],
-                type: QueryTypes.SELECT
-            }
-        );
+        const currentProxiers: any[] = await usersProxyingFor(personIdentifier, 'userID');
 
         const currentUserIds = currentProxiers.map((u: any) => u.userID);
         const newUserIds = userIds.map(Number);
@@ -159,7 +181,7 @@ export const grantProxyForPerson = async (req: NextApiRequest, res: NextApiRespo
         for (const uid of toRemove) {
             const row = currentProxiers.find((u: any) => u.userID === uid);
             const currentArr = parseJsonColumn(row.proxy_person_ids);
-            const newArr = currentArr.filter((pid: string) => pid !== personIdentifier);
+            const newArr = currentArr.filter((pid: string) => parseCwid(pid) !== personIdentifier);
             await models.AdminUser.update(
                 { proxy_person_ids: newArr.length > 0 ? newArr : null },
                 { where: { userID: uid } }
@@ -176,7 +198,7 @@ export const grantProxyForPerson = async (req: NextApiRequest, res: NextApiRespo
             });
             if (user) {
                 const currentArr = parseJsonColumn(user.proxy_person_ids);
-                if (!currentArr.includes(personIdentifier)) {
+                if (!currentArr.some((pid: string) => parseCwid(pid) === personIdentifier)) {
                     currentArr.push(personIdentifier);
                 }
                 await models.AdminUser.update(

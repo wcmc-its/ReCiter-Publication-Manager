@@ -1,17 +1,25 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { Op, Sequelize } from "sequelize"
+import { Op, QueryTypes, Sequelize, literal } from "sequelize"
 import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
-import { findUserFeedback } from '../userfeedback.controller'
 import  {reciterConstants}  from "../../src/utils/constants";
+import { cornellOnlySql } from "../../src/utils/cornellOnly";
+import { inScopeSql, ScopeData } from "../../src/utils/scopeResolver";
+import { peopleOrderSql } from "../../src/utils/peopleOrder";
 
 models.Person.hasMany(models.PersonPersonType, {constraints: false})
 models.PersonPersonType.belongsTo(models.Person, {constraints: false})
 
-export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
+// `viewerScope` is the signed-in curator's own scope, read from the session token by the route
+// (src/pages/api/db/users/index.ts), never from the request body. When set, every row carries
+// `inScope` (1/0) so Find People offers Curate only on people the server's canCurate would allow,
+// including when the "only people I can curate" box is unchecked.
+export const findAll  = async (req: NextApiRequest, res: NextApiResponse, viewerScope: ScopeData | null = null) => {
     
     try {
         let apiBody:PersonApiBody =  req.body
+        const inScope = inScopeSql('Person', viewerScope, (v) => models.Person.sequelize.escape(v))
+        const extraAttributes: any[] = inScope ? [[literal(inScope), 'inScope']] : []
 
         // Curator_Scoped's personType/orgUnit scope, sent by Search.js's "Show only people I
         // can curate" checkbox (checked by default for scoped curators). Combined with an
@@ -31,10 +39,16 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                 ? apiBody.filters.orgUnits.filter((ou) => scopeOrgUnits.includes(ou))
                 : scopeOrgUnits)
             : apiBody.filters?.orgUnits
+        const scopeInstitutions: Array<string> = Array.isArray(apiBody.filters?.scopeInstitutions) ? apiBody.filters.scopeInstitutions : []
+        const effectiveInstitutions = scopeInstitutions.length > 0
+            ? (apiBody.filters?.institutions && apiBody.filters.institutions.length > 0
+                ? apiBody.filters.institutions.filter((i) => scopeInstitutions.includes(i))
+                : scopeInstitutions)
+            : apiBody.filters?.institutions
 
         const where = {}
         if(apiBody.filters) {
-            if(effectivePersonTypes || apiBody.filters.institutions || effectiveOrgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
+            if(effectivePersonTypes || effectiveInstitutions || effectiveOrgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
                 where[Op.and] = []
                 if(apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length > reciterConstants.nameCWIDSpaceCountThreshold) {
                     where[Op.and].push({[Op.or]:[
@@ -55,8 +69,8 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                     ]})
                      }
                // }
-                if(apiBody.filters.institutions) {
-                    where[Op.and].push({'$Person.primaryInstitution$': { [Op.in]: apiBody.filters.institutions }})
+                if(effectiveInstitutions) {
+                    where[Op.and].push({'$Person.primaryInstitution$': { [Op.in]: effectiveInstitutions }})
                 }
                 if(effectiveOrgUnits) {
                     where[Op.and].push({'$Person.primaryOrganizationalUnit$': { [Op.in]: effectiveOrgUnits }})
@@ -78,11 +92,38 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
 
         var users= {};
 
+        // Total pending suggestions over every matched person (all pages), for the Find People
+        // header. Same WHERE as the list; the person-type facet becomes an IN subquery so a person
+        // with several matching types is counted once.
+        const pendingTotalQuery = (async () => {
+            if (Array.isArray(effectivePersonTypes) && effectivePersonTypes.length === 0) return 0
+            const sumWhere: any = { [Op.and]: [...(where[Op.and] || [])] }
+            if (effectivePersonTypes) {
+                const types = effectivePersonTypes.map((t) => models.Person.sequelize.escape(t)).join(',')
+                sumWhere[Op.and].push(literal(`\`Person\`.\`personIdentifier\` IN (SELECT personIdentifier FROM person_person_type WHERE personType IN (${types}))`))
+            }
+            // One value per personIdentifier, like the list's GROUP BY: the person table holds a few
+            // personIdentifiers twice (case variants such as Arn4002/arn4002), and a plain SUM would
+            // count them twice.
+            const perPerson = (models.Person.sequelize.getQueryInterface() as any).queryGenerator.selectQuery(
+                models.Person.getTableName(),
+                { attributes: [[Sequelize.fn('MAX', Sequelize.col('countPendingArticles')), 'cp']], where: sumWhere, group: ['personIdentifier'], tableAs: 'Person' },
+                models.Person
+            ).replace(/;\s*$/, '')
+            const [row]: any = await models.Person.sequelize.query(`SELECT SUM(cp) AS total FROM (${perPerson}) AS perPerson`, { type: QueryTypes.SELECT })
+            return Number(row?.total) || 0
+        })().catch((e) => {
+            // The list doesn't depend on it: without the total the header just leaves it out.
+            console.log(e)
+            return null
+        })
+
 
         if(effectivePersonTypes) {
             const { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
-                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail'],
+                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail',
+                [literal(cornellOnlySql('Person')), 'cornellOnly'], ...extraAttributes],
                 include: [
                     {
                         model: models.PersonPersonType, 
@@ -100,27 +141,30 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                 ],
                 where: where,
                 group: ["personIdentifier"],
-                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
+                order: [literal(peopleOrderSql('Person'))],
                 offset: apiBody.offset,
                 limit: apiBody.limit,
                 subQuery: false
             });
             users['persons'] = rows;
             users['totalPersonsCount'] = count;
-            
+            users['pendingTotal'] = await pendingTotalQuery;
+
         } else {
             let { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
-                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail'],
+                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail',
+                [literal(cornellOnlySql('Person')), 'cornellOnly'], ...extraAttributes],
                 where: where,
                 group: ["personIdentifier"],
-                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
+                order: [literal(peopleOrderSql('Person'))],
                 offset: apiBody.offset,
                 limit: apiBody.limit,
                 subQuery: false
             });
             users['persons'] = rows;
             users['totalPersonsCount'] = count;
+            users['pendingTotal'] = await pendingTotalQuery;
 
         }
         res.send(users);
@@ -128,6 +172,18 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         console.log(e)
         res.status(500).send(e);
     }
+};
+
+// Is this uid a Cornell-only person (see src/utils/cornellOnly.ts)? false when there is no
+// person row at all, so an unknown uid behaves exactly as it did before.
+export const isCornellOnlyUid = async (uid: string): Promise<boolean> => {
+    if (!uid) return false
+    const row: any = await models.Person.findOne({
+        attributes: [[literal(cornellOnlySql('Person')), 'cornellOnly']],
+        where: { personIdentifier: uid },
+        raw: true
+    })
+    return Number(row?.cornellOnly) === 1
 };
 
 export const countPersons = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -244,44 +300,33 @@ export const findOnePerson = async (attrTypes: string[], attrValues: string[]  )
     
 };
 
-export const updatePendingArticleCount = async (uid: string, feedback: string) => {
+// countPendingArticles is fully recomputed by the nightly reciterdb rebuild (source of truth);
+// this only tracks the between-runs delta from a curator's own accept/reject/log so the badge
+// doesn't go stale until the next rebuild. If the badge is ever seen to drift, the fix is a
+// recompute here, not a smarter delta (ponytail: delta not recompute).
+export const updatePendingArticleCount = async (uid: string, feedback: string, count = 1) => {
 
     try {
-        const userfeedback = await findUserFeedback(uid)
-        let totalPendingCount: number = 0
-        if(userfeedback.statusCode && userfeedback.statusCode == 200) {
-            if(feedback == "ACCEPTED" || feedback == "REJECTED") {
-                if(userfeedback.statusCode && userfeedback.statusCode.rejectedPmids) {
-                    totalPendingCount = totalPendingCount + userfeedback.statusCode.rejectedPmids.length
-                }
-                if(userfeedback.statusCode && userfeedback.statusCode.acceptedPmids) {
-                    totalPendingCount = totalPendingCount + userfeedback.statusCode.acceptedPmids.length
-                }
-                const articleCountUpdate = await models.Person.increment({
-                    countPendingArticles: -totalPendingCount
-                    }, 
-                    {
-                        where: {
-                            personIdentifier: uid,
-                            countPendingArticles: {
-                                [Op.gt]: 0
-                            } 
-
-                        }
-                })
-            } else {
-                const articleCountUpdate = await models.Person.increment({
-                    countPendingArticles: totalPendingCount
-                    }, 
-                    {
-                        where: {
-                            personIdentifier: uid,
-                            countPendingArticles: {
-                                [Op.gt]: 0
-                            }
-                        }
-                })
-            }
+        const n = Math.max(0, Math.trunc(Number(count) || 0))
+        if (n === 0) return
+        if(feedback == "ACCEPTED" || feedback == "REJECTED") {
+            await models.Person.update({
+                countPendingArticles: literal("GREATEST(countPendingArticles - " + n + ", 0)")
+                },
+                {
+                    where: {
+                        personIdentifier: uid
+                    }
+            })
+        } else {
+            await models.Person.update({
+                countPendingArticles: literal("GREATEST(countPendingArticles + " + n + ", 0)")
+                },
+                {
+                    where: {
+                        personIdentifier: uid
+                    }
+            })
         }
     } catch (e) {
         console.log(e)

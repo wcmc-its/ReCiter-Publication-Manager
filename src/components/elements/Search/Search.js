@@ -1,21 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria, showEvidenceByDefault, updateAuthorFilter } from '../../../redux/actions/actions'
+import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria, showEvidenceByDefault, updateAuthorFilter, clearError } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
 import Pagination from '../Pagination/Pagination';
 import appStyles from '../App/App.module.css';
-import publicationStyles from '../Publication/Publication.module.css';
 import { useSession } from 'next-auth/react';
 import SearchBar from "./SearchBar";
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
 import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import { styled } from '@mui/material/styles';
-import { Table,Button} from "react-bootstrap";
-import SplitDropdown from "../Dropdown/SplitDropdown";
-import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
 import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation,
 getCapabilities } from "../../../utils/constants"
@@ -23,12 +16,20 @@ getCapabilities } from "../../../utils/constants"
 import Profile from "../Profile/Profile";
 import ProxyBadge from './ProxyBadge';
 import ScopeFilterCheckbox from './ScopeFilterCheckbox';
-import { isProxyFor } from '../../../utils/scopeResolver';
+import { hasConfiguredScope, isProxyFor, rowInScopeCanCurate, withoutScopeKeys } from '../../../utils/scopeResolver';
+import { canonicalCwid, sameCwid } from '../../../utils/canonicalCwid';
+import { searchTokens, newSearchRequest, matchedPersonIds, reportHandoffCapped, REPORT_HANDOFF_CAP, peopleRowActions, pendingCell, personDisplayName, cwidListNotFound, peopleEmptyState } from '../../../utils/searchRequest';
+import RowActions from './RowActions';
+import { Button as UiButton, Switch } from '../../ui';
 
 // Guard against malformed/absent session claims so a bad JWT value can't white-screen the page.
 const safeParse = (value, fallback) => {
   try { return value != null ? JSON.parse(value) : fallback; } catch { return fallback; }
 };
+
+const SKELETON_ROWS = 6;
+// A long paste lists this many not-found CWIDs, then "and N more".
+const NOT_FOUND_SHOWN = 25;
 
 const Search = () => {
 
@@ -36,38 +37,24 @@ const Search = () => {
   const loading = status === 'loading';
 
   // Phase 9: Parse scope/proxy data and derive capabilities
-  //const scopeData =typeof session?.data?.scopeData === "string" ? JSON.parse(session.data.scopeData): null;
-  //const proxyPersonIds = typeof session?.data?.proxyPersonIds === "string" ? JSON.parse(session.data.proxyPersonIds): [];
-  //const userRoles = typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles): [];
-
-  const scopeData = typeof session?.data?.scopeData === "string" && session.data.scopeData !== ""
-    ? JSON.parse(session.data.scopeData)
-    : (typeof session?.data?.scopeData === "object" && session?.data?.scopeData !== null
-      ? session.data.scopeData
-      : null);
-
-  const proxyPersonIds = typeof session?.data?.proxyPersonIds === "string" && session.data.proxyPersonIds !== ""
-    ? JSON.parse(session.data.proxyPersonIds)
-    : (typeof session?.data?.proxyPersonIds === "object" && session?.data?.proxyPersonIds !== null
-      ? session.data.proxyPersonIds
-      : []);
-
-  const userRoles = typeof session?.data?.userRoles === "string" && session.data.userRoles !== ""
-    ? JSON.parse(session.data.userRoles)
-    : (typeof session?.data?.userRoles === "object" && session?.data?.userRoles !== null
-      ? session.data.userRoles
-      : []);
-
-
+  const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
+  const proxyPersonIds = session?.data?.proxyPersonIds ? JSON.parse(session.data.proxyPersonIds) : [];
+  const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
   const caps = getCapabilities(userRoles);
   // Mirrors authorization.controller.ts's canCurate hasScope computation exactly: a configured
   // scope is self-sufficient and shouldn't require the token to also carry the Curator_Scoped
   // role (that role only lands on a user's DB row on a future admin save, never retroactively).
-  const hasScope = scopeData && (
-    (Array.isArray(scopeData.personTypes) && scopeData.personTypes.length > 0) ||
-    (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0)
-  );
+  const hasScope = hasConfiguredScope(scopeData);
   const showScopeFilter = (caps.canCurate.scoped || hasScope) && !caps.canCurate.all;
+  // Scope keys must ride on EVERY list request for a scoped curator (initial load and pagination
+  // included), not only after the checkbox is toggled or a search is submitted.
+  const applyScopeFilters = (base) => {
+    const { scopeOrgUnits, scopePersonTypes, scopeInstitutions, proxyPersonIds: _p, ...rest } = base || {};
+    if (showScopeFilter && scopeFilterChecked && scopeData) {
+      return { ...rest, scopeOrgUnits: scopeData.orgUnits || [], scopePersonTypes: scopeData.personTypes || [], scopeInstitutions: scopeData.institutions || [], proxyPersonIds };
+    }
+    return rest;
+  };
   const router = useRouter()
   const dispatch = useDispatch()
 
@@ -111,10 +98,23 @@ const Search = () => {
   const [showProfileID, setShowprofileID] = useState("");
   const [headShot, setHeadShot] = useState([]);
   const [viewProfileLabels, setViewProfileLabels] = useState([])
-  const [selectedAction, setSelectedAction] = useState("Curate Publications")
   const [scopeFilterChecked, setScopeFilterChecked] = useState(true); // Default checked for scoped curators (D-14)
   //ref
   const searchValue = useRef()
+
+  // List fetches report failure here instead of through the global errors array (which sends the
+  // whole app to /_error). Only the latest fetch may set or clear the error; Retry re-runs it.
+  const [loadError, setLoadError] = useState(false);
+  const fetchSeq = useRef(0);
+  const lastFetch = useRef(null);
+  const runListFetch = (makeThunk) => {
+    const seq = ++fetchSeq.current;
+    lastFetch.current = makeThunk;
+    setLoadError(false);
+    return Promise.resolve(dispatch(makeThunk())).then((result) => {
+      if (seq === fetchSeq.current) setLoadError(!!(result && result.ok === false));
+    });
+  };
 
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
@@ -139,7 +139,7 @@ const Search = () => {
     // view attributes data from session or updated settings
     setFindPeopleLabels(viewAttributes)
 
-    let userPermissions = safeParse(session.data.userRoles, []);
+   let userPermissions = safeParse(session.data.userRoles, []);
     //RoleManagerHelper.showOrHideCurateReportMenu(userPermissions,allowedPermissions);
     // Self-sufficiency: a user with a configured scope (or the Curator_Scoped role) always gets
     // the same Curate Publications dropdown as Curator_All, regardless of what other baseline
@@ -260,7 +260,9 @@ const Search = () => {
     }
 
     // if (identityAllData.length === 0) {
-      fetchPaginatedData()
+      // 'reset': the redux filters were just cleared above, but this closure still holds the
+      // pre-clear value -- fetching with it would re-hydrate a previous visit's name filter.
+      fetchPaginatedData('reset')
       fetchCount()
     // }
     fetchAllAdminSettings()
@@ -288,26 +290,10 @@ const Search = () => {
       return;
     }
     // Build scope-aware filters and re-search
-    let updatedFilters = { ...filters };
-    if (showScopeFilter && scopeFilterChecked && scopeData) {
-      updatedFilters = {
-        ...updatedFilters,
-        scopeOrgUnits: scopeData.orgUnits || [],
-        scopePersonTypes: scopeData.personTypes || [],
-        proxyPersonIds: proxyPersonIds,
-      };
-    } else {
-      // Remove scope filters when unchecked
-      const { scopeOrgUnits, scopePersonTypes, proxyPersonIds: _p, ...rest } = updatedFilters;
-      updatedFilters = rest;
-    }
-    let request = {
-      filters: { ...updatedFilters },
-      limit: count,
-      offset: 0
-    };
+    let updatedFilters = applyScopeFilters(filters);
+    let request = newSearchRequest(updatedFilters, count);
     dispatch(updateFilters(updatedFilters));
-    dispatch(identityFetchAllData(request));
+    runListFetch(() => identityFetchAllData(request));
     setPage(1);
   }, [scopeFilterChecked])
   
@@ -326,12 +312,9 @@ const Search = () => {
       .then(data => {
         let parsedSettingsArray = [];
         data.map((obj, index1) => {
-          //let c = typeof(obj.viewAttributes) === "string" ? JSON.parse(obj.viewAttributes) : JSON.parse(JSON.stringify(obj.viewAttributes));
-          let c = typeof obj.viewAttributes === "string"
-            ? JSON.parse(obj.viewAttributes)
-            : (typeof obj.viewAttributes === "object" && obj.viewAttributes !== null && !Array.isArray(obj.viewAttributes)
-              ? obj.viewAttributes
-              : {});
+          let a = JSON.stringify(obj.viewAttributes)
+          let b = JSON.parse(a);
+          let c = typeof(b) === "string" ? JSON.parse(b) : b
           let parsedSettings = {
             viewName : obj.viewName,
             viewAttributes: c,
@@ -361,18 +344,20 @@ const Search = () => {
   }
 
   const fetchPaginatedData = (newCount) => {
+    const f = applyScopeFilters(newCount === 'reset' ? {} : filters);
+    dispatch(updateFilters(f));
     if (newCount === 'reset') {
-      let filters = {}
-      dispatch(identityFetchPaginatedData(1, count, filters))
+      runListFetch(() => identityFetchPaginatedData(1, count, f))
     } else {
-      dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, filters))
+      const limit = newCount ? newCount : count
+      runListFetch(() => identityFetchPaginatedData(page, limit, f))
     }
   }
 
 
   const handlePaginationUpdate = (page) => {
     setPage(page)
-      dispatch(identityFetchPaginatedData(page, count, filters))
+    runListFetch(() => identityFetchPaginatedData(page, count, filters))
   }
 
   const handleCountUpdate = (count) => {
@@ -426,22 +411,6 @@ const Search = () => {
       })
   }
 
-  const fullName = (person) => {
-    let userName = "";
-    if (person !== undefined) {
-      if (person.firstName !== undefined) {
-        userName += person.firstName + ' ';
-      }
-      if (person.middleName !== undefined) {
-        userName += person.middleName + ' ';
-      }
-      if (person.lastName !== undefined) {
-        userName += person.lastName + ' ';
-      }
-    }
-    return userName;
-  }
-
   const searchData = (searchText, orgUnits, institutions, personTypes) => {
     setIdentitySearch(searchText)
     let updatedFilters = {}
@@ -454,7 +423,7 @@ const Search = () => {
       // list pasted from a spreadsheet column (newline-separated) or a comma-separated
       // list parses into one token per person instead of collapsing into one mangled
       // string that then misses the bulk-CWID threshold below.
-      let searchWords = searchText.trim().split(/[\s,]+/).filter(Boolean);
+      let searchWords = searchTokens(searchText);
       dispatch(updateAuthorFilter(searchWords.join(),10));
 
       updatedFilters = { ...updatedFilters, nameOrUids: searchWords };
@@ -473,22 +442,12 @@ const Search = () => {
     }
 
 	// Phase 9: Add scope filter parameters when scope filter is active
-    if (showScopeFilter && scopeFilterChecked && scopeData) {
-      updatedFilters = {
-        ...updatedFilters,
-        scopeOrgUnits: scopeData.orgUnits || [],
-        scopePersonTypes: scopeData.personTypes || [],
-        proxyPersonIds: proxyPersonIds,
-      };
-    }
-    let request = {
-      filters: { ...updatedFilters },
-      limit:count,
-      offset: page - 1 
-    }
+    updatedFilters = applyScopeFilters(updatedFilters);
+    // A new search always starts at the first row, whatever page was showing.
+    let request = newSearchRequest(updatedFilters, count);
 
     dispatch(updateFilters(updatedFilters));
-    dispatch(identityFetchAllData(request));
+    runListFetch(() => identityFetchAllData(request));
     setPage(1);
     setFilterByPending(false);
   }
@@ -497,13 +456,9 @@ const Search = () => {
     const filterPending = value ? value : false;
     setFilterByPending(filterPending);
     let updatedFilters = { ...filters, showOnlyPending: filterPending };
-    let request = {
-      filters: { ...updatedFilters },
-      limit:count,
-      offset: page - 1 
-    }
+    let request = newSearchRequest(updatedFilters, count);
     dispatch(updateFilters(updatedFilters));
-    dispatch(identityFetchAllData(request));
+    runListFetch(() => identityFetchAllData(request));
     setPage(1);
   }
 
@@ -518,80 +473,76 @@ const Search = () => {
     }
   }
 
+  // Cornell-only people (src/utils/cornellOnly.ts) aren't run through ReCiter, so they have no
+  // /curate page; their data is the authorships the review lanes attributed to them. /authorships
+  // is Curator_All/Superuser only (middleware), so for anyone else the row isn't a link.
+  const canOpenAuthorships = caps.canCurate.all || isSuperUser;
+  const onClickCornellOnly = (personIdentifier) => {
+    router.push({ pathname: '/authorships', query: { cwid: personIdentifier } });
+  }
+
   const handleClose = () => setShowprofile(false);
   const handleShow = () => setShowprofile(true);
 
-  const handleGoAction = () => {
-    dispatch(updatePubFiltersFromSearch());
-    if (selectedAction === "Curate Publications") {
-      dispatch(curateIdsFromSearch(identities.paginatedIdentities))
-      router.push({ pathname: '/curate' })
-    } else if (selectedAction === "Create Reports") {
-      router.push('/report');
-    }
-  }
+  // Every CWID the search matched (all pages), from findAll's per-person grouped count.
+  const matchedIds = matchedPersonIds(identityPaginatedData?.totalPersonsCount);
+  const handoffCapped = reportHandoffCapped(filters, matchedIds.length);
 
-  const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
-    marginLeft: '8px',
-    borderRadius: '5px',
-    overflow: 'hidden',
-    border: '1px solid #ddd7ce',
-    '& .MuiToggleButtonGroup-grouped': {
-      textTransform: 'none',
-      border: 'none',
-      borderRadius: '0 !important',
-      fontSize: '12px',
-      fontWeight: 600,
-      fontFamily: '"Inter", sans-serif',
-      padding: '5px 12px',
-      minHeight: 'auto',
-      lineHeight: 'normal',
-      color: '#8a94a6',
-      backgroundColor: '#eeeae4',
-    },
-    '& .MuiToggleButton-root.MuiButtonBase-root.Mui-selected': {
-      color: '#fff',
-      backgroundColor: '#1a2133',
-      '&:hover': {
-        backgroundColor: '#252d42',
-      }
-    }
-  }));
+  const handleGoAction = () => {
+    dispatch(updatePubFiltersFromSearch(matchedIds));
+    router.push('/report');
+  }
 
   const resetData = () => {
     dispatch(clearFilters())
+    // The reset list carries no showOnlyPending, so the switch goes off with it.
+    setFilterByPending(false)
     setPage(1)
     setCount(100)
     fetchPaginatedData('reset')
     fetchCount()
   }
 
+  // Empty-state buttons. "Clear filters" clears the filter card the same way Reset does; "Show
+  // everyone" unchecks "only people I can curate" (the scope effect re-runs the search). Both
+  // buttons vanish with the empty state, so focus goes back to the search box.
+  const [clearSignal, setClearSignal] = useState(0);
+  const focusQuery = () => {
+    if (typeof document !== 'undefined') document.getElementById('people-search-query')?.focus();
+  };
+  const clearAllFilters = () => {
+    setClearSignal((n) => n + 1);
+    focusQuery();
+  };
+  const showEveryone = () => {
+    setScopeFilterChecked(false);
+    focusQuery();
+  };
+
   const identities = filter()
 
-  if (errors && errors.length > 0) {
-    return (
-      <div className={appStyles.mainContainer}>
-
-        {/* <div className="side-nav-position">
-                    <SideNav uid={this.props.match.params.uid} history={this.props.history} />
-                </div> */}
-        <div>
-          {/* <Error {...errors} /> */}
-        </div>
-
-      </div>
-    );
+  const showLoadError = loadError || (errors && errors.length > 0);
+  const retryLoad = () => {
+    // The Retry button goes away with the error card, so focus goes back to the search box.
+    focusQuery();
+    if (errors && errors.length > 0) dispatch(clearError());
+    if (lastFetch.current) runListFetch(lastFetch.current);
+    else fetchPaginatedData('reset');
   }
 
-  // Spinner for when Search gets updated
-  const isDisplayLoader = () => {
-    if ((!filtersOn && (identityPaginatedFetching || isCountLoading) && page === 1) ||
-      (!filtersOn && identityPaginatedData?.persons?.length <= 0) ||
-      (filtersOn && identityAllFetching)) {
-      return true;
-    } else {
-      return false;
-    }
+  // Skeleton rows while the list loads: any list fetch in flight (initial load, search, filter,
+  // pending/scope toggle, page or page size), or an unscoped, unfiltered list that is still empty
+  // (an unscoped list is never empty, so empty means "not loaded yet" -- but a scope or a filter
+  // can legitimately match nobody, and that must render the empty state). The filter card, the
+  // results header and the table header stay on screen, so the count's live region is announced.
+  // The /users/count fetch no longer holds the list back: the header uses findAll's own count.
+  // Before the first response the store still holds its initial [] (no `persons`): that is "not
+  // loaded yet" too, also for a scoped curator, whose first render otherwise flashed the scope
+  // empty state and announced "0 people" before the scoped fetch started.
+  const isListLoading = () => {
+    const neverLoaded = !Array.isArray(identityPaginatedData?.persons);
+    return !!(identityAllFetching || identityPaginatedFetching || neverLoaded ||
+      (!filtersOn && !showScopeFilter && !(identityPaginatedData?.persons?.length > 0)));
   }
 
   const redirectToCurate = (isFor, data, title) => {
@@ -620,14 +571,7 @@ const Search = () => {
   }
   }
 
-  // Spinner when navigating between pages
-  const isDisplayLoaderTable = () => {
-    if (!filtersOn && identityPaginatedFetching) {
-      return true;
-    }
-    return false;
-  }
-  
+
 	// Per-row curate authorization for the Actions dropdown. Mirrors the backend
   // checkCurationScope gate so the UI never offers "Curate Publications" for a
   // person the user cannot actually curate: curate-all roles (Superuser /
@@ -635,11 +579,29 @@ const Search = () => {
   // holder may curate the people they proxy for; a self-only curator may curate
   // only their own row. Everyone else (e.g. a pure Reporter_All) gets
   // report/profile actions but no Curate Publications.
+  //
+  // A scoped curator also gets isCuratorAll (for the shared dropdown/Pending layout), so for them
+  // the per-row `inScope` flag decides instead: /api/db/users computes it from the session's own
+  // scope, the same rule canCurate applies, and sends it only to scoped viewers. Without it a
+  // scoped curator who unchecked "only people I can curate" was offered Curate on everyone.
+  // Canonical on both sides (as canCurate does server-side): a grant or role row stored as
+  // `Abl9002` still names abl9002.
+  const isProxyForPerson = (pid) => {
+    const c = canonicalCwid(pid);
+    return c !== '' && Array.isArray(proxyPersonIds) && isProxyFor(proxyPersonIds.map(canonicalCwid), c);
+  };
   const canCuratePerson = (identity) => {
-    if (isSuperUser || isCuratorAll) return true;
+    if (isSuperUser) return true;
     const pid = identity?.personIdentifier;
-    if (isProxyFor(proxyPersonIds, pid)) return true;
-    if (isCuratorSelf) return pid === loggedInPersonIdentifier;
+    // A Curator_Scoped role with no scope configured gets no flag, and canCurate fails closed
+    // for it: treat every row as out of scope (proxy and own row still allowed).
+    const inScope = identity?.inScope ?? (showScopeFilter && !hasScope ? 0 : null);
+    if (identity && inScope !== null) {
+      return rowInScopeCanCurate(inScope,isProxyForPerson(pid), caps.canCurate.self && sameCwid(pid, loggedInPersonIdentifier));
+    }
+    if (isCuratorAll) return true;
+    if (isProxyForPerson(pid)) return true;
+    if (isCuratorSelf) return sameCwid(pid, loggedInPersonIdentifier);
     return false;
   };			 
   // Note: an earlier RoleSplitDropdown() helper duplicated this same role-branching logic to
@@ -651,174 +613,242 @@ const Search = () => {
 
 
   // if filters are applied load all data, if not load paginated data
-  let filtersOn = Object.keys(filters).length === 0 ? false : true;
+  // Scope keys are implicit for a scoped curator (applyScopeFilters stamps them on every list
+  // request), so they must not count as "filters on" -- otherwise the initial load renders the
+  // filtered empty state instead of the spinner while the first response is in flight.
+  let filtersOn = Object.keys(withoutScopeKeys(filters)).length !== 0;
+  const listLoading = isListLoading();
+  const idLabel = nameOrcwidLabel?.labelUserView || 'CWID';
   let tableBody;
   let paginatedIdentities = identities.paginatedIdentities;
+  const showPending = isCuratorAll || isSuperUser;
   if (paginatedIdentities?.length > 0) {
-    // setCurateIds(paginatedIdentities);
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
-	const rowCanCurate = canCuratePerson(identity);											 
-      return <tr key={identityIndex}>
-        <td key={`${identityIndex}__name`} width="30%">
-        { 
-          
-          isCuratorSelf ?
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
-          :
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
-        }
+      const rowCanCurate = canCuratePerson(identity);
+      const cornellOnly = Number(identity.cornellOnly) === 1;
+      const viewProfile = () => { setShowprofileID(identity.personIdentifier); handleShow(); };
+      const actions = peopleRowActions({ cornellOnly, canCurate: rowCanCurate, canOpenAuthorships });
+      const runAction = (action) => {
+        if (action === 'curate') onClickProfile(identity.personIdentifier);
+        else if (action === 'report') redirectToCurate("report", identity);
+        else if (action === 'authorships') onClickCornellOnly(identity.personIdentifier);
+      };
+      // The name (and a click on the row's empty space) does what the first button does, so a
+      // Superuser's name click now opens Curate like the button, not Report as it used to.
+      const openName = actions.primary ? () => runAction(actions.primary) : null;
+      const pending = pendingCell(identity.countPendingArticles, cornellOnly);
+      // A click on the row's empty space does what the name does; buttons, links and the
+      // (portaled) "⋯" menu handle their own clicks. Keyboard users use the name itself.
+      const onRowClick = openName ? (e) => {
+        if (!e.currentTarget.contains(e.target)) return;
+        if (e.target.closest && e.target.closest('button, a, input, [role="menu"]')) return;
+        openName();
+      } : undefined;
+      return <tr key={identity.personIdentifier || identityIndex} className={openName ? styles.rowClickable : undefined} onClick={onRowClick}>
+        <td className={styles.colName}>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={openName}
+            cornellOnly={cornellOnly} isProxy={!cornellOnly && isProxyForPerson(identity.personIdentifier)} />
         </td>
-        <td key={`${identityIndex}__affiliation`} width="32%" className={styles.colAffiliation}>
-          {identity.primaryOrganizationalUnit && <div className={styles.affilOrg}>{identity.primaryOrganizationalUnit}</div>}
-		  {identity.primaryInstitution && <div className={styles.affilInst}>{identity.primaryInstitution}</div>}
+        <td className={styles.colOrg}>
+          {identity.primaryOrganizationalUnit}
+          {/* Narrow widths drop the Institution column and show it here, as a second muted line. */}
+          {identity.primaryInstitution && <span className={styles.instUnder}>{identity.primaryInstitution}</span>}
         </td>
-        {isCuratorAll || isSuperUser  ?
-        <td key={`${identityIndex}__pending`} width="10%" className={styles.colPending}>
-          {identity.countPendingArticles ?
-            <span className={styles.pendingBadgeHas}>{identity.countPendingArticles}</span> :
-            <span className={styles.pendingBadgeNone}>0</span>
-          }
+        <td className={styles.colInst}>{identity.primaryInstitution}</td>
+        {showPending ?
+        <td className={styles.colPending}>
+          {/* Screen readers get the sentence ("20 pending suggestions"), not the bare number. */}
+          <span
+            className={pending.hasPending ? styles.pendingPill : styles.pendingNone}
+            title={cornellOnly ? pending.label : undefined}
+          ><span aria-hidden="true">{pending.text}</span><span className={styles.srOnly}>{pending.label}</span></span>
+          {/* Card layout (under 640px) has no column header, so the count gets a word. */}
+          {!cornellOnly && <span className={styles.pendingCaption} aria-hidden="true">pending</span>}
         </td>
-         : ""}
-        <td key={`${identityIndex}__actions`} width="24%" className={styles.actionsCell}>
-          {/* Was a raw react-bootstrap Dropdown (bootstrap variant="primary" styling) -- switched
-              to the shared SplitDropdown component so this matches the Manage Users row action
-              button (dark-navy split button, icons, "Actions for this person" header). */}
-          <SplitDropdown
-            title={rowCanCurate ? "Curate Publications" : "Create Reports"}
-            onDropDownClick={rowCanCurate ? () => onClickProfile(identity.personIdentifier) : () => redirectToCurate("report", identity)}
-            id={`actions_${identity.personIdentifier}`}
-            listItems={rowCanCurate
-              ? [
-                  { title: 'Create Reports', onClick: () => redirectToCurate("report", identity) },
-                  { title: 'View Profile', onClick: () => { setShowprofileID(identity.personIdentifier); handleShow(); } },
-                ]
-              : [
-                  { title: 'View Profile', onClick: () => { setShowprofileID(identity.personIdentifier); handleShow(); } },
-                ]
-            }
-            secondary={true}
+         : null}
+        <td className={styles.colActions}>
+          <RowActions
+            personName={personDisplayName(identity) || identity.personIdentifier}
+            primary={actions.primary}
+            secondary={actions.secondary}
+            onAction={runAction}
+            onViewProfile={viewProfile}
           />
         </td>
-      </tr>;;
+      </tr>;
     })
   } else {
+    const emptyKind = peopleEmptyState({ scopeFilterShown: showScopeFilter, scopeFilterChecked });
     tableBody = (
-      <tr>
-        <td colSpan={(isCuratorAll || isSuperUser) ? 4 : 3}>
-          <p className={styles.noitemsList}>
-			 {showScopeFilter && scopeFilterChecked
-              ? 'No people found matching your scope. Try unchecking the scope filter to see all results.': 'No records found'}									  
- 
-          </p>
+      <tr className={styles.emptyRow}>
+        <td colSpan={showPending ? 5 : 4}>
+          <div className={styles.emptyState}>
+            {emptyKind === 'scope' ? (
+              <>
+                <p className={styles.emptyText}>No one in your curation scope matches.</p>
+                <UiButton variant="ghost" size="sm" onClick={showEveryone}>Show everyone</UiButton>
+              </>
+            ) : (
+              <>
+                <p className={styles.emptyText}>No people match. Try a {idLabel} or clear a filter.</p>
+                <UiButton variant="ghost" size="sm" onClick={clearAllFilters}>Clear filters</UiButton>
+              </>
+            )}
+          </div>
         </td>
       </tr>
     )
   }
+  if (listLoading) {
+    tableBody = Array.from({ length: SKELETON_ROWS }, (_, i) => (
+      <tr key={`sk-${i}`} className={styles.skeletonRow} aria-hidden="true">
+        <td className={styles.colName}>
+          <div className={styles.skLine} style={{ width: `${62 - (i % 3) * 9}%`, height: 13 }} />
+          <div className={styles.skLine} style={{ width: `${44 - (i % 2) * 8}%` }} />
+        </td>
+        <td className={styles.colOrg}><div className={styles.skLine} style={{ width: `${70 - (i % 3) * 12}%` }} /></td>
+        <td className={styles.colInst}><div className={styles.skLine} style={{ width: `${58 - (i % 2) * 14}%` }} /></td>
+        {showPending ? <td className={styles.colPending}><div className={styles.skPill} /></td> : null}
+        <td className={styles.colActions}><div className={styles.skActions} /></td>
+      </tr>
+    ));
+  }
 
-  const totalCountUpdated = identityPaginatedData?.totalPersonsCount?.length ?? 0 
+  const totalCountUpdated = identityPaginatedData?.totalPersonsCount?.length ?? 0
+  // Sum of countPendingArticles over every matched person (findAll's pendingTotal); null if absent.
+  const pendingTotal = typeof identityPaginatedData?.pendingTotal === 'number' ? identityPaginatedData.pendingTotal : null
+  // A pasted CWID list: which CWIDs matched nobody (client-side diff, no API change).
+  const listNotFound = cwidListNotFound(filters?.nameOrUids, matchedIds)
   return (
     <div className={appStyles.mainContainer}>
       <div className={styles.searchContentContainer}>
         <div className={styles.searchBar}>
-          <h1 style={{ paddingBottom: 10, marginBottom: 0 }}>Find People</h1>
-          <SearchBar searchData={searchData} resetData={resetData} findPeopleLabels = {findPeopleLabels}/>
-		  {showScopeFilter && (
-            <ScopeFilterCheckbox
-              checked={scopeFilterChecked}
-              onChange={(checked) => {
-                setScopeFilterChecked(checked);
-              }}
-            />
-          )}					   
-          {(isDisplayLoader()) ?
-            (
-              <Loader />
-            ) : (
-              <div>
-                <div className={styles.resultsBar}>
-                  <div className={styles.resultsCount}>
-                    <span className={styles.resultsCountNumber}>{numberFormation(totalCountUpdated)}</span>
-                    <span className={styles.resultsCountLabel}>{filtersOn ? 'people found using filters' : 'people'}</span>
+          <h1 className={styles.pageTitle}>People</h1>
+          <SearchBar
+            searchData={searchData}
+            resetData={resetData}
+            clearSignal={clearSignal}
+            findPeopleLabels={findPeopleLabels}
+            toggles={(isCuratorAll || isSuperUser || showScopeFilter) && (
+              <div className={styles.filterToggles}>
+                {(isCuratorAll || isSuperUser) && (
+                  <Switch
+                    label="Pending only"
+                    checked={filterByPending}
+                    onChange={(e) => handlePendingFilterUpdate(e.target.checked)}
+                  />
+                )}
+                {showScopeFilter && (
+                  <ScopeFilterCheckbox
+                    checked={scopeFilterChecked}
+                    onChange={(checked) => {
+                      setScopeFilterChecked(checked);
+                    }}
+                  />
+                )}
+              </div>
+            )}
+          />
+          {showLoadError ? (
+            <div className={styles.loadError} role="alert">
+              <p className={styles.loadErrorText}>Couldn&apos;t load people.</p>
+              <UiButton variant="secondary" size="sm" onClick={retryLoad}>Retry</UiButton>
+            </div>
+          ) : (
+              <div className={styles.resultsCard}>
+                <div className={styles.resultsHeader}>
+                  {/* Polite live region: a new count (or "Loading people…") is read out after a
+                      search, a filter change or a page change. It stays mounted while loading. */}
+                  <div className={styles.resultsCount} aria-live="polite" aria-atomic="true">
+                    {listLoading ? (
+                      <span className={styles.resultsLoading}>Loading people…</span>
+                    ) : (
+                      <>
+                        <strong className={styles.resultsCountNumber}>{numberFormation(totalCountUpdated)}</strong>
+                        {' '}{totalCountUpdated === 1 ? 'person' : 'people'}
+                        {showPending && pendingTotal !== null && (
+                          <>
+                            {' '}<span className={styles.resultsSep} aria-hidden="true">·</span>{' '}
+                            {numberFormation(pendingTotal)} pending suggestion{pendingTotal === 1 ? '' : 's'}
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
-                  {filtersOn && (
-                    <div className={styles.resultsRight}>
-                      {(isCuratorAll || isSuperUser) && (
-                        <div className={styles.pendingFilter}>
-                          <span className={styles.pendingFilterLabel}>Show only pending</span>
-                          <StyledToggleButtonGroup
-                            color="primary"
-                            value={filterByPending}
-                            exclusive
-                            onChange={(e, val) => { handlePendingFilterUpdate(val); }}
-                          >
-                            <ToggleButton value={false}>No</ToggleButton>
-                            <ToggleButton value={true}>Yes</ToggleButton>
-                          </StyledToggleButtonGroup>
-                        </div>
-                      )}
-                      <span className={styles.actionLabel}>Go to</span>
-                      <div className={styles.actionSelectWrap}>
-                        <select
-                          className={styles.actionSelect}
-                          value={selectedAction}
-                          onChange={(e) => setSelectedAction(e.target.value)}
-                        >
-                          <option value="Curate Publications">Curate Publications</option>
-                          {dropdownMenuItems.filter(i => i.title).map(item => (
-                            <option key={item.title} value={item.title}>{item.title}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <button className={styles.btnGo} onClick={handleGoAction}>
-                        Go
-                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
-                      </button>
-                    </div>
+                  {/* #967 follow-up: this acts on the result set, so it must not hang off filtersOn.
+                      filtersOn deliberately ignores scope keys, which meant a scoped curator --
+                      whose only "filter" is their scope -- could never reach it. Gate on rows. */}
+                  {!listLoading && totalCountUpdated > 0 && (
+                    <UiButton
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleGoAction}
+                      title={handoffCapped
+                        ? `More than ${REPORT_HANDOFF_CAP} people match this name search, so the report uses only the Organization, Institution and Person type filters`
+                        : undefined}
+                    >
+                      Create report for these people
+                    </UiButton>
                   )}
                 </div>
-                <React.Fragment>
+                {!listLoading && listNotFound && listNotFound.notFound.length > 0 && (
+                  <div className={styles.notFound}>
+                    <span className={styles.notFoundLead}>
+                      Showing {numberFormation(listNotFound.found)} of {numberFormation(listNotFound.listed)} {idLabel}s.
+                    </span>{' '}
+                    Not found{showScopeFilter && scopeFilterChecked ? ' in your curation scope' : ''}:{' '}
+                    <span className={styles.notFoundIds}>
+                      {listNotFound.notFound.slice(0, NOT_FOUND_SHOWN).join(', ')}
+                      {listNotFound.notFound.length > NOT_FOUND_SHOWN
+                        ? ` and ${numberFormation(listNotFound.notFound.length - NOT_FOUND_SHOWN)} more`
+                        : ''}
+                    </span>
+                  </div>
+                )}
+                <div className={styles.tableWrap}>
+                  <table className={styles.table} aria-busy={listLoading ? 'true' : undefined} aria-label="People">
+                    <colgroup>
+                      <col />
+                      <col className={styles.colOrgW} />
+                      <col className={styles.colInstW} />
+                      {showPending ? <col className={styles.colPendingW} /> : null}
+                      <col className={styles.colActionsW} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col" className={styles.colOrg}>Organization</th>
+                        <th scope="col" className={styles.colInst}>Institution</th>
+                        {showPending ? <th scope="col" className={styles.colPending}>Pending</th> : null}
+                        <th scope="col" className={styles.colActions}><span className={styles.srOnly}>Actions</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableBody}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Stays mounted while a page loads, so focus stays on the page button pressed. A
+                    new search hides it until its own total arrives. */}
+                {!identityAllFetching && (
                   <Pagination total={totalCountUpdated} page={page}
                     count={count}
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
-                    merged
+                    inCard
                   />
-                  {isDisplayLoaderTable() ? <Loader /> :
-                    <div className="table-responsive">
-                      <Table className={`${publicationStyles.h6fnhWdegPublicationsEvidenceTable} ${styles.table} table`}>
-                        <thead>
-                          <tr>
-                            <th key="0">Name</th>
-                            <th key="1">Affiliation</th>
-                            {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : null}
-                            <th key="4">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tableBody}
-                        </tbody>
-                      </Table>
-                    </div>
-                  }
-                  <Pagination total={totalCountUpdated} page={page}
-                    count={count}
-                    onChange={handlePaginationUpdate}
-                    onCountChange={handleCountUpdate}
-                  />
-
-                  <Profile
-                    uid={showProfileID}
-                    modalShow={showProfile}
-                    handleShow={handleShow}
-                    handleClose={handleClose}
-                    viewProfileLabels={viewProfileLabels}
-                    headShotLabelData = {headShot}
-                  />
-                </React.Fragment>
+                )}
               </div>
             )
           }
+          <Profile
+            uid={showProfileID}
+            modalShow={showProfile}
+            handleShow={handleShow}
+            handleClose={handleClose}
+            viewProfileLabels={viewProfileLabels}
+            headShotLabelData = {headShot}
+          />
         </div>
       </div>
     </div>
@@ -826,25 +856,27 @@ const Search = () => {
 }
 
 function Name(props) {
-  let firstName = props.identity.firstName ?? ''
-  let middleName = props.identity.middleName ?? ''
-  let lastName = props.identity.lastName ?? ''
-
-  if (props.identity.firstName !== undefined) {
-    const nameString = `${firstName} ${middleName} ${lastName}`.replace(/\s+/g, ' ').trim()
-    return (
-      <div>
-        <button className={styles.btnLink} onClick={props.onClickProfile}>
-          {nameString}
-        </button>
-        {props.identity.title && <div className={styles.personRole}>{props.identity.title}</div>}
-        <div className={styles.personCwid}>
-          <span className={styles.cwidLabel}>{props.nameOrcwidLabel}:</span> {props.identity.personIdentifier}
-        </div>
+  const { identity } = props;
+  const nameString = personDisplayName(identity)
+  return (
+    <div className={styles.nameBlock}>
+      <div className={styles.nameLine}>
+        {props.onClickProfile ?
+          <button type="button" className={styles.btnLink} onClick={props.onClickProfile}>
+            {nameString || identity.personIdentifier}
+          </button> :
+          <span className={styles.nameText}>{nameString || identity.personIdentifier}</span>}
+        {props.isProxy && <ProxyBadge />}
+        {props.cornellOnly && <span className={styles.rowTag}>Cornell Ithaca</span>}
       </div>
-    )
-  }
-  return null
+      {/* The title ellipsizes and the CWID never does, so a long title can't hide the CWID. */}
+      <div className={styles.personSub}>
+        {identity.title && <span className={styles.personTitle}>{identity.title}<span aria-hidden="true">{'\u00a0·\u00a0'}</span></span>}
+        {props.nameOrcwidLabel && <span className={styles.srOnly}>{props.nameOrcwidLabel} </span>}
+        <span className={styles.personCwid}>{identity.personIdentifier}</span>
+      </div>
+    </div>
+  )
 }
 
 export default Search

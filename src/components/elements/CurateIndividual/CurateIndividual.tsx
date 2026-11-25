@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
-import { identityFetchData, reciterFetchData, reCalcPubMedPubCount, fetchFeedbacklog, addError } from "../../../redux/actions/actions";
+import { identityFetchData, reciterFetchData, reCalcPubMedPubCount, fetchFeedbacklog, addError, identityClearData, reciterClearData, clearIdentityORFeatureGenError } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
 import { Container, Button, Row, Toast } from "react-bootstrap";
@@ -12,14 +12,17 @@ import InferredKeywords from "./InferredKeywords"
 import SuggestionsBanner from "./SuggestionsBanner";
 import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
 import Profile from "../Profile/Profile";
 import { useSession } from "next-auth/react";
 import { allowedPermissions, toastMessage, getCapabilities } from "../../../utils/constants";
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../../config/local";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import GrantProxyModal from "./GrantProxyModal";
+import { AddDeepLink, ADD_DEEP_LINK_PARAMS, parseAddDeepLink } from "../../../utils/externalAddSearch";
+import { canonicalCwid } from "../../../utils/canonicalCwid";
 
 
 
@@ -31,15 +34,22 @@ interface PrimaryName {
   middleInitial?: string,
 }
 
+// Keyword chips shown before "+N more" (mockup 00-landing).
+const KW_COLLAPSED_MAX = 6;
+
 const CurateIndividual = () => {
   const router = useRouter()
-  const { id } = router.query;
+  // Canonical uid (trimmed, lowercase) before any lookup or write: /curate/Abl9002 and
+  // /curate/abl9002 are one person, and every fetch below keys ReCiter by this exact string.
+  const rawId = router.query.id;
+  const id = canonicalCwid(Array.isArray(rawId) ? rawId[0] : rawId) || undefined;
   const [newId, setNewId] = useState<any>();
   const dispatch = useDispatch();
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
   const reciterData = useSelector((state: RootStateOrAny) => state.reciterData)
   const identityORFeatureGenError = useSelector((state: RootStateOrAny) => state.identityORFeatureGenError)
+  const feedbacklog = useSelector((state: RootStateOrAny) => state.feedbacklog)
 
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
@@ -50,8 +60,22 @@ const CurateIndividual = () => {
   const [isLoading, setLoading] = useState(false);
   const [headShot, setHeadShot] = useState<any>([]);
   const [showNoPermitError, setShowNoPermitError] = useState(false)
+  const [showRecentActivity, setShowRecentActivity] = useState(false) // collapsed by default; the Hide/Show toggle still lets a curator open it
   const [headShotLoaded, setHeadShotLoaded] = useState(false)
   const [grantProxyShow, setGrantProxyShow] = useState(false);
+  const [kwExpanded, setKwExpanded] = useState(false);
+  const [moreAnchor, setMoreAnchor] = useState<HTMLElement | null>(null);
+  // Deep link /curate/<uid>?add=external&doi=<doi>[&source=openalex|crossref]. Parsed here, not in
+  // ReciterTabs: this component stays mounted while the tabs are swapped for the loading
+  // skeleton, so a tabs instance mounted before the fetches start would be thrown away along
+  // with the link. Handed to the tabs that mount after loading, then cleared once they take it.
+  const [addDeepLink, setAddDeepLink] = useState<AddDeepLink | null>(null);
+  // Cornell-only people (src/utils/cornellOnly.ts) aren't run through ReCiter until they have
+  // CORNELL_RECITER_MIN_PUBMED accepted PubMed papers, so until then their page must not fire the
+  // feature-generator fetch, which would retrieve and score them. It reads the stores instead
+  // (same response shape) and ReciterTabs drops Suggested. Checked before any fetch, which also
+  // covers a pasted /curate/<uid> URL. null while checking.
+  const [noRun, setNoRun] = useState<boolean | null>(null);
   // Grant Proxy hits Superuser-only API routes (see PM#849 / proxy.controller.ts) -- match
   // that gate here so the button isn't shown to someone who'd just get a 403.
   const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
@@ -63,15 +87,61 @@ const CurateIndividual = () => {
       return;
     }
     setHeadShotLoaded(false);
+    setKwExpanded(false);
+    // Clear the previous uid's identity/reciter state (and any error it left behind)
+    // before kicking off this uid's fetches, so a previous uid's data or a stale
+    // identity-404 cannot bleed into this uid's render while its own fetches are
+    // still in flight.
+    dispatch(identityClearData());
+    dispatch(reciterClearData());
+    dispatch(clearIdentityORFeatureGenError());
     fetchAllAdminSettings();
     let nextPersonIdentifier = "";
     setNewId(id);
-    dispatch(identityFetchData(id));
-    fetchData();
+    setNoRun(null);
+    let cancelled = false;
+    fetch(`/api/db/users/cornell-only/${encodeURIComponent(String(id))}`, {
+      credentials: "same-origin",
+      headers: { Accept: 'application/json', 'Authorization': reciterConfig.backendApiKey },
+    })
+      .then((r) => (r.ok ? r.json() : { blocked: false }))
+      // A failed check falls through to the normal page; the feature-generator route refuses a
+      // blocked uid on its own.
+      .catch(() => ({ blocked: false }))
+      .then((d) => {
+        if (cancelled) return;
+        // Fetches first, so the loading state never drops out between the check and them.
+        dispatch(identityFetchData(id));
+        fetchData(!!d.blocked);
+        setNoRun(!!d.blocked);
+      });
+    // The tabs stay unmounted while the Cornell check and then fetchData() run, so they only
+    // see the link once this uid's data has loaded.
+    const link = parseAddDeepLink(router.query);
+    setAddDeepLink(link.open ? link : null);
+    if (link.open) {
+      // Drop the deep-link parameters so a reload or a later remount does not re-open the Add
+      // tab and search again. Shallow, and id is unchanged: no refetch, this effect does not rerun.
+      const rest: Record<string, any> = { ...router.query };
+      ADD_DEEP_LINK_PARAMS.forEach((p) => { delete rest[p]; });
+      router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+    }
+    return () => { cancelled = true; };
   }, [id])
 
-  const fetchData = () => {
-    dispatch(reciterFetchData(id, false));
+  // Show the "no identity" message only for a real identity-404 -- not for a generic
+  // feature-generator failure, and not for any other identity-fetch failure (500,
+  // network error, timeout), which falls through to the generic "temporarily
+  // unavailable" message below instead. Clears once the error condition clears (e.g.
+  // on navigating to a valid uid).
+  useEffect(() => {
+    const hasIdentityNotFoundError = Array.isArray(identityORFeatureGenError) &&
+      identityORFeatureGenError.includes("Identity-Error-404");
+    setShowNoPermitError(hasIdentityNotFoundError);
+  }, [identityORFeatureGenError])
+
+  const fetchData = (stored: boolean = !!noRun) => {
+    dispatch(reciterFetchData(id, false, stored));
     dispatch(fetchFeedbacklog(id));
   }
 
@@ -91,9 +161,9 @@ const CurateIndividual = () => {
       .then(data => {
         let parsedSettingsArray = [];
         data.map((obj, index1) => {
-    
-          let c = typeof(obj.viewAttributes) === "string" ? JSON.parse(obj.viewAttributes) : JSON.parse(JSON.stringify(obj.viewAttributes));
-
+          let a = JSON.stringify(obj.viewAttributes)
+          let b = JSON.parse(a);
+          let c = typeof (b) === "string" ? JSON.parse(b) : b
           let parsedSettings = {
             viewName: obj.viewName,
             viewAttributes: c,
@@ -115,11 +185,7 @@ const CurateIndividual = () => {
       .catch(error => {
         console.error("[ERR-9010]", error);
         reportError("ERR-9010", "Unable to load display settings", error);
-        toast.error("Unable to load display settings. Please try again. (ERR-9010)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to load display settings. Please try again. (ERR-9010)");
       });
   }
 
@@ -128,7 +194,58 @@ const CurateIndividual = () => {
   const handleClose = () => setModalShow(false);
   const handleShow = () => setModalShow(true);
 
-  if (identityFetching || reciterFetching) {
+  // Mirrors Publication.tsx's per-article History popover date formatting (date +
+  // time-of-day, seconds included) so rapid same-day actions stay distinguishable here too.
+  const formatActivityDate = (timestamp: string | Date) => {
+    const d = new Date(timestamp);
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  // Person-level "Recent activity": flatten feedbacklog (keyed by pmid, each an array
+  // of curation entries) across every pmid into one list, newest first. No new API
+  // calls -- feedbacklog and reCiterArticleFeatures are already fetched for this page.
+  const recentActivity = useMemo(() => {
+    if (!feedbacklog || typeof feedbacklog !== 'object') return [];
+
+    const allArticles = (reciterData && reciterData.reciter && reciterData.reciter.reCiterArticleFeatures) || [];
+    const titleByPmid: { [pmid: string]: string } = {};
+    allArticles.forEach((a: any) => {
+      if (a && a.pmid !== undefined && a.pmid !== null && a.articleTitle) {
+        titleByPmid[String(a.pmid)] = a.articleTitle;
+      }
+    });
+
+    const flat: any[] = [];
+    Object.keys(feedbacklog).forEach((pmid) => {
+      const entries = feedbacklog[pmid];
+      if (Array.isArray(entries)) {
+        entries.forEach((entry: any) => flat.push({ ...entry, pmid }));
+      }
+    });
+
+    flat.sort((a, b) => (Number(b.createTimestamp) || 0) - (Number(a.createTimestamp) || 0));
+
+    return flat.slice(0, 15).map((entry) => {
+      // Same verb labeling as the per-article History popover in Publication.tsx.
+      const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested';
+      return {
+        key: entry.feedbackID || `${entry.pmid}-${entry.createTimestamp}`,
+        label: titleByPmid[String(entry.pmid)] || `PMID ${entry.pmid}`,
+        verb,
+        curatorName: entry.curatorName || 'Unknown',
+        date: entry.modifyTimestamp ? formatActivityDate(entry.modifyTimestamp) : ''
+      };
+    });
+  }, [feedbacklog, reciterData]);
+
+  if (noRun === null || identityFetching || reciterFetching) {
     return (
       <div className={appStyles.mainContainer}>
         <div className={styles.loadingRow}>
@@ -142,10 +259,11 @@ const CurateIndividual = () => {
     )
   }
 
- if (identityORFeatureGenError && identityORFeatureGenError.length > 0) {
+ // A real identity-404 (showNoPermitError) gets its own specific message below, in
+ // place of this generic one -- the two are mutually exclusive.
+ if (identityORFeatureGenError && identityORFeatureGenError.length > 0 && !showNoPermitError) {
     return (
       <div className={appStyles.mainContainer}>
-        <ToastContainerWrapper />
         <div style={{ padding: '40px 24px', textAlign: 'center', color: '#8a94a6', fontSize: 14 }}>
           Unable to load publication data. The page may be temporarily unavailable.
         </div>
@@ -155,13 +273,14 @@ const CurateIndividual = () => {
 
   return (
     <div className={appStyles.mainContainer}>
-      <ToastContainerWrapper />
       {
-        showNoPermitError ? <p className="text-center">{`${id} does not have an identity to view this page. Please contact system administartor`}</p> : <>
+        showNoPermitError ? <p className="text-center">{`${id} does not have an identity to view this page. Please contact system administrator`}</p> : <>
           {identityData &&
             <div className={styles.personHeader}>
               <div className={styles.personPhotoWrap}>
-                <svg className={styles.personPhotoPlaceholder} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="8" cy="5.5" r="3"/><path d="M2 14c0-3.31 2.69-6 6-6s6 2.69 6 6"/></svg>
+                <span className={styles.personInitials} aria-hidden="true">
+                  {`${identityData.primaryName?.firstName?.[0] || ''}${identityData.primaryName?.lastName?.[0] || ''}`.toUpperCase()}
+                </span>
                 {identityData.uid && (
                   <img
                     className={`${styles.personPhoto}${headShotLoaded ? ` ${styles.personPhotoLoaded}` : ''}`}
@@ -174,9 +293,13 @@ const CurateIndividual = () => {
                 )}
               </div>
               <div className={styles.personInfo}>
-                <h2 className={styles.personName}>{personFullName}</h2>
-                {identityData.title && <div className={styles.personRole}>{identityData.title}</div>}
-                {identityData.primaryOrganizationalUnit && <div className={styles.personDept}>{identityData.primaryOrganizationalUnit}</div>}
+                <div className={styles.personNameRow}>
+                  <h2 className={styles.personName}>{personFullName}</h2>
+                  <span className={styles.personMeta}>
+                    {[identityData.title, identityData.primaryOrganizationalUnit].filter(Boolean).map((part: string) => `${part} · `).join('')}
+                    <span className={styles.personCwid}>{identityData.uid}</span>
+                  </span>
+                </div>
                 {reciterData && reciterData.reciter && reciterData.reciter.articleKeywordsAcceptedArticles &&
                   reciterData.reciter.articleKeywordsAcceptedArticles.length > 0 && (() => {
                     const keywords = reciterData.reciter.articleKeywordsAcceptedArticles;
@@ -189,7 +312,7 @@ const CurateIndividual = () => {
                     return (
                       <div className={styles.personKeywords}>
                         <span className={styles.kwLabel}>Keywords</span>
-                        {keywords.map((kw: any, i: number) => {
+                        {(kwExpanded ? keywords : keywords.slice(0, KW_COLLAPSED_MAX)).map((kw: any, i: number) => {
                           const count = kw.count || 0;
                           const rank = sorted.indexOf(count) / n;
                           let tier = rank < 0.25 ? 'high' : rank < 0.75 ? 'medium' : 'low';
@@ -205,24 +328,81 @@ const CurateIndividual = () => {
                             </span>
                           );
                         })}
+                        {n > KW_COLLAPSED_MAX && (
+                          <button type="button" className={styles.kwMore} aria-expanded={kwExpanded} onClick={() => setKwExpanded(v => !v)}>
+                            {kwExpanded ? 'Show fewer' : `+${n - KW_COLLAPSED_MAX} more`}
+                          </button>
+                        )}
                       </div>
                     );
                   })()
                 }
               </div>
               <div className={styles.personActions}>
+                <button className={styles.viewProfileBtn} onClick={handleShow}>View profile</button>
+                {/* The ⋯ menu only holds Grant proxy today, so it hides with that gate. */}
                 {canManageUsers && (
-                  <button className={styles.viewProfileBtn} onClick={() => setGrantProxyShow(true)}>Grant Proxy</button>
+                  <>
+                    <button
+                      type="button"
+                      className={styles.moreBtn}
+                      aria-label="More actions"
+                      aria-haspopup="menu"
+                      aria-expanded={!!moreAnchor}
+                      onClick={(e) => setMoreAnchor(e.currentTarget)}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+                    </button>
+                    <Menu
+                      anchorEl={moreAnchor}
+                      open={!!moreAnchor}
+                      onClose={() => setMoreAnchor(null)}
+                      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                      transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                    >
+                      <MenuItem onClick={() => { setMoreAnchor(null); setGrantProxyShow(true); }} sx={{ fontSize: 13 }}>Grant proxy…</MenuItem>
+                    </Menu>
+                  </>
                 )}
-                <button className={styles.viewProfileBtn} onClick={handleShow}>View Profile</button>
               </div>
             </div>
           }
+
+          {/* ponytail: hidden per request -- the header row rendered regardless of
+              showRecentActivity's default, so collapsing it wasn't enough to hide it.
+              Restore by dropping the `false &&` below if the section is wanted back. */}
+          {false && recentActivity.length > 0 && (
+            <div style={{ margin: '0 0 16px', border: '1px solid #e2e5ea', borderRadius: 8, background: 'var(--card-bg, #fff)' }}>
+              <button
+                type="button"
+                onClick={() => setShowRecentActivity(!showRecentActivity)}
+                style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <span>Recent activity</span>
+                <span style={{ fontSize: 11, color: '#8a94a6', fontWeight: 400 }}>{showRecentActivity ? 'Hide' : 'Show'}</span>
+              </button>
+              {showRecentActivity && (
+                <div style={{ maxHeight: 260, overflowY: 'auto', borderTop: '1px solid #e2e5ea' }}>
+                  {recentActivity.map((activity: any) => (
+                    <div key={activity.key} style={{ padding: '8px 14px', borderBottom: '1px solid #f0f1f3', fontSize: 12.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span>
+                        <strong>{activity.verb}</strong>{' — '}{activity.label}
+                      </span>
+                      <span style={{ color: '#8a94a6' }}>{activity.curatorName} · {activity.date}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <ReciterTabs
             reciterData={reciterData}
             fullName={personFullName}
             fetchOriginalData={fetchData}
+            noRun={noRun}
+            addDeepLink={addDeepLink}
+            onAddDeepLinkConsumed={() => setAddDeepLink(null)}
           />
           <Profile
             uid={identityData.uid}

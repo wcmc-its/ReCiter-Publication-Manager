@@ -7,11 +7,15 @@ type Resp = {
     authors?: any,
     results?: any,
     total?: number,
+    fetched?: number,
+    capped?: boolean,
+    partial?: boolean,
     message?: any,
 }
 
 // PM#772 — POST { mode:'authors', lastName, firstName }        -> candidate Scopus Author IDs
 //          POST { mode:'documents', by:'author'|'keyword'|'doi', term } -> matching documents + total
+//          (R2: + fetched/capped/partial, passed through from searchScopusDocuments untouched)
 export default async function handler(
     req: NextApiRequest,
     res: NextApiResponse<Resp>
@@ -38,8 +42,8 @@ export default async function handler(
             const authors = await searchScopusAuthors(lastName, firstName)
             res.status(200).send({ statusCode: 200, authors })
         } else {
-            const { results, total } = await searchScopusDocuments(by, term)
-            res.status(200).send({ statusCode: 200, results, total })
+            const { results, total, fetched, capped, partial } = await searchScopusDocuments(by, term)
+            res.status(200).send({ statusCode: 200, results, total, fetched, capped, partial })
         }
     } catch (err: any) {
         res.status(502).send({ statusCode: 502, message: "Scopus search is temporarily unavailable." })

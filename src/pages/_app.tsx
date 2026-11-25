@@ -13,16 +13,30 @@ import "slick-carousel/slick/slick-theme.css";
 import { useDispatch, useSelector } from 'react-redux';
 import { useSession } from 'next-auth/react';
 import { fetchAdminSettingsAction } from '../redux/actions/actions';
-import { useEffect } from 'react';
+import { Component, useEffect } from 'react';
+import ErrorFallback from '../components/elements/Error/Error';
+import { reportError } from '../utils/reportError';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Head from 'next/head';
+import { pm } from '../components/ui/tokens';
+import ToastHost from '../components/elements/ToastHost/ToastHost';
 
+// Values come from src/components/ui/tokens.ts, which mirrors the :root tokens in globals.css.
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#b31b1b',
-      dark: '#8c1515',
-      light: '#f5e6e6',
+      main: pm.red,
+      dark: pm.redDark,
+      light: pm.redLight,
+    },
+    background: {
+      default: pm.page,
+      paper: pm.surface,
+    },
+    divider: pm.border,
+    text: {
+      primary: pm.foreground,
+      secondary: pm.mutedForeground,
     },
   },
   typography: {
@@ -38,6 +52,7 @@ const theme = createTheme({
     ].join(','),
   },
   shape: {
+    // = --radius-md. Overlays use --radius (10px) and cards --radius-card (13px) explicitly.
     borderRadius: 6,
   },
 });
@@ -71,6 +86,40 @@ function AdminSettingsDataLoader() {
     return null;
 }
 
+// Keeps a render throw from blanking the whole app, and stamps the incident with an
+// id the user can quote and support can grep for in the pod log.
+class RenderErrorBoundary extends Component<{ children: ReactNode }, { ref: string }> {
+  state = { ref: '' };
+
+  static getDerivedStateFromError() {
+    // ponytail: 8-char ref is enough to grep one pod log; use a real trace id if this ever spans services.
+    const ref = (globalThis.crypto?.randomUUID?.() || String(performance.now()).replace('.', '').padEnd(8, '0')).slice(0, 8).toUpperCase();
+    return { ref };
+  }
+
+  componentDidCatch(error: any) {
+    reportError("ERR-0500", `Render crash ${this.state.ref}: ${error?.message || 'unknown'}`, error);
+  }
+
+  render() {
+    if (!this.state.ref) return this.props.children;
+    return (
+      <>
+        {/* 500: a render crash is a server-error-class failure, so it gets the danger
+            colour rather than the neutral one a 404 uses. */}
+        <ErrorFallback statusCode={500} />
+        <p style={{ position: 'fixed', bottom: '16px', left: 0, right: 0, textAlign: 'center', color: '#6c757d', fontSize: '14px' }}>
+          Reference {this.state.ref} — please include this when you report the problem.{' '}
+          {/* Plain anchor, not next/link: the boundary never resets on a soft nav, and the
+              nav lives inside it, so the only way out is a full document load. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href="/">Reload Publication Manager</a>
+        </p>
+      </>
+    );
+  }
+}
+
 export default function App({ Component, pageProps: { session, ...pageProps } }: AppPropsWithLayout) {
   const store = useStore(pageProps.initialReduxState)
   // Use the layout defined at the page level, if available
@@ -92,7 +141,10 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
         <ReduxProvider store={store}>
         <AdminSettingsDataLoader/>
         <Header/>
-          {getLayout(<Component {...pageProps} />)}
+          <RenderErrorBoundary>
+            {getLayout(<Component {...pageProps} />)}
+          </RenderErrorBoundary>
+          <ToastHost />
         </ReduxProvider>
       </ThemeProvider>
     </SessionProvider>

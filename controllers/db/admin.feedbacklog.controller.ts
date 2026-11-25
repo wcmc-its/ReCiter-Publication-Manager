@@ -1,12 +1,16 @@
 import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { getToken } from 'next-auth/jwt'
+import { refuseUnlessCanCurate } from './authorization.controller'
 import { updatePendingArticleCount } from './person.controller'
+import { canonicalCwid, parseCwid } from '../../src/utils/canonicalCwid'
 
 
 models.AdminUser.hasMany(models.AdminFeedbackLog, { foreignKey: 'userID'})
 models.AdminFeedbackLog.belongsTo(models.AdminUser, {foreignKey: 'userID'})
 export const findFeedbackLogByUid = async (req: NextApiRequest, res: NextApiResponse) => {
-    const { uid } = req.query;
+    // MySQL compares case-insensitively, so the canonical form still finds legacy rows.
+    const uid = canonicalCwid(Array.isArray(req.query.uid) ? req.query.uid[0] : req.query.uid);
     try {
         const feedbackLog = await models.AdminFeedbackLog.findAll({
             order: [["modifyTimestamp", "DESC"]],
@@ -27,8 +31,26 @@ export const findFeedbackLogByUid = async (req: NextApiRequest, res: NextApiResp
 
 
 export const createFeedbackLog = async (req: NextApiRequest, res: NextApiResponse) => {
-    const { userID, personIdentifier, articleIdentifier, feedback } = req.body;
+    const { articleIdentifier, feedback } = req.body;
+    // Convert on the way in: rows keyed `kims7@mskcc.org` or `Abl9002` are what the
+    // cwid-normalization cleanup had to undo. Present but still not an identifier -> 400.
+    const personIdentifier = parseCwid(req.body?.personIdentifier);
+    if (req.body?.personIdentifier && !personIdentifier) {
+        res.status(400).send(`Not a valid personIdentifier: ${JSON.stringify(req.body.personIdentifier)}`)
+        return
+    }
     try {
+        // userID was previously client-supplied (req.body.userID); the route is under /api/db
+        // so middleware guarantees a session -- resolve the real signed-in user from the JWT
+        // instead of trusting whatever the client sent.
+        const token: any = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+        const userID = Number(token?.databaseUser?.userID)
+        if (!Number.isInteger(userID) || userID <= 0) {
+            res.status(401).send('Not signed in')
+            return
+        }
+        // Written only after a curation write: same permission as that write.
+        if (!(await refuseUnlessCanCurate(req, res, personIdentifier))) return
         if(userID && personIdentifier && articleIdentifier && feedback) {
             const isUserExistAndActive = await models.AdminUser.findOne({
                 where: {
@@ -51,8 +73,9 @@ export const createFeedbackLog = async (req: NextApiRequest, res: NextApiRespons
                 const feedbackLog = await models.AdminFeedbackLog.bulkCreate(data)
                 res.status(201).send(feedbackLog)
 
-                //Update pending count for articles in person table
-                await updatePendingArticleCount(personIdentifier, feedback)
+                //Update pending count for articles in person table -- this call recorded
+                //articleIdentifier.length rows, not the person's lifetime feedback total
+                await updatePendingArticleCount(personIdentifier, feedback, articleIdentifier.length)
             } else {
                 res.status(401).send('userID ' + userID + ' is unauthorized to provide feedback')
             }

@@ -1,11 +1,14 @@
 import {NextRequest, NextResponse } from 'next/server'
 import { allowedPermissions } from './utils/constants'
 import { getToken } from "next-auth/jwt";
+import { effectiveToken } from './utils/viewAs'
+import { hasConfiguredScope } from './utils/scopeResolver'
+import { canonicalCwid, sameCwid } from './utils/canonicalCwid'
 
 
 //middleware should run for these router paths
 export const config = {
-  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*','/manageprofile/:path*','/authorships/:path*','/literature/:path*','/api/db/:path*'],
+  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*','/manageprofile/:path*','/authorships/:path*','/api/db/:path*'],
 }
 
 // Every /api/db/** route today only checks req.headers.authorization against
@@ -23,7 +26,6 @@ function unauthorizedJson() {
   })
 }
 
-
 export async function middleware(request: NextRequest) {
   try {
     const res = NextResponse.next();
@@ -36,31 +38,37 @@ export async function middleware(request: NextRequest) {
 
     // 1. SKIP LOGIC: Define paths that should never be blocked or checked for roles
   const isAuthRoute = pathName.startsWith('/api/auth') ||
-                     pathName.startsWith('/api/saml') || 
+                     pathName.startsWith('/api/saml') ||
                      pathName.startsWith('/auth/finalize');
   if (isAuthRoute) {
     return NextResponse.next();
   }
-   if(request && request.cookies && (request.cookies.has('next-auth.session-token') || request.cookies.has('__Secure-next-auth.session-token')))
+   // NextAuth chunks the session cookie into next-auth.session-token.0, .1, ... once the JWE
+   // exceeds 4096 bytes (node_modules/next-auth/core/lib/cookie.js:14-16); getToken already
+   // reassembles chunks, but a plain cookies.has() on the unchunked name misses a chunked
+   // cookie entirely, so check for the base name OR any chunk of it.
+   const N = 'next-auth.session-token'
+   const SECURE_N = '__Secure-next-auth.session-token'
+   if(request && request.cookies && request.cookies.getAll().some(c => c.name === N || c.name.startsWith(N + '.') || c.name === SECURE_N || c.name.startsWith(SECURE_N + '.')))
     {
       const loginUrl = new URL('/login', request.url)
       let decodedTokenJson = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+      // /curate, /search, /authorships, /manageusers... redirects below must evaluate the
+      // TARGET's roles/scope/proxy while "View as" is active -- that is the point of the
+      // feature (the app renders and authorizes exactly as the target would see it).
+      decodedTokenJson = effectiveToken(decodedTokenJson as any) as any;
       let allUserRoles ='';
       if(decodedTokenJson )
           allUserRoles = JSON.stringify(decodedTokenJson);
       if (allUserRoles && allUserRoles.length > 0) {
-         let userRoles = typeof allUserRoles === "string" && allUserRoles !== ""
-          ? JSON.parse(allUserRoles)
-          : (typeof allUserRoles === "object" && allUserRoles !== null ? allUserRoles : null);
-
-         userRoles = userRoles?.userRoles != null
-          ? (typeof userRoles.userRoles === "string" && userRoles.userRoles !== ""
-            ? JSON.parse(userRoles.userRoles)
-            : (typeof userRoles.userRoles === "object" ? userRoles.userRoles : []))
-          : [];
-          
+          let userRoles = allUserRoles && allUserRoles?.length > 0 && JSON.parse(allUserRoles)
+          userRoles = JSON.parse(userRoles.userRoles);
           if (userRoles && userRoles.length > 0) {
-            let loggedInUserInfo = userRoles[0].personIdentifier;
+            // Role rows carry admin_users.personIdentifier as stored (possibly `Abl9002`), while
+            // token.username and the Header's /notifications|/manageprofile links are canonical.
+            // Canonicalize so the self-redirects below agree with them instead of bouncing
+            // /notifications/abl9002 to /notifications/Abl9002.
+            let loggedInUserInfo = canonicalCwid(userRoles[0].personIdentifier);
             let isCuratorSelf = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_Self)
             let isSuperUser = userRoles.some((role) => role.roleLabel === allowedPermissions.Superuser)
             let isCuratorAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_All)
@@ -75,7 +83,7 @@ export async function middleware(request: NextRequest) {
               if (Array.isArray(parsed)) proxyPersonIds = parsed;
             } catch (e) { /* malformed token field -> no proxy allowance */ }
             const curateTarget = pathName.startsWith('/curate/') ? decodeURIComponent(pathName.split('/')[2] || '') : '';
-            const isProxiedTarget = curateTarget.length > 0 && proxyPersonIds.includes(curateTarget);
+            const isProxiedTarget = curateTarget.length > 0 && proxyPersonIds.some((pid) => sameCwid(pid, curateTarget));
             // A configured Curator_Scoped scope (admin_users.scope_person_types/scope_org_units)
             // is self-sufficient the same way a proxy grant is, above -- and got the same gap:
             // canCurate.ts and Search.js were both updated to let a non-empty scope through
@@ -89,14 +97,11 @@ export async function middleware(request: NextRequest) {
             // middleware doesn't have. canCurate on the write API is what actually enforces scope
             // membership per-target; this only stops the middleware from redirecting a page the
             // API would allow, exactly like the proxy-grant comment above already establishes.
-            let scopeData: { personTypes?: string[] | null; orgUnits?: string[] | null } | null = null;
+            let scopeData: any = null;
             try {
               scopeData = JSON.parse((decodedTokenJson as any)?.scopeData || 'null');
             } catch (e) { /* malformed token field -> no scope allowance */ }
-            const hasScope = !!scopeData && (
-              (Array.isArray(scopeData.personTypes) && scopeData.personTypes.length > 0) ||
-              (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0)
-            );
+            const hasScope = hasConfiguredScope(scopeData);
             if (pathName && pathName.startsWith('/curate')  &&  !isCuratorAll  && !isSuperUser && !isProxiedTarget && !hasScope)
             {
                 if (userRoles.length == 1 && isReporterAll  && !isCuratorSelf) {
@@ -126,12 +131,12 @@ export async function middleware(request: NextRequest) {
             }
             else if (pathName && pathName.startsWith('/report')  && !isReporterAll && !isSuperUser)
             {
-                if (userRoles.length == 1 && isCuratorSelf  && !isCuratorAll)
-                      return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-                else if (userRoles.length == 1 && !isCuratorSelf  && isCuratorAll)
-                      return redirectToLandingPage(request,'/search');
-                else if (userRoles.length == 2 && isCuratorSelf  && isCuratorAll)
-                      return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
+                // Report access is a baseline capability for every authenticated user
+                // (ROLE_CAPABILITIES.canReport in src/utils/constants.js is OR-merged and
+                // never overridden to false), so Curator_Self-only, Curator_All-only, and
+                // Curator_Self+Curator_All all fall through here with no redirect --
+                // matching how Curator_Scoped already reaches /report by not matching any
+                // of these role combinations.
             }
             else if (pathName && pathName.startsWith('/notifications'))
             {
@@ -156,16 +161,6 @@ export async function middleware(request: NextRequest) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
                 }
 
-            }
-            // Literature Search. The matcher alone only proves a session EXISTS — any
-            // logged-in role would otherwise walk in, and this page fronts a route that
-            // spends institutional money per call. Gate it to the same roles as the nav
-            // item. (The API route additionally enforces the LITERATURE_SEARCH_CWIDS pilot
-            // allowlist; that check, not this one, is the real control.)
-            else if (pathName && pathName.startsWith('/literature') && !isSuperUser && !isCuratorAll && !isReporterAll)
-            {
-              if (isCuratorSelf) return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-              return redirectToLandingPage(request,'/search');
             }
             else if (pathName && pathName.startsWith('/manageusers')  && !isSuperUser)
             {
@@ -199,11 +194,21 @@ export async function middleware(request: NextRequest) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
             }
     }
-    }
-    else // redirects to error page when no roles found in access token
+    else // Authenticated, but no roles assigned. /noaccess is written for exactly this
+         // ("you have successfully authenticated, but you don't have any roles assigned"),
+         // and pages/index.js already sends these users there; /error only told them to
+         // refresh, which cannot help.
     {
       if (isApiDbRoute) return unauthorizedJson();
-      redirectToLandingPage(request,'/error');
+      return redirectToLandingPage(request,'/noaccess');
+    }
+    }
+    else // A session cookie exists but getToken returned nothing -- an expired or otherwise
+         // undecodable token. That is not a roles problem, so /noaccess would be misleading;
+         // re-authenticating is the fix, same as the no-cookie branch below.
+    {
+      if (isApiDbRoute) return unauthorizedJson();
+      return redirectToLandingPage(request,'/login');
     }
   }
   else

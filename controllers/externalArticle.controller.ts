@@ -58,28 +58,15 @@ export async function addExternalArticle(uid: string, body: any, addedBy: string
         })
 }
 
-// DELETE (= revoke) an external article by articleId. actorPersonIdentifier (curator CWID
-// from the JWT, never the client) lets the Java side stamp its PENDING FeedbackLog row.
-export async function deleteExternalArticle(uid: string, articleId: string, actorPersonIdentifier?: string) {
-    let uri = `${base()}?uid=${encodeURIComponent(uid)}&articleId=${encodeURIComponent(articleId)}`
-    if (actorPersonIdentifier) uri += `&actorPersonIdentifier=${encodeURIComponent(actorPersonIdentifier)}`
-    return fetch(uri, {
-        method: 'DELETE',
-        headers: javaHeaders(),
-    })
-        .then(async (res) => ({ statusCode: res.status, statusText: await readBody(res) }))
-        .catch((error) => {
-            console.log('ReCiter external-article DELETE is not reachable: ' + error)
-            return { statusCode: error.status || 500, statusText: error }
-        })
-}
-
-// PATCH feedback (durable FeedbackLog row on the Java side): curator reject/dismiss log
-// REJECTED, reopen logs PENDING, dispute-retract/resolve log ACCEPTED — who acted is the
-// discriminator, so actorPersonIdentifier is stamped from the JWT, never the client.
+// PATCH Accept / Reject (or un-reject) feedback on an already-added external article.
+// Curate per-source tabs (Option C, Phase 1). actorPersonIdentifier is resolved from the
+// JWT in the route and never trusted from the client body.
 export async function recordExternalArticleFeedback(
-    uid: string, articleId: string, action: 'ACCEPTED' | 'REJECTED' | 'PENDING',
-    actorPersonIdentifier: string, note?: string,
+    uid: string,
+    articleId: string,
+    action: 'ACCEPTED' | 'REJECTED' | 'PENDING',
+    actorPersonIdentifier: string | undefined,
+    note?: string,
 ) {
     return fetch(reciterConfig.reciter.reciterExternalArticleFeedbackEndpoint, {
         method: 'PATCH',
@@ -89,6 +76,19 @@ export async function recordExternalArticleFeedback(
         .then(async (res) => ({ statusCode: res.status, statusText: await readBody(res) }))
         .catch((error) => {
             console.log('ReCiter external-article feedback PATCH is not reachable: ' + error)
+            return { statusCode: error.status || 500, statusText: error }
+        })
+}
+
+// DELETE (= revoke) an external article by articleId.
+export async function deleteExternalArticle(uid: string, articleId: string) {
+    return fetch(`${base()}?uid=${encodeURIComponent(uid)}&articleId=${encodeURIComponent(articleId)}`, {
+        method: 'DELETE',
+        headers: javaHeaders(),
+    })
+        .then(async (res) => ({ statusCode: res.status, statusText: await readBody(res) }))
+        .catch((error) => {
+            console.log('ReCiter external-article DELETE is not reachable: ' + error)
             return { statusCode: error.status || 500, statusText: error }
         })
 }

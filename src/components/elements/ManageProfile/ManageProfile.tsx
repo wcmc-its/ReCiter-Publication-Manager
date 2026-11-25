@@ -4,12 +4,13 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { reciterConfig } from "../../../../config/local";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import { allowedPermissions } from "../../../utils/constants";
 import Loader from "../Common/Loader";
+import AuthorIdsCard from "./AuthorIdsCard";
+import { sameCwid } from "../../../utils/canonicalCwid";
 
 const ManageProfle = () => {
     const dispatch = useDispatch()
@@ -26,18 +27,17 @@ const ManageProfle = () => {
     const [isSuperUserORCuratorAll, SetIsSuperUserORCuratorAll] = useState<boolean>(false);
     const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
     const [serverValue, setServerValue] = useState('');
+    const [savedOrcid, setSavedOrcid] = useState('');
+    // Set for an active scholar: Scholars owns the ORCID, so the field is read-only here.
+    const [scholars, setScholars] = useState<{ loaded: boolean, orcid: string | null, confirmed: boolean, changeUrl: string } | null>(null);
 
     useEffect(() => {
-        let userPermissions = typeof session?.data?.userRoles === "string" && session.data.userRoles !== ""
-            ? JSON.parse(session.data.userRoles)
-            : (typeof session?.data?.userRoles === "object" && session?.data?.userRoles !== null
-                ? session.data.userRoles
-                : []);
+        let userPermissions = JSON.parse(session.data.userRoles);
         let curatorSelfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self);
         let curatorAllfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All);
         let superUserRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser);
 
-        if (router.query.userId === session.data.username) {
+        if (sameCwid(router.query.userId, session.data.username)) {
             if (!curatorSelfRole) {
                 if (superUserRole || curatorAllfRole) {
                     SetIsSuperUserORCuratorAll(true)
@@ -74,22 +74,18 @@ const ManageProfle = () => {
             body: JSON.stringify(payload)
         }).then(response => {
             if (response.status === 200) {
-                toast.success("ORCID Saved Successfully", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                setErrorMessage('');
+                toast.success("ORCID Saved Successfully");
                 getManageProfileData(router.query.userId ? router.query.userId : "")
+            } else {
+                setErrorMessage(`Unable to save ORCID (HTTP ${response.status}). Please try again.`);
             }
         }).then(data => {
         }).catch(error => {
+            setErrorMessage("Unable to save ORCID. Please try again. (ERR-1010)");
             console.error("[ERR-1010]", error);
             reportError("ERR-1010", "Unable to save ORCID", error);
-            toast.error("Unable to save ORCID. Please try again. (ERR-1010)", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Unable to save ORCID. Please try again. (ERR-1010)");
         })
     }
 
@@ -106,22 +102,15 @@ const ManageProfle = () => {
         })
             .then(res => res.json())
             .then(res => {
-                toast.success("ORCID has been deleted successfully", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.success("ORCID has been deleted successfully");
                 setManualORCID("");
                 setSelectOrcid("");
+                setSavedOrcid("");
             })
             .catch(error => {
                 console.error("[ERR-1011]", error);
                 reportError("ERR-1011", "Unable to remove ORCID", error);
-                toast.error("Unable to remove ORCID. Please try again. (ERR-1011)", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.error("Unable to remove ORCID. Please try again. (ERR-1011)");
             });
     }
 
@@ -138,12 +127,10 @@ const ManageProfle = () => {
             },
         }).then(response => response.json())
             .then(data => {
+                setSavedOrcid(data?.savedOrcid || "");
+                setScholars(data?.scholars || null);
                 if (data.message === "User does not exist") {
-                    toast.error("User does not exist", {
-                        position: "top-right",
-                        autoClose: 2000,
-                        theme: 'colored'
-                    });
+                    toast.error("User does not exist");
                     setLoadProfileData(false)
                 } else if (data.message === "No data found") {
                     setLoadProfileData(false)
@@ -153,7 +140,7 @@ const ManageProfle = () => {
                     if(recentUpdatedOrcid)
                         setSelectOrcid(recentUpdatedOrcid?.recently_selected_orcid);
                     else
-                       setManualORCID(orcidData && orcidData.length > 0?orcidData[0].recently_selected_orcid:"");
+                       setManualORCID(data?.savedOrcid || "");
                     setProfileData(orcidData);
                     setLoadProfileData(false);
                 }
@@ -162,11 +149,7 @@ const ManageProfle = () => {
                 setLoadProfileData(false)
                 console.error("[ERR-1012]", error);
                 reportError("ERR-1012", "Unable to load profile data", error);
-                toast.error("Unable to load profile data. Please try again. (ERR-1012)", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                toast.error("Unable to load profile data. Please try again. (ERR-1012)");
             });
     }
 
@@ -174,9 +157,10 @@ const ManageProfle = () => {
         setClearRadioBtns(true);
         setSelectOrcid("");
         const value = e.target.value;
-        const numericValue = value.replace(/\D/g, '');
+        // ORCID's last character is a checksum that can be X.
+        const numericValue = value.toUpperCase().replace(/[^0-9X]/g, '');
         const formattedValue = formatInput(numericValue);
-        if (formattedValue.length === 19) {
+        if (/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(formattedValue)) {
             setErrorMessage('');
         } else {
             setErrorMessage('Please enter the value in the format ####-####-####-####');
@@ -214,33 +198,29 @@ const ManageProfle = () => {
             body: JSON.stringify(payload)
         }).then(response => {
             if (response.status === 200) {
-                toast.success("ORCID Saved Successfully", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                setErrorMessage('');
+                toast.success("ORCID Saved Successfully");
                 getManageProfileData(router.query.userId ? router.query.userId : "")
+            } else {
+                setErrorMessage(`Unable to save ORCID (HTTP ${response.status}). Please try again.`);
             }
         }).catch(error => {
+            setErrorMessage("Unable to save ORCID. Please try again. (ERR-1013)");
             console.error("[ERR-1013]", error);
             reportError("ERR-1013", "Unable to save ORCID", error);
-            toast.error("Unable to save ORCID. Please try again. (ERR-1013)", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Unable to save ORCID. Please try again. (ERR-1013)");
         });
     }
 
     const formatInput = (value) => {
         const formattedValue = value
-            .replace(/(\d{4})/g, '$1-')
+            .replace(/([\dX]{4})/g, '$1-')
             .slice(0, 19);
         return formattedValue;
     };
 
     /* Current saved ORCID (from selected radio or manual input that was saved) */
-    const currentOrcid = profileData.length > 0 ? profileData[0].recently_selected_orcid : '';
+    const currentOrcid = savedOrcid;
 
     return (
         <>
@@ -276,6 +256,32 @@ const ManageProfle = () => {
                         </div>
                     </div>
 
+                    {scholars ? (
+                    <div className={styles.section}>
+                        <div className={styles.manualCard}>
+                            <div className={styles.manualHead}>ORCID iD in Scholars</div>
+                            <div className={styles.manualBody}>
+                                {!scholars.loaded ? (
+                                    <div className={styles.errorText}>Unable to load the ORCID iD from ReCiter. Please try again.</div>
+                                ) : scholars.orcid ? (
+                                    <div className={styles.currentOrcidBanner}>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M20 6L9 17l-5-5" />
+                                        </svg>
+                                        Current ORCID: <strong><a href={`https://orcid.org/${scholars.orcid}`} target="_blank" rel="noreferrer">{scholars.orcid}</a></strong>
+                                        {!scholars.confirmed && <>&nbsp;(not confirmed in Scholars)</>}
+                                    </div>
+                                ) : (
+                                    <div>No ORCID iD on file.</div>
+                                )}
+                                <div className={styles.orcidFormatHint}>
+                                    This person has a Scholars profile, so their ORCID iD is managed there.
+                                    &nbsp;<a href={scholars.changeUrl} target="_blank" rel="noreferrer">Change in Scholars</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    ) : (<>
                     {/* ── Suggested ORCIDs ── */}
                     <div className={styles.section}>
                         <div className={styles.suggestionsCard}>
@@ -399,8 +405,10 @@ const ManageProfle = () => {
                             </div>
                         </div>
                     </div>
+                    </>)}
 
-                    <ToastContainerWrapper />
+                    {/* ── Author profiles (Scopus / OpenAlex author ids) ── */}
+                    <AuthorIdsCard uid={String(router.query.userId || session.data.username || '')} />
                 </>
             ) : (!isCuratorSelf || !isReporterAll) ? (
                 <div className={styles.noAccess}>

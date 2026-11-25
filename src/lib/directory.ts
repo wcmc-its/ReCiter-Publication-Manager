@@ -1,0 +1,945 @@
+// Live directory lookup for people ReCiter has never heard of — the "long shot" behind the
+// typed-cwid box on /authorships.
+//
+// WHY THIS EXISTS. The AAR producer builds its candidate list from reciterdb `identity`, which
+// is fed by reciter-inst-client's ED roster query — and that query is
+// `(&(objectClass=eduPerson)(weillCornellEduPersonTypeCode=academic))`
+// (ReCiter-Institutional-Client LdapIdentityDaoImpl.java:545). WCM STAFF ARE STRUCTURALLY
+// ABSENT, as are Cornell Ithaca people, who are in a different directory entirely. Those are
+// exactly the people a curator reaches for when the producer proposed nobody, and before this
+// the only way to name one was to already know their identifier, and the only outcome was a
+// local-only row that wrote nothing (assignGate.ts's `local_only`).
+//
+// Two independent LDAPS sources, both OPTIONAL: if a source's env vars are unset it is simply
+// absent and the caller degrades to the pre-existing behaviour. A directory that is down must
+// never turn an assign into a 500 — see safeSearch/safeLookup below.
+//
+//   WCM_ED_LDAP_URL / _BIND_DN / _BIND_PASSWORD          ldaps://ed.weill.cornell.edu:636
+//   CORNELL_LDAP_URL / _BIND_DN / _BIND_PASSWORD         ldaps://query.directory.cornell.edu:636
+//
+// None of these may be named NEXT_PUBLIC_* — that prefix ships the value to the browser, and
+// config/local.js:168 already does that deliberately for the backend api key. Bind credentials
+// are server-only.
+//
+// ponytail: two small clients in one file rather than a source abstraction with two
+// implementations. They share a shape, not a schema — different bases, different attribute
+// namespaces, different notions of a person type — and a common interface would be a lie that
+// costs more than the duplication. Ceiling: a third directory. Split then, not before.
+import { Client } from "ldapts";
+
+export const WCM_BASE = "ou=people,dc=weill,dc=cornell,dc=edu";
+export const CORNELL_BASE = "ou=People,o=Cornell University,c=us";
+// The system-of-record subtree. A SIBLING of ou=people, so the scope:"sub" search over WCM_BASE
+// can never reach it and its objectClasses are outside that search's (objectClass=eduPerson)
+// filter — it needs its own query. Verified against prod 2026-09-10: cn=reciter can read all six
+// children (faculty, employees, students, nyp affiliates, affiliates, selves), ou=employees
+// included. There is NO ou=cornell-ithaca here; Ithaca is a separate directory entirely.
+export const SOR_BASE = "ou=sors,dc=weill,dc=cornell,dc=edu";
+
+// Owner's precedence, 2026-09-10: the latest non-null value, preferring sources in this order.
+// `selves` is self-asserted and ranks last (it carried neither title nor department in any
+// record sampled). An unrecognised ou sorts after everything named here rather than being
+// dropped, so a new SOR child cannot silently vanish.
+const SOR_OU_RANK: Record<string, number> = {
+  "faculty": 0, "employees": 1, "students": 2, "nyp affiliates": 3, "affiliates": 4, "selves": 5,
+};
+
+// One person, from either directory, in the shape the assign path needs: enough to show a
+// curator who they are picking, and enough to MINT a full ReCiter identity for them.
+export type DirectoryPerson = {
+  /** The identifier a curator types and every downstream write keys on — a WCM cwid or a bare
+   *  Cornell netid. Both are bare alphanumerics, so both already pass the
+   *  /^[A-Za-z0-9]{1,32}$/ gate on the assign route; nothing about this feature widens it. */
+  id: string;
+  source: "wcm" | "cornell";
+  name: string;
+  givenName: string | null;
+  middleName: string | null;
+  familyName: string | null;
+  title: string | null;
+  /** First of `depts`, kept as its own field because the mint payload writes exactly one
+   *  primaryOrganizationalUnit and every existing caller reads this. */
+  dept: string | null;
+  /** ED department attributes are multi-valued and a person can genuinely hold several
+   *  (joint appointments). `dept` alone silently dropped all but the first. */
+  depts: string[];
+  /** Cornell only: a student's college, display only. Never a department: it must not rank a
+   *  hit against the byline or reach a minted identity. */
+  college?: string | null;
+  /** `weillCornellEduPrimaryOrg` — the organisation the person primarily belongs to, WCM ED's
+   *  own answer rather than one derived from which directory answered. This is NOT 1:1 with
+   *  `source`: ou=people carries NewYork-Presbyterian people too (gallric is NYP), so a WCM ED
+   *  hit is not evidence of a WCM appointment. Null on Cornell, which publishes no equivalent. */
+  primaryOrg: string | null;
+  /** When the directory record itself was created, `YYYY-MM-DD`, or null. Operational
+   *  attributes are only returned when named explicitly, and the two server families spell it
+   *  differently (`createTimestamp` per RFC 4512, `whenCreated` on Active Directory), so both
+   *  are requested and whichever comes back wins. Null is an ordinary answer — a directory may
+   *  also withhold operational attributes from this bind. */
+  created: string | null;
+  emails: string[];
+  /** Directory-native person types, in each directory's OWN vocabulary: WCM's ED codes
+   *  unprefixed (`affiliate-cornell`), Cornell's `cornell-`-prefixed (`cornell-faculty`).
+   *  Deliberately not source-prefixed — the readers downstream match `cornell-%` as a prefix,
+   *  which already separates the two namespaces, and a `wcm-` prefix would put a second
+   *  spelling of every WCM type into Identity. Never empty — ReCiter hides people with an
+   *  empty personTypes (see project memory: empty personTypes hides ~34k accepted articles). */
+  personTypes: string[];
+  /** Cornell only: `cornellEduCWID`, published for people who ALSO hold a WCM identity. This is
+   *  the duplicate-person bridge — 273 of 15,030 Ithaca people carry one, 57 of those cwids
+   *  already have a ReCiter identity, and Martin Wells (mtw1 / maw2065) is already split across
+   *  two identities in production because of it. Resolved at assign time in the controller. */
+  wcmCwid: string | null;
+  /** The Ithaca netid: WCM's `weillCornellEduNetID` (published for people who also hold one),
+   *  and for a Cornell record simply its id. The key mergeDirectoryPeople joins on (#1020). */
+  netid: string | null;
+  /** Set only by mergeDirectoryPeople: the OTHER directory's identifier for this same human.
+   *  Display only — assignment keeps targeting `id`. */
+  alsoId: string | null;
+  /** WCM only: this cwid has been RETIRED by ED (`weillCornellEduStatus: retired-cwid`) — the
+   *  person was re-recorded under a different cwid and this identifier is a dead end. 2,880 of
+   *  them exist in ED (2026-09-09 census), so this is a routine state, not an oddity.
+   *
+   *  It is emphatically NOT the same as "no longer employed": ED also publishes lifecycle
+   *  statuses like `faculty:expired` / `employee:expired` / `affiliate:expired`, and a person can
+   *  be fully expired on a cwid that is still their live one (ssy9009 is). Only `retired-cwid`
+   *  means "use a different identifier for this human", which is the one that must never be
+   *  assigned to. Everything else is history, and history is exactly what ReCiter attributes. */
+  retiredCwid: boolean;
+  /** The cwid that SUPERSEDED this one, when ED names it. Found by the reverse lookup
+   *  `(weillCornellEduCWIDRetired=<this id>)` — the pointer lives on the successor's record, not
+   *  on the retired one, so it costs one extra search and is resolved only for ids actually
+   *  marked `retiredCwid`. Null when nothing claims the succession (49 of the 2,880 retired
+   *  records had no claimant in that same census). */
+  supersededBy: string | null;
+  /** ED's lifecycle answer — any `weillCornellEduStatus` of the form `<role>:active` (so
+   *  `employee:active` + `affiliate:expired` is active; a lone `affiliate:expired` is not).
+   *  Null where the directory publishes no such thing (Cornell). Ranking only: an expired
+   *  affiliate is still assignable, they just should not sit above the live employee of the
+   *  same name (2026-09-15). */
+  active: boolean | null;
+  /** Set by searchDirectoryPeople: this row came back from the exact-equality pass. */
+  exactName?: boolean;
+};
+
+// RFC 4515. Applied to every value that reaches a filter, so a literal `*` a curator types is a
+// literal `*` and not a wildcard.
+export function escapeLdapFilter(s: string): string {
+  return s.replace(/[\\*()\0]/g, (c) =>
+    ({ "\\": "\\5c", "*": "\\2a", "(": "\\28", ")": "\\29", "\0": "\\00" }[c] as string));
+}
+
+function first(v: unknown): string | null {
+  if (Array.isArray(v)) { const f = v.find((x) => typeof x === "string"); return (f as string) ?? null; }
+  return typeof v === "string" ? v : null;
+}
+function all(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string");
+  return typeof v === "string" ? [v] : [];
+}
+const clean = (xs: (string | null | undefined)[]) =>
+  [...new Set(xs.map((x) => String(x || "").trim()).filter(Boolean))];
+
+// LDAP generalizedTime -> YYYY-MM-DD. Both spellings this file requests use it
+// ("20240115123456.0Z", "20240115123456Z"), so the leading 8 digits are the whole job; anything
+// that does not start with a plausible 8-digit date is discarded rather than half-parsed. AD's
+// 18-digit FILETIME integers appear on other attributes, never on whenCreated, and are rejected
+// here by the year bound rather than silently rendering as a year in the 1300s.
+export function ldapDate(v: unknown): string | null {
+  const s = first(v);
+  const m = s && /^(\d{4})(\d{2})(\d{2})/.exec(s.trim());
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  const year = Number(y);
+  if (year < 1970 || year > 2100 || +mo < 1 || +mo > 12 || +d < 1 || +d > 31) return null;
+  return `${y}-${mo}-${d}`;
+}
+
+// The two operational spellings, requested on every search. A server that does not know one
+// simply omits it from the result; naming both costs nothing and avoids a per-directory branch.
+// Probed against prod 2026-09-09: BOTH directories answer `createTimestamp` (ED returned
+// "20150505214246Z", Cornell "20010804100020Z"); neither needed `whenCreated`, which is kept for
+// an Active Directory source.
+const CREATED_ATTRS = ["createTimestamp", "whenCreated"] as const;
+
+/** Read an attribute by its BASE name, ignoring case and any LDAP attribute options.
+ *
+ *  Two things make a direct `e.someAttr` read unreliable here, and both fail SILENTLY — an empty
+ *  column forever, never an error:
+ *
+ *  1. Case. LDAP attribute names are case-insensitive by spec and these directories do not agree
+ *     on how they echo them; `cornelleduprefgivenname` and `cornellEduCWID` sit side by side in
+ *     CORNELL_ATTRS because that is the case each actually came back in.
+ *  2. Options. A returned key may carry `;option` suffixes (RFC 4512) — ED really does return
+ *     `weillCornellEduPrimaryOrganization;affiliate` alongside the bare form, observed on the
+ *     2026-09-09 prod probe.
+ */
+function attrValues(e: Record<string, unknown>, base: string): string[] {
+  const want = base.toLowerCase();
+  const out: string[] = [];
+  for (const k of Object.keys(e)) {
+    if (k.toLowerCase().split(";")[0] === want) out.push(...all(e[k]));
+  }
+  return out;
+}
+const attrFirst = (e: Record<string, unknown>, base: string) => attrValues(e, base)[0] ?? null;
+
+const createdOf = (e: Record<string, unknown>) => {
+  for (const a of CREATED_ATTRS) {
+    const d = ldapDate(attrValues(e, a));
+    if (d) return d;
+  }
+  return null;
+};
+
+// ---------------------------------------------------------------- WCM Enterprise Directory
+
+const WCM_ATTRS = [
+  "uid", "weillCornellEduCWID", "weillCornellEduNetID", "displayName", "givenName",
+  "weillCornellEduMiddleName", "sn", "mail", "weillCornellEduDepartment",
+  "weillCornellEduPersonTypeCode", "title", "weillCornellEduStatus",
+  // BOTH org spellings. gallric carries `weillCornellEduPrimaryOrg` bare and
+  // `weillCornellEduPrimaryOrganization;affiliate` (2026-09-09 prod probe), and the
+  // Institutional Client reads the LONGER one — so asking for only one of them would disagree
+  // with the nightly job about who an author works for.
+  "weillCornellEduPrimaryOrg", "weillCornellEduPrimaryOrganization",
+  "weillCornellEduPrimaryDepartment",
+  // Lifecycle. Multi-valued and mixed in kind: `retired-cwid` says THIS IDENTIFIER is dead and
+  // the human lives under another cwid, while `faculty:expired` / `employee:expired` /
+  // `affiliate:expired` say only that an appointment ended. shy2013 carries both kinds at once
+  // (2026-09-09 probe: `affiliate:expired` AND `retired-cwid`, superseded by ssy9009 — which is
+  // itself faculty:expired, employee:expired and affiliate:expired, and is still the live cwid).
+  // Only the first kind may block an assignment; see DirectoryPerson.retiredCwid.
+  "weillCornellEduStatus",
+  ...CREATED_ATTRS,
+] as const;
+
+// ED marks the retired record and points at it FROM the successor, so the two halves live on
+// different entries: `weillCornellEduStatus: retired-cwid` on the dead one,
+// `weillCornellEduCWIDRetired: <dead cwid>` on the live one.
+const RETIRED_CWID_STATUS = "retired-cwid";
+const isRetiredCwid = (e: Record<string, unknown>): boolean =>
+  clean(all(e.weillCornellEduStatus)).some((s) => s.toLowerCase() === RETIRED_CWID_STATUS);
+
+export function projectWcmPerson(e: Record<string, unknown>): DirectoryPerson | null {
+  const id = first(e.weillCornellEduCWID) ?? first(e.uid);
+  if (!id) return null;
+  const given = first(e.givenName), sn = first(e.sn);
+  // NO PREFIX. `weillCornellEduPersonTypeCode` already carries ReCiter's own person-type
+  // vocabulary verbatim -- "academic-faculty-weillfulltime", "affiliate-cornell",
+  // "employee-exempt" -- confirmed 2026-09-08 against both ED (17 distinct values over 400
+  // people, none containing whitespace) and a live Identity record: paa2013 holds exactly
+  // these strings unprefixed. Prefixing them invents a parallel vocabulary that no cohort
+  // filter matches, and `affiliate-cornell` (live on 483 people) is one of the strings it
+  // would break.
+  const types = clean(all(e.weillCornellEduPersonTypeCode)).map((t) => t.toLowerCase());
+  // ED publishes a primary department SEPARATELY from the department attribute (both present on
+  // gallric, 2026-09-09 probe), so read both and let clean() collapse them when they agree. The
+  // primary leads, because it is the one the mint writes as primaryOrganizationalUnit.
+  // `weillCornellEduDepartment` came back single-valued on that probe; all() covers the
+  // multi-valued case without asserting it happens.
+  // ED appends a staff member's DIVISION to displayName ("Jessica Kim - Biostatistics and
+  // Epidemiology", jek4015, 2026-09-16 probe). That is department knowledge wearing a name's
+  // clothes: it goes into `depts`, and the name is the part before the dash. Hyphenated names
+  // are unaffected — they carry no spaces around the hyphen.
+  const [display, ...divisions] = (first(e.displayName) || "").split(" - ");
+  const depts = clean([
+    ...attrValues(e, "weillCornellEduPrimaryDepartment"),
+    ...attrValues(e, "weillCornellEduDepartment"),
+    ...divisions,
+  ]);
+  return {
+    id, source: "wcm",
+    name: display || clean([given, sn]).join(" ") || id,
+    givenName: given, middleName: first(e.weillCornellEduMiddleName), familyName: sn,
+    title: first(e.title),
+    dept: depts[0] ?? null,
+    depts,
+    // Prefer a token this app can actually resolve to an institution. gallric carries the same
+    // "NYP" in both attributes, but if they ever disagree, the one we can map is the useful
+    // answer and the bare attribute is only the tie-break.
+    primaryOrg: [
+      attrFirst(e, "weillCornellEduPrimaryOrg"),
+      attrFirst(e, "weillCornellEduPrimaryOrganization"),
+    ].find((o) => institutionForPrimaryOrg(o))
+      ?? attrFirst(e, "weillCornellEduPrimaryOrg")
+      ?? attrFirst(e, "weillCornellEduPrimaryOrganization"),
+    created: createdOf(e),
+    emails: clean(all(e.mail)).map((m) => m.toLowerCase()),
+    // ponytail: `wcm-directory` is deliberately NOT a real ReCiter person type, and is the one
+    // invented string left in this file. 45 of the 61 WCM people minted on 2026-09-08 landed
+    // here, because ED genuinely returns no weillCornellEduPersonTypeCode for them (verified
+    // per-uid: skt2001 and evakiani have an ED entry and zero codes). An empty personTypes is
+    // the worse failure -- it hides accepted articles from reporting, ~34k of them across
+    // 1,521 uids on the last measurement -- so a non-empty placeholder wins. It is prefixed so
+    // it can never be mistaken for a real type. Replace it once someone decides what an
+    // ED-typeless person should actually be.
+    personTypes: types.length ? types : ["wcm-directory"],
+    wcmCwid: null,
+    netid: attrFirst(e, "weillCornellEduNetID"),
+    alsoId: null,
+    retiredCwid: isRetiredCwid(e),
+    // Filled in by resolveSupersededBy() over the whole result set — the pointer is on another
+    // entry, so it cannot be projected from this one.
+    supersededBy: null,
+    active: clean(all(e.weillCornellEduStatus)).some((st) => /:active$/i.test(st)),
+  };
+}
+
+/** Fill in `supersededBy` for every retired cwid in `people`, with ONE extra search for the
+ *  whole set (`(|(weillCornellEduCWIDRetired=a)(weillCornellEduCWIDRetired=b)…)`) rather than
+ *  one per person. Retired hits are rare, so the common case does no search at all.
+ *
+ *  Best-effort by design: a curator being told "retired" is the part that must not fail, and
+ *  naming the replacement is the bonus. A directory error here leaves supersededBy null and the
+ *  row still correctly blocked, which is why this swallows rather than rejects. */
+export async function resolveSupersededBy(people: DirectoryPerson[]): Promise<void> {
+  const retired = people.filter((p) => p.source === "wcm" && p.retiredCwid);
+  if (!retired.length) return;
+  const wcm = wcmEnv();
+  if (!wcm) return;
+  const filter = `(|${retired.map((p) => `(weillCornellEduCWIDRetired=${escapeLdapFilter(p.id)})`).join("")})`;
+  const entries = await safe("wcm succession lookup", () => search(
+    wcm, WCM_BASE, filter,
+    ["uid", "weillCornellEduCWID", "weillCornellEduCWIDRetired"] as const,
+    retired.length,
+  ), [] as Record<string, unknown>[]);   // see doc comment: the block stands without the replacement
+  const successorOf = new Map<string, string>();
+  for (const e of entries) {
+    const successor = first(e.weillCornellEduCWID) ?? first(e.uid);
+    if (!successor) continue;
+    for (const old of clean(all(e.weillCornellEduCWIDRetired))) {
+      successorOf.set(old.toLowerCase(), successor);
+    }
+  }
+  for (const p of retired) p.supersededBy = successorOf.get(p.id.toLowerCase()) ?? null;
+}
+
+/** Title and department for WCM people whose ou=people entry carries neither.
+ *
+ *  Those three fields — title, weillCornellEduDepartment, weillCornellEduPersonTypeCode — are
+ *  all-or-nothing per entry (prod sample 2026-09-10: alc2033/dcw2001/evw4005 have all three,
+ *  tyc3001/jab4001/jab9038 have none). A missing person type is what makes projectWcmPerson
+ *  fall back to the `wcm-directory` pseudo type, so that tag is an exact marker for the same
+ *  population — but this gates on the fields themselves, which is what actually renders.
+ *
+ *  Where the data really lives, confirmed by live probe:
+ *    weillCornellEduSORRecord      weillCornellEduPrimaryTitle / weillCornellEduPrimaryDepartment
+ *    weillCornellEduSORRoleRecord  title / weillCornellEduDepartment, plus start & end dates
+ *  Nothing in this repo could have told us `title` sits on the ROLE record: the Institutional
+ *  Client reads weillCornellEduTitleCode there and a title string only from ou=people, so the
+ *  codebase points the wrong way. Owner-confirmed.
+ *
+ *  Role records are per-appointment-span, so several can match one CWID and "the" title is not
+ *  the first hit — picking arbitrarily downgrades real titles (xiz4005 is "Programmer Analyst II"
+ *  in ou=people and "Volunteer" on one SOR record). Ranked by source then recency instead.
+ *
+ *  Best-effort like resolveSupersededBy: one batched search for the whole page, only when the
+ *  page actually holds a bare entry, and a blank column on failure is exactly the status quo. */
+export async function fillFromSor(people: DirectoryPerson[]): Promise<void> {
+  const bare = people.filter((p) => p.source === "wcm" && (!p.title || !p.depts.length));
+  if (!bare.length) return;
+  const wcm = wcmEnv();
+  if (!wcm) return;
+  const filter = `(&(|(objectClass=weillCornellEduSORRecord)(objectClass=weillCornellEduSORRoleRecord))`
+    + `(|${bare.map((p) => `(weillCornellEduCWID=${escapeLdapFilter(p.id)})`).join("")}))`;
+  const entries = await safe("wcm sor lookup", () => search(
+    wcm, SOR_BASE, filter,
+    ["weillCornellEduCWID", "ou", "title", "weillCornellEduPrimaryTitle",
+     "weillCornellEduDepartment", "weillCornellEduPrimaryDepartment",
+     "weillCornellEduStartDate", "weillCornellEduEndDate"] as const,
+    bare.length * 12,   // person record + one role record per appointment span, across six OUs
+  ), [] as Record<string, unknown>[]);
+
+  const byCwid = new Map<string, Record<string, unknown>[]>();
+  for (const e of entries) {
+    const id = first(e.weillCornellEduCWID)?.toLowerCase();
+    if (!id) continue;
+    byCwid.set(id, [...(byCwid.get(id) ?? []), e]);
+  }
+  // Dates are ED's generalized-time (20180529040000Z), which sorts chronologically as a string.
+  const rank = (e: Record<string, unknown>) => SOR_OU_RANK[(attrFirst(e, "ou") ?? "").toLowerCase()] ?? 99;
+  const when = (e: Record<string, unknown>) =>
+    attrFirst(e, "weillCornellEduStartDate") ?? attrFirst(e, "weillCornellEduEndDate") ?? "";
+
+  for (const p of bare) {
+    const ranked = (byCwid.get(p.id.toLowerCase()) ?? []).sort(
+      (a, b) => rank(a) - rank(b) || when(b).localeCompare(when(a)),
+    );
+    if (!p.title) {
+      p.title = ranked
+        .map((e) => attrFirst(e, "title") ?? attrFirst(e, "weillCornellEduPrimaryTitle"))
+        .find(Boolean) ?? null;
+    }
+    if (!p.depts.length) {
+      p.depts = clean(ranked.flatMap((e) => [
+        ...attrValues(e, "weillCornellEduPrimaryDepartment"),
+        ...attrValues(e, "weillCornellEduDepartment"),
+      ])).slice(0, 1);
+      p.dept = p.depts[0] ?? null;
+    }
+  }
+}
+
+/** Every department ED has EVER recorded for these people, unioned into `depts`. Distinct from
+ *  fillFromSor, which fills a BLANK department: here the person already has one, and it is the
+ *  wrong one for matching — ED files research staff under the PI's lab ("Paul J Christos Lab")
+ *  while their older SOR appointment records name the department itself ("Population Health
+ *  Sciences", jek4015's 2022 affiliate record, 2026-09-16 probe). `dept` (the primary, what a
+ *  mint writes) is untouched; only the list a byline is compared against grows.
+ *
+ *  Chunked so no single answer can hit ED's silent 500-entry truncation (≈3 SOR entries per
+ *  person: 1,305 over 463 people, 113 ms for all 8 chunks in parallel, 2026-09-16 probe).
+ *  ponytail: capped at 1,000 people (20 chunks) — "j kim" alone is 463, so a bare common
+ *  surname is the only thing that meets this, and its tail keeps the ou=people department
+ *  only. Best-effort like the other SOR reads. */
+export async function addSorDepts(people: DirectoryPerson[]): Promise<void> {
+  const wcm = wcmEnv();
+  if (!wcm) return;
+  const ids = people.filter((p) => p.source === "wcm").map((p) => p.id).slice(0, 1000);
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50));
+  const entries = (await Promise.all(chunks.map((chunk) => safe("wcm sor dept history", () => search(
+    wcm, SOR_BASE,
+    `(&(|(objectClass=weillCornellEduSORRecord)(objectClass=weillCornellEduSORRoleRecord))`
+      + `(|${chunk.map((id) => `(weillCornellEduCWID=${escapeLdapFilter(id)})`).join("")}))`,
+    ["weillCornellEduCWID", "weillCornellEduDepartment", "weillCornellEduPrimaryDepartment"] as const,
+    500,
+  ), [] as Record<string, unknown>[])))).flat();
+  const byCwid = new Map<string, string[]>();
+  for (const e of entries) {
+    const id = first(e.weillCornellEduCWID)?.toLowerCase();
+    if (!id) continue;
+    byCwid.set(id, [...(byCwid.get(id) ?? []),
+      ...attrValues(e, "weillCornellEduPrimaryDepartment"), ...attrValues(e, "weillCornellEduDepartment")]);
+  }
+  for (const p of people) {
+    const extra = byCwid.get(p.id.toLowerCase());
+    if (extra?.length) p.depts = clean([...p.depts, ...extra]);
+  }
+}
+
+// ------------------------------------------------------------------- Cornell Ithaca directory
+
+const CORNELL_ATTRS = [
+  "uid", "displayName", "givenName", "sn", "cornelleduprefgivenname", "cornelleduprefsn",
+  "edupersonnickname", "cornelleduwrkngtitle1", "cornelleduunivtitle1", "cornelledudeptname1",
+  "cornellEduOrganizationalUnitName", "mail", "cornelledupublishedemail",
+  "cornelleduprimaryaffiliation", "cornelleduaffiliation", "cornelledutype", "cornellEduCWID",
+  "cornelledudeptname2", "cornelleduacadcollege", ...CREATED_ATTRS,
+] as const;
+
+// The canonical Cornell person-type vocabulary, and the only place it is spelled in this repo.
+// It must stay identical to sync_cornell_ithaca_identities.AFFILIATION_VALUES, because both
+// write `personTypes` on the same DynamoDB Identity records and ReCiterDB's
+// identity_index.CORNELL_PERSON_TYPES reads whichever got there first. Two spellings of one
+// concept means the label silently degrades to the "Cornell Ithaca" floor.
+//
+// ORDER IS LOAD-BEARING — longest first, and each hit is cut out of the string before the next
+// is tried, so "retired faculty" cannot also be read as "faculty" and "former postdoc" cannot
+// also be read as... nothing else, but the same rule protects both. This mirrors the Python
+// scanner exactly; the Cornell attribute is properly multi-valued here rather than the
+// undelimited xlsx blob the sync has to cope with, but the vocabulary must still match.
+const CORNELL_AFFILIATION_VALUES = [
+  "retired faculty", "former postdoc", "email list", "temporary", "affiliate",
+  "exception", "emeritus", "academic", "student", "retiree", "faculty",
+  "alumni", "staff",
+] as const;
+
+// A directory value that matches nothing known still has to become a well-formed token: raw
+// values carry spaces and slashes ("exception - w/sponsor"), and `cornell-exception - w/sponsor`
+// is not something any consumer can match on. Runs of non-alphanumerics collapse to one hyphen.
+const slugType = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+export function cornellPersonTypes(raw: string[]): string[] {
+  const out = new Set<string>();
+  for (const value of raw) {
+    let s = value.toLowerCase();
+    let matched = false;
+    for (const known of CORNELL_AFFILIATION_VALUES) {
+      if (s.includes(known)) {
+        s = s.split(known).join("|");          // cut it out, as the Python scanner does
+        out.add(`cornell-${known.replace(/ /g, "-")}`);
+        matched = true;
+      }
+    }
+    if (!matched) {
+      const slug = slugType(value);
+      if (slug) out.add(`cornell-${slug}`);
+    }
+  }
+  return [...out].sort();
+}
+
+// A student's record has no department, only this code. GR is the one code confirmed by hand
+// (2026-11-24); any other is shown as the code itself rather than guessed at.
+const cornellCollege = (code: string | null | undefined) =>
+  !code ? null : code.toUpperCase() === "GR" ? "Graduate School" : `College ${code}`;
+
+export function projectCornellPerson(e: Record<string, unknown>): DirectoryPerson | null {
+  const id = first(e.uid);
+  if (!id) return null;
+  // Preferred name leads the legal one: it is the name that appears on a byline. `marty` for
+  // Martin Wells is real matching signal, and it is the only name form the Oct-2025 xlsx the
+  // Ithaca onboarding plan relies on does not carry at all.
+  const given = first(e.cornelleduprefgivenname) || first(e.givenName);
+  const sn = first(e.cornelleduprefsn) || first(e.sn);
+  const types = cornellPersonTypes(clean([
+    ...all(e.cornelleduaffiliation), first(e.cornelleduprimaryaffiliation), first(e.cornelledutype),
+  ]));
+  // Ithaca numbers its department slots rather than multi-valuing one attribute, so a joint
+  // appointment is deptname1 + deptname2; the org-unit name is the fallback when neither is set.
+  const depts = clean([
+    ...attrValues(e, "cornelledudeptname1"), ...attrValues(e, "cornelledudeptname2"),
+    ...attrValues(e, "cornellEduOrganizationalUnitName"),
+  ]);
+  return {
+    id, source: "cornell",
+    name: first(e.displayName) || clean([given, sn]).join(" ") || id,
+    givenName: given, middleName: null, familyName: sn,
+    title: first(e.cornelleduwrkngtitle1) || first(e.cornelleduunivtitle1),
+    dept: depts[0] ?? null,
+    depts,
+    college: cornellCollege(first(e.cornelleduacadcollege)),
+    // Cornell publishes no primary-org equivalent; the campus marker in personTypes is the
+    // nearest thing and is already carried there.
+    primaryOrg: null,
+    created: createdOf(e),
+    emails: clean([first(e.cornelledupublishedemail), ...all(e.mail)]).map((m) => m.toLowerCase()),
+    // `cornell-ithaca` is always present as the campus marker, and is what a future
+    // /authorships campus filter derives from without needing a new authorship_review column.
+    personTypes: ["cornell-ithaca", ...types],
+    wcmCwid: first(e.cornellEduCWID),
+    netid: id,
+    alsoId: null,
+    // Ithaca publishes no cwid-succession concept — `cornelleduprimaryaffiliation: alumni` is a
+    // former ROLE, not a dead identifier, and those are deliberately still assignable (see
+    // buildNameFilter's "no alumni exclusion" note). So never blocked from here.
+    retiredCwid: false,
+    supersededBy: null,
+    active: null,
+  };
+}
+
+// ---------------------------------------------------------------------------------- transport
+
+type Src = { url: string; bindDn: string; password: string };
+const wcmEnv = (): Src | null => {
+  const url = process.env.WCM_ED_LDAP_URL, bindDn = process.env.WCM_ED_LDAP_BIND_DN,
+    password = process.env.WCM_ED_LDAP_BIND_PASSWORD;
+  return url && bindDn && password ? { url, bindDn, password } : null;
+};
+const cornellEnv = (): Src | null => {
+  const url = process.env.CORNELL_LDAP_URL, bindDn = process.env.CORNELL_LDAP_BIND_DN,
+    password = process.env.CORNELL_LDAP_BIND_PASSWORD;
+  return url && bindDn && password ? { url, bindDn, password } : null;
+};
+
+async function search(
+  src: Src, base: string, filter: string, attributes: readonly string[], limit: number,
+): Promise<Record<string, unknown>[]> {
+  const client = new Client({ url: src.url, timeout: 10_000, connectTimeout: 5_000 });
+  try {
+    await client.bind(src.bindDn, src.password);
+    const { searchEntries } = await client.search(base, {
+      scope: "sub", filter, attributes: [...attributes], sizeLimit: limit,
+    });
+    return searchEntries as unknown as Record<string, unknown>[];
+  } finally {
+    try { await client.unbind(); } catch { /* non-fatal */ }
+  }
+}
+
+// Same bind, but pages through the WHOLE result set instead of stopping at the server's cap.
+// ED returns 500 entries per page and simply truncates a plain search at that boundary with no
+// error, so the retired-cwid census (2,880 entries) read through search() above would come back
+// silently 83% short — and a short block-list under-blocks, which is the failure that looks like
+// it works. Only the census needs this; every other call here is a lookup capped well under 500.
+async function searchPaged(
+  src: Src, base: string, filter: string, attributes: readonly string[],
+): Promise<Record<string, unknown>[]> {
+  const client = new Client({ url: src.url, timeout: 30_000, connectTimeout: 5_000 });
+  try {
+    await client.bind(src.bindDn, src.password);
+    const { searchEntries } = await client.search(base, {
+      scope: "sub", filter, attributes: [...attributes], paged: { pageSize: 500 },
+    });
+    return searchEntries as unknown as Record<string, unknown>[];
+  } finally {
+    try { await client.unbind(); } catch { /* non-fatal */ }
+  }
+}
+
+// Every directory call goes through this. A directory being slow, unreachable, or refusing the
+// bind must degrade the feature to "we couldn't find them", never fail the request that asked —
+// the opposite stance from reciterIdentitySet(), which fails loudly on purpose because a wrong
+// answer there causes an orphaned gold-standard write. A wrong answer here only costs a curator
+// the enrichment they would have got.
+async function safe<T>(what: string, fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch (e) { console.log(`[directory] ${what} failed (non-fatal):`, e); return fallback; }
+}
+
+// ------------------------------------------------------------------------------- public API
+
+/** Exact-identifier lookup. WCM ED is asked first: a bare alphanumeric is far more likely to be
+ *  a cwid than an Ithaca netid, and a WCM hit is the one that can carry a real publication
+ *  record today. */
+export async function lookupDirectoryPerson(id: string): Promise<DirectoryPerson | null> {
+  if (!/^[A-Za-z0-9]{1,32}$/.test(id)) return null;
+  const esc = escapeLdapFilter(id);
+  const wcm = wcmEnv(), cornell = cornellEnv();
+  if (wcm) {
+    const hits = await safe("wcm lookup", () => search(
+      wcm, WCM_BASE, `(&(objectClass=eduPerson)(|(uid=${esc})(weillCornellEduCWID=${esc})))`,
+      WCM_ATTRS, 1), [] as Record<string, unknown>[]);
+    const p = hits.length ? projectWcmPerson(hits[0]) : null;
+    if (p) { await resolveSupersededBy([p]); await fillFromSor([p]); return p; }
+  }
+  if (cornell) {
+    const hits = await safe("cornell lookup", () => search(
+      cornell, CORNELL_BASE, `(uid=${esc})`, CORNELL_ATTRS, 1), [] as Record<string, unknown>[]);
+    const p = hits.length ? projectCornellPerson(hits[0]) : null;
+    if (p) return p;
+  }
+  return null;
+}
+
+// Tokens are AND-ed, each matched as a PREFIX (`tok*`) of every name attribute. With `wordStart`
+// each token ALSO matches at the start of any LATER word of a value (`* tok*`), which is what
+// finds a multi-word surname from its second half: mal4002 is sn "Lu Wang", so "marcos wang"
+// found nothing prefix-only (#1019). Only the WCM call site asks for it. Cornell stays
+// prefix-only — it is a lookup interface, not a bulk one (the "hard 200-entry cap" once cited
+// here was disproven 2026-09-07), and the substring form could not be tried against it (no bind
+// available on 2026-09-12); a search it rejected would be swallowed by safe() and silently drop
+// every Cornell result, which is worse than the miss.
+// `exact` drops the wildcards: each token must EQUAL a name attribute. It exists because the
+// prefix search is size-limited (sizeLimit = the caller's `limit`, 8 by default) and ED returns
+// whichever entries it reaches first — "alexandra li" came back as Livanos, Lieberman, Linder,
+// Licona, Litt, Lin… and never the one person actually named Li (all4034, 2026-09-15). Only her
+// cwid found her. The exact pass is the same shape with `=li` for `=li*`, run alongside, and its
+// hits lead the merged list.
+export function buildNameFilter(q: string, objectClause: string, extra: string[], wordStart = false, exact = false): string {
+  const tokens = q.trim().split(/\s+/).filter(Boolean).map(escapeLdapFilter);
+  const per = (t: string) => `(|${["givenName", "sn", "displayName", ...extra]
+    .map((a) => exact ? `(${a}=${t})` : `(${a}=${t}*)${wordStart ? `(${a}=* ${t}*)` : ""}`).join("")})`;
+  return `(&${objectClause}${tokens.map(per).join("")})`;
+}
+
+/** #1020: one human who is in BOTH directories came back as two rows. ED publishes the Ithaca
+ *  netid on its own record (chs4046 carries weillCornellEduNetID cjs423, and cjs423 is the
+ *  Cornell directory's uid), so a WCM hit whose netid is a Cornell hit's id is the same person.
+ *  The Cornell record leads when ED itself says the person's primary org is Cornell; otherwise
+ *  the WCM one does. The lead names the other identifier as `alsoId`; the other row is dropped.
+ *  Rows with no netid or no counterpart pass through untouched. Pure — asserted by
+ *  scripts/check-directory.mjs. */
+export function mergeDirectoryPeople(people: DirectoryPerson[]): DirectoryPerson[] {
+  const cornell = new Map(people.filter((p) => p.source === "cornell").map((p) => [p.id.toLowerCase(), p]));
+  const lead = new Map<DirectoryPerson, string>();   // lead row -> the other record's id
+  const drop = new Set<DirectoryPerson>();
+  for (const w of people) {
+    const c = w.source === "wcm" && w.netid ? cornell.get(w.netid.toLowerCase()) : undefined;
+    // A retired cwid keeps its own row: its "use <successor>" guidance is the useful part.
+    if (!c || w.retiredCwid) continue;
+    const [l, o] = institutionForPrimaryOrg(w.primaryOrg) === PRIMARY_ORG_INSTITUTION.Cornell ? [c, w] : [w, c];
+    lead.set(l, o.id); drop.add(o);
+  }
+  // A Cornell lead carries the cwid as `wcmCwid` so the existing duplicate-person bridge routes
+  // the write to the cwid whenever that cwid already holds a ReCiter identity.
+  return people.filter((p) => !drop.has(p)).map((p) => (lead.has(p)
+    ? { ...p, alsoId: lead.get(p)!, wcmCwid: p.source === "cornell" ? (p.wcmCwid ?? lead.get(p)!) : p.wcmCwid }
+    : p));
+}
+
+/** Name search across both directories. Deliberately NO alumni/affiliation exclusion: Scholars'
+ *  Cornell client centralizes `(!(cornelleduprimaryaffiliation=alumni))`, which is right for a
+ *  public profile system and wrong here — a 2021 paper still needs attributing to whoever wrote
+ *  it, and one of the 67 people already sitting in the local-only backlog (mh2482) is alumni. */
+/** ponytail: the near-miss surname (byline "Subramanyan", ED "Subramanyam"; 8 open rows queue-wide,
+ *  ReCiterDB #228) is found the way a curator finds it by hand — by typing less. Each token cut to
+ *  its first 5 characters, or null when that changes nothing. */
+export function nearMissQuery(term: string): string | null {
+  const cut = term.trim().split(/\s+/).map((t) => t.slice(0, 5)).join(" ");
+  return cut === term.trim() ? null : cut;
+}
+
+/** Does one of this person's directory departments name the same unit the byline's affiliation
+ *  does? "Division of Pulmonary and Critical Care Medicine, Weill Cornell Medicine" vs ED
+ *  "Pulmonary Medicine and Critical Care" — same words, different order, so this is token
+ *  overlap, not substring. The institution's own name is cut out FIRST so "Weill Cornell
+ *  Medicine" cannot make every *Medicine department match every WCM paper, and after that
+ *  "Department of Medicine" still meets a dept named "Medicine" on its own word. Short and
+ *  structural words never count. Pure — asserted by scripts/check-directory.mjs.
+ *  ponytail: bag-of-words, no synonyms ("Ob/Gyn" ≠ "Obstetrics and Gynecology"); ceiling is a
+ *  curated alias table when curators report a specific miss. */
+const AFFIL_INSTITUTION_RE = /weill cornell( medicine| medical college)?([- ]+(in )?qatar)?|new ?york[- ]presbyterian|cornell university|memorial sloan[- ]kettering|(the )?rockefeller university/g;
+// Belt to the regex's braces: bylines spell the institution every way ("Weill Cornell", "Weill
+// Cornell Med"), and ED has residents whose DEPARTMENT is literally "Weill Cornell Medicine".
+const AFFIL_STOP = new Set(["department", "division", "section", "center", "centre", "institute",
+  "hospital", "university", "college", "school", "program", "york", "newyork", "presbyterian",
+  "weill", "cornell", "usa"]);
+export const affilTokens = (s: string) => new Set(
+  s.toLowerCase().replace(AFFIL_INSTITUTION_RE, " ").split(/[^a-z]+/)
+    .filter((w) => w.length >= 4 && !AFFIL_STOP.has(w)));
+export function affiliationDeptMatch(depts: string[], affil: string | null | undefined): boolean {
+  if (!affil || !depts.length) return false;
+  const have = affilTokens(affil);
+  return depts.some((d) => [...affilTokens(d)].some((w) => have.has(w)));
+}
+
+/** The routine (auto) lookup's Cornell rule: consult the Ithaca directory only when WCM gave no
+ *  strong hit -- nobody in the byline's department, nobody with the exact name -- AND the
+ *  affiliation itself says "Cornell University". Pure so scripts/check-directory-fallback.mjs
+ *  can pin it. */
+export const cornellFallback = (found: { depts: string[]; exactName?: boolean }[], affil: string): boolean =>
+  !found.some((p) => affiliationDeptMatch(p.depts, affil) || !!p.exactName) && /cornell\s+university/i.test(affil);
+
+/** Which institution(s) the byline names, clause by clause (`;`-separated). Owner rule
+ *  2026-11-23: the lookup prefers people from the institution in the byline. Without it a
+ *  Vet-school byline ("Population MEDICINE ...") put every WCM "Medicine" homonym above the
+ *  Ithaca postdoc who wrote it. "Weill Institute for Cell and Molecular Biology" is an Ithaca
+ *  unit, hence `weill cornell` / `weill medical college` and not bare `weill`. Pure — asserted
+ *  by scripts/check-directory-fallback.mjs. */
+export function bylineCampuses(affil: string | null | undefined): Set<"wcm" | "cornell"> {
+  const out = new Set<"wcm" | "cornell">();
+  for (const clause of String(affil || "").toLowerCase().split(";")) {
+    if (/weill\s+cornell|weill\s+medical\s+college|new\s*york[- ]presbyterian/.test(clause)) out.add("wcm");
+    else if (/cornell\s+university|ithaca|cornell\s+tech/.test(clause)) out.add("cornell");
+  }
+  return out;
+}
+
+/** `sources` narrows the search to one directory; both by default. The routine (auto) lookup
+ *  on a weak /authorships row asks WCM alone first and Cornell only as a fallback (see
+ *  authorshipLookupCwid), so a WCM byline is not padded with Ithaca homonyms.
+ *  `enrich` fills blank title/department from our own roster before ranking: Cornell strips
+ *  both once someone is alumni / former postdoc (71 of the 100 "a singh" entries, 2026-11-23),
+ *  so without it the right person has nothing to match the byline's department on. */
+export async function searchDirectoryPeople(q: string, limit = 8, retry = true, affil = "",
+  sources: { wcm?: boolean; cornell?: boolean } = {},
+  enrich?: (people: DirectoryPerson[]) => Promise<void>): Promise<DirectoryPerson[]> {
+  const term = q.trim();
+  if (term.length < 3) return [];
+  const wcm = sources.wcm === false ? null : wcmEnv();
+  const cornell = sources.cornell === false ? null : cornellEnv();
+  const wcmExtra = ["weillCornellEduCWID", "weillCornellEduMiddleName"];
+  // A common name TRUNCATES: "j kim" is 386 ED entries (2026-09-16 probe) and the prefix pass
+  // returns whichever `limit` the server reaches first, so the person in the byline's own
+  // department is usually not on the page at all. When the caller knows the affiliation, the
+  // WCM prefix pass fetches the WHOLE cohort instead (paged), every department ED ever recorded
+  // for them is unioned in (addSorDepts), and the ones sharing a word with the affiliation are
+  // kept ahead of the page cap. Without an affiliation nothing here changes.
+  const deptToks = affilTokens(affil);
+  const wide = deptToks.size > 0;
+  // Exact-equality pass first (see buildNameFilter's `exact`), then the prefix pass — the
+  // searches fly together, so the extra passes cost no wall-clock.
+  const [wx, w, cx, c] = await Promise.all([
+    wcm ? safe("wcm exact", () => search(
+      wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, false, true),
+      WCM_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
+    wcm ? safe("wcm search", () => wide
+      ? searchPaged(wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true), WCM_ATTRS)
+      : search(wcm, WCM_BASE, buildNameFilter(term, "(objectClass=eduPerson)", wcmExtra, true), WCM_ATTRS, limit),
+    [] as Record<string, unknown>[]) : Promise.resolve([]),
+    cornell ? safe("cornell exact", () => search(
+      cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"], false, true),
+      CORNELL_ATTRS, limit), [] as Record<string, unknown>[]) : Promise.resolve([]),
+    // Paged like WCM when the affiliation is known. Capped at `limit`, "a singh" came back as 8
+    // alumni and never the Ithaca postdoc (as3527) in the 100-entry cohort (2026-11-23 probe;
+    // the Cornell directory pages fine and has no 200-entry cap, disproven 2026-09-07).
+    cornell ? safe("cornell search", () => wide
+      ? searchPaged(cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]), CORNELL_ATTRS)
+      : search(cornell, CORNELL_BASE, buildNameFilter(term, "(objectClass=person)", ["uid"]), CORNELL_ATTRS, limit),
+    [] as Record<string, unknown>[]) : Promise.resolve([]),
+  ]);
+  // Exact hits also come back from the prefix pass (`li` matches `li*`): keep the first sighting.
+  const seen = new Set<string>();
+  const tag = (p: DirectoryPerson | null, exactName: boolean): DirectoryPerson | null => (p ? { ...p, exactName } : null);
+  const all = mergeDirectoryPeople([
+    ...wx.map((e) => tag(projectWcmPerson(e), true)), ...w.map((e) => tag(projectWcmPerson(e), false)),
+    ...cx.map((e) => tag(projectCornellPerson(e), true)), ...c.map((e) => tag(projectCornellPerson(e), false)),
+  ].filter((p): p is DirectoryPerson => p !== null && !seen.has(`${p.source}:${p.id}`) && !!seen.add(`${p.source}:${p.id}`)));
+  if (wide) await addSorDepts(all);
+  if (enrich) await enrich(all);
+  // Byline institution first, then a department the byline names; both survive the page cap.
+  const campuses = bylineCampuses(affil);
+  const lead = (p: DirectoryPerson) =>
+    (campuses.has(p.source) ? 2 : 0) + (wide && affiliationDeptMatch(p.depts, affil) ? 1 : 0);
+  const ranked = all.map((p, i) => ({ p, i })).sort((a, b) => lead(b.p) - lead(a.p) || a.i - b.i).map((x) => x.p);
+  // `limit` slots stay for everyone else, so 100 Ithaca homonyms cannot push every WCM person
+  // (a dual appointee, a mis-stated byline) off the list.
+  const people = [...ranked.filter((p) => lead(p) > 0).slice(0, limit * 3), ...ranked.filter((p) => !lead(p)).slice(0, limit)];
+  const cut = !people.length && retry ? nearMissQuery(term) : null;
+  if (cut) return searchDirectoryPeople(cut, limit, false, affil, sources, enrich);
+  // One extra search, and only when this page actually holds a retired cwid — so the ordinary
+  // search pays nothing. Awaited rather than fired-and-forgotten: the successor's name is what
+  // makes the blocked row actionable ("retired — use ssy9009") instead of a dead end.
+  await resolveSupersededBy(people);
+  await fillFromSor(people);
+  return people;
+}
+
+/** True when at least one directory is configured. Lets a caller tell "nobody by that name"
+ *  apart from "this deployment has no directory wired up". */
+export const directoryConfigured = () => wcmEnv() !== null || cornellEnv() !== null;
+
+// --------------------------------------------------------------- retired-cwid set (cached)
+
+// Every cwid ED has retired, as one set. The authorship queue needs this per PAGE and per
+// CANDIDATE — candidate_cwids_json is baked by the AAR producer and carries no directory state
+// at all — so a per-row lookup is out of the question and a whole-directory snapshot on a timer
+// is the same shape absentCwidSet() already uses in authorships.controller.ts, for the same
+// reason. 2,880 entries on the 2026-09-09 census; one search per refresh, then O(1) membership.
+//
+// ponytail: plain module-level Set + timestamp, no cache lib — one key, one process. Tradeoff:
+// a cwid retired mid-window keeps being offered for up to the TTL, and an un-retired one keeps
+// being blocked just as long. Both self-heal on the next refresh with no action required.
+// Keyed by the retired cwid (lowercased), valued by the cwid that superseded it, or null when
+// ED names no successor (49 of 2,880 on that census). A Map rather than a Set because every
+// caller that blocks a retired cwid immediately wants to say what to use instead, and the answer
+// costs nothing extra once both halves are being read anyway.
+const RETIRED_TTL_MS = 30 * 60 * 1000;   // ED lifecycle changes are HR-paced, not minute-paced
+let retiredCache: { index: Map<string, string | null>; expires: number } | null = null;
+// SINGLE-FLIGHT. The refresh is two paged searches and measured 2.8s cold against live ED
+// (2026-09-09), while every /authorships page load calls this — so without holding the in-flight
+// promise, the moment the TTL lapses every concurrent request starts its own full census. Await
+// the same one instead. Cleared in a finally so one failure cannot wedge the refresh forever.
+let retiredInFlight: Promise<Map<string, string | null>> | null = null;
+
+export function retiredCwidIndex(): Promise<Map<string, string | null>> {
+  if (retiredCache && retiredCache.expires > Date.now()) return Promise.resolve(retiredCache.index);
+  if (retiredInFlight) return retiredInFlight;
+  retiredInFlight = refreshRetiredCwidIndex().finally(() => { retiredInFlight = null; });
+  return retiredInFlight;
+}
+
+async function refreshRetiredCwidIndex(): Promise<Map<string, string | null>> {
+  const wcm = wcmEnv();
+  if (!wcm) return new Map();
+  // The two halves live on different entries, so this is two searches: which cwids are dead,
+  // and who replaced them. Run together so one TTL covers both and they can never be half-stale.
+  const [dead, successors] = await Promise.all([
+    safe("wcm retired-cwid census", () => searchPaged(
+      wcm, WCM_BASE, `(weillCornellEduStatus=${RETIRED_CWID_STATUS})`, ["uid", "weillCornellEduCWID"],
+    ), [] as Record<string, unknown>[]),
+    safe("wcm cwid-succession census", () => searchPaged(
+      wcm, WCM_BASE, "(weillCornellEduCWIDRetired=*)",
+      ["uid", "weillCornellEduCWID", "weillCornellEduCWIDRetired"],
+    ), [] as Record<string, unknown>[]),
+  ]);
+  // An EMPTY answer is not evidence that nothing is retired — it is also what a failed, refused,
+  // or timed-out search looks like, and caching it would silently un-block every retired cwid
+  // for the whole window. Keep the previous snapshot (even a stale one) and retry next call.
+  if (!dead.length) return retiredCache?.index ?? new Map();
+  const successorOf = new Map<string, string>();
+  for (const e of successors) {
+    const successor = first(e.weillCornellEduCWID) ?? first(e.uid);
+    if (!successor) continue;
+    for (const old of clean(all(e.weillCornellEduCWIDRetired))) successorOf.set(old.toLowerCase(), successor);
+  }
+  const index = new Map<string, string | null>();
+  for (const e of dead) {
+    const id = first(e.weillCornellEduCWID) ?? first(e.uid);
+    if (id) index.set(id.toLowerCase(), successorOf.get(id.toLowerCase()) ?? null);
+  }
+  retiredCache = { index, expires: Date.now() + RETIRED_TTL_MS };
+  return index;
+}
+
+// ------------------------------------------------------------------------------ mint payload
+
+/** The ReCiter Identity body for POST /reciter/identity/, built from a directory record.
+ *  Pure — asserted directly by scripts/check-directory.mjs, which is the only way to exercise
+ *  it, since every caller ends in a DynamoDB write.
+ *
+ *  Mandatory fields are `uid,firstName,firstInitial,lastName`
+ *  (ReCiter application.properties:391, enforced by IdentityController.validateMandatoryFields);
+ *  a record missing a given or family name therefore cannot be minted and returns null rather
+ *  than sending a body the API will 500 on. Field shape follows
+ *  scripts/sync_cornell_ithaca_identities.py's build_identity() so a person minted here and the
+ *  same person loaded by the bulk Ithaca sync are byte-comparable records. */
+/** ED's primary-org attribute is a short token ("NYP"); `person.primaryInstitution` is curated
+ *  free text. This maps token -> institution.
+ *
+ *  PORTED VERBATIM from the Institutional Client, which has owned this mapping all along:
+ *  ReCiter-Institutional-Client `LdapIdentityDaoImpl.getVerbosePrimaryOrganization()`
+ *  (~line 1327), all 30 cases. That job writes the same `primaryInstitution` field on the same
+ *  DynamoDB records every night, so a person who is minted here and later appears in the ED
+ *  academic roster must not have their institution rewritten to a different spelling of the same
+ *  place. Keep the two identical — the same rule cornellPersonTypes() lives under, and for the
+ *  same reason: two spellings of one institution silently split it across two buckets in every
+ *  report that groups by institution (INSTITUTION_BUCKETS in authorships.controller.ts).
+ *
+ *  Deliberately an allow-list, not a passthrough. An unrecognised token falls back to the
+ *  directory-derived label rather than writing a raw ED string into a curated vocabulary, so a
+ *  new org code cannot invent a distinct primaryInstitution value on its own. */
+export const PRIMARY_ORG_INSTITUTION: Record<string, string> = {
+  MSKCC: "Memorial Sloan Kettering Cancer Center",
+  WCMC: "Weill Cornell Medical College",
+  CUCPS: "Columbia University College of Physicians and Surgeons",
+  NYP: "New York-Presbyterian Hospital",
+  "WCMC-Q": "Weill Cornell Medical College in Qatar",
+  NYMH: "New York Methodist Hospital",
+  HSS: "Hospital for Special Surgery",
+  NYPQ: "New York Presbyterian - Queens",
+  RI: "Rogosin Institute",
+  SIDRA: "SIDRA Medical and Research Center",
+  HMC: "Hamad Medical Corporation",
+  WMBMRI: "Winifred Masterson Burke Medical Research Institute",
+  HMH: "Houston Methodist Hospital",
+  RU: "Rockefeller University",
+  LMMHC: "Lincoln Medical and Mental Health Center",
+  Cornell: "Cornell University",
+  AspH: "Aspetar Hospital",
+  CMCIthaca: "Cayuga Medical Center of Ithaca",
+  PHCC: "Primary Health Care Corporation (Qatar)",
+  BHC: "The Brooklyn Hospital Center",
+  FMMP: "Feto-Maternal Medical Polyclinic (Qatar)",
+  HMRI: "Houston Methodist Research Institute",
+  JamaicaH: "Jamaica Hospital",
+  ANH: "Amsterdam Nursing Home",
+  Lenox: "Lenox Hill Hospital",
+  "CU GHS": "Cornell University Gannette Health Services",
+  FlushHMC: "Flushing Hospital Medical Center",
+  AHP: "American Hospital of Paris",
+  LaGuardH: "La Guardia Hospital",
+  UGMA: "University Group Medical Associates",
+};
+
+// Tokens are mixed-case in ED ("AspH", "CMCIthaca", "CU GHS"), and the two attributes that carry
+// them do not have to agree on case, so match case-insensitively rather than trusting the
+// spelling above to be what comes back.
+const ORG_INSTITUTION_BY_KEY = new Map(
+  Object.entries(PRIMARY_ORG_INSTITUTION).map(([k, v]) => [k.trim().toUpperCase(), v]));
+export const institutionForPrimaryOrg = (org: string | null): string | null =>
+  (org && ORG_INSTITUTION_BY_KEY.get(org.trim().toUpperCase())) || null;
+
+export function directoryIdentityPayload(p: DirectoryPerson): Record<string, any> | null {
+  const given = String(p.givenName || "").trim(), family = String(p.familyName || "").trim();
+  if (!given || !family) return null;
+  const primaryName: Record<string, string> = {
+    firstName: given, firstInitial: given[0], lastName: family,
+  };
+  const mid = String(p.middleName || "").trim();
+  if (mid) { primaryName.middleName = mid; primaryName.middleInitial = mid[0]; }
+
+  // The person's OWN org decides the institution where ED gives one we can spell; only then does
+  // it fall back to which directory answered. ou=people holds NewYork-Presbyterian people, so
+  // deriving this from `source` alone minted gallric as "Weill Cornell Medicine" and
+  // authorships.controller's `wcm` bucket counted him as WCM in reporting.
+  const institution = institutionForPrimaryOrg(p.primaryOrg)
+    || (p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University");
+  const out: Record<string, any> = {
+    uid: p.id,
+    primaryName,
+    primaryInstitution: institution,
+    institutions: [institution],
+    personTypes: p.personTypes.length ? p.personTypes : [`${p.source}-directory`],
+  };
+  if (p.emails.length) { out.primaryEmail = p.emails[0]; out.emails = p.emails; }
+  if (p.title) out.title = p.title;
+  if (p.dept) {
+    out.primaryOrganizationalUnit = p.dept;
+    out.organizationalUnits = [{ organizationalUnitLabel: p.dept, organizationalUnitType: "DEPARTMENT" }];
+  }
+  return out;
+}

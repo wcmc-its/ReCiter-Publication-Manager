@@ -24,9 +24,8 @@ export async function sendNotification(req,res) {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASSWORD
         },
-        tls:{
-            rejectUnAuthorized: process.env.NODE_ENV === "production" ? true : false,
-        }
+        // TLS certificates are verified (nodemailer default). A misspelled
+        // tls.rejectUnAuthorized used to sit here and was always ignored.
     }));
 
     const fromAddress =

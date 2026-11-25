@@ -2,21 +2,29 @@ import React, { FunctionComponent, useEffect, useState } from "react"
 import { toast } from "react-toastify"
 import { reciterConfig } from "../../../../config/local"
 import ExternalPublicationCard, { AddState } from "./ExternalPublicationCard"
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
+import { enrichScopusResults, seedAddedStates } from "../../../utils/externalAddSearch"
 
 // PM#772 — Scopus Authorships tab. A high-level Scopus search (by Author ID, keyword,
-// or DOI) surfacing documents not already in the person's record. On open it resolves
-// the person's Scopus Author ID from their name and runs the author-id search, but the
-// curator can switch to a keyword or DOI search. Accept routing is handled by
-// ExternalPublicationCard: a doc with a PMID (or one a DOI lookup finds in PubMed) is
-// steered to the scored PubMed path; a Scopus-native doc is added as an ExternalArticle
-// (method=scopus-authorships-tab). Reject = local dismissal, never GoldStandard.
+// or DOI) surfacing documents not already in the person's record (matched by PMID, or,
+// for a doc with no PMID of its own, by DOI / Scopus document ID against the person's
+// record — see findRecordPmid in ReciterTabs.tsx). On open it resolves the person's
+// Scopus Author ID from their name and runs the author-id search, but the curator can
+// switch to a keyword or DOI search. Accept routing is handled by ExternalPublicationCard:
+// a doc with a PMID (or one a DOI lookup finds in PubMed) is steered to the scored PubMed
+// path; a Scopus-native doc is added as an ExternalArticle (method=scopus-authorships-tab).
+// Reject = local dismissal, never GoldStandard.
 
 interface FuncProps {
     personIdentifier: string,
     fullName: string,
     onAddViaPubMed: (pmid: number, item: any) => void,
+    // Direct-add: performs the same accept as onAddViaPubMed's PubMed Add tab, but
+    // inline, without switching tabs. Returns a promise so doAcceptPmid can drive the
+    // card's addState off it (see ReciterTabs.tsx handleAcceptPmid for what it resolves/
+    // rejects on).
+    onAcceptPmid: (pmid: number, item: any) => Promise<void>,
     getPmidStatus: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
+    findRecordPmid: (doc: { doi?: string; articleId?: string }) => number | null,
 }
 
 const apiHeaders = {
@@ -51,6 +59,7 @@ const noteStyle: React.CSSProperties = {
     fontSize: 12.5, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a",
     borderRadius: 6, padding: "8px 10px", marginBottom: 10,
 }
+const summaryStyle: React.CSSProperties = { ...labelStyle, cursor: "pointer", padding: "6px 0" }
 
 const PLACEHOLDER: Record<string, string> = {
     author: "Scopus Author ID (e.g. 12797673000)",
@@ -83,22 +92,55 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
     const [loadingDocs, setLoadingDocs] = useState<boolean>(false)
     const [docs, setDocs] = useState<any[]>([])
     const [total, setTotal] = useState<number>(0)
+    const [capped, setCapped] = useState<boolean>(false)
+    const [partial, setPartial] = useState<boolean>(false)
     const [searched, setSearched] = useState<boolean>(false)
     const [addStates, setAddStates] = useState<Record<string, AddState>>({})
     const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+    // PMIDs accepted via the direct "Add" button this session — keeps that doc in the
+    // visible needsReview list (see the partition below) instead of it vanishing into
+    // the collapsed "already in this person's record" block the moment getPmidStatus
+    // starts reporting ACCEPTED for it.
+    const [justAccepted, setJustAccepted] = useState<Set<number>>(new Set())
+    // Non-suppressed ExternalArticle articleIds already on this person's record — a doc
+    // added through this tab (or TabAddExternalPublication) minutes earlier has no PMID
+    // to match on, so getPmidStatus alone can't recognise it; fetched the same way
+    // SourceArticleTab.tsx:96-116 does. Suppressed (revoked) rows are deliberately left
+    // OUT of this set: a curator removed them, so offering Add again is correct.
+    const [externalIds, setExternalIds] = useState<Set<string>>(new Set())
 
     const setAddState = (articleId: string, next: AddState) => {
         setAddStates(prev => ({ ...prev, [articleId]: next }))
+    }
+
+    // Same fetch SourceArticleTab.tsx:96-116 uses. Run on tab open and again after every
+    // search completes, so a doc added via this tab (or TabAddExternalPublication)
+    // moments earlier is recognised even though it has no PMID of its own to match on.
+    const fetchExternalIds = () => {
+        if (!uid) return
+        fetch(`/api/reciter/external-article/${encodeURIComponent(uid)}`, {
+            credentials: "same-origin", method: "GET", headers: apiHeaders,
+        })
+            .then(async (r) => {
+                const body = await r.json().catch(() => ({}))
+                if (!r.ok) throw new Error((body && body.message) || `HTTP ${r.status}`)
+                return body
+            })
+            .then((body) => {
+                const rows = Array.isArray(body.external) ? body.external : []
+                setExternalIds(new Set(rows.filter((row: any) => !row.suppressed).map((row: any) => row.articleId)))
+            })
+            .catch(() => setExternalIds(new Set())) // degrade to today's behaviour, never an error state
     }
 
     const runSearch = (byArg?: string, termArg?: string) => {
         const by = byArg || searchBy
         const t = (termArg !== undefined ? termArg : term).trim()
         if (!t) {
-            toast.error("Enter a search term.", { position: "top-right", autoClose: 2000, theme: "colored" })
+            toast.error("Enter a search term.")
             return
         }
-        setLoadingDocs(true); setSearched(true); setDocs([]); setTotal(0); setAddStates({})
+        setLoadingDocs(true); setSearched(true); setDocs([]); setTotal(0); setCapped(false); setPartial(false); setAddStates({})
         fetch(`/api/reciter/search/scopus`, {
             credentials: "same-origin", method: "POST", headers: apiHeaders,
             body: JSON.stringify({ mode: "documents", by, term: t }),
@@ -111,10 +153,17 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                 return body
             })
             .then((body) => {
-                setDocs(Array.isArray(body.results) ? body.results : [])
+                // A doc with no pubmed-id may still be the same paper as one already in the
+                // person's record (same DOI, or same Scopus document ID) — enrich it with that
+                // record's PMID so it partitions into inRecord below exactly like a PMID-bearing
+                // doc, instead of always surfacing as "needs review".
+                setDocs(enrichScopusResults(body.results, props.findRecordPmid))
                 setTotal(Number(body.total || 0))
+                setCapped(!!body.capped)
+                setPartial(!!body.partial)
+                fetchExternalIds()
             })
-            .catch((e) => toast.error((e && e.message) || "Scopus search failed.", { position: "top-right", autoClose: 3000, theme: "colored" }))
+            .catch((e) => toast.error((e && e.message) || "Scopus search failed."))
             .finally(() => setLoadingDocs(false))
     }
 
@@ -122,6 +171,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
     // the author-id search. Curator can switch to keyword / DOI afterwards.
     useEffect(() => {
         setDismissed(loadDismissed(uid))
+        fetchExternalIds()
         const { firstName, lastName } = splitName(props.fullName)
         if (!lastName) { setResolving(false); return }
         setResolving(true)
@@ -162,7 +212,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
     // ponytail: mirrors TabAddExternalPublication.doAdd; extract a shared hook if a
     // third source appears.
     const doAdd = async (item: any, force: boolean) => {
-        if (!uid) { toast.error("Person is still loading — try again in a moment.", { position: "top-right", autoClose: 2500, theme: "colored" }); return }
+        if (!uid) { toast.error("Person is still loading — try again in a moment."); return }
         const articleId = item.articleId
         if (!force && !item.pmid && item.doi) {
             setAddState(articleId, { status: "checking" })
@@ -182,7 +232,10 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
             .then(({ status, body }) => {
                 if (status === 201 || status === 200) {
                     setAddState(articleId, { status: "added" })
-                    toast.success("Accepted as an external publication.", { position: "top-right", autoClose: 2000, theme: "colored" })
+                    // Keep a re-search (no refetch of the ExternalArticle list) from
+                    // re-offering this doc as addable.
+                    setExternalIds((prev) => new Set(prev).add(articleId))
+                    toast.success("Accepted as an external publication.")
                     return
                 }
                 if (status === 409) {
@@ -193,11 +246,29 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                 const payload = (body && body.message) || {}
                 const msg = payload.message || (typeof payload === "string" ? payload : `HTTP ${status}`)
                 setAddState(articleId, { status: "idle" })
-                toast.error("Could not accept: " + msg, { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not accept: " + msg)
             })
             .catch((err) => {
                 setAddState(articleId, { status: "idle" })
-                toast.error("Could not accept: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+                toast.error("Could not accept: " + (err.message || err))
+            })
+    }
+
+    // Direct-add: accept a PMID-bearing doc via ReciterTabs.tsx's handleAcceptPmid
+    // (same accept as the PubMed Add tab) without leaving this tab. Mirrors doAdd's
+    // state handling exactly, on the shared addStates map.
+    // pmid comes from the card (item.pmid, or the PMID a DOI lookup resolved into addState)
+    const doAcceptPmid = (pmid: number, item: any) => {
+        const articleId = item.articleId
+        setAddState(articleId, { status: "adding" })
+        props.onAcceptPmid(pmid, item)
+            .then(() => {
+                setAddState(articleId, { status: "accepted" })
+                setJustAccepted((prev) => new Set(prev).add(pmid))
+            })
+            .catch((err) => {
+                setAddState(articleId, { status: "idle" })
+                toast.error("Could not accept: " + (err.message || err))
             })
     }
 
@@ -209,10 +280,31 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
         saveDismissed(uid, next)
     }
 
-    // Feed = fetched docs not dismissed and not already in the person's record (by PMID).
-    const feed = docs.filter((d) => !dismissed.has(d.articleId) && !(d.pmid && props.getPmidStatus(d.pmid)))
-    const hiddenCount = docs.length - feed.length
-    const moreThanFetched = total > docs.length
+    // Seed addState 'added' for any fetched doc that is already a non-suppressed
+    // ExternalArticle on this person's record, so its card renders "Added ✓" with no
+    // Add/Reject buttons instead of offering Add again (rharrington / SCOPUS:0028963338).
+    // Runs whenever docs or externalIds change, independent of fetch ordering.
+    useEffect(() => {
+        if (externalIds.size === 0 || docs.length === 0) return
+        setAddStates((prev) => seedAddedStates(prev, docs, externalIds))
+    }, [docs, externalIds])
+
+    // needsReview = fetched docs not dismissed and not already in the person's record —
+    // by PMID (or, for docs enriched above, by DOI / Scopus document ID), or as a
+    // non-suppressed ExternalArticle already on record (externalIds). A PMID accepted
+    // via this card's direct "Add" (justAccepted) is deliberately excluded from the
+    // "already in record" side here: getPmidStatus starts reporting ACCEPTED for it the
+    // moment doAcceptPmid succeeds (updatePublicationAssertion already moved it into the
+    // Accepted tab's filteredData), which would otherwise flip this doc into the
+    // collapsed inRecord block on the very next render — before the curator even sees
+    // its "Accepted ✓" tag.
+    const inExternalRecord = (d: any) => externalIds.has(d.articleId)
+    const inGoldStandardRecord = (d: any) => !!(d.pmid && props.getPmidStatus(d.pmid) && !justAccepted.has(d.pmid))
+    const needsReview = docs.filter((d) => !dismissed.has(d.articleId) && !inGoldStandardRecord(d) && !inExternalRecord(d))
+    // inRecord = fetched, not dismissed, already in the person's record — collapsed below,
+    // not part of the count that needs attention.
+    const inRecord = docs.filter((d) => !dismissed.has(d.articleId) && (inGoldStandardRecord(d) || inExternalRecord(d)))
+    const dismissedCount = docs.filter((d) => dismissed.has(d.articleId)).length
 
     return (
         <div style={wrap}>
@@ -262,28 +354,29 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
 
             {/* Results */}
             <div style={sectionLabel}>
-                Scopus results{!loadingDocs && searched ? ` (${feed.length})` : ""}
+                Scopus results{!loadingDocs && searched ? ` (${needsReview.length})` : ""}
             </div>
             {loadingDocs ? (
-                <div style={emptyText}>Searching Scopus…</div>
+                <div style={emptyText}>Searching Scopus… large author profiles take a few seconds (up to 5 pages)</div>
             ) : !searched ? (
                 <div style={emptyText}>Run a search to see Scopus documents.</div>
             ) : docs.length === 0 ? (
                 <div style={emptyText}>No Scopus documents matched.</div>
             ) : (
                 <>
-                    {moreThanFetched && (
+                    {(capped || partial) && (
                         <div style={noteStyle}>
-                            Showing the first {docs.length} of {total.toLocaleString()} Scopus results — refine your search
-                            {searchBy === "keyword" ? " (add more specific terms)" : " (try a keyword or DOI)"} to narrow it down.
+                            {partial
+                                ? `Scopus stopped responding after ${docs.length} of ${total.toLocaleString()}; try again.`
+                                : `Showing the first ${docs.length} of ${total.toLocaleString()} Scopus documents (newest first) — refine your search to see the rest.`}
                         </div>
                     )}
-                    {feed.length === 0 ? (
+                    {needsReview.length === 0 ? (
                         <div style={emptyText}>
                             All {docs.length} fetched result(s) are already in the record or dismissed.
                         </div>
                     ) : (
-                        feed.map((item) => (
+                        needsReview.map((item) => (
                             <ExternalPublicationCard
                                 key={item.articleId}
                                 item={item}
@@ -292,18 +385,36 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                                 onAdd={(it) => doAdd(it, false)}
                                 onAddAnyway={(it) => doAdd(it, true)}
                                 onAddViaPubMed={(pmid, it) => props.onAddViaPubMed(pmid, it)}
+                                onAcceptPmid={(pmid, it) => doAcceptPmid(pmid, it)}
                                 recordStatusOf={props.getPmidStatus}
                                 onReject={(it) => doReject(it)}
                             />
                         ))
                     )}
-                    {feed.length > 0 && hiddenCount > 0 && (
-                        <div style={emptyText}>{hiddenCount} result(s) hidden (already in the record or dismissed).</div>
+                    {inRecord.length > 0 && (
+                        <details>
+                            <summary style={summaryStyle}>{inRecord.length} already in this person&apos;s record ▸</summary>
+                            {inRecord.map((item) => (
+                                <ExternalPublicationCard
+                                    key={item.articleId}
+                                    item={item}
+                                    mode="preview"
+                                    addState={addStates[item.articleId]}
+                                    onAdd={(it) => doAdd(it, false)}
+                                    onAddAnyway={(it) => doAdd(it, true)}
+                                    onAddViaPubMed={(pmid, it) => props.onAddViaPubMed(pmid, it)}
+                                    onAcceptPmid={(pmid, it) => doAcceptPmid(pmid, it)}
+                                    recordStatusOf={props.getPmidStatus}
+                                    onReject={(it) => doReject(it)}
+                                />
+                            ))}
+                        </details>
+                    )}
+                    {dismissedCount > 0 && (
+                        <div style={emptyText}>{dismissedCount} result(s) dismissed this session.</div>
                     )}
                 </>
             )}
-
-            <ToastContainerWrapper />
         </div>
     )
 }

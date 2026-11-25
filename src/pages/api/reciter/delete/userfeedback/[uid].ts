@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { deleteUserFeedback } from "../../../../../../controllers/userfeedback.controller"
 import { reciterConfig } from '../../../../../../config/local'
+import { cwidParam } from '../../../../../../src/utils/canonicalCwid'
+import { refuseUnlessCanCurate } from '../../../../../../controllers/db/authorization.controller'
 
 type Error = {
     statusCode: number,
@@ -18,7 +20,14 @@ export default async function handler(
 ) {
     if(req.method === "GET") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
-        const { uid } = req.query;
+        const uid = cwidParam(req.query.uid);
+        if (!uid) {
+            res.status(400).send({ statusCode: 400, message: `Not a valid uid: ${JSON.stringify(req.query.uid)}` })
+            return
+        }
+        // /api/reciter/* is outside the middleware and the api key is public: require a
+        // session that may curate this person, as save/userfeedback does.
+        if (!(await refuseUnlessCanCurate(req, res, uid))) return
 
         const apiResponse = await deleteUserFeedback(uid);
         if(apiResponse.statusCode === 200) {

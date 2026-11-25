@@ -1,27 +1,18 @@
-.main.mainCompact {
-  margin-left: 250px;
-  width: -webkit-fill-available;
+.content {
+  padding: 24px 40px;
+  min-height: calc(100vh - var(--header-height) - 44px);
+  display: flex;
+  flex-direction: column;
 }
 
+/* Page body grows so the footer sits at the bottom of the window on short pages. */
 .main {
-  height: 100%;
-  margin-left: 82px;
-  padding: 20px 40px;
-  width: -webkit-fill-available;
-  background: var(--color-warm-bg);
+  flex: 1 0 auto;
+  min-width: 0;
 }
 
-.containerFluid {
-  height: 100%;
-}
-
-.expandedSideBarContent{
-  margin-left: 220px;
-  padding: 24px 40px !important;
-  min-height: calc(100vh - 52px);
-}
-.nonExpandedSideBarContent{
-  margin-left: 73px;
-  padding: 24px 40px !important;
-  min-height: calc(100vh - 52px);
+@media (max-width: 700px) {
+  .content {
+    padding: 16px;
+  }
 }

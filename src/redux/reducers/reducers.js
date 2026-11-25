@@ -147,45 +147,11 @@ export const pubmedData = (state=[], action) => {
 export const identityData = (state={}, action) => {
 
     switch(action.type) {
-
+        
         case methods.IDENTITY_CLEAR_DATA :
             return {}
 
         case methods.IDENTITY_CHANGE_DATA :
-            return action.payload
-
-        default :
-            return state
-    }
-
-}
-
-// Faculty "other publications" (Scopus/OpenAlex external rows). One fetch, filtered
-// and grouped per source tab client-side — see TabExternalSource.tsx.
-export const otherPublicationsFetching = (state=false, action) => {
-
-    switch(action.type) {
-
-        case methods.OTHERPUBS_FETCH_DATA :
-            return true
-
-        case methods.OTHERPUBS_CANCEL_FETCHING :
-            return false
-
-        default:
-            return state
-    }
-
-}
-
-export const otherPublicationsData = (state=[], action) => {
-
-    switch(action.type) {
-
-        case methods.OTHERPUBS_CLEAR_DATA :
-            return []
-
-        case methods.OTHERPUBS_CHANGE_DATA :
             return action.payload
 
         default :
@@ -681,6 +647,16 @@ export const authorFilterDataFromSearch = (state=[], action) => {
 
 }
 
+// Peer review filter options (5d-1); empty hides the filter (no v3.10 column, or not filled yet).
+export const peerReviewFilterData = (state=[], action) => {
+  switch(action.type) {
+      case methods.PEER_REVIEW_FILTER_CHANGE_ALL_DATA :
+          return Array.isArray(action.payload) ? action.payload : []
+      default :
+          return state
+  }
+}
+
 export const dateFilterData = (state=[], action) => {
 
   switch(action.type) {
@@ -760,8 +736,14 @@ export const initialStatePubSearchFilter = {
     orgUnits: [],
     datePublicationAddedToEntrezLowerBound: "",
     datePublicationAddedToEntrezUpperBound: "",
+    pubDateLowerBound: "",
+    pubDateUpperBound: "",
+    pubTypes: [],
+    // 5d-1 Peer review: [] (Any), ["yes"] or ["no"]
+    peerReview: [],
     publicationTypeCanonical: [],
     authorPosition :[],
+    sourceTypes: [],
     journalTitleVerbose: [],
     // journalImpactScoreLowerBound: 2,
     // journalImpactScoreUpperBound: 42
@@ -781,10 +763,7 @@ export const pubSearchFilter = ( state = initialStatePubSearchFilter, action) =>
       return action.payload 
     
     case methods.PUB_FILTER_CLEAR:
-      // All three dispatchers (clearPubSearchFilters, updateIndividualPersonReportCriteria,
-      // updatePubFiltersFromSearch) send a payload built from a clone of initialStatePubSearchFilter;
-      // this used to ignore it and rely on those dispatchers mutating the shared default in place instead.
-      return action.payload || initialStatePubSearchFilter
+      return initialStatePubSearchFilter
 
     case methods.PUB_POPULATE_SEARCH_FILTERS:
       return action.payload
@@ -870,8 +849,15 @@ export const identityORFeatureGenError = (state=[], action) => {
               ...state,
               action.payload
           ]
-      case methods.CLEAR_IDENTITY_FEATURE_GEN_ERROR :   // <-- ADD THIS
-          return []                                      // <-- ADD THIS
+      case methods.CLEAR_IDENTITY_FEATURE_GEN_ERROR :
+          // A payload identifies which fetch's error marker to clear (e.g. only the
+          // feature-generator's own "Feature-Generator-Error" entry) so a successful
+          // fetch never wipes a still-valid error set moments earlier by a different,
+          // still-failed fetch (e.g. identity's "Identity-Error"). No payload means a
+          // full reset (used on uid navigation).
+          return action.payload
+              ? state.filter((entry) => entry !== action.payload)
+              : []
       default:
           return state
   }
@@ -885,8 +871,6 @@ export default combineReducers({
     identityAllFetching,
     reciterData,
     identityData,
-    otherPublicationsFetching,
-    otherPublicationsData,
     identityAllData,
     identityPaginatedData,
     identityPaginatedFetching,
@@ -915,6 +899,7 @@ export default combineReducers({
     articleTypeFilterData,
     authorFilterData,
     dateFilterData,
+    peerReviewFilterData,
     journalFilterData,
     journalRankFilterData,
     reportingFiltersLoading,

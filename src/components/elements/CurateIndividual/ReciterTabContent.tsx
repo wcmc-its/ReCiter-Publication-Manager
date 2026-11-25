@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import type { CoauthorIndex } from "../../../utils/identityEvidence";
 import Publication from "../Publication/Publication";
 import FilterPubSection from "./FilterPubSection";
+import DuplicatesBanner from "./DuplicatesBanner";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import sortPublications from "../../../utils/sortPublications";
 import Pagination from '../Pagination/Pagination';
@@ -10,6 +12,13 @@ import { useDispatch, useSelector } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
 import styles from "./CurateIndividual.module.css";
 import CheckIcon from '@mui/icons-material/Check';
+import { Dialog, Button } from "../../ui";
+import { showUndoToast } from "../ToastHost/ToastHost";
+import { sanitizeInlineHtml } from "../../../utils/htmlText";
+import { BANDS, groupModeFor, groupKeyOf, groupsOf, yearHistogram, spotCheckSample, isScored, scoreOf, yearOf, bandOf, authorLine } from "../../../utils/curateGroups";
+import type { Band } from "../../../utils/curateGroups";
+import { useNextPerson } from "../../../hooks/useNextPerson";
+import { useRouter } from "next/router";
 
 
 interface TabContentProps {
@@ -22,63 +31,98 @@ interface TabContentProps {
   updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
   updatePublicationAssertionBulk: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
   showEvidenceDefault?:any,
+  coauthorIndex?: CoauthorIndex,
   activeKey:any,
   totalCount:any,
   onAssertionChange?: (pmid: number, newAssertion: string) => void,
   onTabChange?: (key: string) => void,
+  toolbarSlot?: HTMLElement | null,
+  acceptedCount?: number,
+  rejectedCount?: number,
+  onRefresh?: () => void,
+  // No Suggested tab (a Cornell-only person not yet run through ReCiter): the empty states
+  // don't point there.
+  noSuggested?: boolean,
 }
+
+const LIST_CHUNK = 50;
+// Remembered view (Cards or Detail), per browser. ponytail: one key; add more prefs when asked.
+const VIEW_KEY = 'pm.curate.view';
+// Detail view: list pane collapsed to a rail (prototype "listHidden" view pref), per browser.
+const LIST_KEY = 'pm.curate.listHidden';
 
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [sort, setSort] = useState<string>("0")
   const [publications, setPublications] = useState<any>(props.publications);
   const [searchtextCarier, setSearchtextCarier] = useState<any>("");
 
-  const [page, setPage] = useState(1)
-  const [count, setCount] = useState(20)
+  // Progressive list: render a window that grows by LIST_CHUNK as the sentinel nears the
+  // viewport. ponytail: never shrinks, so a fully scrolled 2,000-card tab keeps 2,000 cards
+  // mounted; switch to real virtualization if that measures slow.
+  const page = 1
+  const [visible, setVisible] = useState(LIST_CHUNK)
+  const sentinelRef = useRef<HTMLDivElement>(null)
   const { data: session, status } = useSession(); const loading = status === "loading";
   const [totalCount, setTotalCount] = useState<number>(publications.length || 0);
   const dispatch = useDispatch();
+  const router = useRouter();
+  const { next, goNext, markCaughtUp } = useNextPerson();
+  const caughtUp = props.tabType === 'NULL' && !props.publications.length;
+  // Nothing left in Suggested: drop this person out of the "Next" cycle.
+  useEffect(() => { if (caughtUp) markCaughtUp(props.personIdentifier); }, [caughtUp, markCaughtUp, props.personIdentifier]);
 
   const searchTextUpdate = (searchText: string) => {
     let filteredPublications = filterPublicationsBySearchText(props.publications, searchText.trim());
     setPublications(filteredPublications);
     setTotalCount(filteredPublications.length);
     setSearchtextCarier(searchText);
-    if (page !== 1) {
-      setPage(1);
-    }
+    setVisible(LIST_CHUNK);
   }
 
   const sortUpdate = (sort: string) => {
     setSort(sort);
     let sortedPublications = sortPublications(props.publications, sort);
     setPublications(sortedPublications);
+    setVisible(LIST_CHUNK);
   }
 
-  // Update the page
-  const handlePaginationUpdate = (page) => {
-    setPage(page)
-  }
+  // Grouping (bands on long Suggested lists sorted by score, years on long Accepted/Rejected
+  // lists sorted by date). Collapsed groups keep their header and drop out of the window.
+  const mode = groupModeFor(props.tabType, sort, publications.length);
+  const [closed, setClosed] = useState<Record<string, boolean>>({});
+  // Groups must be contiguous, so grouped modes sort a copy by the active key (default "0" = score).
+  const ordered = mode === 'flat' ? publications : sortPublications([...publications], sort);
+  const openList = mode === 'flat' ? publications : ordered.filter((p: any) => !closed[groupKeyOf(mode, p)]);
+  const groups = groupsOf(mode, ordered);
+  const hist = mode === 'year' ? yearHistogram(publications) : [];
+  const pendingJump = useRef<string | null>(null);
 
-  // Update the count per page
-  const handleCountUpdate = (count) => {
-    if (count) {
-      setPage(1);
-      setCount(parseInt(count));
-    }
-  }
+  let publicationsPaginatedData = openList.slice(0, visible);
 
-  const getPaginatedData = () => {
-    let from = (page - 1) * count;
-    let to = from + count;
-    let dataList = [];
-    if (publications) {
-      dataList = publications;
-    }
-    return dataList.slice(from, to);
+  const jumpToYear = (year: string) => {
+    const nextClosed = { ...closed, [year]: false };
+    const idx = ordered.filter((p: any) => !nextClosed[yearOf(p)]).findIndex((p: any) => yearOf(p) === year);
+    if (idx < 0) return;
+    setClosed(nextClosed);
+    setVisible((v) => Math.max(v, idx + LIST_CHUNK));
+    pendingJump.current = year;
   };
+  useEffect(() => {
+    if (!pendingJump.current) return;
+    const el = document.querySelector(`[data-year-head="${pendingJump.current}"]`) as HTMLElement | null;
+    pendingJump.current = null;
+    if (el) { el.scrollIntoView({ block: 'start' }); el.focus({ preventScroll: true }); }
+  });
 
-  let publicationsPaginatedData = publications.slice((page - 1) * count, page * count);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || visible >= openList.length) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) setVisible((v) => v + LIST_CHUNK);
+    }, { rootMargin: '800px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible, openList.length]);
 
   var totalNullCount = 0;
   var totalAcceptedCount = 0;
@@ -154,27 +198,48 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     props.onAssertionChange?.(pmid, userAssertion);
   }
 
+  // Suggested tab: cards stay in place with an actioned look; the change is persisted at once.
+  const applySuggested = (pmids: number[], userAssertion: string) => {
+    if (!pmids.length) return;
+    const set = new Set(pmids);
+    pmids.forEach((pmid) => props.onAssertionChange?.(pmid, userAssertion));
+    setPublications(prev => prev.map((p: any) => set.has(p.pmid) ? { ...p, userAssertion } : p));
+    dispatch(reciterUpdatePublication(props.personIdentifier, {
+      publications: pmids,
+      userAssertion: userAssertion,
+      manuallyAddedFlag: false,
+      userID: session?.data?.databaseUser?.userID,
+      personIdentifier: props.personIdentifier,
+    }));
+  };
+
+  // Per-band bulk (Suggested): accept the strong band or reject the weak band after a spot-check
+  // of the records likeliest to be wrong. Only still-pending records are touched, so Undo is exact.
+  const [bandBulk, setBandBulk] = useState<{ band: Band, verb: 'ACCEPTED' | 'REJECTED', excl: Record<number, boolean> } | null>(null);
+  const bandPending = (band: string) => publications.filter((p: any) => groupKeyOf('band', p) === band && p.userAssertion === 'NULL');
+  const bulkItems = bandBulk ? bandPending(bandBulk.band) : [];
+  const bulkSample = bandBulk ? spotCheckSample(bulkItems, bandBulk.verb) : [];
+  const bulkPmids = bulkItems.filter((p: any) => !bandBulk?.excl[p.pmid]).map((p: any) => p.pmid);
+  const confirmBandBulk = () => {
+    if (!bandBulk) return;
+    const { verb } = bandBulk;
+    const pmids = bulkPmids;
+    setBandBulk(null);
+    applySuggested(pmids, verb);
+    if (pmids.length) {
+      showUndoToast(`${verb === 'ACCEPTED' ? 'Accepted' : 'Rejected'} ${pmids.length} publication${pmids.length === 1 ? '' : 's'}`, () => applySuggested(pmids, 'NULL'));
+    }
+  };
+
   const handleUpdatePublicationAll = (userAssertion: string) => {
     // Suggested tab: keep cards in place with actioned visual state
     if (isSuggested) {
-      publications.forEach((p: any) => props.onAssertionChange?.(p.pmid, userAssertion));
-      setPublications(prev => prev.map((p: any) => ({ ...p, userAssertion })));
-      // ...and persist them, same reason as the single-article path above.
-      const suggestedPmids = publications.map((p: any) => p.pmid);
-      if (suggestedPmids.length) {
-        dispatch(reciterUpdatePublication(props.personIdentifier, {
-          publications: suggestedPmids,
-          userAssertion: userAssertion,
-          manuallyAddedFlag: false,
-          userID: session?.data?.databaseUser?.userID,
-          personIdentifier: props.personIdentifier,
-        }));
-      }
+      applySuggested(publications.map((p: any) => p.pmid), userAssertion);
       return;
     }
 
     const userId = session?.data?.databaseUser?.userID;
-    const pmids = getPaginatedData().map((publication) => { return publication.pmid });
+    const pmids = publications.map((publication) => { return publication.pmid });
     const request = {
       publications: pmids,
       userAssertion: userAssertion,
@@ -189,11 +254,10 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     dispatch(curateSearchtextAction(SearchInfo));
     dispatch(reciterUpdatePublication(props.personIdentifier, request));
     //TODO Update publications list in the tab
-    let paginatedPublications = getPaginatedData();
     let updatedPublications = [];
     pmids.forEach((pmid) => {
       let updatedPublication = {};
-      let index = paginatedPublications.findIndex(publication => publication.pmid === pmid);
+      let index = publications.findIndex(publication => publication.pmid === pmid);
       if (index > -1) {
         updatedPublication = {
           ...publications[index],
@@ -222,6 +286,44 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     return -1;
   }, []);
 
+  // Detail (split) view: a sticky list on the left, the focused record in full on the right.
+  const [view, setView] = useState<'cards' | 'detail'>('cards');
+  useEffect(() => { try { if (localStorage.getItem(VIEW_KEY) === 'detail') setView('detail'); } catch {} }, []);
+  const chooseView = (v: 'cards' | 'detail') => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch {} };
+  const split = isArticleTab && view === 'detail';
+  // Detail view: the list pane can collapse to a narrow rail (caret in the list header, or L).
+  const [listHidden, setListHidden] = useState(false);
+  useEffect(() => { try { if (localStorage.getItem(LIST_KEY) === '1') setListHidden(true); } catch {} }, []);
+  const listToggled = useRef(false);
+  const toggleList = useCallback(() => {
+    listToggled.current = true;
+    setListHidden((h) => {
+      try { if (h) localStorage.removeItem(LIST_KEY); else localStorage.setItem(LIST_KEY, '1'); } catch {}
+      return !h;
+    });
+  }, []);
+  const showListRef = useRef<HTMLButtonElement>(null);
+  const [listHeadSlot, setListHeadSlot] = useState<HTMLDivElement | null>(null);
+  // The button that was pressed unmounts with its pane; hand focus to its counterpart.
+  useEffect(() => {
+    if (!listToggled.current) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && a.isConnected) { listToggled.current = false; return; }
+    // Re-showing: the header (and its caret) portals in a render after the pane mounts.
+    const target = listHidden ? showListRef.current : listHeadSlot?.querySelector('[aria-controls="curate-split-list"]') as HTMLElement | null;
+    if (target) { target.focus(); listToggled.current = false; }
+  }, [listHidden, listHeadSlot]);
+  const detailIdx = Math.min(Math.max(focusedIndex, 0), publicationsPaginatedData.length - 1);
+  const detailPub = split ? publicationsPaginatedData[detailIdx] : undefined;
+  // Acting in the pane on Suggested moves on to the next pending record, like the A/R keys.
+  const updateFromDetail = (uid: string, pmid: number, userAssertion: string) => {
+    handleUpdatePublication(uid, pmid, userAssertion);
+    if (isSuggested && userAssertion !== 'NULL') {
+      const next = findNextPending(detailIdx + 1, publicationsPaginatedData);
+      if (next >= 0) setFocusedIndex(next);
+    }
+  };
+
   // Count pending cards
   const pendingCount = publicationsPaginatedData.filter((p: any) => p.userAssertion === 'NULL').length;
 
@@ -232,7 +334,11 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      // The toolbar sort select (closed or open) and the Add publication menu own the keyboard.
+      if ((e.target as HTMLElement).closest?.('[role="combobox"], [role="listbox"], [role="menu"]')) return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      // An open Dialog/Sheet (profile, history, ...) owns the keyboard.
+      if (document.querySelector('[role="dialog"]')) return;
 
       const key = e.key.toLowerCase();
       const focusedPub = publicationsPaginatedData[focusedIndex];
@@ -261,14 +367,18 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         lastActioned.current = null;
       } else if (key === 'e' && focusedPub) {
         e.preventDefault();
-        const el = document.querySelector(`[data-pmid="${focusedPub.pmid}"]`);
-        if (el) {
-          const btn = el.querySelector('button[data-evidence-toggle]') as HTMLButtonElement;
-          if (btn) btn.click();
-        }
+        // In Detail view the list row shares the data-pmid; the toggle is in the pane's card.
+        const btn = document.querySelector(`[data-pmid="${focusedPub.pmid}"] button[data-evidence-toggle]`) as HTMLButtonElement | null;
+        if (btn) btn.click();
+      } else if (key === 'l' && split) {
+        e.preventDefault();
+        toggleList();
       } else if (key === 'arrowdown') {
         e.preventDefault();
-        setFocusedIndex(prev => Math.min(prev + 1, publicationsPaginatedData.length - 1));
+        // Keyboard can walk past the rendered window: grow it before focus reaches the end.
+        const next = Math.min(focusedIndex + 1, openList.length - 1);
+        if (next >= visible - 5) setVisible(v => v + LIST_CHUNK);
+        setFocusedIndex(next);
       } else if (key === 'arrowup') {
         e.preventDefault();
         setFocusedIndex(prev => Math.max(prev - 1, 0));
@@ -277,7 +387,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
 
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isArticleTab, isSuggested, focusedIndex, publicationsPaginatedData, props.personIdentifier]);
+  }, [isArticleTab, isSuggested, focusedIndex, publicationsPaginatedData, props.personIdentifier, visible, openList.length, split, toggleList]);
 
   // Scroll focused card into view
   useEffect(() => {
@@ -288,23 +398,117 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [focusedIndex, isArticleTab]);
 
+  // Cards, with group headers interleaved. Stops at the end of the rendered window (the sentinel
+  // brings in more), except that headers of collapsed groups still render.
+  const renderRows = (card: (p: any, index: number) => React.ReactNode) => {
+    if (mode === 'flat') return publicationsPaginatedData.map(card);
+    const rows: React.ReactNode[] = [];
+    let i = 0;
+    for (const g of groups) {
+      if (i >= publicationsPaginatedData.length && publicationsPaginatedData.length < openList.length) break;
+      const isClosed = !!closed[g.key];
+      const band = mode === 'band' ? BANDS.find((b) => b.key === g.key) : undefined;
+      const pending = isSuggested && band && band.key !== 'moderate' ? bandPending(band.key).length : 0;
+      rows.push(
+        <div key={`h-${g.key}`} className={styles.groupHead} data-band={band?.key}>
+          <button
+            type="button"
+            className={styles.groupToggle}
+            aria-expanded={!isClosed}
+            data-year-head={mode === 'year' ? g.key : undefined}
+            onClick={() => setClosed((c) => ({ ...c, [g.key]: !c[g.key] }))}
+          >
+            <span className={styles.groupChevron} aria-hidden="true">{'\u203A'}</span>
+            {band && <span className={styles.groupDot} aria-hidden="true" />}
+            <span className={styles.groupLabel}>{band ? band.label : g.key}</span>
+            <span className={styles.groupCount}>{g.count.toLocaleString()}{band ? ` \u00B7 ${band.range}` : ` publication${g.count === 1 ? '' : 's'}`}</span>
+          </button>
+          {pending > 0 && (
+            <button
+              type="button"
+              className={band!.key === 'strong' ? styles.groupBulkAccept : styles.groupBulkReject}
+              onClick={() => setBandBulk({ band: band!.key, verb: band!.key === 'strong' ? 'ACCEPTED' : 'REJECTED', excl: {} })}
+            >
+              {band!.key === 'strong' ? 'Accept' : 'Reject'} all {pending}{'\u2026'}
+            </button>
+          )}
+        </div>
+      );
+      if (!isClosed) {
+        while (i < publicationsPaginatedData.length && groupKeyOf(mode, publicationsPaginatedData[i]) === g.key) {
+          rows.push(card(publicationsPaginatedData[i], i));
+          i++;
+        }
+      }
+    }
+    return rows;
+  };
+
+  const histEl = hist.length > 1 ? (
+    <div className={styles.yearHist} role="group" aria-label="Publications by year">
+      <span className={styles.yearHistEnd}>{hist[0].year}</span>
+      <div className={styles.yearHistBars}>
+        {hist.map((h) => (
+          <button
+            type="button"
+            key={h.year}
+            className={styles.yearHistBar}
+            title={`${h.year}: ${h.count} publication${h.count === 1 ? '' : 's'}`}
+            aria-label={`${h.year}: ${h.count} publication${h.count === 1 ? '' : 's'}`}
+            disabled={!h.count}
+            onClick={() => jumpToYear(String(h.year))}
+          >
+            <span style={{ height: h.count ? Math.max(3, Math.round((h.count / Math.max(...hist.map((x) => x.count))) * 30)) : 1 }} />
+          </button>
+        ))}
+      </div>
+      <span className={styles.yearHistEnd}>{hist[hist.length - 1].year}</span>
+    </div>
+  ) : null;
+
+  // Collapsed list: a rail with show-list, previous/next and the position, as in the prototype.
+  const stepDetail = (d: number) => {
+    const next = Math.min(Math.max(detailIdx + d, 0), openList.length - 1);
+    if (next >= visible - 5) setVisible((v) => v + LIST_CHUNK);
+    setFocusedIndex(next);
+  };
+  const listRail = (
+    <div className={styles.splitRail}>
+      <button type="button" ref={showListRef} className={styles.railBtn} title="Show list (L)" aria-label="Show list" aria-expanded={false} onClick={toggleList}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+      </button>
+      <span className={styles.railRule} aria-hidden="true" />
+      <button type="button" className={styles.railBtn} title={'Previous (\u2191)'} aria-label="Previous publication" disabled={detailIdx <= 0} onClick={() => stepDetail(-1)}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6" /></svg>
+      </button>
+      <span className={styles.railPos} aria-live="polite"><span>{(detailIdx + 1).toLocaleString()}</span><span>of</span><span>{openList.length.toLocaleString()}</span></span>
+      <button type="button" className={styles.railBtn} title={'Next (\u2193)'} aria-label="Next publication" disabled={detailIdx >= openList.length - 1} onClick={() => stepDetail(1)}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+    </div>
+  );
+
   if (!props.publications.length) {
     if (props.tabType === 'NULL') {
       return (
         <div className={styles.emptyState}>
-          <div className={styles.emptyIconGreen}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" strokeWidth="2" strokeLinecap="round" width="22" height="22"><path d="M20 6L9 17l-5-5"/></svg>
-          </div>
           <div className={styles.emptyTitle}>All caught up</div>
-          <div className={styles.emptyBody}>There are no new suggested publications to review. ReCiter will surface new suggestions the next time the system runs.</div>
+          <div className={styles.emptyBody}>
+            No suggested publications for {props.fullName?.trim().split(' ')[0] || 'this person'}. {(props.acceptedCount ?? 0).toLocaleString()} accepted, {(props.rejectedCount ?? 0).toLocaleString()} rejected.
+          </div>
           <div className={styles.emptyActions}>
-            <button className={styles.emptyActionPrimary}>
+            {next && (
+              <Button variant="primary" onClick={goNext}>
+                Next: {next.name} · {next.pending.toLocaleString()} pending
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => router.push('/search')}>
+              Back to people
+            </Button>
+            <Button variant="ghost" onClick={props.onRefresh} disabled={!props.onRefresh}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M13.5 8a5.5 5.5 0 11-1.1-3.3M13.5 2v3h-3"/></svg>
               Run ReCiter now
-            </button>
-            <button className={styles.emptyActionSecondary} onClick={() => props.onTabChange?.('ACCEPTED')}>
-              View accepted publications
-            </button>
+            </Button>
           </div>
         </div>
       );
@@ -316,12 +520,14 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
             <svg viewBox="0 0 24 24" fill="none" stroke="#8a94a6" strokeWidth="2" strokeLinecap="round" width="22" height="22"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6M9 8h4"/></svg>
           </div>
           <div className={styles.emptyTitle}>No accepted publications yet</div>
-          <div className={styles.emptyBody}>Publications you accept will appear here. Review the suggested tab to get started.</div>
+          <div className={styles.emptyBody}>{props.noSuggested ? 'Publications you accept or add will appear here.' : 'Publications you accept will appear here. Review the suggested tab to get started.'}</div>
+          {!props.noSuggested && (
           <div className={styles.emptyActions}>
             <button className={styles.emptyActionPrimary} onClick={() => props.onTabChange?.('NULL')}>
               Go to Suggested
             </button>
           </div>
+          )}
         </div>
       );
     }
@@ -333,11 +539,13 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
           </div>
           <div className={styles.emptyTitle}>No rejected publications</div>
           <div className={styles.emptyBody}>Publications you reject will be recorded here. You can undo a rejection at any time.</div>
+          {!props.noSuggested && (
           <div className={styles.emptyActions}>
             <button className={styles.emptyActionSecondary} onClick={() => props.onTabChange?.('NULL')}>
               Go to Suggested
             </button>
           </div>
+          )}
         </div>
       );
     }
@@ -357,26 +565,100 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         updateAll={handleUpdatePublicationAll}
         tabType={props.tabType}
         isSearchText={props.isSearchText}
-        page={page}
-        count={count}
         totalCount={totalCount}
-        handlePaginationUpdate={handlePaginationUpdate}
-        handleCountUpdate={handleCountUpdate}
+        sort={sort}
+        toolbarSlot={props.toolbarSlot}
+        view={view}
+        onViewChange={isArticleTab ? chooseView : undefined}
+        inSplit={split}
+        listHeaderSlot={split && !listHidden ? listHeadSlot : null}
+        onHideList={split ? toggleList : undefined}
       />
 
-      {/* Keyboard hint bar — Suggested tab only */}
-      {isArticleTab && (
-        <div className={styles.kbdHint}>
-          <span><span className={styles.kbd}>A</span> Accept</span>
-          <span><span className={styles.kbd}>R</span> Reject</span>
-          <span><span className={styles.kbd}>U</span> Undo last</span>
-          <span><span className={styles.kbd}>E</span> Toggle Evidence</span>
-          <span><span className={styles.kbd}>&uarr;</span><span className={styles.kbd}>&darr;</span> Navigate</span>
-        </div>
-      )}
+      {props.tabType === 'ACCEPTED' && <DuplicatesBanner uid={props.personIdentifier} accepted={props.publications} />}
 
+      {!split && histEl}
+
+      {split ? (
+        <div className={styles.split} data-list-hidden={listHidden || undefined}>
+          {listHidden ? listRail : (
+          <div className={styles.splitList} id="curate-split-list">
+            <div ref={setListHeadSlot} />
+            {histEl}
+            <div className={styles.splitScroll} aria-label="Publications">
+            {renderRows((p: any, index: number) => {
+              const by = authorLine(p);
+              const type = p.publicationType?.publicationTypeCanonical;
+              // Same actions as the card footer: pending → accept/reject; actioned on Suggested → undo only;
+              // Accepted tab → undo/reject; Rejected tab → accept/undo.
+              const held = isSuggested && p.userAssertion !== 'NULL';
+              const act = (verb: string) => (index === detailIdx ? updateFromDetail : handleUpdatePublication)(props.personIdentifier, p.pmid, verb);
+              return (
+                <div
+                  key={p.pmid}
+                  data-pmid={p.pmid}
+                  data-state={p.userAssertion}
+                  data-held={held || undefined}
+                  className={styles.splitRow}
+                  aria-current={index === detailIdx ? 'true' : undefined}
+                >
+                  <button type="button" className={styles.splitSelect} onClick={() => setFocusedIndex(index)}>
+                    {isScored(p)
+                      ? <span className={styles.splitScore} data-band={bandOf(p)}>{scoreOf(p)}</span>
+                      : <span className={styles.splitScore} data-band="none" title="Not scored by ReCiter">{'\u2013'}</span>}
+                    <span className={styles.splitText}>
+                      <span className={styles.splitTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(p.articleTitleRTF || p.articleTitle) }} />
+                      {(by.pre || by.tgt) && <span className={styles.splitAuthors}>{by.pre}{by.tgt && <strong>{by.tgt}</strong>}{by.post}</span>}
+                      <span className={styles.splitMeta}>{p.journalTitleVerbose} · {yearOf(p)}{type ? ` · ${type}` : ''}</span>
+                    </span>
+                  </button>
+                  <span className={styles.splitActions}>
+                    {!held && p.userAssertion !== 'ACCEPTED' && (
+                      <button type="button" className={styles.splitAccept} title="Accept (A)" aria-label="Accept" onClick={() => act('ACCEPTED')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                      </button>
+                    )}
+                    {p.userAssertion !== 'NULL' && (
+                      <button type="button" className={styles.splitUndo} title="Undo" aria-label="Undo" onClick={() => act('NULL')}>
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M3 8a5 5 0 105-5H5M3 8V4m0 4H7" /></svg>
+                      </button>
+                    )}
+                    {!held && p.userAssertion !== 'REJECTED' && (
+                      <button type="button" className={styles.splitReject} title="Reject (R)" aria-label="Reject" onClick={() => act('REJECTED')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                      </button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+            {visible < openList.length && <div ref={sentinelRef} className={styles.listSentinel} aria-hidden="true" />}
+            </div>
+          </div>
+          )}
+          <div className={styles.splitDetail}>
+            {detailPub && (
+              <Publication
+                key={detailPub.pmid}
+                index="detail"
+                reciterArticle={detailPub}
+                personIdentifier={props.personIdentifier}
+                fullName={props.fullName}
+                updatePublication={updateFromDetail}
+                activekey={props.activeKey}
+                totalCount={props.totalCount}
+                showEvidenceDefault="detail"
+                detail
+                coauthorIndex={props.coauthorIndex}
+                page={page}
+                paginatedPubsCount={detailPub.userAssertion === "NULL" ? totalNullCount : detailPub.userAssertion === "ACCEPTED" ? totalAcceptedCount : totalRejectedCount}
+              />
+            )}
+          </div>
+        </div>
+      ) : (<>
       <div className={styles.articleList}>
-        {publicationsPaginatedData.map((publication: any, index: number) => {
+        {renderRows((publication: any, index: number) => {
           return (
             <Publication
               key={publication.pmid}
@@ -388,6 +670,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               activekey={props.activeKey}
               totalCount={props.totalCount}
               showEvidenceDefault={props.showEvidenceDefault}
+              coauthorIndex={props.coauthorIndex}
               page={page}
               paginatedPubsCount={publication.userAssertion === "NULL" ? totalNullCount : publication.userAssertion === "ACCEPTED" ? totalAcceptedCount : totalRejectedCount}
               isFocused={isArticleTab && index === focusedIndex}
@@ -396,13 +679,50 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
           )
         })}
       </div>
+      {visible < openList.length && <div ref={sentinelRef} className={styles.listSentinel} aria-hidden="true" />}
+      </>)}
+
+      <Dialog
+        open={!!bandBulk}
+        onClose={() => setBandBulk(null)}
+        width={600}
+        title={bandBulk ? `${bandBulk.verb === 'ACCEPTED' ? 'Accept' : 'Reject'} ${bulkPmids.length} ${bandBulk.band === 'strong' ? 'strong' : 'weak'}-match suggestion${bulkPmids.length === 1 ? '' : 's'}?` : ''}
+        description={bandBulk ? (bandBulk.verb === 'ACCEPTED'
+          ? `Spot-check first. These are the ${bulkSample.length} lowest-scoring in the band, where mistakes are likeliest. Exclude any that look wrong; they stay in Suggested.`
+          : `Spot-check first. These are the ${bulkSample.length} highest-scoring in the band, the likeliest to be real. Exclude any that should stay; they remain in Suggested.`) : ''}
+        footer={<>
+          <Button variant="ghost" onClick={() => setBandBulk(null)}>Cancel</Button>
+          <Button variant={bandBulk?.verb === 'REJECTED' ? 'danger' : 'primary'} disabled={!bulkPmids.length} onClick={confirmBandBulk}>
+            {bandBulk?.verb === 'REJECTED' ? 'Reject' : 'Accept'} {bulkPmids.length}
+          </Button>
+        </>}
+      >
+        <ul className={styles.spotList}>
+          {bulkSample.map((p: any) => {
+            const ex = !!bandBulk?.excl[p.pmid];
+            return (
+              <li key={p.pmid} className={ex ? styles.spotExcluded : undefined}>
+                <span className={styles.spotScore}>{scoreOf(p)}</span>
+                <span className={styles.spotText}>
+                  <span className={styles.spotTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(p.articleTitleRTF || p.articleTitle) }} />
+                  <span className={styles.spotMeta}>{p.journalTitleVerbose} · {yearOf(p)} · PMID {p.pmid}</span>
+                </span>
+                <Button size="sm" variant="ghost" aria-pressed={ex} onClick={() => setBandBulk((b) => b && ({ ...b, excl: { ...b.excl, [p.pmid]: !ex } }))}>
+                  {ex ? 'Include' : 'Exclude'}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+        {bulkItems.length > bulkSample.length && <p className={styles.spotMore}>+ {bulkItems.length - bulkSample.length} more not shown</p>}
+      </Dialog>
 
       {/* All caught up state */}
       {isSuggested && pendingCount === 0 && publicationsPaginatedData.length > 0 && (
         <div className={styles.allDone}>
           <div className={styles.allDoneCheck}><CheckIcon /></div>
           <p><strong>All caught up!</strong></p>
-          <p>No pending suggestions remaining on this page.</p>
+          <p>No pending suggestions remaining.</p>
         </div>
       )}
     </>

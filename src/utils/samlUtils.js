@@ -1,4 +1,4 @@
-import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from "../../controllers/db/admin.users.controller"
+import { findOrCreateAdminUsers,findOrCreateAdminUserRole,provisionPartnerAdminUser } from "../../controllers/db/admin.users.controller"
 import {findOneAdminSettings} from '../../controllers/db/admin.settings.controller';
 import { findOnePerson } from "../../controllers/db/person.controller";
 import { findUserPermissions } from '../../services/db/userroles.service';
@@ -8,6 +8,38 @@ import jwt from 'jsonwebtoken';
 
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+// Cornell NetID logins (src/utils/samlIdentity.ts): the account is keyed `netid@cornell.edu`,
+// created on first login for anyone on the Cornell Ithaca roster, with Reporter_All and a proxy
+// grant to their own person row (provisionPartnerAdminUser; rules in src/utils/partnerAccount.ts).
+// Never matched by email, no default roles from admin settings, no Curator_Self from `person` (a
+// NetID can equal a WCM CWID there). Roles are read with the ROW's stored email, not the SAML mail:
+// the role query also matches a unique email on its own, and a Cornell mail must never pick up a
+// WCM user's roles.
+export const findOrProvisionPartnerUser = async (partnerKey, email, firstName, lastName) => {
+    const adminUser = await provisionPartnerAdminUser(partnerKey, email, firstName, lastName)
+    if (!adminUser) return null
+    const userRoles = await findUserPermissions(["personIdentifier", "email"], [adminUser.personIdentifier, adminUser.email || ""])
+    if (!userRoles || JSON.parse(userRoles).length === 0) return null
+    adminUser.userRoles = userRoles
+    adminUser.databaseUser = {
+        userID: adminUser.userID,
+        personIdentifier: adminUser.personIdentifier,
+        nameFirst: adminUser.nameFirst,
+        nameMiddle: adminUser.nameMiddle,
+        nameLast: adminUser.nameLast,
+        email: adminUser.email,
+        status: adminUser.status,
+        createTimestamp: adminUser.createTimestamp,
+        modifyTimestamp: adminUser.modifyTimestamp,
+        scope_person_types: adminUser.scope_person_types,
+        scope_org_units: adminUser.scope_org_units,
+        scope_institutions: adminUser.scope_institutions,
+        proxy_person_ids: adminUser.proxy_person_ids,
+    }
+    return adminUser
+}
+
 export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
@@ -42,7 +74,15 @@ export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLast
             "email" : createdAdminUser.email,
             "status":createdAdminUser.status,
             "createTimestamp":createdAdminUser.createTimestamp,
-            "modifyTimestamp":createdAdminUser.modifyTimestamp
+            "modifyTimestamp":createdAdminUser.modifyTimestamp,
+            // The jwt() callback in [...nextauth].jsx derives token.scopeData / token.proxyPersonIds
+            // from THIS object. direct_login attaches the full admin_users row, but this hand-built
+            // copy dropped the three columns, so every SAML-authenticated curator carried a null
+            // scope and canCurate failed closed for scoped curators and proxies (est4003).
+            "scope_person_types": createdAdminUser.scope_person_types,
+            "scope_org_units": createdAdminUser.scope_org_units,
+            "scope_institutions": createdAdminUser.scope_institutions,
+            "proxy_person_ids": createdAdminUser.proxy_person_ids
         }
         createdAdminUser['databaseUser'] = databaseUser
         createdAdminUser.personIdentifier 
@@ -63,11 +103,8 @@ export const grantDefaultRolesToAdminUser = async(adminUser) => {
     let assignRolesPayload =[];
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
     {
-        let viewAttributes = typeof adminSettings.viewAttributes === 'string'
-            ? JSON.parse(adminSettings.viewAttributes)
-            : (typeof adminSettings.viewAttributes === "object" && adminSettings.viewAttributes !== null
-                ? adminSettings.viewAttributes
-                : []);
+        let viewAttributes = typeof adminSettings.viewAttributes === 'string' ? JSON.parse(adminSettings.viewAttributes) : adminSettings.viewAttributes;
+        
         viewAttributes && viewAttributes.forEach(attr => {
             attr.roles.map(role=>{
                 if(role.isChecked)

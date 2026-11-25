@@ -8,10 +8,15 @@ import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
 import type { Author } from '../../../../types/Author';
 import { useSelector, useDispatch } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
-import HistoryModal from "./HistoryModal";
+import { Sheet, Button as Btn } from "../../ui";
 import { showEvidenceByDefault } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml } from "../../../utils/htmlText";
+import { toast } from "react-toastify";
+import Popover from "@mui/material/Popover";
+import { buildEvidenceRows, determineMatchType, MATCH_COLORS as matchColors, knownCoauthorsOf, identityChips, tallyOf, affiliationParts, chipDetail } from "../../../utils/identityEvidence";
+import type { CoauthorIndex } from "../../../utils/identityEvidence";
+import { BANDS, BAND_NOTES, bandOf, isScored } from "../../../utils/curateGroups";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -60,6 +65,25 @@ const friendlyProvSource = (v?: string | null): string | null =>
 const friendlyProvStrategy = (v?: string | null): string | null =>
   v ? (PROV_STRATEGY_LABELS[v] || v.replace(/RetrievalStrategy$/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim()) : null;
 
+const CopyButton = ({ label, value }: { label: string, value: string | number }) => (
+  <button
+    type="button"
+    className={styles.copyBtn}
+    title={`Copy ${label}`}
+    aria-label={`Copy ${label}`}
+    onClick={(e) => {
+      e.stopPropagation();
+      const done = () => toast(`Copied ${label} ${value}`);
+      const fail = () => toast.error(`Couldn't copy ${label}`);
+      navigator.clipboard ? navigator.clipboard.writeText(String(value)).then(done, fail) : fail();
+    }}
+  >
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></svg>
+  </button>
+);
+
+const CHIP_SYM = { match: '\u2713', partial: '~', mismatch: '\u2715', nodata: '?', info: '\u2022' };
+
 //TEMP: update to required
 interface FuncProps {
     onAccept?(pmid: number, id: number): void,
@@ -81,7 +105,9 @@ interface FuncProps {
     maxArticlesPerPerson?:any,
     showEvidenceDefault?:any,
     isFocused?: boolean,
+    coauthorIndex?: CoauthorIndex,
     onCardMouseDown?: () => void,
+    detail?: boolean,
 }
 
 const Publication: FunctionComponent<FuncProps> = (props) => {
@@ -89,41 +115,29 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const [showEvidence, setShowEvidence] = useState<boolean>(false)
     const [expandedAuthors, setExpandedAuthors] = useState<boolean>(false)
     const [showZeroWeight, setShowZeroWeight] = useState<boolean>(false)
+    const [chipOpen, setChipOpen] = useState<{ label: string, el: HTMLElement } | null>(null)
 
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
-    const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false)
     const [showCurationLog, setShowCurationLog] = useState<boolean>(false)
-    const curationLogRef = useRef<HTMLSpanElement>(null)
     const [expandedPubIndex, setExpandedPubIndex] = useState<any>(props.showEvidenceDefault ? props.showEvidenceDefault : null)
 
     const maxArticlesPerPerson = reciterConfig.reciter.featureGeneratorByGroup.featureGeneratorByGroupApiParams.maxArticlesPerPerson;
     const dispatch = useDispatch();
 
-    const onOpenModal = () => setShowHistoryModal(true)
-    const onCloseModal = () => setShowHistoryModal(false)
-
-    // Close curation log popover on click outside or Escape
-    useEffect(() => {
-      if (!showCurationLog) return;
-      const handleClickOutside = (e: MouseEvent) => {
-        if (curationLogRef.current && !curationLogRef.current.contains(e.target as Node)) {
-          setShowCurationLog(false);
-        }
-      };
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') setShowCurationLog(false);
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEscape);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('keydown', handleEscape);
-      };
-    }, [showCurationLog]);
-
     const formatClogDate = (timestamp: string | Date) => {
       const d = new Date(timestamp);
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      // Include time-of-day (seconds included) so rapid same-day actions -- e.g. a
+      // curator clicking through several accept/reject/undo actions within seconds --
+      // remain distinguishable in the history list, instead of collapsing onto one
+      // calendar-date-only entry.
+      return d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit'
+      });
     };
 
     const toogleEvidence = (pubExpEvidenceNumber) => {
@@ -267,7 +281,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               <button
                 className={styles.btnReject}
                 onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(evDefault)); }}
-              ><ClearIcon style={{fontSize:16}}/> Reject
+              ><ClearIcon style={{fontSize:16}}/> Reject <span className={styles.keyHint}>R</span>
               </button>
             </div>
           );
@@ -290,7 +304,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               <button
                 className={styles.btnAccept}
                 onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(evDefault)); }}
-              ><CheckIcon style={{fontSize:16}}/> Accept
+              ><CheckIcon style={{fontSize:16}}/> Accept <span className={styles.keyHint}>A</span>
               </button>
               <button
                 className={styles.btnUndo}
@@ -306,21 +320,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       }
     }
 
-    const fullName = (person: any) => {
-      let userName = "";
-      if(person !== undefined) {
-          if(person.firstName !== undefined) {
-            userName += person.firstName + ' ';
-          }
-          if(person.middleInitial !== undefined) {
-            userName += person.middleName + ' ';
-          }
-          if(person.lastName !== undefined) {
-            userName += person.lastName + ' ';
-          }
-      }
-      return userName; 
-    }
 
     const getTagClass = (tag: string): string => {
       const lower = tag.toLowerCase();
@@ -356,71 +355,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       )
     }
 
-    const evidenceTableRowTitles = [
-      { authorNameEvidence: 'Name' },
-      { relationshipEvidence: 'Relationships'},
-      { emailEvidence : 'Email'},
-      { organizationalUnitEvidence : 'Departmental affiliation'},
-      { affiliationEvidence: 'Target author affiliation' },
-      { grantEvidence: 'Grants' },
-      { journalCategoryEvidence: 'Journal category'},
-      { educationYearEvidence: 'Degree year discrepancy'},
-      { genderEvidence: 'Inferred gender of name '},
-      { articleCountEvidence: 'Candidate article count'},
-      { authorCountEvidence: 'Candidate author count'},
-      //{ averageClusteringEvidence: 'Clustering'},
-      { coAuthorAffiliationEvidence: 'Co-author affiliation'},
-    ]
-
-    const evidenceTableCellFields = {
-       authorNameEvidence: { points: 'nameScoreTotal', dataFormat: 'true' },
-       relationshipEvidence: { relationshipNegativeScore: 'relationshipNegativeMatchScore',relationshipPostiveScore: 'relationshipPositiveMatchScore', relationshipIdentityCount: 'relationshipIdentityCount', dataFormat: 'true'},
-       emailEvidence: { points: 'emailMatchScore', institutionalData:'emailMatch', articleData: 'emailMatch'}, 
-       organizationalUnitEvidence: { dataFormat: 'true' },
-       affiliationEvidence: { scopusUrl: 'https://www.scopus.com/affil/profile.uri?afid=', dataFormat: 'true' } ,
-       grantEvidence: { dataFormat: 'true' },
-       journalCategoryEvidence: { points: 'journalSubfieldScore', dataFormat: 'true'},
-       educationYearEvidence: { points: 'educationYearEvidence', articleData: 'articleYear', dataFormat: 'true'},
-       genderEvidence: { source: 'https://data.world/howarder/gender-by-name', dataFormat: 'true'},
-       articleCountEvidence: { institutionalData:'-', articleData: 'countArticlesRetrieved', points: 'articleCountScore'},
-       authorCountEvidence: { institutionalData:'-', articleData: 'countAuthors', points: 'authorCountScore'},
-       //averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreModificationOfTotalScore'},
-       personTypeEvidence: { institutionalData: 'personType', points: 'personTypeScore'},
-       coAuthorAffiliationEvidence: { dataFormat: 'true'},
-    }
-
-    const displayRow = (row, evidence) => {
-      if (evidence.hasOwnProperty(Object.keys(row)[0])) {
-        if (Object.keys(row)[0] === 'relationshipEvidence') {
-            return true;
-        } else {
-          return true
-        }
-      } else if (Object.keys(row)[0] === 'coAuthorAffiliationEvidence') {
-        if(evidence.affiliationEvidence !== undefined) {
-          if (evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation !== undefined) {
-            return true;
-          }
-        }
-      } else{
-        return false;
-      }
-    }
-
-    const determineMatchType = (rowName: string, points: any, evidence: any): 'match' | 'partial' | 'mismatch' | 'nodata' => {
-      const p = Number(points);
-      if (isNaN(p) || p === 0) return 'nodata';
-      if (p > 1) return 'match';
-      if (p > 0) return 'partial';
-      return 'mismatch';
-    };
-
-    const matchColors: Record<string, { bg: string; border: string; label: string }> = {
-      match: { bg: '#dcfce7', border: '#22c55e', label: 'Strong match' },
-      partial: { bg: '#fef3c7', border: '#f59e0b', label: 'Partial / weak' },
-      mismatch: { bg: '#fee2e2', border: '#ef4444', label: 'Mismatch' },
-      nodata: { bg: '#f3f4f6', border: '#9ca3af', label: 'No data' },
-    };
 
     const matchIcons: Record<string, JSX.Element> = {
       match: <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="9" height="9"><path d="M1.5 5l2.5 2.5 4.5-4.5"/></svg>,
@@ -430,270 +364,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     };
 
     const formatEvidenceTable = (evidence: any) => {
-      let evidenceTableRows = []
-        evidenceTableRowTitles.filter((row) => displayRow(row, evidence)).map((title, index) => {
-          let rowName = Object.keys(title)[0];
-          let rowFields = evidenceTableCellFields[rowName];
-          let points = '';
-          let pointsText:any = '';
-          let source = '';
-          let institutionalData = '-';
-          let articleData = '-';
-          let displayInstDataList = false;
-          let displayArticleDataList = false;
-          let institutionalDataList = [];
-          let articleDataList = [];
-          if (rowFields && evidence[rowName]) {
-            if (rowFields.hasOwnProperty('points')) {
-              if (evidence[rowName]) {
-                if (evidence[rowName][rowFields['points']]) {
-                  let unFormattedpoints = evidence[rowName][rowFields['points']]
-                  points = (Math.round(unFormattedpoints * 100 + Number.EPSILON) / 100).toString();
-                }
-              }
-            }
-
-            if (rowFields['dataFormat']) {
-              if (rowName === 'authorNameEvidence') {
-                institutionalData = fullName(evidence[rowName].institutionalAuthorName)
-                articleData = fullName(evidence[rowName].articleAuthorName)
-              }
-
-              if (rowName === 'relationshipEvidence') {
-                points = (evidence[rowName].relationshipPositiveMatchScore + evidence[rowName].relationshipNegativeMatchScore).toFixed(2)
-                const posScore = (evidence[rowName].relationshipPositiveMatchScore ?? 0).toFixed(2);
-                const negScore = (evidence[rowName].relationshipNegativeMatchScore ?? 0).toFixed(2);
-                const idCount = evidence[rowName].relationshipIdentityCount || 0;
-                pointsText = <span>+{posScore} / {'\u2212'}{Math.abs(Number(negScore)).toFixed(2)} {'\u00B7'} {idCount} identities</span>
-                if (evidence[rowName].hasOwnProperty('relationshipPositiveMatch')) {
-                  displayInstDataList = true;
-                  displayArticleDataList = true;
-                  evidence[rowName].relationshipPositiveMatch.forEach(match => {
-                    let username = fullName(match.relationshipNameIdentity);
-                    let tags = match.relationshipType;
-                    institutionalDataList.push({ name: username, tags: tags});
-                    articleDataList.push({ name: username, tags: []});
-                  });
-                }
-              }
-
-              if (rowName === 'affiliationEvidence') {
-                let scopusTargetAuthorAffiliationScore = 0;
-                let pubmedTargetAuthorAffiliationScore = 0;
-                displayInstDataList = true;
-                displayArticleDataList = true;
-                if (evidence[rowName].hasOwnProperty('scopusTargetAuthorAffiliation')) {
-                  let matchType = ''
-                  evidence[rowName].scopusTargetAuthorAffiliation.forEach((scopusTargetAuthorAffiliation: any) => {
-                    scopusTargetAuthorAffiliationScore = scopusTargetAuthorAffiliationScore + scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchTypeScore
-                    if(scopusTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationMatchType')) {
-                      if(scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'POSITIVE_MATCH_INDIVIDUAL') {
-                          matchType = 'Affiliation'
-                      } else if(scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'POSITIVE_MATCH_INSTITUTION') {
-                          matchType = 'Affiliation'
-                      } else if(scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'NULL_MATCH') {
-                          matchType = 'No data available'
-                      } else {
-                          matchType = 'No Match'
-                      }
-                    }
-                    let targetAuthorInstitutionalAffiliationIdentity = ''
-                    if (scopusTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationIdentity')) {
-                      targetAuthorInstitutionalAffiliationIdentity = scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationIdentity
-                    }
-                    if (matchType === 'No data available') {
-                      institutionalDataList.push({ name: '-', tags: []})
-                      articleDataList.push({ name: '', tags: [matchType]})
-                    } else {
-                      institutionalDataList.push({ name: targetAuthorInstitutionalAffiliationIdentity, tags: [matchType]});
-                      let targetAuthorInstitutionalAffiliationArticleScopusLabel = ''
-                      if (scopusTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationArticleScopusLabel')) {
-                          targetAuthorInstitutionalAffiliationArticleScopusLabel = scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationArticleScopusLabel
-                      }
-                      articleDataList.push({ name: targetAuthorInstitutionalAffiliationArticleScopusLabel, tags: ['Scopus'], source: rowFields['scopusUrl'] + scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationArticleScopusAffiliationId});
-                    }
-                  })
-                }
-                if(evidence[rowName].hasOwnProperty('pubmedTargetAuthorAffiliation')) {
-                  displayInstDataList = true;
-                  displayArticleDataList = true;
-                  let matchType = ''
-                  pubmedTargetAuthorAffiliationScore = Number(evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchTypeScore)
-                  if (evidence[rowName].pubmedTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationMatchType')) {
-                      if (evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'POSITIVE_MATCH_INDIVIDUAL') {
-                          matchType = 'Affiliation'
-                      } else if(evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'POSITIVE_MATCH_INSTITUTION') {
-                          matchType = 'Affiliation'
-                      } else if(evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'NULL_MATCH') {
-                          matchType = 'No data available'
-                      } else {
-                          matchType = 'No Match'
-                      }
-                  }
-                  displayInstDataList = false;
-                  institutionalData = '-';
-                  articleDataList.push({ name: evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationArticlePubmedLabel, tags: ['PubMed']})
-                }
-                let totalScore = scopusTargetAuthorAffiliationScore + pubmedTargetAuthorAffiliationScore
-                points = totalScore.toString();
-              }
-
-              if (rowName === 'organizationalUnitEvidence') {
-                let scoreTotal = 0
-                let itemCount = 0
-                displayInstDataList = true;
-                displayArticleDataList = true;
-                evidence[rowName].forEach((orgUnitItem: any) => {
-                    itemCount++
-                    scoreTotal = scoreTotal + Number(orgUnitItem.organizationalUnitMatchingScore + orgUnitItem.organizationalUnitModifierScore)
-                    if(orgUnitItem.hasOwnProperty('organizationalUnitType')) {
-                      const unitType = orgUnitItem.organizationalUnitType.charAt(0).toUpperCase() + orgUnitItem.organizationalUnitType.slice(1).toLowerCase();
-                      institutionalDataList.push({ name: orgUnitItem.identityOrganizationalUnit, tags: [unitType]})
-                    } else {
-                      institutionalDataList.push({ name: orgUnitItem.identityOrganizationalUnit, tags: []})
-                    }
-                    if(itemCount === 1) {
-                      articleDataList.push({ name: orgUnitItem.articleAffiliation, tags: ['PubMed']})
-                    }
-                })
-                points = scoreTotal.toString();
-              }
-
-              if (rowName === 'journalCategoryEvidence') {
-                displayInstDataList = true;
-                displayArticleDataList = true;
-                if (evidence[rowName].journalSubfieldDepartment === 'NO_MATCH') {
-                  displayInstDataList = false;
-                  institutionalData = '-';
-                } else {
-                  institutionalDataList.push({ name: evidence[rowName].journalSubfieldDepartment, tags: ['Org Unit'] })
-                }
-                articleDataList.push({ name: evidence[rowName].journalSubfieldScienceMetrixLabel, tags: ['Journal Category']})
-              }
-
-              if (rowName === 'educationYearEvidence') {
-                if (evidence[rowName].identityBachelorYear !== undefined) {
-                  institutionalData = evidence[rowName].identityBachelorYear + ' - Bachelors'
-                }
-                if (evidence[rowName].identityDoctoralYear !== undefined) {
-                  institutionalData = (institutionalData === '-') ? evidence[rowName].identityDoctoralYear + ' - Doctoral' : institutionalData + ' , ' + evidence[rowName].identityDoctoralYear + ' - Doctoral';
-                }
-                points = evidence[rowName].discrepancyDegreeYearBachelorScore + evidence[rowName].discrepancyDegreeYearDoctoralScore
-              }
-
-              if (rowName === 'genderEvidence') {
-                if(evidence[rowName].hasOwnProperty('genderScoreIdentity')) {
-                  if(Number(evidence[rowName].genderScoreIdentity) >= 0.5) {
-                      institutionalData = 'Male - ' + (Number(evidence[rowName].genderScoreIdentity) * 100) + '% probability'
-                  } else {
-                    institutionalData = 'Female - ' + Math.round(((1 - Number(evidence[rowName].genderScoreIdentity)) * 100)) + '% probability'
-                  }
-                }
-                if (evidence[rowName].hasOwnProperty('genderScoreArticle')) {
-                  if(Number(evidence[rowName].genderScoreArticle) >= 0.5) {
-                    articleData = 'Male - ' + (Number(evidence[rowName].genderScoreArticle) * 100) + '% probability'
-                } else {
-                    articleData = 'Female - ' + Math.round(((1 - Number(evidence[rowName].genderScoreArticle)) * 100)) + '% probability'
-                }
-                }
-              }
-
-              if (rowName === 'averageClusteringEvidence') {
-                displayArticleDataList = true;
-                articleDataList.push({ name: 'Score of article without clustering: ' + evidence[rowName].totalArticleScoreWithoutClustering, tags: []});
-                articleDataList.push({ name: 'Average score of cluster: ' + evidence[rowName].clusterScoreAverage, tags: []});
-              }
-            }
-
-            if (rowName == 'grantEvidence') {
-              let scoreTotal = 0
-              if(evidence[rowName].grants !== undefined && evidence[rowName].grants.length > 0) {
-                evidence[rowName].grants.forEach((grant: any) => {
-                    scoreTotal = scoreTotal + grant.grantMatchScore
-                    displayInstDataList = true;
-                    displayArticleDataList = true;
-                    institutionalDataList.push({ name: grant.institutionGrant, tags: []})
-                    articleDataList.push({ name: grant.articleGrant, tags: []})
-                })
-                points = scoreTotal.toString();
-              }
-            }
-
-            if (rowName == 'genderEvidence') {
-              points = evidence[rowName].genderScoreIdentityArticleDiscrepancy.toString();
-            }
-
-            if (rowFields.hasOwnProperty('source')) {
-              source = rowFields['source'];
-            }
-
-            if (rowFields.hasOwnProperty('institutionalData')) {
-              if (evidence[rowName] && evidence[rowName][rowFields['institutionalData']]) {
-                institutionalData = evidence[rowName][rowFields['institutionalData']];
-              }
-            }
-
-            if (rowFields.hasOwnProperty('articleData')) {
-              if (evidence[rowName] && evidence[rowName][rowFields['articleData']]) {
-                articleData = evidence[rowName][rowFields['articleData']];
-              }
-            }
-          }
-
-          if (rowName === 'coAuthorAffiliationEvidence') {
-            let scopusNonTargetAuthorAffiliationScore = evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationScore;
-            if(evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchKnownInstitution !== undefined) {
-              displayInstDataList = true;
-              displayArticleDataList = true;
-              evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchKnownInstitution.forEach((matchingKnownInst: any) => {
-                  let knownInst = matchingKnownInst.split(', ')
-                  let articleDataName = knownInst[2] + ' author(s) from '
-                  institutionalDataList.push({ name: knownInst[0], tags: ['Affiliation']})
-                  articleDataList.push({ name: articleDataName, tags: ['Scopus'], url: "https://www.scopus.com/affil/profile.uri?afid=" + knownInst[1], urlName: knownInst[0]})
-              })
-            }
-
-            if(evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchCollaboratingInstitution !== undefined) {
-              displayInstDataList = true;
-              displayArticleDataList = true;
-              evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchCollaboratingInstitution.forEach((matchingCollabInst: any) => {
-                let collabInst = matchingCollabInst.split(', ')
-                institutionalDataList.push({ name: collabInst[0], tags: ['Affiliation']})
-                articleDataList.push({ name: collabInst[2] + ' author(s) from ', url: "https://www.scopus.com/affil/profile.uri?afid=" + collabInst[1], urlName: collabInst[0], tags: ['Scopus']})
-              })
-            }
-
-            points = scopusNonTargetAuthorAffiliationScore.toString()
-          }
-
-          let evidenceTableRowData = {
-            title: Object.values(title),
-            name: Object.keys(title)[0],
-            points: points,
-            pointsText: pointsText,
-            institutionalData: institutionalData,
-            articleData: articleData,
-            displayInstDataList: displayInstDataList,
-            displayArticleDataList: displayArticleDataList,
-            institutionalDataList: institutionalDataList,
-            articleDataList: articleDataList,
-            source: source,
-            spanData: Object.keys(title)[0] === 'relationshipEvidence',
-          }
-
-          evidenceTableRows.push(evidenceTableRowData);
-        })
-
-        // Sort Evidence Rows by highest score first
-        evidenceTableRows.sort((a: any, b: any) => Math.abs(b.points) - Math.abs(a.points))
-
-        // Keep Author Name Evidence at the top
-        const authorNameEvidenceIndex = evidenceTableRows.findIndex((e) => e.name === 'authorNameEvidence');
-        if (authorNameEvidenceIndex > 0) {
-          const authorNameEvidenceData = evidenceTableRows[authorNameEvidenceIndex];
-          evidenceTableRows.splice(authorNameEvidenceIndex, 1);
-          evidenceTableRows.unshift(authorNameEvidenceData);
-        }
+        const evidenceTableRows = buildEvidenceRows(evidence)
 
         const visibleRows = evidenceTableRows.filter((r: any) => Number(r.points) !== 0);
         const zeroRows = evidenceTableRows.filter((r: any) => Number(r.points) === 0);
@@ -841,62 +512,76 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
     const isActioned = userAssertion === 'ACCEPTED' || userAssertion === 'REJECTED';
     const isActionedInSuggested = props.activekey === 'NULL' && isActioned;
     const evDefault = expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault;
-
-    return (
-      <div className={`${styles.articleCard}${props.isFocused ? ` ${styles.focused}` : ''}${isActionedInSuggested ? ` ${styles.actionedCard}` : ''}`} data-pmid={reciterArticle.pmid} onMouseDown={props.onCardMouseDown}>
-        {/* Status strip for accepted/rejected */}
-        {userAssertion === 'ACCEPTED' && <div className={styles.statusStripAccepted} />}
-        {userAssertion === 'REJECTED' && <div className={styles.statusStripRejected} />}
-
-        {/* Main content column */}
-        <div className={styles.cardMain}>
-          <div className={styles.cardTop}>
-            {/* Content area */}
-            <div className={styles.cardContent}>
-              <div className={styles.titleRow}>
-                <span className={styles.scoreTip}>
-                  <span className={scoreNum >= 70 ? styles.scoreInlineHigh : scoreNum >= 40 ? styles.scoreInlineMedium : styles.scoreInlineLow}>
-                    {score !== null ? score : "N/A"}
-                  </span>
-                  {score !== null && (
-                    <span className={styles.scoreTooltip}>
-                      <span className={styles.stRow}>
-                        <span className={styles.stLabel}>Score</span>
-                        <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>{rawScore !== null ? Number(rawScore).toFixed(2) : scoreNum}</span>
-                      </span>
-                      <span className={styles.stRow}>
-                        <span className={styles.stLabel}>Tier</span>
-                        <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>
-                          {scoreNum >= 70 ? 'Strong match' : scoreNum >= 40 ? 'Moderate match' : 'Weak match'}
-                        </span>
-                      </span>
+    const coauthors = knownCoauthorsOf(reciterArticle, props.coauthorIndex);
+    const scored = isScored(reciterArticle);
+    const hasEvidence = scored && reciterArticle.evidence !== undefined;
+    const idChips = scored ? identityChips(reciterArticle.evidence, coauthors) : [];
+    const tally = tallyOf(idChips);
+    const tallyBase = (tally.match + tally.partial + tally.mismatch) || 1;
+    const affil = affiliationParts(reciterArticle.evidence);
+    // Shared by the card and the Detail pane (#1102).
+    const chipList = (<>
+                  <ul className={styles.idChips} aria-label="Identity evidence summary">
+                    {idChips.map((c) => (
+                      <li key={c.label}>
+                        <button
+                          type="button"
+                          className={styles.idChip}
+                          data-kind={c.kind}
+                          title={c.tip}
+                          aria-haspopup="dialog"
+                          aria-expanded={chipOpen?.label === c.label}
+                          onClick={(e) => { e.stopPropagation(); setChipOpen({ label: c.label, el: e.currentTarget }); }}
+                        >
+                          <span className={styles.idChipSym} aria-hidden="true">{CHIP_SYM[c.kind]}</span>
+                          {c.label}
+                          <span className={styles.srOnly}>: {matchColors[c.kind].label}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {/* Drill-down: opens upward over the card (portal, so nothing shifts); Escape or click away closes and returns focus to the chip */}
+                  <Popover
+                    open={!!chipOpen}
+                    anchorEl={chipOpen?.el}
+                    onClose={() => setChipOpen(null)}
+                    anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+                    transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                    PaperProps={{ role: 'dialog', 'aria-label': `${chipOpen?.label} evidence`, className: styles.chipPop }}
+                  >
+                    <div className={styles.chipPopHead}>{chipOpen?.label}</div>
+                    <ul className={styles.chipPopLines}>
+                      {chipOpen && chipDetail(reciterArticle.evidence, chipOpen.label, coauthors).map((l, i) => (
+                        <li key={i}>
+                          <span className={styles.idChipSym} data-kind={l.kind} aria-hidden="true">{CHIP_SYM[l.kind]}</span>
+                          <span>
+                            {l.text}
+                            {l.sub && <span className={styles.chipPopSub}>{l.sub}</span>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Popover>
+    </>);
+    const tallyEl = (
+                  <span className={styles.idTally}>
+                    <span className={styles.idTallyBar} aria-hidden="true">
+                      <span data-kind="match" style={{ width: `${(100 * tally.match) / tallyBase}%` }} />
+                      <span data-kind="partial" style={{ width: `${(100 * tally.partial) / tallyBase}%` }} />
+                      <span data-kind="mismatch" style={{ width: `${(100 * tally.mismatch) / tallyBase}%` }} />
                     </span>
-                  )}
-                </span>
-                <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml((reciterArticle as any).articleTitleRTF || reciterArticle.articleTitle) }} />
-              </div>
-              <div className={styles.articleAuthors}>
-                {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
-                  displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
-              </div>
-              <div className={styles.articleMeta}>
-                <span>{reciterArticle.journalTitleVerbose}</span>
-                {reciterArticle.publicationDateDisplay && <span>{reciterArticle.publicationDateDisplay}</span>}
-                {reciterArticle.publicationType?.publicationTypeCanonical &&
-                  <span>
-                    <span className={styles.typeBadge}>{reciterArticle.publicationType.publicationTypeCanonical}</span>
+                    {tally.text}
                   </span>
-                }
-              </div>
-              <div className={styles.articleLinks}>
+    );
+    const linksLeft = (
                 <div className={styles.articleLinksLeft}>
-                  <span>PMID: <a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a></span>
-                  {reciterArticle.doi && <span><a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI ↗</a></span>}
+                  <span>PMID: <a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a><CopyButton label="PMID" value={reciterArticle.pmid} /></span>
+                  {reciterArticle.doi && <span><a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI ↗</a><CopyButton label="DOI" value={reciterArticle.doi} /></span>}
                   {(hasProvenance || clogEntries.length > 0) && (
-                    <span className={styles.curationWrap} ref={curationLogRef}>
+                    <span className={styles.curationWrap}>
                       <button className={styles.evidenceBtn} onClick={(e) => { e.stopPropagation(); setShowCurationLog(!showCurationLog); }}>History</button>
-                      {showCurationLog && (
-                        <div className={styles.curationLogPopover}>
+                      <Sheet open={showCurationLog} onClose={() => setShowCurationLog(false)} title="History" description={`PMID ${reciterArticle.pmid}`}>
+                        <div className={styles.curationLogSheet}>
                           <div className={styles.clogHead}>Provenance</div>
                           {hasProvenance ? (
                             <div className={styles.provBlock}>
@@ -918,7 +603,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                             clogEntries.map((entry: any, i: number) => {
                               const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone';
                               const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested';
-                              const who = entry.curatorName || 'Unknown';
+                              const who = entry.curatorName || entry.actorPersonIdentifier || 'Unknown';
                               const date = entry.modifyTimestamp ? formatClogDate(entry.modifyTimestamp) : '';
                               return (
                                 <div className={styles.clogEntry} key={entry.feedbackID || i}>
@@ -945,27 +630,151 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                             </div>
                           )}
                         </div>
-                      )}
+                      </Sheet>
                     </span>
                   )}
                 </div>
-                {reciterArticle.evidence !== undefined && (
+    );
+    const band = bandOf(reciterArticle);
+    const evOpen = props.detail ? !showEvidence : (props.index === props.showEvidenceDefault || showEvidence);
+
+    return (
+      <div className={`${styles.articleCard}${props.isFocused ? ` ${styles.focused}` : ''}${isActionedInSuggested ? ` ${styles.actionedCard}` : ''}`} data-pmid={reciterArticle.pmid} onMouseDown={props.onCardMouseDown}>
+        {/* Status strip for accepted/rejected */}
+        {userAssertion === 'ACCEPTED' && <div className={styles.statusStripAccepted} />}
+        {userAssertion === 'REJECTED' && <div className={styles.statusStripRejected} />}
+
+        {/* Main content column */}
+        <div className={styles.cardMain}>
+          <div className={styles.cardTop}>
+            {/* Content area */}
+            <div className={styles.cardContent}>
+              {props.detail ? (<>
+                <div className={styles.detailKicker}>
+                  {reciterArticle.publicationType?.publicationTypeCanonical && <span className={styles.typeBadge}>{reciterArticle.publicationType.publicationTypeCanonical}</span>}
+                  <span>{[reciterArticle.journalTitleVerbose, reciterArticle.publicationDateDisplay].filter(Boolean).join(' \u00B7 ')}</span>
+                </div>
+                <h2 className={styles.detailTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml((reciterArticle as any).articleTitleRTF || reciterArticle.articleTitle) }} />
+              </>) : (
+              <div className={styles.titleRow}>
+                <span className={styles.scoreTip}>
+                  <span className={scoreNum >= 70 ? styles.scoreInlineHigh : scoreNum >= 40 ? styles.scoreInlineMedium : styles.scoreInlineLow}>
+                    {score !== null ? score : '\u2013'}
+                  </span>
+                  {score !== null && (
+                    <span className={styles.scoreTooltip}>
+                      <span className={styles.stRow}>
+                        <span className={styles.stLabel}>Score</span>
+                        <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>{rawScore !== null ? Number(rawScore).toFixed(2) : scoreNum}</span>
+                      </span>
+                      <span className={styles.stRow}>
+                        <span className={styles.stLabel}>Tier</span>
+                        <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>
+                          {scoreNum >= 70 ? 'Strong match' : scoreNum >= 40 ? 'Moderate match' : 'Weak match'}
+                        </span>
+                      </span>
+                    </span>
+                  )}
+                </span>
+                <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml((reciterArticle as any).articleTitleRTF || reciterArticle.articleTitle) }} />
+              </div>
+            )}
+              <div className={`${styles.articleAuthors}${props.detail ? ` ${styles.detailAuthors}` : ''}`}>
+                {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
+                  displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
+              </div>
+              {affil && (
+                <div className={styles.rawAffiliation} title="Affiliation statement from PubMed">
+                  {affil.pre}{affil.hit && <mark>{affil.hit}</mark>}{affil.post}
+                </div>
+              )}
+              {coauthors && coauthors.hits.length > 0 && (
+                <div className={styles.knownCoauthors}>
+                  Known co-authors: {coauthors.hits.join(', ')}
+                </div>
+              )}
+              {props.detail ? (<>
+                <div className={styles.articleLinks}>{linksLeft}</div>
+                <div className={styles.detailActions}>
+                  {!isActionedInSuggested && userAssertion !== 'ACCEPTED' && (
+                    <Btn variant="primary" onClick={() => { props.updatePublication(props.personIdentifier, reciterArticle.pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(evDefault)); }}>
+                      <CheckIcon style={{fontSize:16}}/> Accept <span className={styles.detailKbd}>A</span>
+                    </Btn>
+                  )}
+                  {userAssertion !== 'NULL' && (
+                    <Btn variant="secondary" onClick={() => { props.updatePublication(props.personIdentifier, reciterArticle.pmid, 'NULL'); dispatch(showEvidenceByDefault(evDefault)); }}>
+                      <UndoIcon style={{fontSize:16}}/> {isActionedInSuggested ? `${userAssertion === 'ACCEPTED' ? 'Accepted' : 'Rejected'} \u2014 Undo` : 'Undo'}
+                    </Btn>
+                  )}
+                  {!isActionedInSuggested && userAssertion !== 'REJECTED' && (
+                    <Btn variant="secondary" onClick={() => { props.updatePublication(props.personIdentifier, reciterArticle.pmid, 'REJECTED'); dispatch(showEvidenceByDefault(evDefault)); }}>
+                      <ClearIcon style={{fontSize:16}}/> Reject <span className={styles.detailKbd}>R</span>
+                    </Btn>
+                  )}
+                </div>
+                <div className={styles.detailEvidence}>
+                  {hasEvidence && (
+                    <button type="button" className={styles.detailEvHead} data-evidence-toggle aria-expanded={evOpen} onClick={() => setShowEvidence((v) => !v)}>
+                      <span className={styles.detailEvTitle}>Supporting evidence</span>
+                      <span className={styles.detailKbdKey}>E</span>
+                      <span className={styles.detailEvToggle}>
+                        {evOpen ? 'Summary only' : 'Details'}
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: `rotate(${evOpen ? 90 : 0}deg)` }}><path d="m9 18 6-6-6-6" /></svg>
+                      </span>
+                    </button>
+                  )}
+                  <div className={styles.detailSummary}>
+                    {scored
+                      ? <div className={styles.detailScore}>{score}</div>
+                      : <div className={styles.detailVerdict}><strong>Not scored</strong><span>Added by hand. ReCiter hasn&apos;t scored this article for this person.</span></div>}
+                    {score !== null && (
+                      <div className={styles.detailVerdict}>
+                        <strong>{BANDS.find((b) => b.key === band)?.label}</strong>
+                        <span>{BAND_NOTES[band]}</span>
+                      </div>
+                    )}
+                    {idChips.length > 0 && tallyEl}
+                  </div>
+                  {idChips.length > 0 && <div className={styles.idSummary}>{chipList}</div>}
+                </div>
+              </>) : (<>
+              <div className={styles.articleMeta}>
+                <span>{reciterArticle.journalTitleVerbose}</span>
+                {reciterArticle.publicationDateDisplay && <span>{reciterArticle.publicationDateDisplay}</span>}
+                {reciterArticle.publicationType?.publicationTypeCanonical &&
+                  <span>
+                    <span className={styles.typeBadge}>{reciterArticle.publicationType.publicationTypeCanonical}</span>
+                  </span>
+                }
+              </div>
+              {idChips.length > 0 && (
+                <div className={styles.idSummary}>
+                  {chipList}
+                  {tallyEl}
+                </div>
+              )}
+              <div className={styles.articleLinks}>
+                {linksLeft}
+                {hasEvidence && (
                   <button className={styles.evidenceBtnPrimary} data-evidence-toggle onClick={() => toogleEvidence(props.index)}>
                     Supporting evidence
                   </button>
                 )}
               </div>
+              </>)}
 
               {/* Evidence panel */}
-              {reciterArticle.evidence !== undefined && (
-                <div className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
+              {hasEvidence && (
+                <div className={`${styles.publicationShowEvidenceContainer} ${evOpen ? styles.publicationShowEvidenceContainerOpen : ""}`}>
 
                   {/* Feedback-based scores panel */}
-                  <div className={styles.sectionPanel}>
+                  <div className={`${styles.sectionPanel}${props.detail ? ` ${styles.detailCard}` : ''}`}>
                     <div className={styles.sectionHeader}>
                       <div className={styles.sectionTitleGroup}>
-                        <span className={styles.sectionTitle}>Feedback-based scores</span>
-                        <span className={styles.sectionSubtitle}>Scores learned from curation history</span>
+                        <span className={styles.sectionTitle}>{props.detail ? 'Feedback scores' : 'Feedback-based scores'}</span>
+                        {props.detail
+                          ? <span className={styles.detailLegend}>{'\u2212'} against {'\u00B7'} for +</span>
+                          : <span className={styles.sectionSubtitle}>Scores learned from curation history</span>}
                       </div>
                       <div className={styles.learnMoreWrap}>
                         <div className={styles.learnMoreBtn}>
@@ -1003,19 +812,12 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
               )}
 
               {/* Action buttons (inside card-content, per mockup) */}
-              <CardFooter pmid={reciterArticle.pmid} userAssertion={userAssertion} />
+              {!props.detail && <CardFooter pmid={reciterArticle.pmid} userAssertion={userAssertion} />}
             </div>
           </div>
         </div>
 
 
-        <HistoryModal
-          showModal={showHistoryModal}
-          onOpen={onOpenModal}
-          onClose={onCloseModal}
-          id={reciterArticle.pmid}
-          userId={props.personIdentifier}
-        />
       </div>
     );
 }
