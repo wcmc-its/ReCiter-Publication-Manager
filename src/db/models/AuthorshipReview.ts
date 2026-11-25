@@ -6,9 +6,9 @@ import { DataTypes, Model, Optional } from 'sequelize';
 // adversarial-attribution-review producer. Column names are snake_case to match that table.
 export interface AuthorshipReviewAttributes {
   id: number;
-  source: 'pubmed' | 'scopus';
-  pmid?: number;                 // NULL for scopus rows (no PMID)
-  external_id?: string;          // numeric Scopus record ID (scopus rows)
+  source: 'pubmed' | 'scopus' | 'openalex';
+  pmid?: number;                 // NULL for scopus/openalex rows (no PMID)
+  external_id?: string;          // numeric Scopus record ID (scopus rows), OpenAlex W id (openalex rows)
   author_key: string;
   pub_type?: string;             // Scopus subtypeDescription (Article / Book Chapter / …)
   container_id?: string;         // book base DOI (scopus book chapters)
@@ -31,9 +31,33 @@ export interface AuthorshipReviewAttributes {
   top_cohort_size?: number;
   top_given_match?: string;
   top_affil_match?: boolean;
+  // ReCiterDB v3.14: how well the venue fits top_cwid's department, as ln(the department's share
+  // of its accepted papers in the venue's subfield / the campus-wide share). >= 1 a good fit,
+  // < -1 a poor one, NULL unknown. Only set on scopus/openalex rows whose candidates are all
+  // Cornell Ithaca people.
+  top_venue_fit?: number;
+  // ReCiterDB v3.15: the ORCID of this row's byline author, bare form (0000-0000-0000-0000), and
+  // whether top_cwid is the person that ORCID maps to. top_orcid_match is NULL when the byline
+  // has no ORCID or the ORCID maps to nobody on the roster.
+  byline_orcid?: string;
+  top_orcid_match?: boolean;
   n_candidates?: number;
   single_candidate?: boolean;
   candidate_cwids_json?: string;
+  authors_json?: string;
+  dup_flag?: boolean;
+  dup_reason?: string;
+  accept_conflict?: string;
+  accept_conflict_matches?: string | null;
+  // Producer-flagged PubMed twin for a scopus review row (ReCiterDB v2.7). 'title' = heuristic
+  // unquoted title+surname PubMed search (row stays open for a curator); 'doi' = exact DOI match
+  // (producer auto-dismisses these itself); 'scopus' = reserved. matched_pmid_verdict is written
+  // ONLY by PM: 'distinct' means "different papers — never re-flag"; 'same' is never stored —
+  // "same paper" is expressed by dismissing the row with a note instead.
+  matched_pmid?: number;
+  matched_pmid_source?: 'scopus' | 'doi' | 'title';
+  matched_pmid_at?: Date;
+  matched_pmid_verdict?: 'same' | 'distinct';
   status: 'open' | 'assigned' | 'accepted' | 'rejected' | 'dismissed' | 'snoozed';
   resolution_cwid?: string;
   reviewer?: string;
@@ -47,12 +71,12 @@ export interface AuthorshipReviewAttributes {
 
 export type AuthorshipReviewPk = "id";
 export type AuthorshipReviewId = AuthorshipReview[AuthorshipReviewPk];
-export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
+export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "top_venue_fit" | "byline_orcid" | "top_orcid_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "authors_json" | "dup_flag" | "dup_reason" | "accept_conflict" | "accept_conflict_matches" | "matched_pmid" | "matched_pmid_source" | "matched_pmid_at" | "matched_pmid_verdict" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
 export type AuthorshipReviewCreationAttributes = Optional<AuthorshipReviewAttributes, AuthorshipReviewOptionalAttributes>;
 
 export class AuthorshipReview extends Model<AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes> implements AuthorshipReviewAttributes {
   id!: number;
-  source!: 'pubmed' | 'scopus';
+  source!: 'pubmed' | 'scopus' | 'openalex';
   pmid?: number;
   external_id?: string;
   author_key!: string;
@@ -77,9 +101,21 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
   top_cohort_size?: number;
   top_given_match?: string;
   top_affil_match?: boolean;
+  top_venue_fit?: number;
+  byline_orcid?: string;
+  top_orcid_match?: boolean;
   n_candidates?: number;
   single_candidate?: boolean;
   candidate_cwids_json?: string;
+  authors_json?: string;
+  dup_flag?: boolean;
+  dup_reason?: string;
+  accept_conflict?: string;
+  accept_conflict_matches?: string | null;
+  matched_pmid?: number;
+  matched_pmid_source?: 'scopus' | 'doi' | 'title';
+  matched_pmid_at?: Date;
+  matched_pmid_verdict?: 'same' | 'distinct';
   status!: 'open' | 'assigned' | 'accepted' | 'rejected' | 'dismissed' | 'snoozed';
   resolution_cwid?: string;
   reviewer?: string;
@@ -93,7 +129,7 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
   static initModel(sequelize: Sequelize.Sequelize): typeof AuthorshipReview {
     AuthorshipReview.init({
       id: { autoIncrement: true, type: DataTypes.BIGINT, allowNull: false, primaryKey: true },
-      source: { type: DataTypes.ENUM('pubmed', 'scopus'), allowNull: false, defaultValue: 'pubmed' },
+      source: { type: DataTypes.ENUM('pubmed', 'scopus', 'openalex'), allowNull: false, defaultValue: 'pubmed' },
       pmid: { type: DataTypes.BIGINT, allowNull: true },
       external_id: { type: DataTypes.STRING(96), allowNull: true },
       author_key: { type: DataTypes.STRING(160), allowNull: false },
@@ -118,9 +154,26 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
       top_cohort_size: { type: DataTypes.INTEGER, allowNull: true },
       top_given_match: { type: DataTypes.STRING(16), allowNull: true },
       top_affil_match: { type: DataTypes.BOOLEAN, allowNull: true },
+      top_venue_fit: { type: DataTypes.FLOAT, allowNull: true },
+      byline_orcid: { type: DataTypes.CHAR(19), allowNull: true },
+      top_orcid_match: { type: DataTypes.BOOLEAN, allowNull: true },
       n_candidates: { type: DataTypes.INTEGER, allowNull: true },
       single_candidate: { type: DataTypes.BOOLEAN, allowNull: true },
       candidate_cwids_json: { type: DataTypes.TEXT({ length: 'long' }), allowNull: true },
+      authors_json: { type: DataTypes.TEXT({ length: 'long' }), allowNull: true },
+      dup_flag: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      dup_reason: { type: DataTypes.STRING(255), allowNull: true },
+      // Set when an Accept came back 409 from ExternalArticleDupCheck (fuzzy title+year
+      // WARNING). Distinct from dup_flag/dup_reason, which are the AAR producer's exact-DOI
+      // precheck: different mechanism, different provenance, and the producer refreshes those.
+      accept_conflict: { type: DataTypes.STRING(500), allowNull: true },
+      // ReCiterDB v3.12: what that 409 matched, as JSON (src/lib/acceptConflictMatches.ts). MariaDB's
+      // JSON is LONGTEXT, so it reads back as a string; written as a string too. NULL = nothing kept.
+      accept_conflict_matches: { type: DataTypes.TEXT({ length: 'long' }), allowNull: true },
+      matched_pmid: { type: DataTypes.BIGINT, allowNull: true },
+      matched_pmid_source: { type: DataTypes.ENUM('scopus', 'doi', 'title'), allowNull: true },
+      matched_pmid_at: { type: DataTypes.DATE, allowNull: true },
+      matched_pmid_verdict: { type: DataTypes.ENUM('same', 'distinct'), allowNull: true },
       status: { type: DataTypes.ENUM('open', 'assigned', 'accepted', 'rejected', 'dismissed', 'snoozed'), allowNull: false, defaultValue: 'open' },
       resolution_cwid: { type: DataTypes.STRING(32), allowNull: true },
       reviewer: { type: DataTypes.STRING(64), allowNull: true },
@@ -132,6 +185,11 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
       last_checked: { type: DataTypes.DATE, allowNull: true }
     }, {
       sequelize,
+      // Pin the model name. Without it Sequelize derives the alias from the JS class name,
+      // which `next build` minifies (to `n`), so hand-written references like
+      // col("AuthorshipReview.top_cwid") in authorships.controller.ts resolve in `next dev`
+      // and throw ER_BAD_FIELD_ERROR in a production build. Person.ts already pins its name.
+      modelName: 'AuthorshipReview',
       tableName: 'authorship_review',
       timestamps: false,
       indexes: [

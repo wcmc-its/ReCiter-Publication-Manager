@@ -1,7 +1,7 @@
 import { reciterConfig } from '../config/local'
 import { NextApiRequest } from 'next'
 import url from 'url'
-import { saveUserFeedback } from './userfeedback.controller'
+import { scheduleAnalysisRefresh } from './analysisRefresh'
 
 // curatedBy is the curating user's admin_users.userID. ReCiter accepts it as a query
 // param on /reciter/goldstandard and defaults it to 0 ("unknown") when absent — which is
@@ -34,7 +34,7 @@ export async function updateGoldStandard(req: NextApiRequest, curatedBy: number 
                 }
             } else {
                 let data: any = await res.json()
-                callUserFeedbackApi(req.body, req)
+                scheduleAnalysisRefresh(req.body?.uid)
                 return {
                     statusCode: res.status,
                     statusText: data
@@ -48,23 +48,4 @@ export async function updateGoldStandard(req: NextApiRequest, curatedBy: number 
                 statusText: error
             }
         });
-}
-
-
-async function callUserFeedbackApi(goldStandard: any, req: NextApiRequest) {
-    let acceptedPmids = []
-    let rejectedPmids = []
-    if (goldStandard.knownPmids !== undefined) {
-        acceptedPmids = goldStandard.knownPmids
-    }
-    if (goldStandard.rejectedPmids !== undefined) {
-        rejectedPmids = goldStandard.rejectedPmids
-    }
-    const userFeedback = {
-        'uid': goldStandard.uid,
-        'acceptedPmids': acceptedPmids,
-        'rejectedPmids': rejectedPmids,
-        'feedbackDate': new Date()
-    }
-    req.body = userFeedback
 }

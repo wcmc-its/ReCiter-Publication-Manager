@@ -1,34 +1,386 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { Op, fn, col } from "sequelize";
+// `where` aliased sqlWhere — authorshipSummary already has a local `const where = buildWhere(...)`,
+// and colliding with that is worse than one extra character at every call site below.
+import { Op, fn, col, literal, where as sqlWhere, QueryTypes } from "sequelize";
 import { getToken } from "next-auth/jwt";
 import models from "../../src/db/sequelize";
+import sequelize from "../../src/db/db";
 import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
-import { addExternalArticle, deleteExternalArticle, getExternalArticles, recordExternalArticleFeedback } from "../externalArticle.controller";
+import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
+import {
+  externalStoreMode, createRecord, transitionRecords, recordsByArticleIds, reconcileSupersedeAfterGoldStandard,
+} from "../../src/lib/externalStore";
+import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldStandardRejections";
+import { assignGate, canonicalCwid, homonymRejections, toCanonicalCwid } from "../../src/lib/assignGate";
+import { parseCwid } from "../../src/utils/canonicalCwid";
+import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
+import { authorKey } from "../../src/lib/bulkAssign";
+import { dropMiddleInitials } from "../../src/utils/authorshipRow";
+import { externalSourceLabel, isExternalSource, openalexWorkId } from "../../src/lib/externalSource";
+import { storedConflictJson } from "../../src/lib/acceptConflictMatches";
+import {
+  lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured, cornellFallback,
+  affiliationDeptMatch, bylineCampuses,
+  retiredCwidIndex,
+  type DirectoryPerson,
+} from "../../src/lib/directory";
+import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { scheduleAnalysisRefresh } from "../analysisRefresh";
+import { getOrcidRecord, isOrcid } from "../../src/lib/orcidRecord";
+import { SORTS, precisionWhere, orcidLaneBulkWhere } from "./authorshipQueueSql";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
 // (documents not in PubMed → curators Accept them as ExternalArticle, no PMID).
 const LIST_ATTRIBUTES = [
-  "id", "source", "pmid", "external_id", "author_key", "wcm_author", "author_position_label", "author_affiliation",
+  "id", "source", "pmid", "author_position", "external_id", "author_key", "wcm_author", "author_position_label", "author_affiliation",
   "entrez_date", "title", "journal", "doi", "pub_type", "container_id", "classification",
   "top_cwid", "top_name", "top_person_type", "top_dept",
   "top_fg_score", "top_io_score", "top_confidence", "top_cohort_size",
-  "top_given_match", "top_affil_match", "n_candidates", "single_candidate",
-  "candidate_cwids_json", "status", "snooze_until", "reviewer", "resolved_at",
+  "top_given_match", "top_affil_match", "top_venue_fit", "byline_orcid", "top_orcid_match", "n_candidates", "single_candidate",
+  "candidate_cwids_json", "authors_json", "dup_flag", "dup_reason", "accept_conflict", "accept_conflict_matches",
+  "matched_pmid", "matched_pmid_source", "matched_pmid_at", "matched_pmid_verdict",
+  "status", "snooze_until", "reviewer", "resolved_at",
 ];
+
+// Ad-hoc join to `person` for institution filtering/grouping. authorship_review has no
+// institution column of its own (only top_cwid/top_name/top_person_type/top_dept) — the real
+// institution lives on person.primaryInstitution, joined by person.personIdentifier ===
+// authorship_review.top_cwid. No pre-registered Sequelize association exists between these two
+// models (personNames()/identityLabel() below both read `person` via an app-side IN() instead
+// of a join, for the same reason documented on them), so one is registered here — mirrors the
+// AnalysisSummaryAuthor.hasOne(Person, { constraints: false }) precedent in
+// reports/publication.report.controller.ts. constraints:false because there is no real FK:
+// top_cwid can (and often does) name a cwid with no row in `person` at all.
+models.AuthorshipReview.belongsTo(models.Person, {
+  as: "Person",
+  constraints: false,
+  foreignKey: "top_cwid",
+  targetKey: "personIdentifier",
+});
+
+// person.personIdentifier is utf8mb4_unicode_ci; authorship_review.top_cwid is
+// utf8mb4_general_ci (information_schema, verified 2026-09-03 against the live dev DB — same
+// mismatch personNames()/identityLabel() above route around by not joining at all). A plain
+// `Person.personIdentifier = AuthorshipReview.top_cwid` ON clause throws MySQL error 1267
+// ("Illegal mix of collations") the instant this join actually executes — confirmed
+// empirically (LEFT JOIN with a bare equality errors). The explicit COLLATE below is that fix,
+// not decoration — do not simplify it away, and do not move it onto the Person side: see the
+// index note at the ON clause for why that costs three orders of magnitude.
+//
+// required:false everywhere except the dedicated institution facet-count query in
+// authorshipSummary (LEFT JOIN there would count nothing for an unmatched top_cwid, which is
+// correct for "no institution to bucket" but wrong for "how many rows exist" elsewhere) — see
+// each call site for why.
+//
+// `attributes` defaults to [] — "filtering/grouping only, never shapes a returned row" was the
+// original invariant and it still holds for two of the three call sites, which MUST keep the
+// default:
+//   - authorshipSelectable returns a deliberately slim shape; nothing there needs a person row.
+//   - authorshipSummary's institution facet is a bare aggregate with NO GROUP BY, so any
+//     non-aggregated column added to its SELECT is an ONLY_FULL_GROUP_BY error waiting to
+//     happen — the same class of trap as the ambiguous-`id` one already documented there.
+// listAuthorships is the exception and passes ["primaryInstitution"], because §2.6's identity
+// hover card needs the proposed person's institution on the row. Widened here rather than by
+// attaching a second include on purpose: the join already exists on that query, so this is one
+// more column off an already-joined row, not a new join. Measured on the dev DB, 25-row page,
+// SQL_NO_CACHE, 3 runs each: 86/87/90 ms without the column, 58/58/64 ms with it — no
+// measurable cost. EXPLAIN is identical for both apart from `Person` losing "Using index": it
+// stays type=ref on person_personIdentifier_IDX at one row per outer row, it just reads the
+// row instead of covering from the index. The row COUNT cannot change either: sequelize's
+// count() sets includeIgnoreAttributes=false (6.37.8, lib/model.js:1302), so include
+// attributes never reach the COUNT query at all.
+function personInstitutionInclude(required: boolean, attributes: string[] = []) {
+  return {
+    model: models.Person,
+    as: "Person",
+    required,
+    attributes,
+    on: {
+      // The COLLATE goes on the authorship_review side ON PURPOSE. Applying it to
+      // `Person`.`personIdentifier` makes that column non-indexable, which drops
+      // person_personIdentifier_IDX and turns every authorships query into a
+      // 26k x 33k block-nested-loop: measured against production, the join count took
+      // 140,972 ms that way versus 118 ms this way, and the institution facet
+      // 116,410 ms versus 140 ms -- both returning byte-identical results (27,065 rows,
+      // the same 26 buckets). Collating the non-indexed side keeps the index usable.
+      // Results are unaffected because cwids are ASCII, where general_ci and unicode_ci
+      // agree; this was verified, not assumed.
+      [Op.and]: [
+        sqlWhere(
+          literal("`AuthorshipReview`.`top_cwid` COLLATE utf8mb4_unicode_ci"),
+          "=",
+          col("Person.personIdentifier"),
+        ),
+        // ONE person row per review row: the lowest-id one for that cwid. person.personIdentifier
+        // is not unique (PRIMARY KEY is (id, personIdentifier); 13 duplicated values on dev, all
+        // case variants such as dlamb/DLAMB, which unicode_ci treats as equal), so without this
+        // the LEFT JOIN fanned a review row out once per matching person row: the list returned
+        // the same id twice (duplicate React keys, an orphaned card after accept), and
+        // findAndCountAll's count and the facet SUMs over-counted. Pinning the join here fixes
+        // every caller at once. NOT EXISTS on Person.personIdentifier (unicode_ci on both sides,
+        // so no COLLATE and the index stays usable): measured on dev over the open queue, 3 runs,
+        // 222-283 ms without it, 232-251 ms with it; a correlated ORDER BY ... LIMIT 1 instead
+        // cost ~460 ms.
+        literal(
+          "NOT EXISTS (SELECT 1 FROM `person` AS `p1` " +
+          "WHERE `p1`.`personIdentifier` = `Person`.`personIdentifier` AND `p1`.`id` < `Person`.`id`)",
+        ),
+      ],
+    },
+  } as any;
+}
+
+// Curated institution buckets. person.primaryInstitution is free-text (24,403 person rows,
+// 70 distinct raw values on the live dev roster as of 2026-09-03) rather than a clean enum, so
+// this maps a short bucket key to the literal primaryInstitution string(s) it covers —
+// confirmed against live data (dev DB query, 2026-09-03): "Weill Cornell Medicine" (9 rows),
+// "Weill Cornell Medical College" (8,441 rows), "Weill Cornell Medical College in Qatar"
+// (1,011 rows), "Hospital for Special Surgery" (476 rows). The rest are every other
+// primaryInstitution value with >=100 people on prod as of 2026-09-03 — merged only where two
+// literals are plainly the same institution under a different name (e.g. Sloan Kettering
+// Institute vs Memorial Sloan Kettering Cancer Center); distinct campuses/affiliates of the
+// same broader system (NYP main vs NYP-Queens vs New York Methodist) are kept separate since
+// the source data already encodes them as distinct labels.
+// Cornell's College of Veterinary Medicine currently has 0 people in this roster (not yet fed
+// into ReCiter) — a follow-up import will add it; add a 'vet' bucket here once that lands, no
+// other code changes needed.
+const INSTITUTION_BUCKETS: Record<string, string[]> = {
+  wcm: ["Weill Cornell Medicine", "Weill Cornell Medical College"],
+  nyp: ["New York-Presbyterian Hospital"],
+  wcm_qatar: ["Weill Cornell Medical College in Qatar"],
+  msk: ["Memorial Sloan Kettering Cancer Center", "Memorial Sloan Kettering", "Sloan Kettering Institute"],
+  houston_methodist: ["Houston Methodist Hospital", "Houston Methodist Research Institute"],
+  hss: ["Hospital for Special Surgery"],
+  hamad_medical: ["Hamad Medical Corporation"],
+  ny_methodist: ["New York Methodist Hospital"],
+  nyp_queens: ["New York Presbyterian - Queens"],
+  lincoln: ["Lincoln Medical and Mental Health Center"],
+  columbia: ["Columbia University College of Physicians and Surgeons", "Columbia University"],
+  sidra: ["SIDRA Medical and Research Center"],
+  // Cornell's non-WCM campuses. These are exact literals, so "Weill Cornell Medical College"
+  // cannot land here. 38 people on prod 2026-09-08 ("Cornell University" 37,
+  // "Cornell University-Ithaca" 1) — below the >=100 bar the other buckets were picked by, and
+  // included anyway: the byline side is the point of this bucket, and omitting the roster side
+  // would make the `roster` and `either` bases silently disagree with `byline` for one label.
+  cornell: ["Cornell University", "Cornell University-Ithaca"],
+  // Tri-Institutional neighbour, added on the owner's request 2026-09-17. Below the >=100 bar
+  // like `cornell`: 44 roster people + 1 under the misspelt literal (a real value, kept so that
+  // person is bucketed rather than dropped), against 546 open byline rows on dev.
+  rockefeller: ["Rockefeller University", "Rockefeller Uniersity"],
+};
+
+// Byline-affiliation patterns for the same buckets. Distinct from INSTITUTION_BUCKETS because
+// that maps person.primaryInstitution (an HR roster value) while this LIKE-matches the raw
+// author_affiliation text printed on the paper — a person whose roster value is "Weill Cornell
+// Medical College" routinely appears on a byline reading "Weill Cornell Medicine", so reusing
+// the roster literals here would match almost nothing. Patterns were validated against live
+// production data (all 13 buckets return plausible counts in one pass over the open rows).
+// `wcmExclude` keeps buckets disjoint: "Weill Cornell" also matches the Qatar campus, which has
+// its own bucket, so wcm subtracts it rather than double-counting.
+const INSTITUTION_BYLINE_PATTERNS: Record<string, string[]> = {
+  wcm: ["Weill Cornell", "Weill-Cornell"],
+  nyp: ["New York-Presbyterian", "NewYork-Presbyterian", "New York Presbyterian"],
+  wcm_qatar: ["Weill Cornell Medicine-Qatar", "Weill Cornell Medical College in Qatar",
+              "Weill Cornell Medicine - Qatar", "Weill Cornell Medicine Qatar"],
+  msk: ["Sloan Kettering", "Sloan-Kettering"],
+  houston_methodist: ["Houston Methodist"],
+  hss: ["Hospital for Special Surgery"],
+  hamad_medical: ["Hamad Medical"],
+  ny_methodist: ["New York Methodist"],
+  nyp_queens: ["Presbyterian Queens", "Presbyterian-Queens", "Presbyterian/Queens"],
+  lincoln: ["Lincoln Medical"],
+  columbia: ["Columbia University"],
+  sidra: ["Sidra"],
+  cornell: ["Cornell University"],
+  rockefeller: ["Rockefeller Univ"],   // covers "Rockefeller University" and "Rockefeller Univ."
+};
+
+// "Weill Cornell" matches the Qatar campus too; wcm excludes it so the buckets stay disjoint.
+//
+// `cornell` needs the same treatment for a less obvious reason, measured on prod 2026-09-08:
+// of the 1,708 open rows whose byline contains "Cornell University", 631 are WCM papers whose
+// affiliation reads "…Weill Cornell Medicine, Cornell University, New York…". Without the
+// subtraction those 631 would sit in BOTH wcm and cornell, and the disjointness this file
+// maintains everywhere else would quietly stop holding for the two largest Cornell buckets.
+//
+// The Weill spellings are not interchangeable, which is why there are four. "Weill Cornell"
+// misses the old institutional name — "Cornell University Weill Medical College" — and there
+// are live rows carrying "Weill Medical College" or "Weill Graduate" with no "Weill Cornell"
+// anywhere in the string. Excluding only the obvious form leaves 1,077 rows; excluding all
+// four leaves 940, and spot-checking the 137 difference shows every one of them is WCM.
+const BYLINE_EXCLUDE: Record<string, string[]> = {
+  wcm: ["Qatar"],
+  cornell: ["Weill Cornell", "Weill-Cornell", "Weill Medical College", "Weill Graduate"],
+};
+
+/**
+ * One SUM(...) column per bucket key, counting rows that match that bucket under `basis`.
+ * `alias` prefixes the returned column names so two bases can be summed in ONE pass over the
+ * rows — the summary asks for the person/either basis (the `institutions` facet) and the byline
+ * basis (the `authorInstitutions` facet) together, and running them as two queries would mean
+ * two scans. Measured on the dev DB over the open queue: 12 SUMs (either) 315 ms, the same 12
+ * plus 13 byline_-prefixed SUMs 534 ms, byline alone 322 ms — one combined query is ~100 ms
+ * cheaper than two separate ones and holds one scan instead of two.
+ */
+function institutionFacetAttributes(basis: InstitutionBasis, alias = ""): any[] {
+  const esc = (v: string) => v.replace(/'/g, "''");
+  return Object.keys(INSTITUTION_BUCKETS).map((key) => {
+    const clauses: string[] = [];
+    if (basis === "person" || basis === "either") {
+      const lits = (INSTITUTION_BUCKETS[key] || []).map((l) => `'${esc(l)}'`);
+      if (lits.length) clauses.push(`\`Person\`.\`primaryInstitution\` IN (${lits.join(", ")})`);
+    }
+    if (basis === "byline" || basis === "either") {
+      const pats = INSTITUTION_BYLINE_PATTERNS[key] || [];
+      if (pats.length) {
+        const hit = pats.map((pat) => `\`AuthorshipReview\`.\`author_affiliation\` LIKE '%${esc(pat)}%'`).join(" OR ");
+        const excl = (BYLINE_EXCLUDE[key] || [])
+          .map((e) => ` AND \`AuthorshipReview\`.\`author_affiliation\` NOT LIKE '%${esc(e)}%'`).join("");
+        clauses.push(`((${hit})${excl})`);
+      }
+    }
+    const expr = clauses.length ? clauses.join(" OR ") : "0";
+    return [literal(`SUM(CASE WHEN ${expr} THEN 1 ELSE 0 END)`), `${alias}${key}`];
+  });
+}
+
+type InstitutionBasis = "person" | "byline" | "either";
+
+function normaliseBasis(v: any): InstitutionBasis {
+  return v === "person" || v === "byline" ? v : "either";   // unknown/absent -> widest
+}
+
+/** Sequelize condition matching the paper's byline text for one bucket key. */
+function bylineCondition(key: string) {
+  const pats = INSTITUTION_BYLINE_PATTERNS[key] || [];
+  if (!pats.length) return null;
+  const hit: any = { [Op.or]: pats.map((p) => ({ [Op.like]: `%${p}%` })) };
+  const excl = BYLINE_EXCLUDE[key] || [];
+  const conds: any[] = [{ author_affiliation: hit }];
+  for (const e of excl) conds.push({ author_affiliation: { [Op.notLike]: `%${e}%` } });
+  return conds.length === 1 ? conds[0] : { [Op.and]: conds };
+}
+
+// ---- Identity conflicts queue --------------------------------------------------
+//
+// A row is an identity conflict when a DIFFERENT WCM identity already holds an ACCEPTED
+// assertion at the EXACT SAME byline slot on the EXACT SAME PMID: same pmid, same author
+// position, two cwids. Accepting the row as-is would put one byline on two people's records.
+//
+// #986 replaces the surname-based approximation this queue shipped with (#985) with an exact
+// test, because person_article_author (unlike person_article) carries an author-position
+// column (`rank`), so "same slot" no longer has to be inferred from a name match at all.
+// `rank` and `authorship_review.author_position` are the same numbering — measured on prod
+// 2026-09-04: 7,003 of 7,004 target-author rows agree; the single disagreement is itself a
+// finding (pmid 42400659: `fsl4001` "Florence Lui" at position 1 vs a stored row for "Forshing
+// Lui" at rank 2 — different people, not a numbering bug).
+//
+// The surname test (`LOWER(pa.articleAuthorNameLastName) = LOWER(SUBSTRING_INDEX(wcm_author,'
+// ',-1))`) had two failure modes an exact-slot test closes by construction:
+//  - compound surnames it can never match: SUBSTRING_INDEX takes the final whitespace token, so
+//    "Marcel R M van den Brink" extracts "Brink" against a recorded "Van den Brink" — likewise
+//    Van Zee, Al-Obaidly, el-Tamer, Korc-Grodzicki, L'Erario. ~1.2% of the open queue, and
+//    exactly the names most prone to misattribution in the first place.
+//  - same-surname CO-AUTHORS at a DIFFERENT slot on the same paper, which it could not tell
+//    apart from a genuine rival claim ("Craig H Moskowitz" at position 16 vs "Urvi Shah" at 7,
+//    "Steven R Goldring" at 9 — not conflicts). Of the surname test's 77-row "Last 2 years"
+//    queue (2026-09-04), only 31 also matched on a first given-name token; the other 46 were
+//    this failure mode.
+// Measured on prod 2026-09-04, all-time open queue: the shipped surname test matched 75 rows;
+// the exact-slot test (below, before the `identity` join) matches 37, with 36 agreeing — the
+// exact test drops 52 same-surname-different-slot co-authors and recovers one the surname test
+// missed (pmid 42400659, `jgr9007`).
+//
+// #990 adds the `identity` join on top of the exact-slot test, to exclude external-validation
+// identities from counting as a rival. `person_article` (and `person`) hold real ACCEPTED rows
+// for cohorts that are not WCM people at all — the external-validation harness's ucsf_*/
+// ucdavis_*/ucsd_*/fredhutch_*/usc_*/ucla_* ids and singletons like `solitd` (measured on prod:
+// 74,881 ucsf_* rows, 53,513 of them ACCEPTED, plus five more such cohorts). None of that
+// appears in `identity` (the HR roster, 35,448 rows, zero with an underscore in the cwid), so
+// joining to it is the correct "is the rival a WCM person" test. Measured on prod 2026-09-04,
+// open queue: exact-slot alone (any rival) matches 24 rows; requiring the rival to be in
+// `identity` narrows that to 15 — the 9 dropped are exactly the external-cohort false
+// positives ("James Chen" vs `ucsf_76679`, "David B Solit" vs `solitd`, "Maya Graham" vs
+// `ucsf_74309`). The surname test being replaced has the identical leak: of its 75 matching
+// rows, 11 had only an external rival.
+//
+// person_article_author.targetAuthor stores '1' followed by a CARRIAGE RETURN (0x310D — checked
+// 2026-09-04, 848,145 rows at `'1\r'`), so `TRIM(targetAuthor) = '1'` strips spaces only and
+// silently returns ZERO rows. `LIKE '1%'` is the fix, and it is what restricts the paa side to
+// the target-author's own row rather than every co-author byline entry for that pmid+rank pair.
+// This cost two probe cycles to find and is documented here so it is not rediscovered.
+//
+// top_cwid IS NOT NULL stays an explicit guard rather than implied: a row with no proposed
+// identity has no second cwid to conflict with, and stating that is clearer than relying on
+// `pa.personIdentifier <> NULL` evaluating to NULL (i.e. already excluded) as a
+// three-valued-logic accident. Scopus rows have no pmid, so `paa.pmid = NULL` never matches and
+// they never enter this queue — correct, since gold standard is PMID-keyed.
+//
+// COST and the index this needs. There is NO index on person_article_author(pmid, rank) on
+// prod today (#986 files the ReCiterDB DDL for one) — EXPLAIN drives from person_article's
+// pmid index and then person_article_author(personIdentifier, pmid), the wrong shape for this
+// query. Measured on prod 2026-09-04, no new index: 1,260 ms for exact-slot/any-rival, 1,214 ms
+// for exact-slot/identity-rival, against 208 ms for the surname test it replaces. The subquery
+// below is written FROM person_article_author, filtered by pmid AND rank in its WHERE clause
+// before either JOIN, on purpose — that is the shape the (pmid, rank) index is meant for, so the
+// query is already the one the optimizer should pick the index up for the moment it exists;
+// restructuring it afterward should not be necessary. Until the index lands this is the fan-out's
+// long pole, the same trade #985 made for the surname test in its day.
+//
+// COLLATE goes on the AuthorshipReview-side expression only, never on person_article's,
+// person_article_author's, or identity's own columns — the same rule and the same reason as the
+// person join above and the surname test this replaces: authorship_review.top_cwid is a
+// different collation from person_article.personIdentifier / identity.cwid on at least one
+// environment (dev: utf8mb4_general_ci vs utf8mb4_unicode_ci; prod's information_schema showed
+// both as utf8mb4_unicode_ci as of 2026-09-04, but the comparison throws MySQL error 1267 the
+// moment the two environments disagree, so it stays collated defensively either way). Collating
+// the AuthorshipReview side is free (top_cwid carries no usable index for this EXISTS
+// regardless); collating the other tables' side would de-index THEIR lookups instead — the
+// "three orders of magnitude" mistake the person-join comment above already paid for once.
+// pmid and author_position/rank are plain integers on every table involved (AuthorshipReview.
+// author_position and PersonArticleAuthor.rank are both INTEGER), so neither needs a COLLATE.
+function identityConflictWhere(): any {
+  return {
+    [Op.and]: [
+      { top_cwid: { [Op.ne]: null } },
+      literal(
+        "EXISTS (SELECT 1 FROM `person_article_author` `paa` " +
+        "JOIN `person_article` `pa` ON `pa`.`pmid` = `paa`.`pmid` " +
+        "AND `pa`.`personIdentifier` = `paa`.`personIdentifier` " +
+        "AND `pa`.`userAssertion` = 'ACCEPTED' " +
+        "JOIN `identity` `i` ON `i`.`cwid` = `pa`.`personIdentifier` " +
+        "WHERE `paa`.`pmid` = `AuthorshipReview`.`pmid` " +
+        "AND `paa`.`rank` = `AuthorshipReview`.`author_position` " +
+        "AND `paa`.`targetAuthor` LIKE '1%' " +
+        "AND `pa`.`personIdentifier` <> `AuthorshipReview`.`top_cwid` COLLATE utf8mb4_unicode_ci)",
+      ),
+    ],
+  };
+}
+
+// The Identity-conflicts queue is requested either as its own statusView (what the redesigned
+// QUEUE list sends) or as a standalone boolean. Both are honoured because they are not
+// interchangeable everywhere: authorshipSelectable force-overrides statusView to "open", so a
+// conflicts request expressed ONLY as a statusView would be silently widened back to the whole
+// open queue there — exactly the "a bulk action fires on rows the user can no longer see" bug
+// class. That endpoint normalises through this helper before overriding.
+const wantsIdentityConflicts = (body: any): boolean =>
+  body?.identityConflicts === true || body?.statusView === "conflicts";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-const SORTS: Record<string, any[]> = {
-  // default: single-candidate (high-precision) first, then identity-only score desc.
-  // ["pmid","DESC"] is a secondary key so same-paper pubmed authorships land adjacent.
-  precision: [["single_candidate", "DESC"], ["top_io_score", "DESC"], ["pmid", "DESC"]],
-  confidence: [["top_confidence", "DESC"], ["pmid", "DESC"]],
-  io: [["top_io_score", "DESC"], ["pmid", "DESC"]],
-  fg: [["top_fg_score", "DESC"], ["pmid", "DESC"]],
-  date: [["entrez_date", "DESC"], ["pmid", "DESC"]],
-};
+// A no-DOI scopus row can't yet be verified against PubMed (aar_universe_scopus.py's
+// re-check needs either a DOI or, past this floor, a title/author fallback search).
+// Scopus routinely indexes a doc before PubMed does and before Scopus itself backfills
+// its DOI, so a *fresh* no-DOI row is more likely still settling than genuinely
+// PubMed-absent. Hold it out of every view until it clears the floor — the producer's
+// monthly re-check keeps running underneath regardless, so a row that resolves to PubMed
+// in the meantime is auto-dismissed before a curator ever sees it.
+const SCOPUS_NO_DOI_MATURITY_DAYS = 60;
+const maturityCutoffStr = () =>
+  new Date(Date.now() - SCOPUS_NO_DOI_MATURITY_DAYS * 86400000).toISOString().slice(0, 10);
 
 // Status-view predicate for the current view ("open" | "snoozed" | "dismissed"), or null
 // when feed="all". Factored out so the per-paper sibling count respects the same view.
@@ -40,23 +392,108 @@ function openStatusWhere(body: any): any {
     return { status: "snoozed", snooze_until: { [Op.gt]: today } };
   } else if (view === "dismissed") {
     return { status: "dismissed" };
+  } else if (view === "duplicates") {
+    // Two independent producer signals land here, both still status="open" so resolving a
+    // row anywhere drops it out of this view with no cleanup needed:
+    //  - accept_conflict: an Accept came back 409 from ExternalArticleDupCheck — a fuzzy
+    //    title+year collision (its WARNING level), which CAN pair two genuinely distinct works.
+    //  - matched_pmid (verdict not yet set): the producer flagged a possible PubMed twin for a
+    //    scopus row (title-search heuristic, or a doi/scopus match not yet auto-dismissed).
+    //    Once a curator sets matched_pmid_verdict='distinct' the row falls out of this view and
+    //    back into the open queue below ("Different papers" = never re-flag, not "resolved").
+    return {
+      status: "open",
+      [Op.or]: [
+        { accept_conflict: { [Op.ne]: null } },
+        { matched_pmid: { [Op.ne]: null }, matched_pmid_verdict: null },
+      ],
+    };
   }
-  // open queue: truly open, plus snoozes whose timer has lapsed (or has no wake date)
+  // open queue: truly open, plus snoozes whose timer has lapsed (or has no wake date).
+  // accept_conflict rows are excluded here — they live in the "duplicates" view above.
+  // Same for an unverdicted matched_pmid flag; ANY verdict lets the row back in here ('distinct' is
+  // the only one PM writes; a stray 'same' must never hide a row from every view).
+  //
+  // statusView "conflicts" reaches here on purpose and takes this same open-queue predicate:
+  // identity conflicts are a SUBSET of the open queue, not a fifth status. The predicate that
+  // narrows them is identityConflictWhere(), applied in buildWhere — which is also why the
+  // sibling/like counts that call this function with the caller's body stay describing the open
+  // queue rather than the conflicts slice of it (same stance as the institution filter there).
   return {
-    [Op.or]: [
-      { status: "open" },
-      { status: "snoozed", snooze_until: { [Op.lte]: today } },
-      { status: "snoozed", snooze_until: null as any },
+    [Op.and]: [
+      { accept_conflict: null },
+      {
+        [Op.or]: [
+          { status: "open" },
+          { status: "snoozed", snooze_until: { [Op.lte]: today } },
+          { status: "snoozed", snooze_until: null as any },
+        ],
+      },
+      {
+        [Op.or]: [
+          { matched_pmid: null },
+          { matched_pmid_verdict: { [Op.ne]: null } },
+        ],
+      },
     ],
   };
 }
 
-function buildWhere(body: any): any {
+// T5: the same "is this row in the open queue" test openStatusWhere({statusView:"open"})
+// compiles to SQL, but evaluated in JS against ONE already-fetched row rather than run as a
+// WHERE clause — like_count's grouped COUNT (below) always scopes to the open queue regardless
+// of which statusView the caller is browsing, so this answers "was the CURRENT row itself part
+// of that count" (and so needs subtracting) independent of that. Kept in exact lockstep with
+// openStatusWhere's own open-queue branch by construction, not by convention: same four
+// conditions (no accept_conflict, status=open or a lapsed/unset snooze, and no unverdicted
+// matched_pmid flag — a 'distinct' verdict lets the row back in, same as the SQL branch).
+function isRowOpenForLike(r: any): boolean {
+  if (r.accept_conflict) return false;
+  if (r.matched_pmid != null && r.matched_pmid_verdict == null) return false;
+  if (r.status === "open") return true;
+  if (r.status === "snoozed") return !r.snooze_until || r.snooze_until <= todayStr();
+  return false;
+}
+
+const ABSENT_CWID_TTL_MS = 5 * 60 * 1000;
+let absentCwidCache: { set: Set<string>; expires: number } | null = null;
+
+// Which proposed-identity cwids across the OPEN queue have no ReCiter identity at all — the
+// set hideNoIdentity hides. A given cwid can be top_cwid on hundreds of open rows, so resolving
+// this once per cache refresh (not once per row, and never for the whole matching set on every
+// list load — that cost is exactly why this filter didn't exist before) is what makes it cheap:
+// a few thousand distinct cwids batched 100/call through reciterIdentitySet(), the same shape
+// as every other Identity lookup in this file.
+// ponytail: plain Map+timestamp TTL, no cache lib — one key, one process. Tradeoff: a cwid that
+// GAINS an identity (e.g. an IC#148 backfill) can stay hidden for up to ABSENT_CWID_TTL_MS after
+// the fact, and one that loses an identity takes just as long to start being hidden. Both
+// directions self-heal on the next refresh with no action required.
+async function absentCwidSet(): Promise<Set<string>> {
+  if (absentCwidCache && absentCwidCache.expires > Date.now()) return absentCwidCache.set;
+  const rows: any[] = await models.AuthorshipReview.findAll({
+    attributes: [[fn("DISTINCT", col("top_cwid")), "top_cwid"]],
+    where: { [Op.and]: [openStatusWhere({}), { top_cwid: { [Op.ne]: null } }] },
+    raw: true,
+  });
+  const distinct = rows.map((r) => String(r.top_cwid)).filter(Boolean);
+  const known = await reciterIdentitySet(distinct);
+  const absent = new Set(distinct.filter((c) => !known.has(c)));
+  absentCwidCache = { set: absent, expires: Date.now() + ABSENT_CWID_TTL_MS };
+  return absent;
+}
+
+function buildWhere(body: any, absentCwids?: Set<string>): any {
   const and: any[] = [];
 
   const status = openStatusWhere(body);
   if (status) and.push(status);
-  // source segment: "all" (default) | "pubmed" | "scopus"
+  // identity-conflicts queue: open rows whose exact byline slot (pmid + author_position) is
+  // already ACCEPTED by a different WCM identity. Layered on top of the status predicate rather
+  // than replacing it — see identityConflictWhere().
+  if (wantsIdentityConflicts(body)) {
+    and.push(identityConflictWhere());
+  }
+  // source segment: "all" (default) | "pubmed" | "scopus" | "openalex"
   if (body.source && body.source !== "all") {
     and.push({ source: body.source });
   }
@@ -64,10 +501,10 @@ function buildWhere(body: any): any {
   if (body.classification && body.classification !== "all") {
     and.push({ classification: body.classification });
   }
-  // precision lane: only single-candidate (near-certain) authorships
-  if (body.precision === "single") {
-    and.push({ single_candidate: true });
-  }
+  // precision lane: only single-candidate (near-certain) authorships. The lanes, and the
+  // measurements behind them, are in precisionWhere() (authorshipQueueSql.ts).
+  const precision = precisionWhere(body.precision);
+  if (precision) and.push(precision);
   // publication-type filter (multiselect): Scopus subtypeDescription
   if (Array.isArray(body.pubTypes) && body.pubTypes.length > 0) {
     and.push({ pub_type: { [Op.in]: body.pubTypes } });
@@ -76,7 +513,94 @@ function buildWhere(body: any): any {
   if (Array.isArray(body.personTypes) && body.personTypes.length > 0) {
     and.push({ top_person_type: { [Op.in]: body.personTypes } });
   }
-  // free-text search across author name, proposed identity, pmid, doi, and Scopus id
+  // curated institution filter (multiselect): resolve each selected bucket key to its
+  // literal primaryInstitution string(s) via INSTITUTION_BUCKETS (flatMap, unknown keys
+  // silently drop out), then filter on the joined Person row via Sequelize's
+  // $Person.primaryInstitution$ dotted syntax for an included-model column. Every caller that
+  // can pass a non-empty body.institutions through to here (listAuthorships,
+  // authorshipSelectable, and — since #988 — every authorshipSummary response field except its
+  // own `institutions` facet, which excludes this key from its own where by definition) attaches
+  // personInstitutionInclude() to that same query so the dotted reference always has a join to
+  // resolve against (required:false is fine even here: IN(...) never matches a NULL from an
+  // unmatched/absent top_cwid, so those rows correctly drop out of just this filtered query
+  // without needing an INNER JOIN — verified empirically: a LEFT JOIN + this filter and an
+  // INNER JOIN + this filter returned the identical row count against the live dev DB).
+  if (Array.isArray(body.institutions) && body.institutions.length > 0) {
+    // basis decides WHICH institution is being asked about: the person's HR roster value
+    // ("is this our person?"), the affiliation printed on the paper ("does this paper credit
+    // us?"), or either. They diverge sharply — measured on production, the WCM person bucket
+    // held 4,594 open rows of which 2,370 had a non-WCM byline, while 5,613 rows with a WCM
+    // byline sat outside it entirely — so one basis alone is always wrong for someone.
+    const basis = normaliseBasis(body.institutionBasis);
+    const keys = body.institutions as string[];
+    const institutionLiterals = keys.flatMap((key) => INSTITUTION_BUCKETS[key] || []);
+    const personCond = institutionLiterals.length
+      ? { "$Person.primaryInstitution$": { [Op.in]: institutionLiterals } } : null;
+    const bylineConds = keys.map(bylineCondition).filter(Boolean) as any[];
+    const bylineCond = bylineConds.length ? { [Op.or]: bylineConds } : null;
+
+    if (basis === "person") {
+      if (personCond) and.push(personCond);
+    } else if (basis === "byline") {
+      if (bylineCond) and.push(bylineCond);
+    } else {
+      const either = [personCond, bylineCond].filter(Boolean) as any[];
+      if (either.length) and.push(either.length === 1 ? either[0] : { [Op.or]: either });
+    }
+  }
+  // Article-affiliation filter (multiselect): the SAME curated buckets as `institutions` above,
+  // but always resolved against the affiliation printed on the paper
+  // (INSTITUTION_BYLINE_PATTERNS via bylineCondition), never against the person's HR roster
+  // value. It is a separate body key rather than another basis value because the redesigned
+  // Affiliation popover holds two INDEPENDENT lists — "Identity affiliation" (the person, the
+  // `institutions` key above) and "Article affiliation" (the byline, this key) — and picking in
+  // both means BOTH must hold: a WCM person on an NYP byline. That AND falls out for free from
+  // both branches pushing onto the same `and` array; within one list the selected buckets still
+  // OR together. Touches no joined table (author_affiliation is a column on authorship_review),
+  // so unlike the `institutions` branch this one needs no Person include to resolve against.
+  if (Array.isArray(body.authorAffiliations) && body.authorAffiliations.length > 0) {
+    const conds = (body.authorAffiliations as string[]).map(bylineCondition).filter(Boolean) as any[];
+    if (conds.length) and.push(conds.length === 1 ? conds[0] : { [Op.or]: conds });
+  }
+  // hide rows with no proposed identity at all (#938 — ReCiterDB#177 nulls top_cwid on rows
+  // the merged matcher no longer matches to anyone; neither Accept nor Reject has anything to
+  // act on). top_cwid is a real column on the row itself — unlike identity_in_reciter, which
+  // is resolved per-page against DynamoDB after this query runs — so this is a plain SQL
+  // predicate like every filter above it, and authorshipSelectable's "N matching" count (which
+  // shares buildWhere) can never disagree with what this hides.
+  if (body.hideNoSuggestion) {
+    and.push({ top_cwid: { [Op.ne]: null } });
+  }
+  // hide rows proposing a person with no ReCiter identity at all — the complement of
+  // hideNoSuggestion above (that one hides no-proposal rows; this hides has-a-proposal
+  // rows the identity check would reject). absentCwids is the TTL-cached snapshot from
+  // absentCwidSet(), not a live per-row DynamoDB check — same identity_in_reciter tradeoff
+  // as the rest of this file, just resolved once per cache window instead of once per page.
+  if (body.hideNoIdentity && absentCwids && absentCwids.size > 0) {
+    and.push({ [Op.or]: [
+      { top_cwid: null },
+      { top_cwid: { [Op.notIn]: [...absentCwids] } },
+    ] });
+  }
+  // T5: "Show N others like this" — the structured, variant-tolerant complement to the
+  // free-text search box just below. likeAuthor is the raw wcm_author of an anchor row (set by
+  // the client, never typed); authorKey() (src/lib/bulkAssign.ts) reduces it to lowercase
+  // first-token|last-token, and the two equality conditions below are that same rule expressed
+  // in SQL — LOWER(SUBSTRING_INDEX(wcm_author,' ',1)) / LOWER(SUBSTRING_INDEX(wcm_author,' ',-1))
+  // — so "Bernard Park" and "Bernard J. Park" match on first+last token even though neither
+  // string contains the other, which is exactly what the free-text LIKE below cannot do. Two
+  // plain equality predicates, not a computed/generated column, are fine at this table's ~16k
+  // rows with no index (see authorKey's own comment for the compound-surname ceiling this
+  // shares).
+  const likeKey = authorKey(body.likeAuthor);
+  if (likeKey) {
+    const [likeFirst, likeLast] = likeKey.split("|");
+    and.push(sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1)), likeFirst));
+    and.push(sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", -1)), likeLast));
+  }
+  // free-text search across author name, proposed identity, pmid, doi, Scopus id, and the
+  // byline's affiliation statement (owner request 2026-09-20: "Pulmonary" or "Ithaca" is a
+  // useful slice of the queue that no other column can give)
   const search = (body.searchTextInput || "").trim();
   if (search) {
     const like = `%${search}%`;
@@ -86,6 +610,7 @@ function buildWhere(body: any): any {
       { top_cwid: { [Op.like]: like } },
       { doi: { [Op.like]: like } },
       { external_id: { [Op.like]: like } },
+      { author_affiliation: { [Op.like]: like } },
     ];
     if (/^\d+$/.test(search)) or.push({ pmid: Number(search) });
     and.push({ [Op.or]: or });
@@ -100,56 +625,560 @@ function buildWhere(body: any): any {
   } else if (dateTo) {
     and.push({ entrez_date: { [Op.lte]: dateTo } });
   }
+  // hold immature no-DOI scopus rows out of every view until they clear the floor above.
+  // entrez_date is nullable (aar_universe_scopus.py has no coverDate fallback) — a bare
+  // Op.gt against NULL evaluates to NULL, and NOT(NULL) is NULL too, so an unguarded
+  // clause here would make a missing-date row vanish permanently instead of just holding
+  // it. Require entrez_date to be non-null before comparing, so a NULL date falls through
+  // to "show the row" rather than "hide it forever."
+  and.push(immatureScopusExclusion());
 
   return and.length ? { [Op.and]: and } : {};
 }
 
-// same-document sibling key: pubmed → pmid, scopus → external_id (co-authorships on one doc).
-const siblingKey = (r: any) =>
-  r.source === "scopus" ? String(r.external_id || "") : String(r.pmid ?? "");
+// The immaturity hold above, as its own predicate so the "Show N others like this" grouped
+// COUNT can apply the identical clause. buildWhere applies this to EVERY list query
+// unconditionally; a count that omitted it would promise a curator rows the list is holding
+// back, which is the count-vs-filter disagreement this whole pair exists to prevent.
+function immatureScopusExclusion(): any {
+  return {
+    [Op.not]: {
+      source: "scopus",
+      doi: null,
+      entrez_date: { [Op.and]: [{ [Op.ne]: null }, { [Op.gt]: maturityCutoffStr() }] },
+    },
+  };
+}
 
-// Which of these cwids have a ReCiter identity? `person` mirrors ReCiter's Identity table
-// (the AAR producer matches against the wider IDM `identity` universe, so top_cwid can name
-// someone — typically inactive faculty — ReCiter doesn't track; accepting those 404s at the
-// ExternalArticle endpoint and orphans gold-standard writes). Checked at read time, not
-// produce time, because people also leave WCM after a row is produced.
-// ponytail: app-side IN() lookup instead of a SQL JOIN — person/authorship_review collations
-// differ (general_ci vs unicode_ci), which breaks and de-indexes a direct join.
+// same-document sibling key: pubmed → pmid, external lanes → external_id (co-authorships on one doc).
+const siblingKey = (r: any) =>
+  isExternalSource(r) ? String(r.external_id || "") : String(r.pmid ?? "");
+
+// Which of these cwids have a ReCiter identity? Asks DynamoDB `Identity` directly — the same
+// table ReCiter's own ExternalArticleController.findByUid consults before it will accept an
+// ExternalArticle, so this answer and the accept path's answer cannot disagree. Needed because
+// the AAR producer matches against the wider IDM `identity` universe, so top_cwid can name
+// someone ReCiter doesn't track; accepting those 404s at the ExternalArticle endpoint and
+// orphans gold-standard writes. Checked at read time, not produce time, because people also
+// leave WCM after a row is produced.
+//
+// This used to read reciterdb's `person` mirror, gated on the row having a name, on the theory
+// that a null-name person row was stale sync debris and so couldn't be a valid identity. That
+// premise is wrong. `person` gets names from a SECOND loader pass (ReCiterDB
+// updateReciterDB.py `update_person`, an INNER join against person_temp, skipped entirely on
+// incremental runs), so a null name means "the name loader hasn't covered this cwid", not "not
+// in ReCiter". Measured 2026-08-29: 173 of 187 null-name person rows (92.5%) ARE in DynamoDB
+// Identity, and `person` is missing 1,915 uids DynamoDB has. Across the 18,892 open rows the
+// mirror flagged 1,048 cwids / 2,723 rows, of which 74 cwids / 254 rows were false — Accept
+// hidden from curators who could legitimately have used it (brf9046 being the reported case:
+// null-name person row, full identity in DynamoDB, /curate/brf9046 renders fine because that
+// page asks ReCiter's REST identity endpoint instead of this mirror). DynamoDB flags the 974
+// genuinely-absent cwids and nothing else. Errors in the other direction were already zero,
+// so this change only ever un-blocks.
+//
+// No try/catch on purpose: an AWS failure propagates to the caller's existing 500 handler.
+// Failing OPEN would let the pubmed lane write orphan GoldStandard rows (POST
+// /reciter/goldstandard has no identity check of its own — this is the only backstop);
+// failing CLOSED would silently pill the entire queue with a claim that isn't true. A visible
+// 500 is the honest third option and costs no code.
+//
+// ponytail: point lookups per request, no cache — ~20 ms for a 25-row page and ~0.6 s for the
+// 5,000-row selectable page (17 batches), the same order as the getRejectedPmidsByCwid call
+// two lines below. Unprocessed keys throw rather than retry: throttling a key-only projection
+// is vanishingly rare, and a 500 beats silently reporting a present identity as absent.
+// Ceiling: PM is duplicating a check that belongs server-side. Upgrade path is to add the
+// Identity check to ReCiter's POST /reciter/goldstandard (ReCiterController.java validates
+// only that the body is non-null), after which this becomes advisory rather than load-bearing.
+// Deliberately NOT fixed here: personNames() below still reads the same lossy `person` mirror,
+// so a null-name row still falls back to top_name; and the `person` loader gap itself is a
+// ReCiterDB-side follow-up the app must not depend on being repaired.
+const identityDdb = new DynamoDBClient({ region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1" });
+
 async function reciterIdentitySet(cwids: Array<string | undefined | null>): Promise<Set<string>> {
   const wanted = [...new Set(cwids.filter(Boolean).map(String))];
   if (wanted.length === 0) return new Set();
+  const out = new Set<string>();
+  for (let i = 0; i < wanted.length; i += 100) { // 100 = BatchGetItem hard limit
+    const resp = await identityDdb.send(new BatchGetItemCommand({
+      RequestItems: {
+        Identity: {
+          Keys: wanted.slice(i, i + 100).map((uid) => ({ uid: { S: uid } })),
+          ProjectionExpression: "uid",
+        },
+      },
+    }));
+    if (resp.UnprocessedKeys?.Identity?.Keys?.length) throw new Error("Identity BatchGetItem throttled");
+    for (const it of resp.Responses?.Identity ?? []) if (it.uid?.S) out.add(it.uid.S);
+  }
+  return out;
+}
+
+// Blank directory title/department filled from reciterdb `identity` (both campuses; Cornell rows
+// come from the monthly HR feed). Cornell strips both once someone is alumni / former postdoc:
+// as3527 is a bare "former postdoc" there and "Post Dr Assoc, Population Medicine & Diagnostic
+// Science" here. Only fills blanks, never overrides the directory. Fails open: a lookup without
+// enrichment beats no lookup.
+async function rosterFill(people: DirectoryPerson[]): Promise<void> {
+  const ids = [...new Set(people.filter((p) => !p.title || !p.depts.length).map((p) => p.id.toLowerCase()))];
+  if (!ids.length) return;
+  try {
+    const rows: any[] = await sequelize.query(
+      "SELECT cwid, primaryTitle, primaryAcademicDepartment FROM identity WHERE cwid IN (:ids)",
+      { replacements: { ids }, type: QueryTypes.SELECT });
+    const by = new Map(rows.map((r) => [String(r.cwid).toLowerCase(), r]));
+    for (const p of people) {
+      const r = by.get(p.id.toLowerCase());
+      if (!r) continue;
+      if (!p.title && r.primaryTitle) p.title = r.primaryTitle;
+      if (!p.depts.length && r.primaryAcademicDepartment) {
+        p.depts = [r.primaryAcademicDepartment];
+        p.dept = r.primaryAcademicDepartment;
+      }
+    }
+  } catch (e) {
+    console.log("[lookup] roster fill failed (non-fatal):", e);
+  }
+}
+
+// Display name per cwid from the same `person` mirror, "First Middle Last" — the shape the
+// AAR producer bakes into top_name/candidate_cwids_json, so a looked-up name reads the same
+// as a produced one.
+// ponytail: app-side IN() rather than a SQL JOIN — the collations differ either way round
+// (person.personIdentifier is utf8mb4_unicode_ci, authorship_review.top_cwid is
+// utf8mb4_general_ci; checked against information_schema 2026-08-29), which throws 1267 and
+// de-indexes a direct join. Note this mirror is lossy (see reciterIdentitySet above): a
+// null-name row yields no name here and the caller falls back to top_name.
+async function personNames(cwids: Array<string | undefined | null>): Promise<Record<string, string>> {
+  const wanted = [...new Set(cwids.filter(Boolean).map(String))];
+  if (wanted.length === 0) return {};
   const found: any[] = await models.Person.findAll({
     where: { personIdentifier: { [Op.in]: wanted } },
-    attributes: ["personIdentifier"], raw: true,
+    attributes: ["personIdentifier", "firstName", "middleName", "lastName"], raw: true,
   });
-  return new Set(found.map((p) => String(p.personIdentifier)));
+  const out: Record<string, string> = {};
+  found.forEach((p) => {
+    const name = [p.firstName, p.middleName, p.lastName].map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+    if (name) out[String(p.personIdentifier)] = name;
+  });
+  return out;
 }
+
+// primaryAcademicDivision AND primaryAcademicDepartment per cwid, for §2.6's identity hover
+// card (which shows department / division / institution). Division lives ONLY on the IDM roster
+// table `identity`, so it always needed its own lookup. The department is read here for a
+// different reason: the row's top_dept and each candidate's `dept` are AAR-producer snapshots
+// that go stale, and the caller blank-fills them from this fresh read (see there for why a
+// blank is staleness and not a different source).
+//
+// Asked about every cwid on the page — each row's top_cwid AND every candidate cwid — not just
+// the leads, because the candidate list is where the homonym curator is actually deciding and
+// it was never enriched at all. Still exactly ONE query for the whole page: the set is deduped
+// here and a wider IN() rides the same index (a 25-row page carries ~40 distinct cwids, not 25).
+//
+// Keyed by the exact cwid string, no case folding, because there is no case to fold: 0 of the
+// 34,830 `identity` rows, 0 of the 16,204 authorship_review.top_cwid values and 0 candidate
+// cwids in candidate_cwids_json carry an uppercase character (dev, 2026-09-10).
+//
+// App-side IN() rather than a third include, for the same collation reason personNames() and
+// identityLabel() give: identity.cwid is utf8mb4_unicode_ci against authorship_review.top_cwid's
+// utf8mb4_general_ci, so a direct join throws 1267 and a COLLATE on the identity side would
+// de-index it (the exact mistake the person join's comment documents). One indexed range scan
+// per page, over the page's distinct cwids (~40 at the default page size, now that candidates
+// are included): EXPLAIN gives type=range, key=`dfsdfsdf` (the cwid index), rows=10 for a
+// 10-cwid probe; 35 ms on the dev DB, and ~20 ms of the list endpoint's measured 247→270 ms
+// warm total.
+//
+// A cwid with no identity row, or with both columns null, is simply absent from the result, and
+// either field is individually undefined when only it is null — the hover card omits that line
+// rather than showing an empty one, and the caller's blank-fill leaves the producer's value
+// alone. That is common, not exceptional: of 10 sampled queue cwids, 5 had a null
+// primaryAcademicDivision.
+async function identityDeptDivision(
+  cwids: Array<string | undefined | null>,
+): Promise<Record<string, { division?: string; department?: string }>> {
+  const wanted = [...new Set(cwids.filter(Boolean).map(String))];
+  if (wanted.length === 0) return {};
+  const found: any[] = await models.Identity.findAll({
+    where: { cwid: { [Op.in]: wanted } },
+    attributes: ["cwid", "primaryAcademicDivision", "primaryAcademicDepartment"], raw: true,
+  });
+  const out: Record<string, { division?: string; department?: string }> = {};
+  found.forEach((r) => {
+    if (!r.cwid) return;
+    const division = String(r.primaryAcademicDivision || "").trim() || undefined;
+    const department = String(r.primaryAcademicDepartment || "").trim() || undefined;
+    if (!division && !department) return;
+    // Merge field-wise, never replace the whole entry. `identity`'s cwid index is NOT unique
+    // (Identity.ts: index `dfsdfsdf`, no unique flag; the PK is `id`), so two rows for one cwid
+    // are schema-permitted — 0 today, but the old single-field shape could not be hurt by one
+    // and this shape can: a second row with a null division would otherwise erase a first row's
+    // real one and silently drop the division line from the card.
+    const prev = out[String(r.cwid)];
+    out[String(r.cwid)] = {
+      division: division ?? prev?.division,
+      department: department ?? prev?.department,
+    };
+  });
+  return out;
+}
+
+// #990: which OTHER WCM identities already hold ACCEPTED at the exact same (pmid,
+// author_position) byline slot as each row on the current page — the source of the list
+// endpoint's per-row `accepted_by` and the Pick-one panel's "Accepted this article" badge.
+// Same three-table join identityConflictWhere() tests (person_article_author -> person_article
+// ACCEPTED -> identity), so the count in Summary.conflicts and the names shown here can never
+// disagree by construction — this just names the rival(s) that predicate only counts.
+//
+// One query for the whole page, scoped to the page's distinct pmids AND distinct
+// author_positions (not by pmid alone, which would pull every accepted co-author on a
+// multi-WCM-author paper regardless of slot). The caller re-applies the exact (pmid,
+// author_position) pair via this function's `${pmid}|${author_position}` map key, so a rival at
+// a DIFFERENT slot that happens to share one of these pmids can never land under the wrong row.
+// Excluding the row's OWN top_cwid is deliberately NOT done here — that exclusion is per-row
+// (top_cwid differs row to row, this lookup does not know which row is asking) and is applied
+// by the caller after the map comes back.
+//
+// Raw SQL via the shared `sequelize` instance (same pattern as proxy.controller.ts), not a
+// Sequelize `include`, for the same reason identityConflictWhere() stays a literal EXISTS: the
+// join to `identity` must not go through Sequelize's association/collation machinery. `LIKE
+// '1%'` is the same person_article_author.targetAuthor carriage-return trap
+// identityConflictWhere() documents above — TRIM(targetAuthor) = '1' silently returns zero rows.
+async function acceptedBySlot(
+  pairs: Array<{ pmid: number; author_position: number }>,
+): Promise<Record<string, Array<{ cwid: string; name: string }>>> {
+  const out: Record<string, Array<{ cwid: string; name: string }>> = {};
+  const pmids = [...new Set(pairs.map((p) => p.pmid))];
+  const positions = [...new Set(pairs.map((p) => p.author_position))];
+  if (!pmids.length || !positions.length) return out;
+  const rows: any[] = await sequelize.query(
+    "SELECT `paa`.`pmid` AS `pmid`, `paa`.`rank` AS `rnk`, `pa`.`personIdentifier` AS `cwid`, " +
+    "`i`.`givenName` AS `givenName`, `i`.`surname` AS `surname` " +
+    "FROM `person_article_author` `paa` " +
+    "JOIN `person_article` `pa` ON `pa`.`pmid` = `paa`.`pmid` " +
+    "AND `pa`.`personIdentifier` = `paa`.`personIdentifier` " +
+    "AND `pa`.`userAssertion` = 'ACCEPTED' " +
+    "JOIN `identity` `i` ON `i`.`cwid` = `pa`.`personIdentifier` " +
+    "WHERE `paa`.`pmid` IN (:pmids) AND `paa`.`rank` IN (:positions) " +
+    "AND `paa`.`targetAuthor` LIKE '1%'",
+    { replacements: { pmids, positions }, type: QueryTypes.SELECT },
+  );
+  rows.forEach((r) => {
+    const key = `${r.pmid}|${r.rnk}`;
+    const cwid = String(r.cwid);
+    const name = [r.givenName, r.surname].map((v: any) => String(v || "").trim()).filter(Boolean).join(" ");
+    (out[key] ||= []).push({ cwid, name: name || cwid });
+  });
+  return out;
+}
+
+// "Given Middle Surname · Department" for ONE curator-typed cwid. This string is the only
+// thing standing between the curator and an authoritative write into a stranger's publication
+// record, so it comes from THREE sources and the caller only ever falls back to a bare cwid
+// when all three are silent.
+//
+// The `person` mirror leads, because firstName there is the byline-shaped name — a curator
+// reading "Tony Rosen" on the paper who correctly types aer2006 needs to see "Tony", not the
+// legal "Anthony Ehren Rosen" the IDM roster carries. Same preference ReCiterDB PR #172 already
+// made on the producer side for the identical reason: consistent with what already shipped.
+//
+// The IDM roster table `identity` is the fallback name source (when `person` has none), and
+// unconditionally supplies the department — it is the only one of the three that carries one,
+// and this label is the only thing on the 422 that identifies which department the write lands
+// in, so it stays even when its name doesn't lead. Nothing here removes `identity`'s legal name
+// from the system; it is still read, still shown when `person` is silent, and its department
+// still always shows.
+//
+// DynamoDB `identity.primaryName` is the last fallback. This function is reachable only from
+// the off-candidate confirm, which fires only when reciterIdentitySet() already found the cwid
+// in DynamoDB Identity — so the item is known to exist and only its name is in question.
+//
+// Measured 2026-08-29 over the reachable universe, which is the 26,551 DynamoDB uids that also
+// pass this endpoint's own /^[A-Za-z0-9]{1,32}$/ (that regex is what puts the usc_/ucsd_/
+// fredhutch_ external-validation cohorts out of typing range, so counting the full 35,052-row
+// table overstates this by nearly 4x): 2,140 of the 26,551 (8.1%) get NO name from the IDM
+// roster. The AAR queue barely notices — 1 of the 6,374 cwids it names — but those 2,140 are
+// residents, fellows and non-faculty staff, i.e. precisely the people the typed-cwid box exists
+// to reach, and every one of them rendered as a bare cwid before the `identity` fallback below
+// was added. DynamoDB names 2,140 of the 2,140, and 26,551 of 26,551 overall: over the typable
+// universe there is no nameless case left. The `person` mirror now leading is strictly worse as
+// a NAME COVERAGE fallback — it names 25,958 of the 26,551 and rescues only 2,005 of the
+// 2,140 — which is exactly why `identity` stays second in line rather than being dropped.
+//
+// No try/catch, same stance as reciterIdentitySet: a DynamoDB failure surfaces as the caller's
+// 500. Swallowing it would silently reproduce the nameless confirm this fallback exists to
+// remove, at the exact moment the curator is being asked to authorise a write.
+// ponytail: the DynamoDB fallback is a second point lookup rather than a name projection folded
+// into reciterIdentitySet, because that function is also called with up to 5,000 keys per page
+// and this branch wants one. Upgrade path if a name is ever needed in bulk: widen the projection
+// there and let this one go.
+// Same no-join lookup as personNames() above, and for the same reason: identity.cwid is
+// utf8mb4_unicode_ci against authorship_review.top_cwid's utf8mb4_general_ci (information_schema,
+// 2026-08-29), so a direct join throws 1267.
+async function identityLabel(cwid: string): Promise<string> {
+  const [person, row]: [any, any] = await Promise.all([
+    models.Person.findOne({
+      where: { personIdentifier: cwid },
+      attributes: ["firstName", "middleName", "lastName"], raw: true,
+    }),
+    models.Identity.findOne({
+      where: { cwid },
+      attributes: ["givenName", "middleName", "surname", "primaryAcademicDepartment"], raw: true,
+    }),
+  ]);
+  const bylineName = [person?.firstName, person?.middleName, person?.lastName]
+    .map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+  const legalName = [row?.givenName, row?.middleName, row?.surname]
+    .map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+  const name = bylineName || legalName || await identityPrimaryName(cwid);
+  if (!name) return "";
+  const dept = String(row?.primaryAcademicDepartment || "").trim();
+  return dept ? `${name} · ${dept}` : name;
+}
+
+// "First Middle Last" from the DynamoDB Identity item itself. `identity` and `primaryName` are
+// aliased because DynamoDB reserves IDENTITY and NAME as expression keywords.
+async function identityPrimaryName(uid: string): Promise<string> {
+  const resp = await identityDdb.send(new GetItemCommand({
+    TableName: "Identity",
+    Key: { uid: { S: uid } },
+    ProjectionExpression: "#i.#p",
+    ExpressionAttributeNames: { "#i": "identity", "#p": "primaryName" },
+  }));
+  const pn = resp.Item?.identity?.M?.primaryName?.M;
+  return [pn?.firstName?.S, pn?.middleName?.S, pn?.lastName?.S]
+    .map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+}
+
+// POST /api/db/authorships/lookup — read-only cwid lookup behind the bulk-assign confirm
+// dialog (B-8). This is the upgrade path this file's own case "assign" comment named ahead of
+// time ("add GET /api/db/authorships/lookup?cwid= over the same identityLabel()"): a curator
+// bulk-assigning to a cwid that is off-candidate for some/all of the selection, or that has no
+// ReCiter identity, gets ONE server lookup instead of per-row 422 round-trips, and the bulk
+// confirm dialog is built on what THIS returns — never on the raw string typed or a
+// possibly-stale candidate_cwids_json label — so the trust boundary the per-row confirms
+// enforce (confirm against a server-verified name, never a typed string) holds at bulk scale
+// too.
+//
+// Canonicalization runs through the exact same two calls case "assign" makes (reciterIdentitySet
+// on [typed, typed.toLowerCase()], then canonicalCwid) so this can never resolve a cwid to a
+// different Identity record than the write path would.
+export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    // Free-text NAME search, the "long shot" half. A separate field from `cwid` on purpose:
+    // this one only ever drives a READ against a directory, so it can accept the spaces a name
+    // needs. The /^[A-Za-z0-9]{1,32}$/ on `cwid` below is load-bearing — it is what puts the
+    // usc_/ucsd_/fredhutch_ external-validation cohorts out of typing range — and nothing here
+    // widens it. A curator who can only read "K. Cummings" off a byline had no way to reach
+    // that person before; every WCM staff member and every Ithaca author is in this case, since
+    // inst-client's roster query is (weillCornellEduPersonTypeCode=academic) and Ithaca is a
+    // different directory entirely.
+    const q = String(req.body?.q || "").trim();
+    if (q) {
+      if (q.length > 64) return res.status(400).send("search term too long");
+      // The byline's own affiliation string, when the client has one. Read-only ranking input:
+      // it is tokenised and compared, never sent to a directory or written anywhere.
+      const affil = String(req.body?.affil || "").slice(0, 500);
+      // `auto` marks the routine lookup a weak row fires on expand (no candidate, or none at
+      // the full given-name tier), as opposed to a name the curator typed. Routine = WCM ED
+      // first; Cornell (Ithaca) only when WCM has no strong hit -- nobody in the byline's
+      // department and nobody with the exact name -- AND the affiliation itself says "Cornell
+      // University". A typed name keeps searching both, since the curator may know it is an
+      // Ithaca person the affiliation does not admit to. (Owner rule, 2026-09-20.)
+      // ponytail: two sequential LDAP round-trips only on the fallback; measured on the open
+      // pubmed ledger 587 of 3,022 weak rows say "Cornell University", so most rows pay one.
+      const auto = String(req.body?.auto || "") === "1";
+      const deptMatch = (p: { depts: string[] }) => affiliationDeptMatch(p.depts, affil);
+      // An Ithaca byline asks both directories up front: the WCM-first fallback never reached
+      // Cornell there, because "Population Medicine" matches every WCM "Medicine" dept.
+      const campuses = bylineCampuses(affil);
+      const wcmFirst = auto && !campuses.has("cornell");
+      const searchFor = async (term: string) => {
+        let hits = await searchDirectoryPeople(term, 8, true, affil, wcmFirst ? { cornell: false } : {}, rosterFill);
+        if (wcmFirst && cornellFallback(hits, affil)) {
+          hits = [...hits, ...await searchDirectoryPeople(term, 8, true, affil, { wcm: false }, rosterFill)];
+        }
+        return hits;
+      };
+      let found = await searchFor(q);
+      // Nobody under "Eliot T. Miller" -> try "Eliot Miller"; the client says it widened.
+      // ponytail: one extra LDAP round-trip only on an empty answer with a middle initial.
+      const widened = found.length === 0 ? dropMiddleInitials(q) : null;
+      if (widened) found = await searchFor(widened);
+      // Which of these does ReCiter already know? A curator searching by name must be told
+      // "this one is already in ReCiter" so they pick the identity that exists rather than
+      // minting a duplicate of it — and for a Cornell person that also means surfacing the WCM
+      // cwid their directory record publishes.
+      const known = await reciterIdentitySet(
+        found.flatMap((p) => [p.id, p.id.toLowerCase(), p.wcmCwid].filter(Boolean) as string[]));
+      // Rank: department named in the byline's affiliation first — it is the one fact that
+      // picks the Pulmonary research assistant out of five C. Zhangs for a Pulmonary paper
+      // (2026-09-16) — then already in ReCiter, then ED-active, then an exact name match (the
+      // three that separate the live biostatistician from four expired affiliates who share her
+      // name; 2026-09-15, "Jessica Kim": the right one sat sixth). Stable, so ties keep the
+      // directories' own order. Nothing is removed; expired people stay assignable.
+      // The byline's institution outranks everything (owner rule, 2026-11-23).
+      const score = (p: typeof found[number]) =>
+        (campuses.has(p.source) ? 16 : 0) + (deptMatch(p) ? 8 : 0) + (known.has(p.id) || known.has(p.id.toLowerCase()) ? 4 : 0) + (p.active ? 2 : 0) + (p.exactName ? 1 : 0);
+      const people = found.map((p, i) => ({ p, i })).sort((a, b) => score(b.p) - score(a.p) || a.i - b.i).map((x) => x.p);
+      return res.send({
+        configured: directoryConfigured(),
+        widened: widened && found.length ? widened : null,
+        matches: people.map((p) => ({
+          id: p.id, source: p.source, name: p.name, title: p.title, dept: p.dept,
+          // The assembled legal name, which is not always what displayName carries: ED holds a
+          // middle name the display form usually drops, and that is often the only thing telling
+          // two same-named people apart — the exact case this box exists to serve. Sent only when
+          // it actually differs from `name`, so the column stays empty rather than echoing.
+          fullName: (() => {
+            const full = [p.givenName, p.middleName, p.familyName]
+              .map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+            const norm = (x: string) => x.replace(/\s+/g, " ").trim().toLowerCase();
+            return full && norm(full) !== norm(p.name) ? full : null;
+          })(),
+          depts: p.depts,
+          college: p.college ?? null,
+          // One of `depts` is named in the byline's affiliation (see the ranking above); the
+          // client marks the cell so the curator sees WHY this row leads.
+          deptMatch: deptMatch(p),
+          created: p.created,
+          // ED's OWN answer for which organisation this person primarily belongs to, which is
+          // not derivable from `source`: ou=people carries NewYork-Presbyterian people too, so a
+          // WCM ED hit is not evidence of a WCM appointment. This is the column a curator needs
+          // to not attribute an NYP author's paper to WCM.
+          primaryOrg: p.primaryOrg,
+          // What this person IS at that organisation, already normalised into ReCiter's own
+          // vocabulary by the projectors — the same array a mint would write to
+          // Identity.personTypes. Secondary to primaryOrg, shown under it.
+          personTypes: p.personTypes,
+          // The derived institution label, kept only for the hover: it is what
+          // directoryIdentityPayload would actually write as primaryInstitution, which is worth
+          // being able to see next to primaryOrg when the two disagree.
+          primaryInstitution: p.source === "wcm" ? "Weill Cornell Medicine" : "Cornell University",
+          email: p.emails[0] ?? null,
+          hasIdentity: known.has(p.id) || known.has(p.id.toLowerCase()),
+          wcmCwid: p.wcmCwid, wcmCwidHasIdentity: !!(p.wcmCwid && known.has(p.wcmCwid)),
+          // #1020: the same human's identifier in the OTHER directory, when both answered and
+          // mergeDirectoryPeople folded them into this one row. Display only.
+          alsoId: p.alsoId,
+          // ED has RETIRED this cwid: the human exists, under a different identifier. Assigning
+          // to it writes a gold-standard record against an identifier nothing will ever read
+          // again, so the client renders the row un-pickable and names the replacement instead.
+          // Distinct from every other status ED publishes — see DirectoryPerson.retiredCwid.
+          retiredCwid: p.retiredCwid, supersededBy: p.supersededBy,
+          // ED lifecycle: false = every status expired (rendered as a muted "expired" so the
+          // curator can see why a row sank). Null for Cornell, which publishes no such thing.
+          active: p.active,
+        })),
+      });
+    }
+
+    const typed = String(req.body?.cwid || "").trim();
+    if (!typed) return res.status(400).send("cwid is required");
+    if (!/^[A-Za-z0-9]{1,32}$/.test(typed)) return res.status(400).send("cwid must be alphanumeric");
+    const found = await reciterIdentitySet([typed, typed.toLowerCase()]);
+    const cwid = canonicalCwid(typed, found);
+    const hasIdentity = found.has(cwid);
+    // identityLabel is reachable here under the identical precondition case "assign"'s
+    // confirm_off_candidate requires — hasIdentity already true — so there is never a name
+    // to look up for a cwid ReCiter has no Identity record for; the client tells that story
+    // itself (hasIdentity: false), not a null name pretending to be one.
+    const name = hasIdentity ? ((await identityLabel(cwid)) || null) : null;
+    // …and when ReCiter has no Identity, ask the directories. This is the only place the preview
+    // can learn that a "no ReCiter identity" identifier is nonetheless a real, nameable person —
+    // which turns the assign from a local-only note into a mint-then-write, so the curator has
+    // to see it BEFORE they submit, not only on the 422 afterwards. Behind !hasIdentity, so the
+    // common path costs no LDAP round-trip at all.
+    const dir = hasIdentity ? null : await lookupDirectoryPerson(cwid);
+    const bridgeFound = dir?.wcmCwid ? await reciterIdentitySet([dir.wcmCwid]) : null;
+    // Answered from the cached ED census, NOT from `dir` — `dir` is only fetched when ReCiter
+    // has no identity, and a retired cwid usually still has one, so reading the flag off `dir`
+    // would miss precisely the case that matters. No LDAP round-trip on the cached path.
+    const retiredIdx = await retiredCwidIndex();
+    const retiredCwid = retiredIdx.has(cwid.toLowerCase());
+    res.send({
+      cwid, name, hasIdentity,
+      retiredCwid, supersededBy: retiredCwid ? (retiredIdx.get(cwid.toLowerCase()) ?? null) : null,
+      directory: dir && {
+        id: dir.id, source: dir.source, name: dir.name, title: dir.title, dept: dir.dept,
+        email: dir.emails[0] ?? null,
+        // The duplicate-person bridge, surfaced at lookup time so the preview can say where the
+        // write will actually land. See DirectoryPerson.wcmCwid in src/lib/directory.ts.
+        wcmCwid: dir.wcmCwid,
+        wcmCwidHasIdentity: !!(dir.wcmCwid && bridgeFound?.has(dir.wcmCwid)),
+        // A directory record with no given or family name cannot satisfy ReCiter's mandatory
+        // fields, so say so here rather than letting the confirm promise a mint that 500s.
+        mintable: directoryIdentityPayload(dir) !== null,
+        // Same block as the name-search path above: a typed cwid ED has retired must not be
+        // minted OR assigned to. Reaching this branch means ReCiter has no identity for it, so
+        // confirming would mint a brand-new identity on a dead identifier — the worst case.
+        retiredCwid: dir.retiredCwid, supersededBy: dir.supersededBy,
+      },
+    });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
 
 // POST /api/db/authorships — paginated, filtered list of unassigned WCM authorships.
 export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const body = req.body || {};
-    const limit = Number(body.limit) || 25;
+    // Clamped because this change made the blast radius bigger: the identity IN() below used to
+    // carry one cwid per row (the lead) and now carries the lead plus every candidate, so an
+    // unbounded `limit` went from an N-value IN() to roughly 6N (n_candidates maxes at 5 on
+    // prod). Nothing legitimate is cut off — both app callers send PAGE_SIZE=20, and the bulk
+    // "select all N matching" path uses /authorships/selectable, a different endpoint.
+    // …except the like view, which is one person's whole pile on one page (PM 2026-09-15): a
+    // pile is bounded by how many open rows share one byline (147 on dev, Shariat), nowhere
+    // near the bulk endpoint's own 5,000 cap, so that cap is reused rather than a third number.
+    const limit = Math.min(Number(body.limit) || 25, body.likeAuthor ? SELECTABLE_CAP : 200);
     const offset = Number(body.offset) || 0;
     const order = SORTS[body.sort] || SORTS.precision;
+    // buildWhere is sync, so the absent-cwid set (needed only when the filter is on) is
+    // resolved up front and threaded in, rather than looked up inside buildWhere itself.
+    const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
 
     const { count, rows } = await models.AuthorshipReview.findAndCountAll({
       attributes: LIST_ATTRIBUTES,
-      where: buildWhere(body),
+      // required:false (LEFT JOIN): many rows have a null top_cwid or one that matches no
+      // current person row (stale/deleted identity) — those must stay in the unfiltered page,
+      // not be silently dropped by the join. The include is attached unconditionally (not
+      // only when body.institutions is set) so buildWhere's optional $Person.primaryInstitution$
+      // reference always has a join to resolve against.
+      // This is the ONE call site that widens the include's attributes: the identity hover card
+      // needs the proposed person's institution, and the join is already here. See
+      // personInstitutionInclude() for the measurements and for why the other two callers keep
+      // the empty default.
+      include: [personInstitutionInclude(false, ["primaryInstitution"])],
+      where: buildWhere(body, absentCwids),
       order,
       offset,
       limit,
+      // Belt and braces with the one-row join in personInstitutionInclude(): count review rows,
+      // not joined rows, so "Showing N of M" can never exceed the queue count.
+      distinct: true,
+      col: "id",
     });
 
     // Per-document sibling count, scoped to the active status-view. Two grouped COUNTs —
     // pubmed by pmid, scopus by external_id — so mixed-source pages stay accurate even
     // when siblings are off-page. (Book-level "N chapters" is a separate tab feature.)
+    //
+    // Deliberately NOT scoped by buildWhere (and so NOT given personInstitutionInclude
+    // either) — `scope` only ever layers the status-view predicate on top of an exact
+    // pmid/external_id match, on purpose: a sibling co-author already ignores personTypes,
+    // pubTypes, precision, source, classification, hideNoSuggestion/hideNoIdentity, likeAuthor,
+    // and the date range (none of those appear in `scope`'s output either), so an active
+    // institution filter narrowing to one curated bucket must not make a real co-author from a
+    // different institution disappear from "N others on this document" — that number describes
+    // the document, not the currently-filtered slice of the queue looking at it.
     const status = openStatusWhere(body);
     const scope = (w: any) => (status ? { [Op.and]: [w, status] } : w);
-    const pmids = [...new Set(rows.filter((r: any) => r.source !== "scopus" && r.pmid != null).map((r: any) => Number(r.pmid)))];
-    const scopusIds = [...new Set(rows.filter((r: any) => r.source === "scopus" && r.external_id).map((r: any) => String(r.external_id)))];
+    const pmids = [...new Set(rows.filter((r: any) => !isExternalSource(r) && r.pmid != null).map((r: any) => Number(r.pmid)))];
+    const externalIds = [...new Set(rows.filter((r: any) => isExternalSource(r) && r.external_id).map((r: any) => String(r.external_id)))];
     let pmidSib: Record<string, number> = {};
-    let scopusSib: Record<string, number> = {};
+    let externalSib: Record<string, number> = {};
     if (pmids.length) {
       const sib: any[] = await models.AuthorshipReview.findAll({
         attributes: ["pmid", [fn("COUNT", col("id")), "n"]],
@@ -158,22 +1187,213 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       });
       pmidSib = Object.fromEntries(sib.map((s) => [String(s.pmid), Number(s.n)]));
     }
-    if (scopusIds.length) {
+    if (externalIds.length) {
       const sib: any[] = await models.AuthorshipReview.findAll({
         attributes: ["external_id", [fn("COUNT", col("id")), "n"]],
-        where: scope({ source: "scopus", external_id: { [Op.in]: scopusIds } }),
+        where: scope({ source: { [Op.ne]: "pubmed" }, external_id: { [Op.in]: externalIds } }),
         group: ["external_id"], raw: true,
       });
-      scopusSib = Object.fromEntries(sib.map((s) => [String(s.external_id), Number(s.n)]));
+      externalSib = Object.fromEntries(sib.map((s) => [String(s.external_id), Number(s.n)]));
     }
     const knownIdentities = await reciterIdentitySet(rows.map((r: any) => r.top_cwid));
+    // Which cwids ED has RETIRED, and what replaced each. A whole-directory snapshot on a 30-min
+    // TTL rather than a per-row lookup: candidate_cwids_json is baked at AAR-producer time and
+    // carries no directory state, so there is nothing on the row itself to read. Same posture as
+    // absentCwidSet() above — one refresh, then O(1) per candidate. Degrades to an empty map when
+    // ED is unreachable, which under-blocks rather than over-blocks: a curator who cannot assign
+    // to a live person is a worse failure than one offered a dead cwid they usually will not pick.
+    const retiredCwids = await retiredCwidIndex();
+
+    // T5: "Show N others like this" sibling count — one grouped COUNT over the OPEN queue
+    // (always "open", not the caller's active statusView — the point of the button is to
+    // surface open work to act on, whether the row you clicked it from is itself open, snoozed,
+    // or dismissed), restricted to the normalized author keys THIS PAGE needs. Same shape as
+    // the pmid_sibling_count grouped COUNTs just above, generalized from an exact pmid/
+    // external_id match to authorKey()'s first-token/last-token equality (see buildWhere's
+    // likeAuthor block and authorKey's own comment for why and its ceiling).
+    // #1011: the count's scope is open + name key + the unconditional immaturity hold, and
+    // NOTHING else. That narrowness is deliberate and now matched on the other side: clicking
+    // the button widens the list to exactly this same scope (LIKE_WIDEN_PATCH in
+    // AuthorshipsTabs.tsx) instead of intersecting it with whatever chips were already on
+    // screen, so N and the row count you land on agree. Before that, three active chips could
+    // and did remove 4 of the 5 rows a "Show 5 others like this" button had just promised.
+    // If you add a predicate to buildWhere that is NOT driven by a filter the widen patch
+    // clears, add it here too or the two drift apart again.
+    const likeOpenWhere = { [Op.and]: [openStatusWhere({ statusView: "open" }), immatureScopusExclusion()] };
+    const pageAuthorKeys = [...new Set(rows.map((r: any) => authorKey(r.wcm_author)).filter(Boolean))];
+    let likeCountMap: Record<string, number> = {};
+    if (pageAuthorKeys.length) {
+      const keyOr = pageAuthorKeys.map((k) => {
+        const [first, last] = k.split("|");
+        return { [Op.and]: [
+          sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1)), first),
+          sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", -1)), last),
+        ] };
+      });
+      const likeSib: any[] = await models.AuthorshipReview.findAll({
+        attributes: [
+          [fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1)), "first_tok"],
+          [fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", -1)), "last_tok"],
+          [fn("COUNT", col("id")), "n"],
+        ],
+        where: { [Op.and]: [likeOpenWhere, { [Op.or]: keyOr }] },
+        group: ["first_tok", "last_tok"], raw: true,
+      });
+      likeCountMap = Object.fromEntries(likeSib.map((s) => [`${s.first_tok}|${s.last_tok}`, Number(s.n)]));
+    }
+
+    // Cross-check pubmed rows' candidates + top_cwid against GoldStandard.rejectedpmids: a
+    // candidate who already rejected this EXACT pmid via their own /curate page must never be
+    // silently recommended as the lead candidate or accepted through the single-candidate
+    // card — top_cwid/candidate_cwids_json are computed once at AAR producer time and never
+    // cross-checked against gold standard otherwise. Scopus rows have no pmid, so this can
+    // never apply to them (same reasoning as "scopus reject = local dismissal, never gold
+    // standard" on the reject action below). candidateCwidsFromRow gives the exact
+    // top_cwid+candidates union already used for reject/reopen. Purely additive/annotative
+    // here, like identity_in_reciter above — no re-ranking, no dropped rows, no count change;
+    // the frontend decides what to do visually.
+    const pubmedRows = rows.filter((r: any) => !isExternalSource(r) && r.pmid != null);
+    const rejectionCheckIds = new Set(pubmedRows.map((r: any) => r.id));
+    const rejectionCwids = new Set<string>();
+    // …and, in the SAME pass, every cwid on the page for the department self-heal below.
+    // Two sets rather than one because they are not the same set on purpose: the gold-standard
+    // check is pubmed-only (a scopus row has no pmid to have been rejected), while the identity
+    // read wants scopus rows' candidates too — their cards show a department like any other.
+    // One parse of candidate_cwids_json per row either way; a second loop would have doubled it.
+    const pageCwids = new Set<string>();
+    for (const r of rows) {
+      const cs = candidateCwidsFromRow(r);
+      cs.forEach((c) => pageCwids.add(c));
+      if (rejectionCheckIds.has(r.id)) cs.forEach((c) => rejectionCwids.add(c));
+    }
+
+    // §2.6 identity hover card: division AND a self-healed department come from the IDM roster
+    // (one indexed lookup over this page's cwids), institution off the widened person join
+    // already on each row.
+    //
+    // Run WITH the gold-standard rejection lookup, not after it. The two share no input and no
+    // output — one is a DynamoDB BatchGetItem against GoldStandard, the other an indexed IN()
+    // over `identity` in MySQL — so awaiting them in sequence cost the page one whole extra
+    // round-trip on every load for nothing (measured on dev: the identity query was a 23 ms
+    // range scan on a 25-row page when it asked about the 25 leads alone, and it used to start
+    // only once DynamoDB had answered). Widening it to the candidate cwids widens the IN() list,
+    // not the access path — same `dfsdfsdf` index, same one round-trip.
+    // §4's rule: a correctness check is not a latency check.
+    //
+    // #990's accepted_by lookup joins the same two independent-input, independent-output group:
+    // it touches neither DynamoDB nor the identity-hover indexed IN(), just its own three-table
+    // join scoped to this page's (pmid, author_position) pairs (scopus rows and rows with no
+    // author_position are dropped before building the pair list — see acceptedBySlot's own
+    // comment for why the exclusion of each row's own top_cwid happens after, not here).
+    const [rejectedByCwid, idm, acceptedByMap] = await Promise.all([
+      getRejectedPmidsByCwid([...rejectionCwids]),
+      identityDeptDivision([...pageCwids]),
+      acceptedBySlot(
+        pubmedRows
+          .filter((r: any) => r.author_position != null)
+          .map((r: any) => ({ pmid: Number(r.pmid), author_position: Number(r.author_position) })),
+      ),
+    ]);
+
     const out = rows.map((r: any) => {
-      const map = r.source === "scopus" ? scopusSib : pmidSib;
+      const map = isExternalSource(r) ? externalSib : pmidSib;
+      const json: any = r.toJSON();
+      // The widened include lands as a nested `Person` object. Flatten it to one flat, stable
+      // key alongside top_dept/top_name and drop the nested object, so the response shape stays
+      // a flat row and the join's presence remains an implementation detail.
+      const top_institution: string | null = json.Person?.primaryInstitution || null;
+      delete json.Person;
+      // Three independent annotations over the same parsed candidate list — the gold-standard
+      // rejection check (per-row, only for rejectionCheckIds), the retired-cwid check (every
+      // row, off the cached ED census) and the department blank-fill (every row, off the IDM
+      // read). All three ride the ONE parse/re-stringify this block already did, rather than
+      // each opening the JSON again. (The row's candidate cwids are read a second time, up in
+      // the pageCwids pass — candidateCwidsFromRow parses too. That is a deliberate second read
+      // for a different purpose, not an invariant this block maintains; what matters here is
+      // that annotating does not add a third.)
+      const pmidNum = Number(r.pmid);
+      const checkRejected = rejectionCheckIds.has(r.id);
+      // Department self-heal, CANDIDATES ONLY. A blank dept in AAR output is a FROZEN PRODUCER
+      // SNAPSHOT, not a missing fact and not a different source: where top_dept is non-blank it
+      // equals identity.primaryAcademicDepartment on 14,881 of 14,896 rows (99.9%), against only
+      // 10,628 of 14,135 (75%) for person.primaryOrganizationalUnit — so re-reading `identity` at
+      // request time is reading the SAME field the producer read, just not months late. Blank-fill
+      // only: a non-blank producer dept is never overwritten, because the producer knew the cwid's
+      // department at proposal time and this lookup does not know better, only newer.
+      // 4,059 of the 16,204 rows carrying candidates (25%) hold at least one candidate with
+      // dept "" (dev, 2026-09-10), and until now nothing enriched the candidate list at all, so
+      // the homonym curator picking between two Chos saw a department for neither.
+      //
+      // The LEAD's top_dept is deliberately NOT healed, though the same stale-snapshot argument
+      // would apply to it. top_dept is not display-only: its PRESENCE selects between two
+      // different evidence claims the curator reads as justification — the never-retrieved line
+      // picks "…names Weill Cornell and the department (X)" over "…and the surname is unique",
+      // and the Dept chip renders `Dept: {top_dept} ✓` gated on the producer's own
+      // top_affil_match. Filling it would make both assert that a department the producer never
+      // compared is what matched (75 rows have top_affil_match=1 with a blank top_dept on dev
+      // alone). A fresher value is not worth a sentence that misstates the reasoning, and the
+      // request this serves — the homonym picker — is the candidate list.
+      // ponytail: this heals the DISPLAY at request time only. The stored candidate_cwids_json
+      // stays stale on disk until the AAR producer rewrites the row — nothing here writes back,
+      // by design, because the producer owns that column.
+      let candidates: any[] = [];
+      try { candidates = JSON.parse(json.candidate_cwids_json || "[]"); } catch { candidates = []; }
+      if (Array.isArray(candidates) && candidates.length) {
+        json.candidate_cwids_json = JSON.stringify(candidates.map((c: any) => {
+          if (!c || typeof c !== "object" || !c.cwid) return c;
+          const cwid = String(c.cwid);
+          let next = c;
+          if (checkRejected && rejectedByCwid[cwid]?.has(pmidNum)) next = { ...next, already_rejected: true };
+          if (!String(next.dept || "").trim() && idm[cwid]?.department) next = { ...next, dept: idm[cwid].department };
+          // ED has retired this identifier: the human is real but lives under another cwid, so
+          // assigning here writes a gold-standard record nothing will read again. Frequently the
+          // successor is ALSO a candidate on this very row (112 of the 233 affected open rows,
+          // 2026-09-09 census) — the card calls them "2 WCM homonyms" when they are one person.
+          if (retiredCwids.has(cwid.toLowerCase())) {
+            next = { ...next, retired_cwid: true, superseded_by: retiredCwids.get(cwid.toLowerCase()) ?? null };
+          }
+          return next;
+        }));
+      }
+      if (checkRejected && r.top_cwid && rejectedByCwid[String(r.top_cwid)]?.has(pmidNum)) {
+        json.top_already_rejected = true;
+      }
+      // …and the same for the LEAD candidate, which lives in its own columns rather than in the
+      // JSON (63 open rows on that census). A single-candidate card renders from these alone.
+      if (r.top_cwid && retiredCwids.has(String(r.top_cwid).toLowerCase())) {
+        json.top_retired_cwid = true;
+        json.top_superseded_by = retiredCwids.get(String(r.top_cwid).toLowerCase()) ?? null;
+      }
+      // T5: how many OTHER open rows share this row's normalized author key — subtract 1 only
+      // when THIS row is itself part of the open-queue group the count above drew from (a
+      // dismissed/snoozed-not-yet-lapsed row was never counted in the first place, so nothing
+      // to subtract for it).
+      const key = authorKey(r.wcm_author);
+      const like_count = key ? Math.max(0, (likeCountMap[key] || 0) - (isRowOpenForLike(r) ? 1 : 0)) : 0;
+      // #990: the rival(s) who already hold ACCEPTED at this row's exact (pmid,
+      // author_position) slot, minus the row's OWN top_cwid — acceptedBySlot() looks up by
+      // slot only, so the per-row exclusion happens here, at render/response time, same as
+      // identityConflictWhere()'s own `pa.personIdentifier <> AuthorshipReview.top_cwid`.
+      // That SQL exclusion compares under a case-INSENSITIVE collation (both _ci), so this
+      // one lowercases both sides to match it. A `!==` on the raw strings would let a cwid
+      // that differs only in case through as a "rival" here while the conflicts COUNT had
+      // already excluded it — the two would then disagree on exactly the rows this feature
+      // exists to explain.
+      const ownCwid = String(r.top_cwid || "").toLowerCase();
+      const accepted_by = (!isExternalSource(r) && r.pmid != null && r.author_position != null)
+        ? (acceptedByMap[`${r.pmid}|${r.author_position}`] || [])
+          .filter((a) => a.cwid.toLowerCase() !== ownCwid)
+        : [];
       return {
-        ...r.toJSON(),
+        ...json,
         pmid_sibling_count: map[siblingKey(r)] || 1,
         // false → the proposed identity can't be accepted into ReCiter (UI hides Accept)
         identity_in_reciter: !r.top_cwid || knownIdentities.has(String(r.top_cwid)),
+        // hover-card fields; null when unknown, never "" — the card omits the line entirely
+        top_institution,
+        top_division: (r.top_cwid && idm[String(r.top_cwid)]?.division) || null,
+        like_count,
+        accepted_by,
       };
     });
 
@@ -184,19 +1404,692 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
   }
 };
 
-// POST /api/db/authorships/summary — counts for the tab headers. Ignores the
-// segment/classification/precision/person-type filters so each facet shows its own total.
+// POST /api/db/authorships/selectable — every bulk-selectable row matching the caller's
+// filters, not just the current page, so "Select all N matching" can act on the whole set.
+//
+// Returns the slim shape the bulk accept loop needs, NOT the list shape: the list carries
+// authors_json and candidate_cwids_json, which are longtext, and shipping those for a few
+// thousand rows is megabytes to no purpose.
+//
+// Eligibility is recomputed here rather than trusted from the client, and it is the same
+// tests the card enforces — a proposed identity exists on the row at all (#938 — ReCiterDB#177
+// nulls top_cwid on rows the merged matcher no longer matches to anyone), single-candidate,
+// that identity exists in ReCiter, and it has not already rejected this exact pmid. A row
+// failing any of them is omitted, so it can never enter a bulk selection by way of this
+// endpoint.
+const SELECTABLE_CAP = 5000;
+
+export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    // statusView is force-overridden to "open" (bulk actions only ever act on the open queue),
+    // so a caller browsing the Identity-conflicts queue must have that narrowing carried across
+    // the override as its own flag — otherwise "Select all N matching" would silently widen from
+    // the conflicts slice to the entire open queue, i.e. act on rows the curator cannot see.
+    const body = {
+      ...(req.body || {}),
+      identityConflicts: wantsIdentityConflicts(req.body),
+      statusView: "open",
+    };
+    const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
+    const rows = await models.AuthorshipReview.findAll({
+      attributes: ["id", "source", "pmid", "wcm_author", "top_name", "top_cwid", "single_candidate", "candidate_cwids_json"],
+      // required:false — see listAuthorships's identical include for why (unmatched/absent
+      // top_cwid rows must not be dropped when no institution filter is active).
+      include: [personInstitutionInclude(false)],
+      // In the ORCID match lane a WCM top pick is bulk-selectable only with a Scholars-confirmed
+      // iD (orcidLaneBulkWhere). In the WHERE, so the rows returned are the "N matching" shown.
+      where: { [Op.and]: [buildWhere(body, absentCwids), { single_candidate: true },
+        ...(body.precision === "orcid" ? [orcidLaneBulkWhere()] : [])] },
+      order: SORTS[body.sort] || SORTS.precision,
+      limit: SELECTABLE_CAP + 1,
+    });
+    const capped = rows.length > SELECTABLE_CAP;
+    const page = capped ? rows.slice(0, SELECTABLE_CAP) : rows;
+
+    const knownIdentities = await reciterIdentitySet(page.map((r: any) => r.top_cwid));
+    const pubmedRows = page.filter((r: any) => !isExternalSource(r) && r.pmid != null);
+    const rejectionCwids = new Set<string>();
+    for (const r of pubmedRows) candidateCwidsFromRow(r).forEach((c) => rejectionCwids.add(c));
+    const rejectedByCwid = await getRejectedPmidsByCwid([...rejectionCwids]);
+
+    const out = page
+      // #938: was `!r.top_cwid || knownIdentities.has(...)` — vacuously true for a
+      // no-suggestion row, which "Select all N matching" would then bulk-accept straight
+      // into the same 409 the single-row card guards against. There is nothing to accept
+      // without a proposed identity, known-to-ReCiter or not.
+      .filter((r: any) => !!r.top_cwid && knownIdentities.has(String(r.top_cwid)))
+      .filter((r: any) => !(!isExternalSource(r) && r.pmid != null && r.top_cwid
+        && rejectedByCwid[String(r.top_cwid)]?.has(Number(r.pmid))))
+      .map((r: any) => ({
+        id: r.id, source: r.source, wcm_author: r.wcm_author, top_name: r.top_name,
+        single_candidate: true, identity_in_reciter: true,
+      }));
+
+    res.send({ rows: out, capped, cap: SELECTABLE_CAP });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
+// =================================================================================================
+// CANNED REPORTS — curator/model disagreement over person_article
+// =================================================================================================
+// Two saved queries the Authorships toolbar offers alongside the queue:
+//   lowScoringAccepts   a curator ACCEPTED it and the model scores it below 10   (~1,065 rows / 816 people)
+//   highScoringRejects  a curator REJECTED it and the model scores it 90 or over (~ 430 rows / 332 people)
+// (measured unfiltered against production on 2026-09-06).
+//
+// THOSE COUNTS DRIFT, AND A MISMATCH IS NOT A DEFECT. They moved while this endpoint was being
+// built: 1,066/816 and 431/333 before the nightly reciterdb rebuild swapped person_article at
+// 15:16 UTC, 1,065/816 and 430/332 after. Eight rows crossed a threshold in the data — no
+// exclusion clause touched them, and the reference script
+// (scripts/curation_disagreement_reports.py in the research repo) returns the same new numbers.
+// Re-run that script for today's figures rather than trusting this comment, and only suspect the
+// query if it and this endpoint disagree WITH EACH OTHER. Each row is a place where a human and the model disagree outright,
+// which makes them the cleanest calibration evidence available and, read the other way, a way to
+// catch curation mistakes. Unlike the AAR queue (defined as io >= 90 AND final < 30) membership
+// here does not depend on the score being wrong in one particular direction, so neither report is
+// selection-biased by construction.
+//
+// THESE ARE NOT A statusView, and cannot be made into one. Only 2.3% of the low-scoring accepts
+// and 0.5% of the high-scoring rejects have an authorship_review row at all — the AAR producer
+// skips already-curated authorships on purpose (aar_orchestrator._already_curated) — so there is
+// no id, no status, no reviewer, and nothing for the authorship card or the bulk-action machinery
+// to bind to. They are plain person_article rows, and they need no actions of their own: the
+// article is already curated, so the only useful verb is "go look at this again", and
+// /curate/<cwid> already provides it.
+//
+// NO SEQUELIZE MODEL, deliberately — raw parametrized SQL through the shared `sequelize` instance,
+// the same pattern acceptedBySlot() above uses. A Sequelize model declared without an explicit
+// modelName has its alias minified to "n" by the production build, which is exactly what broke
+// /authorships in prod on 2026-09-03 (#980): no model, no exposure. It also sidesteps a stale one.
+// src/db/models/Identity.ts carries no `alumniResidentNYP` attribute and
+// src/db/models/PersonArticle.ts carries neither `authorshipLikelihoodScore` nor the four feedback
+// channels — all five columns exist on the live table (information_schema, dev 2026-09-06) and all
+// five are read below.
+
+// Thresholds are FIXED in v1: there is no UI control for either, and the client sends only the
+// report key. 30 was tried for the accepts side and rejected on 2026-09-06 — it returned 2,315
+// rows instead of ~1,065, and the extra population sat in the 15-30 band, which is mostly ordinary
+// low confidence rather than curator/model disagreement: the share of rows carrying the
+// four-non-positive-feedback-channel signature fell from 75% to 68%. If a threshold ever does
+// become a control it belongs in REPORT_SPECS below, never inlined at a call site, so that the
+// rows query and the summary counts can never drift apart.
+const REPORT_ACCEPT_MAX_SCORE = 10;
+const REPORT_REJECT_MIN_SCORE = 90;
+
+// Runaway guard, not a paging story. Current populations are ~1,065 and ~430 rows, so this cap sits
+// ~4.7x above the larger report and ~11.6x above the smaller: it can only ever fire if a
+// threshold changes or the populations grow by an order of magnitude. `capped` is reported honestly rather than silently
+// truncating, on the same reasoning as authorshipSelectable's SELECTABLE_CAP: a report that
+// under-reports without saying so is worse than one that admits it stopped counting.
+const REPORT_ROW_CAP = 5000;
+
+// PERSON TYPE, derived live from `identity`. The feed's person-type facet holds DISPLAY LABELS
+// ("Full-Time Faculty", "Resident (NYP)", "Alumni MD") because that is what the AAR producer
+// stores in authorship_review.top_person_type, and the client sends those same label strings here.
+// person_article has no person-type column, and the obvious substitute is a trap:
+// person_person_type.personType holds unrelated slugs ("academic-faculty", "affiliate-nyp",
+// "employee-exempt") that match none of those labels, so filtering on it returns nonsense rather
+// than an empty result a reader would notice. The labels come instead from the boolean-ish flag
+// columns on `identity`, whose values are the literal string 'yes' (varchar; also '' and NULL) —
+// this is the producer's own derivation ported over.
+//
+// THE ORDER OF THIS ARRAY IS THE PRECEDENCE. Many people carry several flags at once; CASE stops
+// at the first WHEN that matches, so a full-time faculty member who is also an MD alumnus is
+// labelled "Full-Time Faculty", exactly as the producer labels them. Reordering these entries
+// silently relabels people — it is not a cosmetic list.
+//
+// The ELSE is not cosmetic. The producer defaults a person carrying none of the 21 flags to
+// "Other / CTSC" (identity_index._record), the facet therefore OFFERS that label — 315 rows of
+// authorship_review carry it — and the client sends it here like any other. Without an ELSE the
+// CASE yields NULL for exactly those people, the IN() never matches, and picking that one chip
+// silently empties both reports instead of filtering them. Matching the producer's fallback also
+// raises agreement with its stored value (below) rather than lowering it.
+//
+// Verified against production on 2026-09-06: this CASE reproduces the producer's stored
+// top_person_type on 30,384 of 30,808 authorship_review rows (98.62%; 30,116 / 97.75% without the
+// ELSE). The residual is honest disagreement rather than a bug to chase — people whose identity
+// flags changed after the producer last ran. Computing it live is the more CURRENT answer for a
+// report over person_article as it stands now, but it is not bit-identical to the facet the same
+// dropdown drives over the queue, and a curator comparing the two counts should know that.
+// The producer's fallback for a person carrying none of the 21 flags, reproduced verbatim so
+// the facet's "Other / CTSC" chip filters instead of silently matching nothing.
+const REPORT_PERSON_TYPE_FALLBACK = "Other / CTSC";
+
+const REPORT_PERSON_TYPE_LABELS: Array<[string, string]> = [
+  ["fullTimeFaculty", "Full-Time Faculty"],
+  ["partTimeFaculty", "Part-Time Faculty"],
+  ["voluntaryFaculty", "Voluntary Faculty"],
+  ["adjunctFaculty", "Adjunct Faculty"],
+  ["emeritusFaculty", "Emeritus Faculty"],
+  ["inactiveFaculty", "Inactive Faculty"],
+  ["faculty", "Faculty"],
+  ["postdoc", "Postdoc"],
+  ["fellow", "Fellow"],
+  ["nonFaculty", "Non-Faculty"],
+  ["residentNYP", "Resident (NYP)"],
+  ["studentMDNYC", "Student MD (NYC)"],
+  ["studentMDPhD", "Student MD-PhD"],
+  ["studentMDQatar", "Student MD (Qatar)"],
+  ["studentPhDTriI", "Student PhD (Tri-I)"],
+  ["studentPhDWeill", "Student PhD (Weill)"],
+  ["inactiveNonAlumniStudent", "Inactive Student"],
+  ["alumniMD", "Alumni MD"],
+  ["alumniMDPHD", "Alumni MD-PhD"],
+  ["alumniPHD", "Alumni PhD"],
+  ["alumniResidentNYP", "Alumni Resident (NYP)"],
+];
+
+// Both halves interpolated here are this file's own literals — a fixed column allow-list and a
+// fixed label list, neither reachable from a request body — so this is the one string in the
+// report SQL that is built rather than bound. Every user-supplied value below goes through a
+// :named replacement without exception.
+const REPORT_PERSON_TYPE_CASE = `CASE ${REPORT_PERSON_TYPE_LABELS
+  .map(([column, label]) => `WHEN \`i\`.\`${column}\` = 'yes' THEN '${label}'`)
+  .join(" ")} ELSE '${REPORT_PERSON_TYPE_FALLBACK}' END`;
+
+// The two joins. `identity` is an INNER JOIN and that is exclusion (a) below; `person` is a LEFT
+// JOIN because it only supplies the display name and an absent roster row must not drop the row
+// (0 of 1,590 accept rows on the dev DB are missing one, so this is defensive, not routine).
+//
+// NO COLLATE anywhere in this query, deliberately. The rule the person-join and
+// identityConflictWhere() comments above establish is that COLLATE goes on the AuthorshipReview
+// side only, because authorship_review.top_cwid is the column whose collation differs; collating
+// any of the other tables' columns de-indexes THEIR lookups (the "three orders of magnitude"
+// mistake documented at personInstitutionInclude). This query has no AuthorshipReview side at all,
+// and person_article.personIdentifier, identity.cwid and person.personIdentifier are all
+// utf8mb4_unicode_ci (information_schema, dev 2026-09-06 — and acceptedBySlot() has been joining
+// identity to person_article without one in prod since #990). Do not add one here.
+const REPORT_FROM =
+  "FROM `person_article` `pa` " +
+  "JOIN `identity` `i` ON `i`.`cwid` = `pa`.`personIdentifier` " +
+  "LEFT JOIN `person` `p` ON `p`.`personIdentifier` = `pa`.`personIdentifier` ";
+
+// Exclusion (b): the all-zero writer defect — 110 cwids where EVERY person_article row is exactly
+// 0.00, because ReCiter persisted an Analysis record whose scoring never ran. Those rows are a
+// different bug entirely, not calibration misses. Re-measured on prod 2026-09-06 at the shipping
+// threshold, the exclusion removes 213 rows from the accepts report with the identity join in
+// place (1,278 -> 1,065) and 456 without it; the "857 rows" figure quoted during design was taken
+// at the looser < 30 cut and does not describe what ships.
+//
+// The reference script (scripts/curation_disagreement_reports.py in the research repo) writes this
+// as `pa.personIdentifier NOT IN (SELECT personIdentifier FROM person_article GROUP BY
+// personIdentifier HAVING SUM(authorshipLikelihoodScore = 0) = COUNT(*))`. DO NOT restore that
+// form: measured on production 2026-09-06 it is a full GROUP BY over all 858,946 rows and costs
+// 2,397 ms on its own — the whole query ran 2,923-3,556 ms that way against 1,415-1,429 ms with
+// the EXISTS below, returning identical counts. (Re-checked on the dev DB 2026-09-06: both forms
+// return 1,590 accept rows and 1,690 reject rows there too.)
+//
+// `<=>` is NULL-safe equality, and it is load-bearing, not a flourish. NOT (x <=> 0) is true for a
+// non-zero score OR a NULL one, which is what makes this EXACTLY equivalent to the SUM/COUNT form:
+// SUM(score = 0) treats a NULL score as 0 rather than 1, so a person whose rows are only zeros and
+// NULLs fails that HAVING and is KEPT — and is kept here too. "Simplifying" this to
+// `z.authorshipLikelihoodScore <> 0` silently drops those people, because a plain <> against NULL
+// is unknown, never true.
+const REPORT_EXCLUDE_ALL_ZERO_CWIDS =
+  "AND EXISTS (SELECT 1 FROM `person_article` `z` " +
+  "WHERE `z`.`personIdentifier` = `pa`.`personIdentifier` " +
+  "AND NOT (`z`.`authorshipLikelihoodScore` <=> 0)) ";
+
+type ReportKey = "lowScoringAccepts" | "highScoringRejects";
+
+// Per-report SQL. `worstSql` is the person's WORST score under that report's definition — the
+// lowest score for accepts, the highest for rejects — and it is what orders one person's group
+// against another's, so the person the model is most confidently wrong about leads. `dir` is the
+// direction that puts worst first, and it orders within a person too, for the same reason.
+const REPORT_SPECS: Record<ReportKey, {
+  assertion: string; scoreSql: string; threshold: number; worstSql: string; dir: "ASC" | "DESC";
+}> = {
+  lowScoringAccepts: {
+    assertion: "ACCEPTED",
+    scoreSql: "`pa`.`authorshipLikelihoodScore` < :threshold",
+    threshold: REPORT_ACCEPT_MAX_SCORE,
+    worstSql: "MIN(`pa`.`authorshipLikelihoodScore`) OVER (PARTITION BY `pa`.`personIdentifier`)",
+    dir: "ASC",
+  },
+  highScoringRejects: {
+    assertion: "REJECTED",
+    scoreSql: "`pa`.`authorshipLikelihoodScore` >= :threshold",
+    threshold: REPORT_REJECT_MIN_SCORE,
+    worstSql: "MAX(`pa`.`authorshipLikelihoodScore`) OVER (PARTITION BY `pa`.`personIdentifier`)",
+    dir: "DESC",
+  },
+};
+
+const isReportKey = (v: any): v is ReportKey =>
+  typeof v === "string" && Object.prototype.hasOwnProperty.call(REPORT_SPECS, v);
+
+// Exclusion (a), and the index this whole feature rests on.
+//
+// (a) The INNER JOIN to `identity` in REPORT_FROM is not decoration: person_article carries the
+//     external validation cohorts (ucsf_*, uc*, fredhutch_*, usc_*) alongside WCM, and `identity`
+//     is the only table that excludes them — the same join, for the same reason,
+//     identityConflictWhere() and acceptedBySlot() above make. Without it the accepts report is
+//     substantially non-WCM. Measured on prod 2026-09-06 at the shipping thresholds, dropping the
+//     join adds 945 rows to the accepts report (1,065 -> 2,010, 816 -> 1,518 people) and 327 to the
+//     rejects (430 -> 757), overwhelmingly ucsf_ / ucdavis_ / ucsd_ / usc_ / ucla_ / uci_ prefixes.
+//     (The "3,973 extra rows / 63% non-WCM" figure from the design note was measured at the
+//     looser < 30 accepts cut, not at the 10 that ships.)
+//
+// THE INDEX. This query leads with (userAssertion, authorshipLikelihoodScore) and depends on
+// ReCiterDB PR #216's KEY ix_assertion_score (userAssertion, authorshipLikelihoodScore,
+// personIdentifier) to resolve that as a range scan — ~2,466 candidate rows for accepts, ~757 for
+// rejects — instead of scanning person_article whole. Both counts also run on EVERY /authorships
+// load (see the `reports` field in authorshipSummary below), not only when a curator opens the
+// dropdown, which is why that index is a PREREQUISITE for this feature rather than an
+// optimization to schedule afterwards. Without it, measured on the dev DB where it does not yet
+// exist, one report count takes ~2.6 s.
+function reportBaseSql(spec: (typeof REPORT_SPECS)[ReportKey], filterSql: string): string {
+  return `${REPORT_FROM}WHERE \`pa\`.\`userAssertion\` = :assertion AND ${spec.scoreSql} ` +
+    `${REPORT_EXCLUDE_ALL_ZERO_CWIDS}${filterSql}`;
+}
+
+/**
+ * The WHERE fragment for the filters a report over person_article can actually honour, plus its
+ * replacements. ONE helper, used by both the rows query and the summary counts, so the number on
+ * the dropdown and the number of rows behind it can never disagree.
+ *
+ * HONOURED: date window, institution, person type, free-text search. IGNORED, because none of them
+ * has a source over person_article — the client hides every one of these controls while a report is
+ * selected, so a set value can never be invisibly dropped:
+ *   - precision / classification / source / likeAuthor / authorAffiliations — all keyed on
+ *     authorship_review columns (single_candidate, classification, source, wcm_author,
+ *     author_affiliation) that these rows do not have, by construction: 97.7% / 99.5% of them have
+ *     no authorship_review row at all.
+ *   - hideNoSuggestion / hideNoIdentity — the report INNER JOINs identity, so "has a ReCiter
+ *     identity" is structurally true of every row it can return, and there is no PROPOSED identity
+ *     here to be absent: the curator already decided.
+ *   - pubTypes — the feed's vocabulary is Scopus subtypeDescription ("Book Chapter", "Conference
+ *     Paper", "Note", "Short Survey") while person_article.publicationTypeCanonical is PubMed
+ *     canonical ("Academic Article", "Case Report", "Editorial Article", "Preprint"). Only
+ *     Review / Letter / Erratum overlap literally, so any mapping between them would be a guess
+ *     rendered as a filter. It is also only ever non-empty when source === "scopus", and source is
+ *     itself hidden.
+ *   - statusView / sort — a report is not a queue: there is no status to view, and the row order is
+ *     the report's own (see REPORT_SPECS).
+ */
+function reportFilterSql(body: any): { sql: string; replacements: Record<string, any> } {
+  const parts: string[] = [];
+  const replacements: Record<string, any> = {};
+
+  // Date window. person_article.publicationDateStandardized is varchar(128) holding ISO
+  // 'YYYY-MM-DD': 0 nulls across all 858,946 production rows (verified 2026-09-06), and on the dev
+  // DB 0 nulls AND 0 values failing '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' across 745,994 rows. So plain
+  // string comparison is correct here and no CAST is needed — which matters for readability, not
+  // for the plan: the column carries no index on person_article either way.
+  //
+  // NOTE THE DATE IS NOT THE SAME FACT the queue's identical-looking control filters on. Over the
+  // queue, buildWhere() compares authorship_review.entrez_date, the date the article was RETRIEVED;
+  // here it is the date the article was PUBLISHED. person_article has no column named entrez_date;
+  // its nearest relative is datePublicationAddedToEntrez (varchar(128), populated on all but 18 of
+  // 745,994 dev rows), and v1 deliberately does not use it, because a curator reading a
+  // disagreement report is asking about the publication, not about when ReCiter happened to find
+  // it. The consequence is real and worth knowing: a 2019 paper first retrieved last month is
+  // inside the queue's "Last 2 years" and outside this report's.
+  const dateFrom = String(body?.dateFrom || "").trim();
+  const dateTo = String(body?.dateTo || "").trim();
+  if (dateFrom && dateTo) {
+    parts.push("AND `pa`.`publicationDateStandardized` BETWEEN :dateFrom AND :dateTo ");
+    replacements.dateFrom = dateFrom;
+    replacements.dateTo = dateTo;
+  } else if (dateFrom) {
+    parts.push("AND `pa`.`publicationDateStandardized` >= :dateFrom ");
+    replacements.dateFrom = dateFrom;
+  } else if (dateTo) {
+    parts.push("AND `pa`.`publicationDateStandardized` <= :dateTo ");
+    replacements.dateTo = dateTo;
+  }
+
+  // Institution: resolve each selected bucket key through INSTITUTION_BUCKETS to the literal
+  // person.primaryInstitution string(s) it covers, exactly as buildWhere's `institutions` branch
+  // does — including the part where an unrecognised key silently drops out, and a selection of
+  // ONLY unrecognised keys therefore applies no filter at all rather than matching nothing.
+  //
+  // PERSON BASIS ONLY. The byline basis has no source over person_article (author_affiliation is an
+  // authorship_review column, and person_article's own affiliation columns are the matcher's
+  // evidence text, not the affiliation printed on the paper), and buildFilterBody pins
+  // institutionBasis to "person" regardless, so no basis branch is reachable here. The IN() drops
+  // rows whose LEFT JOIN found no `person` row, which is the correct reading of "this person is at
+  // institution X" — the same behaviour buildWhere documents for its own required:false join.
+  if (Array.isArray(body?.institutions) && body.institutions.length > 0) {
+    const institutionLiterals = (body.institutions as string[])
+      .flatMap((key) => INSTITUTION_BUCKETS[key] || []);
+    if (institutionLiterals.length) {
+      parts.push("AND `p`.`primaryInstitution` IN (:institutionLiterals) ");
+      replacements.institutionLiterals = institutionLiterals;
+    }
+  }
+
+  // Person type: match the client's display labels against the CASE derived above. See
+  // REPORT_PERSON_TYPE_LABELS for why this is computed from identity's flag columns rather than
+  // read from person_person_type, and for the 98.62% agreement with the producer's stored value.
+  if (Array.isArray(body?.personTypes) && body.personTypes.length > 0) {
+    parts.push(`AND (${REPORT_PERSON_TYPE_CASE}) IN (:personTypes) `);
+    replacements.personTypes = body.personTypes;
+  }
+
+  // Free-text search over what this table actually holds: the person's name off the joined roster
+  // row, the article title, and an exact pmid when the term is all digits — the same
+  // digits-are-a-pmid rule buildWhere applies over the queue. The queue's box also searches
+  // top_name and external_id, which have no counterpart here (top_name is authorship_review's copy
+  // of a PROPOSED identity's name, and a curated row has no proposal; external_id is Scopus-only).
+  // Its other two targets DO have counterparts — pa.personIdentifier for top_cwid, and
+  // person_article's own doi column — and v1 leaves them out only because the client half was
+  // built against this exact list; each is a one-line addition here if a curator asks for it.
+  const search = String(body?.searchTextInput || "").trim();
+  if (search) {
+    const or = [
+      "`p`.`firstName` LIKE :search",
+      "`p`.`lastName` LIKE :search",
+      "`pa`.`articleTitle` LIKE :search",
+    ];
+    replacements.search = `%${search}%`;
+    if (/^\d+$/.test(search)) {
+      or.push("`pa`.`pmid` = :searchPmid");
+      replacements.searchPmid = Number(search);
+    }
+    parts.push(`AND (${or.join(" OR ")}) `);
+  }
+
+  return { sql: parts.join(""), replacements };
+}
+
+/**
+ * Row count for one report under the caller's filters — the number behind the dropdown item.
+ * Shares reportFilterSql() and reportBaseSql() with authorshipReports below by construction, so
+ * the count and the report can only ever disagree if the row cap fires (which the report reports
+ * as `capped`).
+ */
+// The filters authorshipSummary holds neutral when counting a report, so the number in the menu
+// is the number clicking it produces. Kept as one expression rather than spelled out at each call
+// site: the client widens exactly these two on entry, and a count that widened a different set
+// would be wrong in a way nothing would catch.
+const REPORT_COUNT_BODY = (body: any) => ({ ...body, dateFrom: "", dateTo: "", institutions: [] });
+
+async function reportCount(report: ReportKey, body: any): Promise<number> {
+  const spec = REPORT_SPECS[report];
+  const filter = reportFilterSql(body);
+  const rows: any[] = await sequelize.query(
+    `SELECT COUNT(*) AS \`n\` ${reportBaseSql(spec, filter.sql)}`,
+    {
+      replacements: { assertion: spec.assertion, threshold: spec.threshold, ...filter.replacements },
+      type: QueryTypes.SELECT,
+    },
+  );
+  return Number(rows[0]?.n || 0);
+}
+
+// POST /api/db/authorships/reports — the rows behind one canned report.
+//
+// The body is the same one the list and summary endpoints take (buildFilterBody's output) plus a
+// `report` key; everything reportFilterSql() does not name is ignored, and the client hides those
+// controls while a report is selected.
+//
+// Rows come back ALREADY ORDERED and ready to render in document order, so the client groups by
+// walking the array and never sorts: the largest disagreement groups first (groupCount DESC), ties
+// broken by the person the model is most confidently wrong about (their worst score), then by cwid
+// so the order is stable across calls, and within a person worst-first. groupCount is the person's
+// TOTAL row count in this report — COUNT(*) OVER (PARTITION BY ...) is evaluated before LIMIT, so
+// it stays honest even on a capped response, where the tail of a group may be missing.
+// (prod is MariaDB 11.4, dev 10.6 — window functions since 10.2, so this is safe on both.)
+export const authorshipReports = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const body = req.body || {};
+    const report = body.report;
+    // Rejected, never defaulted: silently serving the accepts report to a caller that asked for
+    // something else would put wrong rows under a right-looking heading.
+    if (!isReportKey(report)) {
+      // The caller's value is NOT echoed back. res.send() of a string leaves Next serving it as
+      // text/html, so reflecting request content here would be a reflected-XSS shape for no gain —
+      // naming the valid keys is all a caller needs to fix the call.
+      res.status(400).send(`report must be one of: ${Object.keys(REPORT_SPECS).join(", ")}`);
+      return;
+    }
+    const spec = REPORT_SPECS[report];
+    const filter = reportFilterSql(body);
+
+    // The four feedback channels ride along in the payload because they are the EXPLANATION, not
+    // decoration: 75% of the low-scoring accepts have all four of institution / journal /
+    // organization / co-author non-positive at once, which is the burial mechanism the calibration
+    // work identified — a curator looking at a low score wants to see that signature on the row
+    // rather than infer it.
+    const rows: any[] = await sequelize.query(
+      "SELECT `pa`.`personIdentifier` AS `cwid`, " +
+      "TRIM(CONCAT(COALESCE(`p`.`firstName`, ''), ' ', COALESCE(`p`.`lastName`, ''))) AS `person`, " +
+      "`pa`.`pmid` AS `pmid`, " +
+      "ROUND(`pa`.`authorshipLikelihoodScore`, 2) AS `score`, " +
+      "`pa`.`publicationDateStandardized` AS `pubDate`, " +
+      "`pa`.`journalTitleVerbose` AS `journal`, " +
+      "`pa`.`articleTitle` AS `title`, " +
+      "`pa`.`feedbackScoreInstitution` AS `fbInstitution`, " +
+      "`pa`.`feedbackScoreJournal` AS `fbJournal`, " +
+      "`pa`.`feedbackScoreOrganization` AS `fbOrganization`, " +
+      "`pa`.`feedbackScoreCoAuthorName` AS `fbCoAuthor`, " +
+      "COUNT(*) OVER (PARTITION BY `pa`.`personIdentifier`) AS `groupCount` " +
+      reportBaseSql(spec, filter.sql) +
+      `ORDER BY \`groupCount\` DESC, ${spec.worstSql} ${spec.dir}, \`cwid\`, \`score\` ${spec.dir} ` +
+      "LIMIT :limit",
+      {
+        replacements: {
+          assertion: spec.assertion,
+          threshold: spec.threshold,
+          ...filter.replacements,
+          // +1 so a result sitting exactly ON the cap is distinguishable from one the cap
+          // truncated; the extra row is dropped below and only ever used to set `capped`.
+          // Same trick, for the same reason, as authorshipSelectable's SELECTABLE_CAP.
+          limit: REPORT_ROW_CAP + 1,
+        },
+        type: QueryTypes.SELECT,
+      },
+    );
+
+    const capped = rows.length > REPORT_ROW_CAP;
+    const page = capped ? rows.slice(0, REPORT_ROW_CAP) : rows;
+    const out = page.map((r) => ({
+      cwid: String(r.cwid),
+      // Falls back to the cwid when the roster row is missing or nameless, the same way
+      // acceptedBySlot() does — the client renders this as a heading, and an empty heading reads as
+      // a bug. Defensive rather than routine: 0 of 1,590 accept rows on the dev DB lack a name.
+      person: String(r.person || "").trim() || String(r.cwid),
+      pmid: r.pmid == null ? null : Number(r.pmid),
+      score: r.score == null ? null : Number(r.score),
+      pubDate: r.pubDate ?? null,
+      journal: r.journal ?? null,
+      title: r.title ?? null,
+      fbInstitution: r.fbInstitution == null ? null : Number(r.fbInstitution),
+      fbJournal: r.fbJournal == null ? null : Number(r.fbJournal),
+      fbOrganization: r.fbOrganization == null ? null : Number(r.fbOrganization),
+      fbCoAuthor: r.fbCoAuthor == null ? null : Number(r.fbCoAuthor),
+      groupCount: Number(r.groupCount),
+    }));
+
+    res.send({
+      report,
+      total: out.length,
+      // Distinct cwids among the rows ACTUALLY RETURNED, so it describes what the client is
+      // holding. On a capped response that is smaller than the population, which is exactly what
+      // `capped: true` is there to say.
+      people: new Set(out.map((r) => r.cwid)).size,
+      capped,
+      rows: out,
+    });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
+// POST /api/db/authorships/summary — counts for the tab headers, the two alert pills, the QUEUE
+// list and the MATCH CLASS options (#988). The body arrives UN-touched — every filter the list
+// endpoint honours, this one honours too — and each response FIELD below builds its OWN where
+// via summaryWhere(), excluding only the key(s) that field is itself an option along (e.g. the
+// "High-precision" MATCH CLASS option must report the full high-precision total, so its own
+// count is blind to precision+classification; the header total is blind to nothing at all,
+// because it describes the exact queue the list right below it is showing). See summaryWhere()
+// just below and the exclusion comment on each where in authorshipSummary for the per-field map.
+function summaryWhere(body: any, exclude: string[], absentCwids?: Set<string>): any {
+  const neutral: Record<string, any> = {
+    source: "all", classification: "all", precision: "all",
+    personTypes: [], pubTypes: [], institutions: [], authorAffiliations: [],
+  };
+  const b = { ...body };
+  for (const k of exclude) if (k in neutral) b[k] = neutral[k];
+  return buildWhere(b, absentCwids);
+}
+
 export const authorshipSummary = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const body = { ...(req.body || {}), source: "all", classification: "all", precision: "all", personTypes: [], pubTypes: [] };
-    const where = buildWhere(body);
-    const [total, single, byClass, byType, bySrc, byPub] = await Promise.all([
-      models.AuthorshipReview.count({ where }),
-      models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true }] } }),
-      models.AuthorshipReview.findAll({ attributes: ["classification", [fn("COUNT", col("id")), "n"]], where, group: ["classification"], raw: true }),
-      models.AuthorshipReview.findAll({ attributes: ["top_person_type", [fn("COUNT", col("id")), "n"]], where, group: ["top_person_type"], raw: true }),
-      models.AuthorshipReview.findAll({ attributes: ["source", [fn("COUNT", col("id")), "n"]], where, group: ["source"], raw: true }),
-      models.AuthorshipReview.findAll({ attributes: ["pub_type", [fn("COUNT", col("id")), "n"]], where: { [Op.and]: [where, { source: "scopus" }] }, group: ["pub_type"], raw: true }),
+    const body = req.body || {};
+    // ---- the Article-affiliation facet is OPT-IN ----------------------------------------
+    // Read off req.body, NOT off `body` (the same object now, but kept as its own expression on
+    // purpose): this is a request OPTION ("also compute this facet"), not a filter, and it must
+    // never become one of the keys scripts/check-authorships-filter-body.mjs §6/§7 hold the
+    // client's SUMMARY_BLIND_BODY_KEYS / buildFilterBody output to.
+    //
+    // Why it exists (production regression, measured 2026-09-04 from inside reciter-pm-prod).
+    // The byline half of the institution facet is 13 leading-wildcard LIKEs over the
+    // author_affiliation TEXT column — unindexable by construction, so it scans. Over the
+    // "Last 2 years" open queue (9,858 rows) the facet query alone measured:
+    //     12 SUMs, basis=person ................................  76 ms
+    //     24 SUMs, person + byline_ (what #983 ran every load) . 563 ms
+    // and that pushed the whole endpoint from a 311 ms pre-deploy baseline to a measured
+    // 896 ms at basis=person (1,379 ms with the basis omitted). The Article-affiliation list
+    // those columns feed is only ever on screen while the Affiliation popover is open, which
+    // is a deliberate click — so the client asks for them then, and only then.
+    //
+    // The contract is deliberately all-or-nothing: `authorInstitutions` is present IF AND ONLY
+    // IF this flag is set. It is NOT defaulted to [] or to the previous response's numbers when
+    // unset, because a zero or a stale count rendered as fact is worse than the client showing
+    // a loading state — which is exactly what AuthorshipsTabs does with the absence.
+    const wantAuthorInstitutions = (req.body || {}).includeAuthorInstitutions === true;
+    // Resolved once: it selects the `institutions` facet's basis AND (via the branch below)
+    // whether the byline columns are a second set or the same ones read twice.
+    //
+    // The DEFAULT stays "either" (normaliseBasis: unknown/absent -> widest) even though it is
+    // the most expensive basis — 12 either-SUMs measured 525 ms against 76 ms for person, so an
+    // omitting caller still pays for the LIKEs. Deliberate, and the narrower default was
+    // rejected: normaliseBasis also governs the institutions FILTER in buildWhere, where
+    // "widest" is a correctness choice, and silently recomputing an omitting caller's
+    // `institutions` numbers on a different basis is the same "wrong numbers, no warning" bug
+    // this flag exists to prevent. The UI pins "person" (buildFilterBody), so the default
+    // screen never takes that path; a caller that wants the cheap basis must say so.
+    const basis = normaliseBasis(body.institutionBasis);
+    // Hide counts (4b): how many rows each Hide box hides, each blind to its own box. Opt-in like
+    // authorInstitutions, because the noIdentity count needs absentCwidSet() even when the box is
+    // off — a DynamoDB sweep whenever its 5-minute cache is cold.
+    const wantHideCounts = (req.body || {}).includeHideCounts === true;
+    const absentCwids = (body.hideNoIdentity || wantHideCounts) ? await absentCwidSet() : undefined;
+    const absentList = absentCwids ? [...absentCwids] : [];
+
+    // Exclusion map (#988) — the key(s) each response field's OWN where must be blind to; every
+    // other filter in the body is honoured exactly like the list.
+    const where = summaryWhere(body, [], absentCwids);                                   // total: nothing excluded
+    const matchClassWhere = summaryWhere(body, ["precision", "classification"], absentCwids); // single_candidate/fullname/venuefit/orcid/classes
+    const bySourceWhere = summaryWhere(body, ["source", "pubTypes"], absentCwids);        // bySource
+    const pubTypesWhere = summaryWhere(body, ["pubTypes"], absentCwids);                  // pubTypes (source:"scopus" AND kept below)
+    const personTypesWhere = summaryWhere(body, ["personTypes"], absentCwids);            // personTypes
+    const institutionsWhere = summaryWhere(body, ["institutions"], absentCwids);          // institutions (identity-affiliation) facet
+    const authorInstWhere = summaryWhere(body, ["authorAffiliations"], absentCwids);      // authorInstitutions facet (opt-in)
+    // duplicates/conflicts: the full body, only statusView (and, for conflicts,
+    // identityConflicts) forced — never blind to anything else, so the pill's number is the row
+    // count the click actually produces.
+    const dupWhere = buildWhere({ ...body, statusView: "duplicates" }, absentCwids);
+    const conflictWhere = buildWhere(
+      { ...body, statusView: "open", identityConflicts: true }, absentCwids,
+    );
+
+    // Every where above except institutionsWhere can now carry a $Person.primaryInstitution$
+    // condition (buildWhere honours `institutions` there) whenever the caller actually selected
+    // some — so those queries need personInstitutionInclude() attached, same as listAuthorships/
+    // authorshipSelectable, or the dotted reference has no join to resolve against. That
+    // includes conflictWhere: identityConflictWhere() itself is an EXISTS subquery over
+    // person_article_author -> person_article -> identity (a literal joined to nothing Sequelize
+    // knows about, so IT never needs this include) — but conflictWhere is still buildWhere() run
+    // on the FULL body, so an active institutions filter reaches it too, through the SAME
+    // $Person.primaryInstitution$ branch as everywhere else. Attached only when
+    // body.institutions is non-empty, so the (still far more common) no-institutions path keeps
+    // its existing cost. `distinct: true, col: "id"` on the count() calls matters for real, not
+    // defensively: person.personIdentifier is NOT unique on the dev DB (13 duplicated values
+    // among 24,403 rows, verified 2026-09-04 — SELECT personIdentifier, COUNT(*) c FROM person
+    // GROUP BY personIdentifier HAVING c > 1), so an un-deduplicated COUNT over the LEFT JOIN can
+    // double-count a row whose top_cwid happens to hit one of those duplicates. Model.count()
+    // auto-qualifies `col` to `${modelName}.${col}` the moment `include` is present (sequelize
+    // lib/model.js `count()`), which is also why passing the bare "id" here is enough — same
+    // reasoning the GROUP BY queries below apply by hand via
+    // fn("COUNT", fn("DISTINCT", col("AuthorshipReview.id"))), since findAll has no `distinct`
+    // shorthand of its own.
+    const hasInstitutions = Array.isArray(body.institutions) && body.institutions.length > 0;
+    const instInclude = [personInstitutionInclude(false)];
+    const countOpts = (w: any) => (hasInstitutions ? { where: w, include: instInclude, distinct: true, col: "id" } : { where: w });
+    const whereOpts = (w: any) => (hasInstitutions ? { where: w, include: instInclude } : { where: w });
+    const groupCountAttr = hasInstitutions ? fn("COUNT", fn("DISTINCT", col("AuthorshipReview.id"))) : fn("COUNT", col("id"));
+
+    const [total, single, fullname, venuefit, orcid, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution, byAuthorInstitution, lowScoringAccepts, highScoringRejects, hiddenNoSuggestion, hiddenNoIdentity] = await Promise.all([
+      models.AuthorshipReview.count(countOpts(where)),
+      models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true }] })),
+      models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true, top_given_match: "full" }] })),
+      models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, precisionWhere("venuefit")] })),
+      models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, precisionWhere("orcid")] })),
+      models.AuthorshipReview.count(countOpts(dupWhere)),
+      models.AuthorshipReview.count(countOpts(conflictWhere)),
+      models.AuthorshipReview.findAll({ attributes: ["classification", [groupCountAttr, "n"]], ...whereOpts(matchClassWhere), group: ["classification"], raw: true }),
+      models.AuthorshipReview.findAll({ attributes: ["top_person_type", [groupCountAttr, "n"]], ...whereOpts(personTypesWhere), group: ["top_person_type"], raw: true }),
+      models.AuthorshipReview.findAll({ attributes: ["source", [groupCountAttr, "n"]], ...whereOpts(bySourceWhere), group: ["source"], raw: true }),
+      models.AuthorshipReview.findAll({ attributes: ["pub_type", [groupCountAttr, "n"]], ...whereOpts({ [Op.and]: [pubTypesWhere, { source: "scopus" }] }), group: ["pub_type"], raw: true }),
+      // Institution facet (IDENTITY AFFILIATION list): unconditionally joined, exactly as
+      // before — institutionsWhere never carries $Person.primaryInstitution$ (institutions is
+      // excluded from this field's own where by definition, so the popover always shows every
+      // bucket's own queue-wide count), and this query's SUM(...) formula needs the join
+      // regardless of any filter. required:false (LEFT JOIN) on purpose — see
+      // personInstitutionInclude()'s own comment. Basis handling is unchanged.
+      models.AuthorshipReview.findAll({
+        attributes: institutionFacetAttributes(basis),
+        include: [personInstitutionInclude(false)],
+        where: institutionsWhere, raw: true,
+      }),
+      // Article-affiliation facet (opt-in). Its own SUM query rather than shared columns off
+      // the query above: authorInstWhere excludes authorAffiliations (not institutions), so its
+      // row set can differ from institutionsWhere's the moment an institutions filter is
+      // active — folding both into one query would report the wrong basis's numbers for
+      // whichever filter is live. Always counted on the byline basis (this facet's whole
+      // point). The old "share the unprefixed columns when the caller's basis is already
+      // byline" special case is gone: the UI always pins institutionBasis to "person"
+      // (buildFilterBody), so that case never actually fired.
+      wantAuthorInstitutions
+        ? models.AuthorshipReview.findAll({
+            attributes: institutionFacetAttributes("byline"),
+            ...whereOpts(authorInstWhere),
+            raw: true,
+          })
+        : Promise.resolve(undefined),
+      // Canned-report counts, for the "Canned reports" dropdown. In this Promise.all rather than
+      // a third round trip on purpose: the dropdown shows both numbers on first paint, and the
+      // list/summary pair is already the load's critical path — a separate request would add a
+      // full round trip to every /authorships open for two integers.
+      //
+      // Which also means these two queries run on EVERY /authorships load, not only when the
+      // dropdown is opened, and that is precisely why ReCiterDB PR #216's ix_assertion_score is a
+      // prerequisite for this feature and not an optimization to schedule later.
+      //
+      // THE DATE WINDOW AND THE INSTITUTION LIST ARE HELD NEUTRAL for both counts, and those are
+      // the only exclusions here. Selecting a report resets both (selectReport in
+      // AuthorshipsTabs), so a count computed under the queue's defaults would not be the number
+      // the click produces — measured on prod 2026-09-06 the menu showed "(66)" and "(22)" over
+      // populations of 1,065 and 430, the two-year window accounting for 1,065 -> 106 and the WCM
+      // affiliation for 106 -> 66. A menu entry whose number is 6% of what opening it yields is
+      // worse than no number. Everything else in the body still applies: reportFilterSql() reads
+      // only the four keys it can honour and is already blind to the rest, and a report is not a
+      // facet of itself, so there is nothing else to exclude.
+      reportCount("lowScoringAccepts", REPORT_COUNT_BODY(body)),
+      reportCount("highScoringRejects", REPORT_COUNT_BODY(body)),
+      wantHideCounts
+        ? models.AuthorshipReview.count(countOpts({ [Op.and]: [buildWhere({ ...body, hideNoSuggestion: false }, absentCwids), { top_cwid: null }] }))
+        : Promise.resolve(undefined),
+      wantHideCounts && absentList.length
+        ? models.AuthorshipReview.count(countOpts({ [Op.and]: [buildWhere({ ...body, hideNoIdentity: false }, absentCwids), { top_cwid: { [Op.in]: absentList } }] }))
+        : Promise.resolve(wantHideCounts ? 0 : undefined),
     ]);
     const classes: Record<string, number> = {};
     (byClass as any[]).forEach((r) => { classes[r.classification] = Number(r.n); });
@@ -204,7 +2097,499 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     (bySrc as any[]).forEach((r) => { bySource[r.source] = Number(r.n); });
     const personTypes = (byType as any[]).filter((r) => r.top_person_type).map((r) => ({ type: r.top_person_type as string, n: Number(r.n) })).sort((a, b) => b.n - a.n);
     const pubTypes = (byPub as any[]).filter((r) => r.pub_type).map((r) => ({ type: r.pub_type as string, n: Number(r.n) })).sort((a, b) => b.n - a.n);
-    res.send({ total, single_candidate: single, classes, personTypes, bySource, pubTypes });
+    // Bucket the raw primaryInstitution strings a grouped query returned back into
+    // INSTITUTION_BUCKETS' keys, summing counts for a bucket with more than one literal string
+    // (wcm has two — "Weill Cornell Medicine" and "Weill Cornell Medical College"). A raw
+    // institution not named by any bucket (e.g. "Rogosin Institute", below the curated list's
+    // ~100-person cutoff) simply never gets added to any sum — dropped, not shown as "Other". Each conditional-SUM query returns a single row, one column per bucket key.
+    const bucketCounts = (row: Record<string, any>) => Object.keys(INSTITUTION_BUCKETS)
+      .map((key) => ({ key, n: Number(row[key] || 0) }))
+      .filter((b) => b.n > 0)
+      .sort((a, b) => b.n - a.n);
+    const institutions = bucketCounts(((byInstitution as any[])[0]) || {});
+    // `undefined` when authorInstitutions was not asked for, and JSON.stringify DROPS an
+    // undefined value, so the key is genuinely ABSENT from the response rather than
+    // present-and-empty. That distinction is the whole contract: absent means "not computed,
+    // show a loading state", where [] would mean "computed, every bucket is zero".
+    const authorInstitutions = wantAuthorInstitutions
+      ? bucketCounts(((byAuthorInstitution as any[])?.[0]) || {})
+      : undefined;
+    res.send({
+      total, single_candidate: single, fullname, venuefit, orcid, duplicates, conflicts,
+      classes, personTypes, bySource, pubTypes, institutions, authorInstitutions,
+      // Always present, unlike authorInstitutions above — these two are cheap enough to compute
+      // unconditionally once the index exists, and the dropdown needs both labels populated the
+      // moment it can be opened.
+      reports: { lowScoringAccepts, highScoringRejects },
+      // Absent (undefined drops from JSON) unless asked for — the client shows "—", never a stale 0.
+      hidden: wantHideCounts ? { noSuggestion: hiddenNoSuggestion, noIdentity: hiddenNoIdentity } : undefined,
+    });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
+// POST /api/db/authorships/prior-names — every byline form a cwid has already published under,
+// for §2.6's identity hover card ("NAMES ON ACCEPTED PAPERS"). This is the one piece of the
+// card that answers the curator's actual question — "does the name printed on THIS paper look
+// like the names this person already publishes under?" — so a homonym row shows "Kristy A
+// Brown / Kristy Brown / K A Brown" and not just a department.
+//
+// Source is person_article: articleAuthorNameFirstName/LastName is the byline ReCiter matched,
+// and userAssertion='ACCEPTED' is the curator-confirmed subset (the table also holds PENDING
+// suggestions, userAssertion='', which are emphatically not evidence of how someone publishes).
+//
+// Safe to call on hover, by construction rather than by hope:
+//  - Batched. The card is per-row but a page has 25 rows, so the client can warm the whole page
+//    in one call; CWID_CAP bounds a hostile or buggy caller.
+//  - Index-driven. WHERE personIdentifier IN (...) rides the (personIdentifier, pmid) index —
+//    EXPLAIN on the dev DB gives type=range, key=personIdentifier, rows=873 for a 10-cwid probe,
+//    39 ms including the GROUP BY. userAssertion has NO index of its own, which is exactly why
+//    it is applied as a filter on the rows that index already narrowed to: a query that leads
+//    with userAssertion instead scans all 745,994 rows (measured: 31,853 ms).
+//  - Capped per cwid. NAME_CAP forms are returned, most frequent first, with `more` saying how
+//    many distinct forms were dropped — the card shows a handful, not a life's bibliography.
+//
+// `accepted` is returned alongside `names` because they answer different questions and the card
+// needs both: a cwid with accepted papers whose byline names are all blank (4,449 person_article
+// rows WITH userAssertion='ACCEPTED' carry an empty articleAuthorNameLastName) has names:[] but
+// accepted>0, and must NOT be rendered as the mockup's "No accepted papers yet" — that line
+// belongs to accepted===0 alone.
+// The ACCEPTED qualifier is the whole claim: 5,662 is the count over ALL assertion states, and
+// 1,213 of those are PENDING or REJECTED rows this endpoint never reads (dev DB 2026-09-04:
+// 5,662 total = 4,449 ACCEPTED + 713 REJECTED + 500 pending, which this table stores as '' not 'PENDING'). Do not quote the wider number here.
+const PRIOR_NAMES_CWID_CAP = 50;
+const PRIOR_NAMES_NAME_CAP = 8;
+const PRIOR_NAMES_PAPER_CAP = 5;
+const PRIOR_NAMES_TOPIC_CAP = 6;
+const PRIOR_NAMES_JOURNAL_CAP = 3;
+const PRIOR_NAMES_NAMESAKE_CAP = 3;
+const PRIOR_NAMES_COAUTHOR_CAP = 3;
+
+export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const raw: any[] = Array.isArray(req.body?.cwids)
+      ? req.body.cwids
+      : (req.body?.cwid ? [req.body.cwid] : []);
+    const cwids = [...new Set(raw.map((v: any) => String(v || "").trim()).filter(Boolean))]
+      // same shape gate authorshipLookupCwid applies to a typed cwid — a value that cannot be a
+      // cwid cannot match a row, so it is dropped rather than sent to the database.
+      .filter((c) => /^[A-Za-z0-9]{1,32}$/.test(c))
+      .slice(0, PRIOR_NAMES_CWID_CAP);
+    if (!cwids.length) return res.send({ names: {}, accepted: {} });
+
+    const rows: any[] = await models.PersonArticle.findAll({
+      attributes: [
+        "personIdentifier", "articleAuthorNameFirstName", "articleAuthorNameLastName",
+        [fn("COUNT", col("id")), "n"],
+        // The latest year on an accepted paper under this form: the hover card's "Last" column.
+        [fn("MAX", fn("NULLIF", col("articleYear"), 0)), "y1"],
+      ],
+      where: { personIdentifier: { [Op.in]: cwids }, userAssertion: "ACCEPTED" },
+      group: ["personIdentifier", "articleAuthorNameFirstName", "articleAuthorNameLastName"],
+      raw: true,
+    });
+
+    const names: Record<string, Array<{ first: string; last: string; n: number; lastYear?: number }>> = {};
+    const accepted: Record<string, number> = {};
+    const dropped: Record<string, number> = {};
+    for (const r of rows) {
+      const cwid = String(r.personIdentifier);
+      const n = Number(r.n) || 0;
+      accepted[cwid] = (accepted[cwid] || 0) + n;
+      const first = String(r.articleAuthorNameFirstName || "").trim();
+      const last = String(r.articleAuthorNameLastName || "").trim();
+      if (!first && !last) continue;   // nameless accepted rows still count toward `accepted`
+      (names[cwid] ||= []).push({ first, last, n, lastYear: Number(r.y1) || undefined });
+    }
+    for (const cwid of Object.keys(names)) {
+      names[cwid].sort((a, b) => b.n - a.n || `${a.last}${a.first}`.localeCompare(`${b.last}${b.first}`));
+      if (names[cwid].length > PRIOR_NAMES_NAME_CAP) {
+        dropped[cwid] = names[cwid].length - PRIOR_NAMES_NAME_CAP;
+        names[cwid] = names[cwid].slice(0, PRIOR_NAMES_NAME_CAP);
+      }
+    }
+    // ---- recent accepted papers ------------------------------------------------
+    // The card's whole job is "is this the same person?", and a byline name alone often
+    // cannot settle it — two WCM Lis publishing in the same field look identical by name.
+    // Titles do settle it: a curator reading "prostate cancer / cholesterol metabolism"
+    // against a proteomics core scientist knows in one glance. Rides the same
+    // (personIdentifier, pmid) index the names query above already walked, so this adds a
+    // second pass over rows already in the buffer pool, not a new access path.
+    const acceptedRows: any[] = await models.PersonArticle.findAll({
+      attributes: ["personIdentifier", "pmid"],
+      where: { personIdentifier: { [Op.in]: cwids }, userAssertion: "ACCEPTED" },
+      raw: true,
+    });
+    // Highest pmid first as a recency proxy, so the title lookup is bounded by
+    // PAPER_CAP * cwids rather than by the most prolific person's whole bibliography.
+    // pmid order is not strictly publication order, which is why the rendered line shows
+    // the YEAR from analysis_summary_article and does not claim to be "most recent".
+    const byCwid: Record<string, number[]> = {};
+    for (const r of acceptedRows) {
+      const cw = String(r.personIdentifier);
+      (byCwid[cw] ||= []).push(Number(r.pmid));
+    }
+    const wantPmids = new Set<number>();
+    for (const cw of Object.keys(byCwid)) {
+      byCwid[cw].sort((a, b) => b - a);
+      byCwid[cw] = byCwid[cw].slice(0, PRIOR_NAMES_PAPER_CAP);
+      byCwid[cw].forEach((p) => wantPmids.add(p));
+    }
+    const titleRows: any[] = wantPmids.size
+      ? await models.AnalysisSummaryArticle.findAll({
+          attributes: ["pmid", "articleTitle", "articleYear"],
+          where: { pmid: { [Op.in]: [...wantPmids] } },
+          raw: true,
+        })
+      : [];
+    const titleByPmid = new Map<number, { title: string; year?: number }>(
+      titleRows.map((t) => [Number(t.pmid), { title: String(t.articleTitle || ""), year: t.articleYear ?? undefined }]));
+    const papers: Record<string, Array<{ pmid: number; title: string; year?: number }>> = {};
+    for (const cw of Object.keys(byCwid)) {
+      papers[cw] = byCwid[cw]
+        .map((pm) => ({ pmid: pm, ...(titleByPmid.get(pm) || { title: "" }) }))
+        .filter((x) => x.title)
+        .sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    }
+
+    // ---- top topics ------------------------------------------------------------
+    // What this person publishes ABOUT, as the third leg of the card's "is this the same
+    // person?" argument: PRIOR_NAMES_TOPIC_CAP most-frequent keywords over their accepted
+    // papers. Names and titles both fail on the hard case — two WCM Lis, same field, similar
+    // bylines — where "Myocardial Infarction / Platelet Aggregation Inhibitors / Acute Coronary
+    // Syndrome" settles it before the curator has finished reading the row.
+    //
+    // ACCEPTED-only, joined through person_article rather than read from person_article_keyword
+    // alone. That table spans every assertion state — 1,332,371 ACCEPTED, 284,270 REJECTED,
+    // 694,707 blank/pending of 2,310,368 rows — and a homonym's REJECTED keywords are precisely
+    // BACKWARDS for a card whose job is telling two people apart: they describe the OTHER
+    // person. The join costs nothing extra; it is the same ACCEPTED filter the names and papers
+    // blocks above already apply, just reached one table over.
+    //
+    // Raw SQL, not a Sequelize include: no association is registered between these two models,
+    // and the GROUP BY has to happen IN the database. A findAll + count-in-JS would pull every
+    // keyword row for the requested cwids (6,208 for sfs2002 alone) to emit six strings.
+    // Both sides are index-driven — EXPLAIN on a 10-cwid probe gives pa type=range key=
+    // personIdentifier rows=587, then k type=ref key=`sdfsdfsdf` (personIdentifier, pmid) —
+    // 13 ms / 679 grouped rows for a typical 10-cwid page warm, 236 ms for the eight
+    // heaviest-keyword cwids in the whole database, which no real page holds at once.
+    //
+    // No case folding, and no LOWER() in SQL. These are MeSH descriptors, not free author
+    // keywords: of 24,532 distinct values, exactly 0 have a second spelling differing only by
+    // case, and repeating the check per-cwid gives 896/896 (sfs2002), 977/977, 579/579, 797/797.
+    // Folding would buy nothing and cost something real — MeSH deliberately lowercases gene and
+    // protein prefixes ("tau Proteins", "ras Proteins", "beta-Thalassemia" — 7,338 of 2,310,368
+    // rows start lowercase on purpose), so a LOWER() or Title-Case pass would render those wrong
+    // AND defeat the index. GROUP BY on the raw column is already case-insensitive anyway, since
+    // person_article_keyword.keyword is utf8mb4_unicode_ci — so if a case variant ever does
+    // arrive it collapses on its own and MySQL picks a representative, which is the right
+    // failure. No stoplist either: the producer already drops MeSH check tags, so the generic
+    // ones cannot crowd the top six ("Humans"/"Male"/"Female"/"Animals" have 0 rows between
+    // them; the worst survivor, "Treatment Outcome", has 338 of 2.3M).
+    //
+    // ponytail: the cap is applied in JS after a full GROUP BY per cwid rather than by a
+    // per-cwid ROW_NUMBER() window — same shape the names block above uses, and the GROUP BY has
+    // already done the collapsing that matters (679 rows for a 10-cwid page, i.e. ~68 per cwid;
+    // 896 for sfs2002, the worst in the database, down from 6,208 raw). Reach for the window
+    // function only if a caller ever asks for all 50 cwids at once AND that shows up in a trace.
+    const keywordRows: any[] = await sequelize.query(
+      "SELECT `k`.`personIdentifier` AS `cwid`, `k`.`keyword` AS `keyword`, COUNT(*) AS `n` " +
+      "FROM `person_article_keyword` `k` " +
+      "JOIN `person_article` `pa` ON `pa`.`personIdentifier` = `k`.`personIdentifier` " +
+      "AND `pa`.`pmid` = `k`.`pmid` AND `pa`.`userAssertion` = 'ACCEPTED' " +
+      "WHERE `k`.`personIdentifier` IN (:cwids) AND `k`.`keyword` <> '' " +
+      "GROUP BY `k`.`personIdentifier`, `k`.`keyword`",
+      { replacements: { cwids }, type: QueryTypes.SELECT },
+    );
+    const topics: Record<string, Array<{ keyword: string; n: number }>> = {};
+    for (const r of keywordRows) {
+      const kw = String(r.keyword || "").trim();
+      if (!kw) continue;
+      (topics[String(r.cwid)] ||= []).push({ keyword: kw, n: Number(r.n) || 0 });
+    }
+    for (const cw of Object.keys(topics)) {
+      // Same tie-break as the names block: count first, then localeCompare, so two keywords on
+      // equal counts land in a stable order instead of whatever order the group by returned.
+      topics[cw].sort((a, b) => b.n - a.n || a.keyword.localeCompare(b.keyword));
+      topics[cw] = topics[cw].slice(0, PRIOR_NAMES_TOPIC_CAP);
+    }
+
+    // ---- roster identity -------------------------------------------------------
+    // Two different names, deliberately both: `identity` carries the HR/LDAP LEGAL name and
+    // `person` the DynamoDB Identity PUBLISHING name, and they disagree often enough to
+    // matter — a card showing only the legal name is why "we aren't checking the primary
+    // name" gets reported when the matcher was in fact right. The client renders the pair
+    // only when they differ, so the common case stays quiet.
+    const identityRows: any[] = await models.Identity.findAll({
+      attributes: ["cwid", "givenName", "middleName", "surname", "primaryTitle", "primaryAcademicDivision"],
+      where: { cwid: { [Op.in]: cwids } }, raw: true,
+    });
+    const personRows: any[] = await models.Person.findAll({
+      attributes: ["personIdentifier", "firstName", "middleName", "lastName"],
+      where: { personIdentifier: { [Op.in]: cwids } }, raw: true,
+    });
+    const pubName = new Map<string, string>(personRows.map((p) => [String(p.personIdentifier),
+      [p.firstName, p.middleName, p.lastName].map((x) => String(x || "").trim()).filter(Boolean).join(" ")]));
+    const identity: Record<string, { legalName?: string; publishingName?: string; title?: string; division?: string }> = {};
+    for (const r of identityRows) {
+      const cw = String(r.cwid);
+      const legal = [r.givenName, r.middleName, r.surname].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+      identity[cw] = {
+        legalName: legal || undefined,
+        publishingName: pubName.get(cw) || undefined,
+        title: String(r.primaryTitle || "").trim() || undefined,
+        division: String(r.primaryAcademicDivision || "").trim() || undefined,
+      };
+    }
+
+    // ---- record shape: counts, years, journals, rejected bylines (UI refresh 4d-2) --------
+    // Three grouped reads on the (personIdentifier, …) index. `pending` is every assertion that
+    // is neither ACCEPTED nor REJECTED (person_article stores pending as '').
+    const countRows: any[] = await sequelize.query(
+      "SELECT personIdentifier AS cwid, userAssertion AS a, COUNT(*) AS n, MIN(NULLIF(articleYear, 0)) AS y0, MAX(NULLIF(articleYear, 0)) AS y1 " +
+      "FROM person_article WHERE personIdentifier IN (:cwids) GROUP BY 1, 2",
+      { replacements: { cwids }, type: QueryTypes.SELECT });
+    const counts: Record<string, { accepted: number; rejected: number; pending: number; firstYear?: number; lastYear?: number }> = {};
+    for (const r of countRows) {
+      const cw = String(r.cwid), n = Number(r.n) || 0;
+      const t = (counts[cw] ||= { accepted: 0, rejected: 0, pending: 0 });
+      if (r.a === "ACCEPTED") { t.accepted += n; t.firstYear = Number(r.y0) || undefined; t.lastYear = Number(r.y1) || undefined; }
+      else if (r.a === "REJECTED") t.rejected += n;
+      else t.pending += n;
+    }
+    const journalRows: any[] = await sequelize.query(
+      "SELECT personIdentifier AS cwid, journalTitleVerbose AS j, COUNT(*) AS n FROM person_article " +
+      "WHERE personIdentifier IN (:cwids) AND userAssertion = 'ACCEPTED' AND journalTitleVerbose <> '' GROUP BY 1, 2",
+      { replacements: { cwids }, type: QueryTypes.SELECT });
+    const journals: Record<string, Array<{ journal: string; n: number }>> = {};
+    for (const r of journalRows) (journals[String(r.cwid)] ||= []).push({ journal: String(r.j), n: Number(r.n) || 0 });
+    for (const cw of Object.keys(journals)) journals[cw] = journals[cw].sort((a, b) => b.n - a.n || a.journal.localeCompare(b.journal)).slice(0, PRIOR_NAMES_JOURNAL_CAP);
+    // Bylines on REJECTED papers that never appear on an accepted one: the namesakes this person
+    // has already been confused with. A form on both lists is theirs, so it is not shown.
+    const rejRows: any[] = await sequelize.query(
+      "SELECT personIdentifier AS cwid, articleAuthorNameFirstName AS f, articleAuthorNameLastName AS l, COUNT(*) AS n FROM person_article " +
+      "WHERE personIdentifier IN (:cwids) AND userAssertion = 'REJECTED' GROUP BY 1, 2, 3",
+      { replacements: { cwids }, type: QueryTypes.SELECT });
+    const norm = (f: any, l: any) => `${String(f || "").trim()} ${String(l || "").trim()}`.trim().toLowerCase();
+    const acceptedForms = new Set(rows.map((r) => `${r.personIdentifier}|${norm(r.articleAuthorNameFirstName, r.articleAuthorNameLastName)}`));
+    const namesakes: Record<string, Array<{ first: string; last: string; n: number }>> = {};
+    for (const r of rejRows) {
+      const key = norm(r.f, r.l);
+      if (!key || acceptedForms.has(`${r.cwid}|${key}`)) continue;
+      (namesakes[String(r.cwid)] ||= []).push({ first: String(r.f || "").trim(), last: String(r.l || "").trim(), n: Number(r.n) || 0 });
+    }
+    for (const cw of Object.keys(namesakes)) namesakes[cw] = namesakes[cw].sort((a, b) => b.n - a.n).slice(0, PRIOR_NAMES_NAMESAKE_CAP);
+
+    // ---- frequent co-authors (UI refresh PR 4, the line 4d-2 planned) -----------------------
+    // The people who appear most often beside them on ACCEPTED papers, by distinct paper. Same
+    // join and index path as candidate-evidence's co-author query (person_article ->
+    // person_article_author on (personIdentifier, pmid)), but not narrowed to one paper's
+    // surnames, so the top few are picked in SQL with a window rather than shipped to node.
+    const coRows: any[] = await sequelize.query(
+      "SELECT cwid, f, l, n FROM (" +
+      "SELECT pa.personIdentifier AS cwid, paa.authorFirstName AS f, paa.authorLastName AS l, COUNT(DISTINCT pa.pmid) AS n, " +
+      "ROW_NUMBER() OVER (PARTITION BY pa.personIdentifier ORDER BY COUNT(DISTINCT pa.pmid) DESC, paa.authorLastName, paa.authorFirstName) AS rn " +
+      "FROM person_article pa JOIN person_article_author paa ON paa.personIdentifier = pa.personIdentifier AND paa.pmid = pa.pmid " +
+      "WHERE pa.personIdentifier IN (:cwids) AND pa.userAssertion = 'ACCEPTED' AND paa.targetAuthor = 0 AND paa.authorLastName <> '' " +
+      "GROUP BY 1, 2, 3) t WHERE rn <= :cap",
+      { replacements: { cwids, cap: PRIOR_NAMES_COAUTHOR_CAP }, type: QueryTypes.SELECT });
+    const coauthors: Record<string, Array<{ name: string; n: number }>> = {};
+    for (const r of coRows) {
+      const name = `${String(r.f || "").trim()} ${String(r.l || "").trim()}`.trim();
+      if (name) (coauthors[String(r.cwid)] ||= []).push({ name, n: Number(r.n) || 0 });
+    }
+    for (const cw of Object.keys(coauthors)) coauthors[cw].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+
+    // Every requested cwid gets an entry, so the client can tell "asked and has none" from
+    // "never asked" without tracking its own request bookkeeping.
+    for (const c of cwids) {
+      names[c] ||= []; accepted[c] ||= 0; papers[c] ||= []; topics[c] ||= [];
+      counts[c] ||= { accepted: 0, rejected: 0, pending: 0 }; journals[c] ||= []; namesakes[c] ||= [];
+      coauthors[c] ||= [];
+    }
+    res.send({ names, accepted, more: dropped, papers, identity, topics, counts, journals, namesakes, coauthors });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
+// POST /api/db/authorships/orcid-record {id} — the public ORCID record of the row's byline iD, for
+// the opened row. Takes a row id, not an iD, so it only ever reads iDs the queue already holds.
+// record is null when ORCID has no public record; 502 when ORCID didn't answer.
+export const authorshipOrcidRecord = async (req: NextApiRequest, res: NextApiResponse) => {
+  const id = Number(req.body?.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).send("id is required");
+  let orcid: string;
+  try {
+    const row: any = await models.AuthorshipReview.findByPk(id, { attributes: ["id", "byline_orcid"], raw: true });
+    if (!row) return res.status(404).send("No such row");
+    orcid = String(row.byline_orcid || "").trim();
+  } catch (e: any) {
+    console.error("[authorshipOrcidRecord] ERROR:", e?.message);
+    return res.status(500).send("Could not read the row");
+  }
+  if (!isOrcid(orcid)) return res.send({ record: null });
+  try {
+    return res.send({ record: await getOrcidRecord(orcid) });
+  } catch (e: any) {
+    console.error("[authorshipOrcidRecord] ORCID:", e?.message);
+    return res.status(502).send("ORCID did not answer");
+  }
+};
+
+// POST /api/db/authorships/candidate-evidence {id} — the facts behind one queue row's evidence
+// table and comparison grid (UI refresh 4d). Facts, not verdicts: src/utils/candidateEvidence.ts
+// builds the rows on the client, where already_rejected and retired_cwid already sit on each
+// candidate. The row is loaded here by id, so a caller cannot ask about arbitrary people.
+//
+// About 150 ms for a 5-candidate row on the dev DB: every query rides the
+// (personIdentifier, pmid) index or idx_pmid. The co-author query is bounded by this paper's
+// own surnames, so a prolific candidate does not pull their whole co-author history.
+//
+// ponytail: PubMed rows take this paper's author list from person_article_author through any
+// person who has the pmid. 55% of open PubMed rows have one (dev, 11-10); the rest get
+// `coauthors: null` and the table says "not available". Fetch the byline from PubMed if that
+// gap matters.
+export const authorshipCandidateEvidence = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const id = Number(req.body?.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).send("id is required");
+    const row: any = await models.AuthorshipReview.findByPk(id, {
+      attributes: ["id", "source", "pmid", "author_position", "wcm_author", "journal", "top_cwid", "candidate_cwids_json", "authors_json"],
+      raw: true,
+    });
+    if (!row) return res.status(404).send("No such row");
+
+    let parsed: any[] = [];
+    try { parsed = JSON.parse(row.candidate_cwids_json || "[]"); } catch { parsed = []; }
+    const cwids = [...new Set([...parsed.map((c: any) => String(c?.cwid || "").trim()), String(row.top_cwid || "").trim()])]
+      .filter((c) => /^[A-Za-z0-9]{1,32}$/.test(c)).slice(0, PRIOR_NAMES_CWID_CAP);
+
+    // ---- this paper's other authors ----------------------------------------------
+    const pos = Number(row.author_position) || 0;
+    const byline = String(row.wcm_author || "").trim().toLowerCase();
+    let coauthors: string[] | null = null;
+    // The whole byline in order, and where this row's author sits in it, for the expanded row's
+    // "Authors" line (UI refresh PR 4). Same source as `coauthors`; null when that is null.
+    let authors: string[] | null = null;
+    let target = -1;
+    if (row.source === "pubmed" && row.pmid) {
+      const holder: any = await models.PersonArticle.findOne({ attributes: ["personIdentifier"], where: { pmid: row.pmid }, raw: true });
+      if (holder) {
+        const authorRows: any[] = await models.PersonArticleAuthor.findAll({
+          attributes: ["authorFirstName", "authorLastName", "rank"],
+          where: { personIdentifier: holder.personIdentifier, pmid: row.pmid }, order: [["rank", "ASC"]], raw: true,
+        });
+        if (authorRows.length) {
+          const named = authorRows
+            .map((a) => ({ rank: Number(a.rank), name: `${String(a.authorFirstName || "").trim()} ${String(a.authorLastName || "").trim()}`.trim() }))
+            .filter((a) => a.name);
+          coauthors = named.filter((a) => a.rank !== pos).map((a) => a.name);
+          authors = named.map((a) => a.name);
+          target = named.findIndex((a) => a.rank === pos);
+        }
+      }
+    } else if (row.authors_json) {
+      try {
+        const list = JSON.parse(row.authors_json);
+        if (Array.isArray(list) && list.length) {
+          const all = list.map((a: any) => `${String(a?.given || "").trim()} ${String(a?.surname || "").trim()}`.trim());
+          coauthors = all.filter((n: string, i: number) => n && i !== pos - 1 && n.toLowerCase() !== byline);
+          authors = all.filter(Boolean);
+          target = pos > 0 && all[pos - 1] ? authors.indexOf(all[pos - 1]) : authors.findIndex((n: string) => n.toLowerCase() === byline);
+        }
+      } catch { coauthors = null; authors = null; target = -1; }
+    }
+
+    const facts: Record<string, any> = {};
+    for (const c of cwids) facts[c] = { accepted: 0, forms: [], rejectedForms: [], journalHits: 0, degreeYear: null, coauthorHits: [] };
+    if (!cwids.length) return res.send({ coauthors, authors, target, facts });
+    // person_article's cwids can differ in case from the candidate list; map back.
+    const key = new Map(cwids.map((c) => [c.toLowerCase(), c]));
+    const k = (v: any) => key.get(String(v).toLowerCase()) || String(v);
+
+    // ---- bylines on accepted and rejected papers ---------------------------------
+    const nameRows: any[] = await sequelize.query(
+      "SELECT personIdentifier AS cwid, userAssertion AS a, articleAuthorNameFirstName AS f, articleAuthorNameLastName AS l, COUNT(*) AS n " +
+      "FROM person_article WHERE personIdentifier IN (:cwids) AND userAssertion IN ('ACCEPTED','REJECTED') GROUP BY 1, 2, 3, 4",
+      { replacements: { cwids }, type: QueryTypes.SELECT });
+    for (const r of nameRows) {
+      const f = facts[k(r.cwid)]; if (!f) continue;
+      const n = Number(r.n) || 0;
+      if (r.a === "ACCEPTED") f.accepted += n;
+      const first = String(r.f || "").trim(), last = String(r.l || "").trim();
+      if (first || last) (r.a === "ACCEPTED" ? f.forms : f.rejectedForms).push({ first, last, n });
+    }
+    for (const f of Object.values(facts)) {
+      f.forms.sort((a: any, b: any) => b.n - a.n); f.forms = f.forms.slice(0, PRIOR_NAMES_NAME_CAP);
+      f.rejectedForms.sort((a: any, b: any) => b.n - a.n); f.rejectedForms = f.rejectedForms.slice(0, PRIOR_NAMES_NAME_CAP);
+    }
+
+    // ---- journal, degree year -----------------------------------------------------
+    if (row.journal) {
+      const jRows: any[] = await sequelize.query(
+        "SELECT personIdentifier AS cwid, COUNT(*) AS n FROM person_article WHERE personIdentifier IN (:cwids) " +
+        "AND userAssertion = 'ACCEPTED' AND journalTitleVerbose = :journal GROUP BY 1",
+        { replacements: { cwids, journal: row.journal }, type: QueryTypes.SELECT });
+      for (const r of jRows) if (facts[k(r.cwid)]) facts[k(r.cwid)].journalHits = Number(r.n) || 0;
+    }
+    const dRows: any[] = await sequelize.query(
+      "SELECT personIdentifier AS cwid, MIN(NULLIF(identityBachelorYear, 0)) AS b, MIN(NULLIF(identityDoctoralYear, 0)) AS d " +
+      "FROM person_article WHERE personIdentifier IN (:cwids) GROUP BY 1",
+      { replacements: { cwids }, type: QueryTypes.SELECT });
+    for (const r of dRows) {
+      const ys = [r.b, r.d].map(Number).filter((y) => y > 1900);
+      if (facts[k(r.cwid)] && ys.length) facts[k(r.cwid)].degreeYear = Math.min(...ys);
+    }
+
+    // ---- this paper's co-authors on their accepted papers ------------------------
+    const lastNames = [...new Set((coauthors || []).map((n) => n.split(/\s+/).pop() || "").filter(Boolean))];
+    if (lastNames.length) {
+      const cRows: any[] = await sequelize.query(
+        "SELECT pa.personIdentifier AS cwid, paa.authorLastName AS last, LEFT(paa.authorFirstName, 1) AS initial, COUNT(DISTINCT pa.pmid) AS n " +
+        "FROM person_article pa JOIN person_article_author paa ON paa.personIdentifier = pa.personIdentifier AND paa.pmid = pa.pmid " +
+        "WHERE pa.personIdentifier IN (:cwids) AND pa.userAssertion = 'ACCEPTED' AND paa.targetAuthor = 0 " +
+        "AND pa.pmid <> :pmid AND paa.authorLastName IN (:lastNames) GROUP BY 1, 2, 3",
+        { replacements: { cwids, pmid: Number(row.pmid) || 0, lastNames }, type: QueryTypes.SELECT });
+      for (const r of cRows) if (facts[k(r.cwid)]) facts[k(r.cwid)].coauthorHits.push({ last: String(r.last || ""), initial: String(r.initial || ""), n: Number(r.n) || 0 });
+    }
+
+    res.send({ coauthors, authors, target, facts });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
+// POST /api/db/authorships/recent-activity — the 15 most-recently-resolved authorships across
+// the whole queue. accept/assign/reject/dismiss all stamp resolved_at (reopen clears it back
+// to null; snooze never sets it), so filtering on resolved_at IS NOT NULL is exactly those four
+// terminal curator actions. Global and cross-curator/cross-session (unlike the per-person
+// /curate "Recent activity" panel, which reads AdminFeedbackLog for one uid) — once a row here
+// leaves the open/snoozed/dismissed status views it has no other view on the page, so this is
+// the only lookback for "what did curators just do". Fixed-size feed, no filters/pagination —
+// mirrors summary.ts's simplicity; body is accepted but ignored.
+export const authorshipRecentActivity = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const rows: any[] = await models.AuthorshipReview.findAll({
+      attributes: ["id", "title", "wcm_author", "top_name", "top_cwid", "resolution_cwid", "status", "reviewer", "resolved_at", "source", "pmid", "external_id"],
+      where: { resolved_at: { [Op.ne]: null } },
+      order: [["resolved_at", "DESC"]],
+      limit: 15,
+      raw: true,
+    });
+    // top_name is the *top-ranked candidate's* name, which is the wrong person the moment a
+    // curator assigns to a non-top candidate — the entire point of "Pick one" on a homonym
+    // row. The panel links resolution_cwid, so send that identity's own name alongside it and
+    // the two can't disagree (#928). One extra IN() lookup for at most 15 cwids. reject and
+    // dismiss never set resolution_cwid and top_name is right there, so the client picks
+    // per-row rather than swapping wholesale.
+    const names = await personNames(rows.map((r) => r.resolution_cwid));
+    rows.forEach((r) => { r.resolution_name = r.resolution_cwid ? names[String(r.resolution_cwid)] : undefined; });
+    res.send({ rows });
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));
@@ -217,25 +2602,35 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
 // Superuser/Curator_All authz (getEffectiveRolesScope) is a dev_Upd-only feature not on
 // this branch, so we match dev's backendApiKey-only convention and stamp the audit
 // identity (curatedBy / reviewer / addedBy) from the real signed-in AdminUser.
-// ponytail: no in-endpoint role gate — page middleware + backendApiKey + a resolvable
-// active AdminUser are the trust boundary here; add a role check if dev is hardened.
-async function resolveCurator(req: NextApiRequest): Promise<{ userID?: number; cwid?: string }> {
+async function resolveCurator(req: NextApiRequest): Promise<{ userID?: number; cwid?: string; mayReview?: boolean }> {
   const token: any = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return {};
+  // Same rule as the /authorships page in src/middleware.ts: Curator_All or Superuser only.
+  // The api key is public, so without this any signed-in user could curate anyone here.
+  let roles: any[] = [];
+  try { roles = JSON.parse(token.userRoles || "[]"); } catch { roles = []; }
+  const mayReview = Array.isArray(roles) && roles.some((r: any) => r?.roleLabel === "Curator_All" || r?.roleLabel === "Superuser");
   const cwid: string | undefined = token.username ? String(token.username) : undefined;
   let userID: number | undefined = token.databaseUser?.userID;
   if (!userID && cwid) {
     const au: any = await models.AdminUser.findOne({ where: { personIdentifier: cwid }, attributes: ["userID"] });
     userID = au?.userID;
   }
-  return { userID, cwid };
+  return { userID, cwid, mayReview };
 }
 
 // Gold-standard MERGE/DELETE via the ReCiter Java endpoint (pubmed rows only), tagged with
 // the AAR source and the curator's numeric userID. Returns the upstream HTTP status.
 async function writeGoldStandard(
-  uid: string, pmid: number, kind: "known" | "rejected", flag: "UPDATE" | "DELETE", curatedBy?: number,
+  rawUid: string, pmid: number, kind: "known" | "rejected", flag: "UPDATE" | "DELETE", curatedBy?: number,
 ): Promise<number> {
+  // Convert on the way in: GoldStandard is keyed by the exact string, and reject-others used
+  // to re-create `Abl9002`-style keys from candidate lists. Not an identifier -> no write (400).
+  const uid = parseCwid(rawUid);
+  if (!uid) {
+    console.log(`[authorships] gold-standard write skipped for non-CWID uid ${JSON.stringify(rawUid)}`);
+    return 400;
+  }
   const body: any = { uid };
   if (kind === "known") body.knownPmids = [pmid]; else body.rejectedPmids = [pmid];
   const curatedByQ = curatedBy != null ? `&curatedBy=${curatedBy}` : "";
@@ -252,6 +2647,13 @@ async function writeGoldStandard(
         body: JSON.stringify(body),
       },
     );
+    if (resp.status === 200) {
+      scheduleAnalysisRefresh(uid);
+      // EXTERNAL_STORE=mysql: a knownpmids change can supersede (or revive) an external record
+      // with the same PMID or DOI (plan 3b-3e decision 3). Both kinds: Java's UPDATE of
+      // rejectedPmids also drops that PMID from knownpmids. No-op otherwise; never throws.
+      await reconcileSupersedeAfterGoldStandard(uid);
+    }
     return resp.status;
   } catch (e) {
     console.log("[authorships] gold-standard write failed:", e);
@@ -259,8 +2661,88 @@ async function writeGoldStandard(
   }
 }
 
+// Create a ReCiter identity from a directory record — POST /reciter/identity/, the same
+// endpoint scripts/sync_ad_hoc_identities.py and the Cornell Ithaca sync use, with the same
+// body shape (src/lib/directory.ts's directoryIdentityPayload mirrors that script's
+// build_identity so a person minted here and one bulk-loaded later are comparable records).
+//
+// POST, not the bulk PUT /reciter/save/identities/: this is one person, and more importantly
+// POST /reciter/identity/ is only reachable when the uid does NOT already exist in this flow
+// (assignGate's mint branch requires reciterIdentitySet to have missed it), so there is no
+// live record to merge with and none of the read-merge-replace hazard that made the bulk sync
+// strip mtw1's orcid.
+//
+// Returns the upstream status; the caller aborts on anything but 200 rather than proceeding to
+// a gold-standard write against an identity that may not exist. Note ReCiter answers a failed
+// mandatory-field validation with 500 and a plain-text body, not a 4xx.
+async function mintIdentity(rawIdentity: Record<string, any>): Promise<number> {
+  const uid = parseCwid(rawIdentity?.uid);
+  if (!uid) {
+    console.log(`[authorships] mint identity skipped for non-CWID uid ${JSON.stringify(rawIdentity?.uid)}`);
+    return 400;
+  }
+  const identity = { ...rawIdentity, uid };
+  try {
+    const resp = await fetch(`${reciterConfig.reciter.reciterApiBaseUrl}/reciter/identity/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": reciterConfig.reciter.adminApiKey,
+        "User-Agent": "reciter-pub-manager-server",
+      },
+      body: JSON.stringify(identity),
+    });
+    if (resp.status !== 200) {
+      console.log(`[authorships] mint identity ${identity.uid} -> ${resp.status}`, await resp.text());
+    }
+    return resp.status;
+  } catch (e) {
+    console.log("[authorships] mint identity failed:", e);
+    return 500;
+  }
+}
+
+// Enrol a freshly-minted person in the nightly scoring cycle, so they can curate their own
+// publications from here on rather than owning exactly the one article that was just assigned.
+//
+// A minted identity by itself is inert: nothing retrieves candidate articles for it, so
+// /curate/<uid> renders an empty page forever. `reporting_ad_hoc_feature_generator_execution` is
+// the existing opt-in for that — ReCiterDB's nightly cron reads it
+// (update/executeFeatureGenerator.py:165-171, `frequency='weekly'` firing on DAYOFWEEK(CURRENT_DATE())=7,
+// i.e. every Saturday)
+// and calls /reciter/feature-generator/by/uid for each row. Same table and same convention
+// scripts/sync_ad_hoc_identities.py already uses; `type` is a label only, not used in the cron's
+// filtering. `weekly` rather than `monthly` because it is what the live table actually runs on
+// (292 GradSchool + 50 CenterHealthEquity weekly vs 30 monthly, measured 2026-09-07) and because
+// a <=7-day lag is what makes "curate prospectively" mean anything; monthly fires on day 7 only.
+//
+// Opt-in per person, never a scan: this enrols exactly the people a curator has attributed a
+// publication to, which is what keeps it away from the failure mode the Cornell Ithaca
+// onboarding plan's R5 describes (a roster-wide DynamoDB scan hitting NCBI with 15,000 users on
+// the first Sunday of an odd month).
+//
+// Non-fatal by design. The attribution is the write that matters and it has already landed by
+// the time this runs; a person who is not enrolled can be enrolled later, whereas failing the
+// request here would leave the curator staring at a 502 for an assign that actually succeeded.
+// The source table has no unique constraint (see the ad-hoc runbook), hence the explicit
+// existence check rather than an upsert.
+async function registerForFeatureGenerator(rawUid: string) {
+  const uid = parseCwid(rawUid);
+  if (!uid) { console.log(`[authorships] ad-hoc enrolment skipped for non-CWID uid ${JSON.stringify(rawUid)}`); return; }
+  const existing: any[] = await sequelize.query(
+    "SELECT personIdentifier FROM reporting_ad_hoc_feature_generator_execution WHERE personIdentifier = :uid LIMIT 1",
+    { replacements: { uid }, type: QueryTypes.SELECT });
+  if (existing.length) return;
+  await sequelize.query(
+    "INSERT INTO reporting_ad_hoc_feature_generator_execution (personIdentifier, frequency, type) "
+    + "VALUES (:uid, 'weekly', 'AuthorshipsDirectoryAssign')",
+    { replacements: { uid }, type: QueryTypes.INSERT });
+}
+
 // Append an AdminFeedbackLog row (pubmed accept/reject/assign only — PMID-keyed).
-async function appendFeedbackLog(userID: number, personIdentifier: string, pmid: number, feedback: "ACCEPTED" | "REJECTED") {
+async function appendFeedbackLog(userID: number, rawPersonIdentifier: string, pmid: number, feedback: "ACCEPTED" | "REJECTED") {
+  const personIdentifier = parseCwid(rawPersonIdentifier);
+  if (!personIdentifier) throw new Error(`not a CWID: ${JSON.stringify(rawPersonIdentifier)}`);
   const active: any = await models.AdminUser.findOne({ where: { userID, status: 1 }, attributes: ["userID"] });
   if (!active) throw new Error(`userID ${userID} is not an active AdminUser`);
   await models.AdminFeedbackLog.create({
@@ -276,48 +2758,52 @@ async function appendFeedbackLog(userID: number, personIdentifier: string, pmid:
 // prod PM share one DynamoDB ExternalArticle table but have separate review queues, so a
 // row accepted in one env stays open in the other and re-accepting it lands here.)
 // WARNING = fuzzy title+year match the curator may force; surface its human message.
-function dupConflict(body: any): { blocked: boolean; message: string } {
-  const detail = Array.isArray(body?.matches) && body.matches.length
-    ? ` (${body.matches.map((m: any) => m.matchedId || m.type).filter(Boolean).join(", ")})`
-    : "";
+//
+// `matches` is passed through structurally (type/matchedId/detail, plus title/journal/
+// pubYear once ReCiter#705 ships) instead of being collapsed to a bare id — the client
+// renders the real conflict context instead of a number nobody can act on.
+function dupConflict(body: any): { blocked: boolean; message: string; matches: any[] } {
   return {
     blocked: body?.status === "BLOCKED",
-    message: `${body?.message || "Possible duplicate."}${detail}`,
+    message: body?.message || "Possible duplicate.",
+    matches: Array.isArray(body?.matches) ? body.matches : [],
   };
 }
 
-// Durable FeedbackLog write for a scopus row — the MySQL status column is overwritten on
-// every transition, so this is the only lasting record of a reject/dismiss/reopen (the
-// original AAR durability gap). Gates like writeGoldStandard: a failed write fails the
-// action with 502 before the MySQL update. Two deliberate skip-and-proceed cases:
-// - the article is already live in the person's record (manual-add or the other env's
-//   queue — dev and prod share the ExternalArticle table): the queue action is pure
-//   housekeeping then, and a REJECTED row would both contradict the live accept and
-//   suppress the visible publication (the Java PATCH flips suppressed on existing rows);
-// - the uid is unknown to ReCiter (departed/inactive faculty): matched on the endpoint's
-//   INVALID body, not the bare 404, so an unrouted endpoint (e.g. not yet deployed) still
-//   fails loudly instead of silently disabling every write.
-async function logScopusFeedback(
-  res: NextApiResponse, uid: string, externalId: any, action: "REJECTED" | "PENDING", actor: string,
-): Promise<boolean> {
-  if (!externalId) { console.log(`[authorships] feedback ${action} skipped — row has no external_id`); return true; }
-  const articleId = `SCOPUS:${externalId}`;
-  const live = await getExternalArticles(uid);
-  if (live.statusCode === 200 && Array.isArray(live.statusText)
-      && (live.statusText as any[]).some((r: any) => r?.articleId === articleId)) {
-    console.log(`[authorships] feedback ${action} skipped — ${articleId} already live in ${uid}'s record`);
-    return true;
+// The columns that park an Accept in the "Duplicate records" queue: the check's message, and what
+// it matched (source, id, title, journal, year, whose record), so the queue can show the curator
+// the record this one supposedly duplicates. Needs ReCiterDB v3.12 (accept_conflict_matches).
+// The matches are overwritten with the latest 409's, like the message; a 409 with no matches
+// leaves the column NULL, and the queue then says plainly that nothing was kept.
+function parkedConflict(row: any, uid: string, dup: ReturnType<typeof dupConflict>) {
+  return {
+    accept_conflict: String(dup.message).slice(0, 500),
+    accept_conflict_matches: storedConflictJson(uid, row.top_name, "accept", dup.matches),
+  };
+}
+
+// Full byline from authors_json ([{given,surname}, ...], every author on the document) as
+// "Given Surname" strings — undefined if the field is empty/absent, unparseable, or parses
+// to a non-array/empty array, so the ExternalArticle payload just omits `authors` rather
+// than sending a malformed value.
+function scopusAuthorsFromRow(row: any): string[] | undefined {
+  if (!row.authors_json) return undefined;
+  let parsed: any;
+  try {
+    parsed = JSON.parse(row.authors_json);
+  } catch {
+    return undefined;
   }
-  const resp = await recordExternalArticleFeedback(uid, articleId, action, actor);
-  if (resp.statusCode === 404 && (resp.statusText as any)?.status === "INVALID") {
-    console.log(`[authorships] feedback ${action} skipped — ${uid} not in ReCiter Identity`);
-    return true;
-  }
-  if (resp.statusCode !== 200) {
-    res.status(502).send(`Feedback log write failed (${resp.statusCode})`);
-    return false;
-  }
-  return true;
+  if (!Array.isArray(parsed)) return undefined;
+  const names = parsed
+    .map((a: any) => {
+      const given = (a?.given || "").trim();
+      const surname = (a?.surname || "").trim();
+      if (given && surname) return `${given} ${surname}`;
+      return given || surname || "";
+    })
+    .filter(Boolean);
+  return names.length ? names : undefined;
 }
 
 // ExternalArticle payload for a scopus row (no PMID → not gold standard). articleId is
@@ -329,10 +2815,146 @@ function scopusExternalPayload(row: any) {
     method: "scopus-authorships-tab",
     doi: row.doi || undefined,
     title: row.title || undefined,
-    venue: row.journal || undefined,
+    journalOrVenue: row.journal || undefined,
     pubDate: row.entrez_date || undefined,
     publicationType: row.pub_type || undefined,
+    authors: scopusAuthorsFromRow(row),
   };
+}
+
+// ExternalArticle payload for an openalex row (conference abstract / preprint, no PMID).
+// articleId is "OPENALEX:<W id>", the same key PM's OpenAlex search add writes
+// (openalex.controller.ts normalizeWork), so ReCiter's duplicate check sees both paths as one.
+// publicationType carries the OpenAlex work type the producer stored in pub_type.
+function openalexExternalPayload(row: any) {
+  return {
+    articleId: `OPENALEX:${openalexWorkId(row.external_id)}`,
+    sourceType: "OPENALEX",
+    method: "openalex-authorships-tab",
+    doi: row.doi || undefined,
+    title: row.title || undefined,
+    journalOrVenue: row.journal || undefined,
+    pubDate: row.entrez_date || undefined,
+    publicationType: row.pub_type || undefined,
+    authors: scopusAuthorsFromRow(row),
+  };
+}
+
+const externalArticlePayload = (row: any) =>
+  row.source === "openalex" ? openalexExternalPayload(row) : scopusExternalPayload(row);
+
+// EXTERNAL_STORE=mysql (plan 3b-3e, 3c): the Authorships accept / assign of an external row as an
+// external_record, written in ONE transaction with the authorship_review update (the Java path is
+// two non-atomic calls). Same outcomes as the Java add: "ok" when the record was added or the
+// check said BLOCKED (already in the person's record: the row resolves anyway, as today), and
+// "warning" for a WARNING the curator has not forced, which writes nothing. The byline comes from
+// authors_json and the person's position from author_position; provenance is AUTHORSHIPS.
+async function storeExternalAccept(
+  uid: string, row: any, reviewer: string, force: boolean, review: Record<string, any>,
+): Promise<{ kind: "ok" } | { kind: "warning"; dup: ReturnType<typeof dupConflict> }> {
+  const payload: any = { ...externalArticlePayload(row) };
+  try {
+    const parsed = typeof row.authors_json === "string" ? JSON.parse(row.authors_json || "null") : row.authors_json;
+    if (Array.isArray(parsed) && parsed.length) { delete payload.authors; payload.authorsJson = parsed; }
+  } catch { /* keep the display names from the payload */ }
+  if (Number.isInteger(row.author_position) && row.author_position > 0) payload.targetAuthorIndex = row.author_position;
+  return sequelize.transaction(async (t) => {
+    const r = await createRecord({ uid, body: payload, actor: { cwid: reviewer }, force, provenance: "AUTHORSHIPS", transaction: t });
+    if (r.status === 409) {
+      const dup = dupConflict(r.body);
+      if (!dup.blocked) return { kind: "warning" as const, dup };
+    }
+    await models.AuthorshipReview.update(review, { where: { id: row.id }, transaction: t });
+    return { kind: "ok" as const };
+  });
+}
+
+// POST /api/db/authorships/authors — batched authors_json lookup by Scopus external_id,
+// for the Curate per-source "Scopus" tab (SourceArticleTab) to backfill a display byline
+// on rows accepted before scopusExternalPayload() started sending `authors` natively
+// (rows whose ExternalArticle payload has no authors key at all). Body: { externalIds:
+// string[] }. Response: { authors: { [external_id]: authors_json | null } } — the raw
+// column value, left for the client to parse the same way AuthorshipsTabs does, since
+// the client is what actually renders the byline.
+export const authorshipsAuthorsByExternalId = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const externalIds: string[] = Array.isArray(req.body?.externalIds)
+      ? [...new Set<string>(req.body.externalIds.map((v: any) => String(v)).filter(Boolean))]
+      : [];
+    if (!externalIds.length) return res.send({ authors: {} });
+
+    const rows = await models.AuthorshipReview.findAll({
+      attributes: ["external_id", "authors_json"],
+      where: { source: "scopus", external_id: { [Op.in]: externalIds } },
+      raw: true,
+    });
+
+    const authors: Record<string, string | null> = {};
+    (rows as any[]).forEach((r) => {
+      if (r.external_id) authors[String(r.external_id)] = r.authors_json || null;
+    });
+    res.send({ authors });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
+// Every candidate identity a row was proposed against (top_cwid + candidate_cwids_json,
+// deduped) — the full set "None of these" rejects and reopen() un-rejects.
+function candidateCwidsFromRow(row: any): string[] {
+  let parsed: any[] = [];
+  try { parsed = JSON.parse(row.candidate_cwids_json || "[]"); } catch { parsed = []; }
+  const list = Array.isArray(parsed)
+    ? parsed.map((c: any) => (typeof c === "string" ? c : c?.cwid)).filter(Boolean).map(String)
+    : [];
+  // Canonical, like `target`: a candidate list carrying `Abl9002` must neither escape the
+  // `c !== target` comparison nor drive a reject-others write under the mixed-case key.
+  return Array.from(new Set([row.top_cwid, ...list].filter(Boolean).map((c) => toCanonicalCwid(String(c))).filter(Boolean)));
+}
+
+// The live half of homonymRejections(): which of this row's non-chosen candidates may be
+// recorded as rejecting `pmid`. Both facts are re-established here rather than trusted from the
+// row, because both move after the producer wrote it — people leave WCM (the identity goes
+// away) and people curate their own /curate page (an acceptance appears).
+//
+// F-2 policy (verbatim from the product owner: "If I accept it for 1 person, any other person
+// being considered should be a reject. This goes across the board") — single-candidate rows are
+// no longer exempt. A row's one proposed candidate getting DISPLACED (the curator assigns
+// elsewhere instead) is exactly as much of a "not mine" as a multi-candidate homonym losing to a
+// sibling; `others.length === 0` already covers the only real no-op (the assign target IS the
+// row's sole candidate — an ordinary accept-shaped pick), so there was nothing left for a
+// `row.single_candidate` check to usefully exclude. `singleCandidate` is therefore always passed
+// false to homonymRejections() below now — see that function's own doc in assignGate.ts for why
+// the parameter still exists there (its pure branch table, singleCandidate included, is asserted
+// directly by scripts/check-homonym-rejections.mjs against callers that still want it).
+//
+// Candidate cwids come out of the producer, not out of a keyboard, and all 11,389 of them are
+// lowercase (2026-08-29), so unlike the typed `chosen` above they need no canonicalisation —
+// and if one ever failed a byte-exact DynamoDB lookup it would simply be skipped, which is the
+// safe direction. `target` is already canonical, so `c !== target` compares like with like.
+// ponytail: two point lookups per assign, no cache — a homonym row has a median of 2 other
+// candidates and even a single-candidate row has exactly one, so this is ~20 ms on the rarest
+// action in the tab.
+async function homonymRejectionTargets(
+  row: any, target: string, pmid: number, checkAccepted = true,
+): Promise<string[]> {
+  const candidates = candidateCwidsFromRow(row);
+  const isExternal = isExternalSource(row);
+  const others = candidates.filter((c) => c !== target);
+  // Scopus has no pmid to reject (gold standard is PMID-keyed — same precedent as case
+  // "reject"'s scopus branch), and a row whose only candidate IS the assign target has nobody
+  // left to displace. Nothing else is excluded here anymore — see the F-2 note above.
+  if (isExternal || others.length === 0) return [];
+  const [identities, accepted] = await Promise.all([
+    reciterIdentitySet(others),
+    checkAccepted ? getKnownPmidsByCwid(others) : Promise.resolve({} as Record<string, Set<number>>),
+  ]);
+  return homonymRejections({
+    isScopus: isExternal, singleCandidate: false, candidates, target,
+    hasIdentity: (c) => identities.has(c),
+    hasAccepted: (c) => !!accepted[c]?.has(pmid),
+  });
 }
 
 // POST /api/db/authorships/action — single-row curator action.
@@ -342,6 +2964,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
   try {
     const curator = await resolveCurator(req);
     if (!curator.userID) return res.status(401).send("Could not resolve curator identity");
+    if (!curator.mayReview) return res.status(403).send("Authorships review is limited to Curator_All and Superuser");
 
     const body = req.body || {};
     const id = Number(body.id);
@@ -351,87 +2974,431 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
     const row: any = await models.AuthorshipReview.findByPk(id);
     if (!row) return res.status(404).send("Authorship not found");
 
-    const isScopus = row.source === "scopus";
+    const isExternal = isExternalSource(row);
     const pmid = row.pmid != null ? Number(row.pmid) : null;
-    const cwid = row.top_cwid as string | undefined;
+    // Canonical, like every write below it: a producer-baked `Abl9002` must hit the same
+    // identity / retired checks and resolution_cwid as the gold-standard write, or it orphans.
+    const cwid = row.top_cwid ? toCanonicalCwid(String(row.top_cwid)) : undefined;
     const reviewer = curator.cwid || String(curator.userID);
     const force = String(body.force) === "true";
 
     switch (action) {
       case "accept": {
         if (!cwid) return res.status(409).send("No proposed identity to accept");
-        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
+        // JSON (not plain text) so the client can route this into the inline conflict banner
+        // and silently refetch the row instead of the generic "nothing was saved" toast — see
+        // the card predicate at AuthorshipsTabs.tsx (isMulti) and the kind dispatch below it.
+        if (!row.single_candidate) return res.status(409).json({ code: "MULTI_CANDIDATE", message: "Multiple candidates — use \"Pick one\" to assign" });
+        // RETIRED CWID, the single-candidate half of the same block case "assign" applies. This
+        // path never sees a client-supplied cwid — it accepts the row's own top_cwid — but the
+        // producer baked that months ago and ED has retired it since (63 open rows on the
+        // 2026-09-09 census). Checked BEFORE the Identity lookup below: a retired cwid often
+        // still HAS an identity, so that guard would wave it straight through.
+        {
+          const retired = await retiredCwidIndex();
+          const successor = retired.get(String(cwid).toLowerCase());
+          if (retired.has(String(cwid).toLowerCase())) {
+            return res.status(409).send(
+              `${row.top_name || cwid} is proposed under ${cwid}, which the WCM directory has retired` +
+              (successor ? ` — ${successor} replaced it. Use "Pick one" to assign ${successor} instead.`
+                         : ", and no replacement is on record. Dismiss this row instead."));
+          }
+        }
         // 422 (not 409) so the client's scopus force-add prompt doesn't fire for this
         if (!(await reciterIdentitySet([cwid])).size) {
-          return res.status(422).send(`${row.top_name || cwid} has no ReCiter identity (likely departed/inactive) — this authorship can't be accepted; dismiss it instead`);
+          return res.status(422).send(`${row.top_name || cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
         }
-        if (isScopus) {
-          const resp = await addExternalArticle(cwid, scopusExternalPayload(row), reviewer, force);
+        // "Same paper — accept PMID N": the curator has adjudicated this scopus row against its
+        // producer-flagged PubMed twin and says the two are one work. Accepting is then
+        // equivalent to accepting that PMID — a real gold-standard `known` write — rather than
+        // creating an ExternalArticle that duplicates an article already in PubMed. The PMID
+        // comes from the ROW (row.matched_pmid), never from the request: the client asserts only
+        // "yes, same work", so no caller can nominate an arbitrary PMID to accept.
+        // row.pmid is NULL on every scopus row, hence acceptPmid rather than the outer `pmid`.
+        // ponytail: single-candidate rows only — the MULTI_CANDIDATE guard above already turns
+        // multis away, so no homonym rejections arise here. Widen `assign` if they ever do.
+        const sameWork = isExternal && String(body.samePmid) === "true";
+        if (sameWork && row.matched_pmid == null) {
+          return res.status(400).send("Row has no matched_pmid to accept as the same work");
+        }
+        const acceptPmid = sameWork ? Number(row.matched_pmid) : (pmid as number);
+        // The twin PMID comes from ReCiter's own candidate set for this person, so "they already
+        // accepted it" is the ORDINARY case here, not an edge one — it is often exactly why the
+        // producer flagged a twin. Accepting again is worse than a no-op: Java's UPDATE merge
+        // returns 200 without changing anything, we would log a spurious ACCEPTED feedback row and
+        // decrement the pending count, and — the real damage — reopen would then DELETE a
+        // gold-standard acceptance this action never created. There is nothing to accept, so say
+        // so and point at the action that does fit: closing the scopus row as a duplicate.
+        // Mirrors the same guard `assign` already applies (getKnownPmidsByCwid, below).
+        if (sameWork && (await getKnownPmidsByCwid([cwid]))[cwid]?.has(acceptPmid)) {
+          return res.status(422).send(`${row.top_name || cwid} has already accepted PMID ${acceptPmid} — nothing to accept. Use "Same paper — dismiss" to close this ${externalSourceLabel(row)} row as a duplicate.`);
+        }
+        if (isExternal && !sameWork && externalStoreMode() === "mysql") {
+          const out = await storeExternalAccept(cwid, row, reviewer, force, { status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() });
+          if (out.kind === "warning") {
+            // As the Java path below: the WARNING leaves the open queue for "Possible duplicates".
+            await models.AuthorshipReview.update(parkedConflict(row, cwid, out.dup), { where: { id } });
+            return res.status(409).json({ message: out.dup.message, matches: out.dup.matches });
+          }
+          break;
+        }
+        if (isExternal && !sameWork) {
+          const resp = await addExternalArticle(cwid, externalArticlePayload(row), reviewer, force);
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
             // BLOCKED → already in the record: fall through and resolve the row as accepted
-            if (!dup.blocked) return res.status(409).send(dup.message);
+            if (!dup.blocked) {
+              // Persist the WARNING so the row leaves the open queue for the "Possible
+              // duplicates" view instead of sitting back in the feed to be re-attempted.
+              // Session-scoped conflictLog state already showed this to the curator who hit
+              // it; the column is what survives a refresh, another curator, and a bulk run.
+              await models.AuthorshipReview.update(parkedConflict(row, cwid, dup), { where: { id } });
+              return res.status(409).json({ message: dup.message, matches: dup.matches });
+            }
           } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
             return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
           }
           await models.AuthorshipReview.update({ status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() }, { where: { id } });
           break; // no AdminFeedbackLog / pending-count for scopus (PMID-keyed)
         }
-        const gs = await writeGoldStandard(cwid, pmid as number, "known", "UPDATE", curator.userID);
+        // Data-integrity guard: never let an accept add pmid to knownpmids while it's still
+        // sitting in rejectedpmids for the same identity (see goldStandardRejections.ts).
+        if ((await getRejectedPmidsByCwid([cwid]))[cwid]?.has(acceptPmid)) {
+          return res.status(409).send(`${row.top_name || cwid} already rejected this article — cannot accept without reviewing that rejection first`);
+        }
+        const gs = await writeGoldStandard(cwid, acceptPmid, "known", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
-        await models.AuthorshipReview.update({ status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() }, { where: { id } });
-        try { await appendFeedbackLog(curator.userID, cwid, pmid as number, "ACCEPTED"); }
+        // matched_pmid_verdict='same' is written ONLY here, and only together with the terminal
+        // status in the same update: openStatusWhere lets ANY non-null verdict back into the open
+        // queue, so a 'same' left on a status="open" row would bounce it out of "Possible
+        // duplicates" and straight back into the feed. status="accepted" is what resolves it; the
+        // verdict is what records WHY, and what tells reopen below to undo a gold-standard write
+        // rather than an ExternalArticle.
+        await models.AuthorshipReview.update({
+          status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date(),
+          ...(sameWork ? { matched_pmid_verdict: "same" as const } : {}),
+        }, { where: { id } });
+        try { await appendFeedbackLog(curator.userID, cwid, acceptPmid, "ACCEPTED"); }
         catch (e) { console.log("[authorships] feedbacklog (accept) non-fatal:", e); }
         break;
       }
       case "assign": {
         const chosen = String(body.cwid || "");
         if (!chosen) return res.status(400).send("cwid is required for assign");
-        // Integrity boundary: the server verifies the chosen cwid is a real candidate for
-        // this authorship before any authoritative write (client can't spoof an identity).
-        let candidateCwids: string[] = [];
-        try {
-          const parsed = JSON.parse(row.candidate_cwids_json || "[]");
-          if (Array.isArray(parsed)) candidateCwids = parsed.map((c: any) => (typeof c === "string" ? c : c?.cwid)).filter(Boolean).map(String);
-        } catch { candidateCwids = []; }
-        const allowed = new Set([row.top_cwid, ...candidateCwids].filter(Boolean).map(String));
-        if (!allowed.has(chosen)) return res.status(400).send("cwid is not a candidate for this authorship");
-        if (!(await reciterIdentitySet([chosen])).size) {
-          return res.status(422).send(`${chosen} has no ReCiter identity (likely departed/inactive) — this authorship can't be assigned; dismiss it instead`);
+        if (!/^[A-Za-z0-9]{1,32}$/.test(chosen)) return res.status(400).send("cwid must be alphanumeric");
+        // RETIRED CWID — a hard block, and the only one in this switch that is not a confirmable
+        // gate. Every other "are you sure" here guards a judgement call a curator is entitled to
+        // make; this one guards an identifier ED has declared dead, where the write would land on
+        // a record nothing reads again. There is no version of "yes, I'm sure" that makes that
+        // correct, so it is refused rather than confirmed.
+        //
+        // Server-side because the UI block is a courtesy and this is the trust boundary: `chosen`
+        // is client-supplied and drives an authoritative GoldStandard write. It is deliberately
+        // NOT re-targeted to the successor automatically — this file's standing rule is that a
+        // write must never silently land on an identifier the curator did not choose (see the
+        // duplicate-person bridge below, which asks first for exactly that reason). Naming the
+        // replacement in the message lets them pick it in one click instead.
+        {
+          const retired = await retiredCwidIndex();
+          const successor = retired.get(chosen.toLowerCase());
+          if (retired.has(chosen.toLowerCase())) {
+            return res.status(409).send(
+              `${chosen} is a retired CWID in the WCM directory` +
+              (successor ? ` — ${successor} replaced it. Assign to ${successor} instead.`
+                         : " and has no replacement on record, so it cannot be assigned."));
+          }
         }
-        if (isScopus) {
-          const resp = await addExternalArticle(chosen, scopusExternalPayload(row), reviewer, force);
+        // Trust boundary: `chosen` is client-supplied and can drive an authoritative
+        // GoldStandard write, so the server establishes two facts about it — is it one of
+        // this authorship's produced candidates, and does ReCiter know it at all — and
+        // assignGate turns them into which path runs. Neither fact BLOCKS the assign any
+        // more (#925 opened the no-identity one, this change opens off-candidate); being on
+        // the wrong side of either one costs a confirm round-trip instead.
+        const allowed = new Set(candidateCwidsFromRow(row));
+        // Both facts are established about `target`, the identifier as ReCiter STORES it, not
+        // about the raw keystrokes — and so is every write below. DynamoDB keys are byte-exact
+        // and Set.has is case-sensitive, so before this a curator who typed "Aaa2014" for a row
+        // whose own top_cwid is "aaa2014" was told that person has no ReCiter identity, and
+        // confirming filed the authorship as a local-only record that never reaches their
+        // publication list. Asking for the typed form and its lowercase together costs one extra
+        // key in the same BatchGetItem, and nothing at all when the cwid is already lowercase
+        // (reciterIdentitySet dedupes). See canonicalCwid for why the canonical form always
+        // wins now, even over a byte-exact mixed-case hit (2026-11-18 cwid normalization).
+        const found = await reciterIdentitySet([chosen, chosen.toLowerCase()]);
+        let target = canonicalCwid(chosen, found);
+        let hasIdentity = found.has(target);
+
+        // THIRD fact, when ReCiter has never heard of them: does a live directory have them?
+        // WCM staff are structurally absent from `identity` (inst-client's roster query is
+        // (weillCornellEduPersonTypeCode=academic), LdapIdentityDaoImpl.java:545) and Ithaca
+        // people are in a different directory entirely — so "no ReCiter identity" has never
+        // meant "not a real person", it meant "nothing here could create one". Now something
+        // can. Only asked on the !hasIdentity path, so the ordinary assign costs no LDAP call.
+        let dir: DirectoryPerson | null = null;
+        let bridgedFrom: string | null = null;
+        if (!hasIdentity) {
+          dir = await lookupDirectoryPerson(target);
+          // DUPLICATE-PERSON BRIDGE. Cornell's directory publishes `cornellEduCWID` for people
+          // who also hold a WCM appointment. Minting the netid as a second identity is how
+          // Martin Wells ended up as mtw1 (24 pubs) AND maw2065 (65 pubs) — 89 publications
+          // split across two records for one human, already broken in production before any of
+          // this shipped. So when the directory says "this netid IS that cwid", the write goes
+          // to the cwid.
+          //
+          // It re-targets on the ATTRIBUTE'S PRESENCE, not on whether that cwid already holds an
+          // identity. A cwid with no identity yet is not a reason to mint the netid instead —
+          // inst-client will create the cwid record on its own schedule, and the person would
+          // then hold two. Minting under the cwid is the only choice that stays correct whenever
+          // that happens.
+          //
+          // Never silent: the curator typed one identifier and the write lands on another, so
+          // both onward paths ask first. An existing cwid falls through to confirm_off_candidate
+          // (a bridged cwid is by definition not a produced candidate); a cwid with no identity
+          // becomes a mint under the CWID with no confirm at all (mint_and_write asks nothing
+          // since 2026-09-20). bridgedFrom is what lets the off-candidate message explain the
+          // substitution.
+          if (dir?.wcmCwid) {
+            // ED / Cornell can publish the cwid in any case; ReCiter keys it canonical.
+            const wcmCwid = toCanonicalCwid(dir.wcmCwid);
+            const bridge = await reciterIdentitySet([wcmCwid]);
+            bridgedFrom = target;
+            target = wcmCwid;
+            if (bridge.has(wcmCwid)) {
+              hasIdentity = true;
+              dir = null; // they already exist; there is nothing to mint
+            } else {
+              dir = { ...dir, id: wcmCwid }; // mint under the cwid, not the netid
+            }
+          }
+        }
+        // A directory record with no given/family name cannot satisfy ReCiter's mandatory
+        // fields (application.properties:391), so it is NOT a mintable directory hit and the
+        // gate must fall back to the pre-existing local-only path rather than promise a mint
+        // that would 500 on the POST.
+        const mintPayload = dir ? directoryIdentityPayload(dir) : null;
+        const offCandidate = !allowed.has(target);
+        const gate = assignGate({
+          offCandidate, hasIdentity, inDirectory: mintPayload !== null,
+          confirmNoIdentity: String(body.confirmNoIdentity) === "true",
+          confirmOffCandidate: String(body.confirmOffCandidate) === "true",
+        });
+        // Not every WCM author has an identity record. Master's students, visiting
+        // researchers, and any person type outside the identity feed never get one, and
+        // since the AAR producer builds its candidate list FROM `identity`, such a person
+        // can never be a produced candidate either — so for them the candidate check is
+        // unsatisfiable by construction and is deliberately bypassed. Before #925 the only
+        // offer was "dismiss it instead", which throws a real attribution away.
+        //
+        // Deliberate, not silent: an unrecognised cwid is still far more likely to be a
+        // typo than a Master's student, so the #861 guard keeps its purpose. The client
+        // re-sends with confirmNoIdentity after showing the curator what it means.
+        if (gate === "confirm_no_identity") {
+          // F-2: name who this ALSO rejects, up front — the assignee having no identity does
+          // not exempt this row's other candidate(s) from the same policy the write below
+          // applies. Preview only (this is a 422, nothing is written yet), computed through the
+          // same homonymRejectionTargets() the write and reopen both use, so the confirm can
+          // never promise a different set than what actually lands.
+          const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+          let alsoRejectedNote = "";
+          if (alsoRejected.length) {
+            const names = await Promise.all(alsoRejected.map(async (c) => {
+              const who = await identityLabel(c);
+              return who ? `${who} (${c})` : c;
+            }));
+            alsoRejectedNote = ` It also records "not mine" for ${names.join(", ")}.`;
+          }
+          return res.status(422).json({
+            code: "NO_RECITER_IDENTITY",
+            localOnly: true,
+            cwid: target,
+            offCandidate,
+            alsoRejected,
+            message: `${target} has no ReCiter identity. Assigning anyway records your decision on `
+              + "this row only — it will NOT be added to the person's publication record, because there "
+              + `is no identity to add it to.${alsoRejectedNote} Confirm to proceed.`,
+          });
+        }
+        // Data-integrity guard, the same direction as the rejectedpmids one ~60 lines down but
+        // for the opposite list: don't let an assign write a no-op gold-standard merge (plus a
+        // bogus ACCEPTED FeedbackLog row) over a target who already has THIS pmid in knownpmids
+        // — most often because they took it on their own /curate page while this row, naming
+        // them as one of several candidates, sat open. That's reachable from an on-candidate
+        // assign with no confirm step in front of it at all (gate goes straight to "write"),
+        // which is why this runs here rather than inside confirm_off_candidate below — 454 open
+        // rows are in this shape as of 2026-08-30, so it is not rare. hasIdentity gates it
+        // because gate can also be "local_only" here (confirmed, no identity), and there is no
+        // knownpmids to speak of for a cwid ReCiter has no Identity record for.
+        if (hasIdentity && !isExternal && pmid != null
+          && (await getKnownPmidsByCwid([target]))[target]?.has(pmid)) {
+          return res.status(422).send(
+            `${target} already has this article as ACCEPTED — assigning again would just be a `
+            + "no-op merge. Dismiss this row instead.");
+        }
+        // A real person the producer simply didn't propose — the common case being a
+        // single-candidate row where the producer was confidently wrong and the curator knows
+        // who actually wrote it. This used to be a flat 400, which made the typed-cwid box a
+        // no-identity escape hatch rather than a general assign tool. It is still a trust
+        // boundary (a client-supplied cwid driving a GoldStandard write), so it becomes an
+        // explicit confirm rather than an absent check: the server looks the person up and
+        // hands back their NAME, so the curator confirms against a human being and not a
+        // string they might have typo'd.
+        // ponytail: confirm-on-submit, not a typeahead — the name has to cross the wire on
+        // this 422 anyway, so a search endpoint + debounce + dropdown would buy nothing the
+        // round-trip doesn't already provide here. (B-8: that endpoint now exists —
+        // authorshipLookupCwid above, over this same identityLabel()/canonicalCwid() path —
+        // but it's wired to the BULK confirm dialog, which has no 422 round-trip to piggyback
+        // on; this single-row confirm-on-submit is unchanged and still doesn't need it.)
+        if (gate === "confirm_off_candidate") {
+          const who = await identityLabel(target);
+          // When the bridge re-targeted, say so first: the curator typed one identifier and is
+          // being asked to authorise a write against another, and the reason (same human, two
+          // campus identifiers) is not something they can infer from the two strings.
+          const bridgeNote = bridgedFrom
+            ? `${bridgedFrom} is a Cornell (Ithaca) NetID whose directory record names ${target} `
+              + "as the same person's WCM identifier, so this assign is proposed against their "
+              + "existing ReCiter identity rather than creating a second one. "
+            : "";
+          return res.status(422).json({
+            code: "OFF_CANDIDATE",
+            cwid: target,
+            offCandidate: true,
+            ...(bridgedFrom ? { bridgedFrom } : {}),
+            message: bridgeNote
+              + `${who ? `${who} · ${target}` : `${target} (no name on file anywhere — check the identifier)`}`
+              + " was not one of the candidates proposed for this authorship. Confirming ADDS this article "
+              + "to that person's publication record — the same write an Accept makes. Check the identifier.",
+          });
+        }
+        if (gate === "local_only") {
+          // Local record only for the ASSIGNEE. No writeGoldStandard, no addExternalArticle, no
+          // appendFeedbackLog for THEM: every one of those targets an identity that does not
+          // exist, and faking one would put a publication in a record nobody can see or
+          // correct. This preserves the curator's judgment without pretending the person
+          // exists downstream. If the identity is created later (PM#104 / IC#148), this row is
+          // the record of what was already decided.
+          //
+          // F-2 runs anyway for the OTHER candidates: the assignee having no ReCiter identity
+          // doesn't make this any less a homonym judgment for whoever else was proposed and
+          // DOES have one — the curator is still saying "not this row's other candidate(s)".
+          // Same function, same writes, same feedback log as the authoritative "write" path
+          // below; the rejections go before the row is resolved for the same idempotent-retry
+          // reason that block explains (there is no positive write here to sequence them after).
+          const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+          for (const other of alsoRejected) {
+            const rs = await writeGoldStandard(other, pmid as number, "rejected", "UPDATE", curator.userID);
+            if (rs !== 200) return res.status(502).send(`Homonym rejection write failed for ${other} (${rs})`);
+          }
+          await models.AuthorshipReview.update({
+            status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date(),
+            note: `${row.note ? `${row.note} | ` : ""}assigned to ${target} `
+              + `(no ReCiter identity) — ${LOCAL_ONLY_MARKER}`,
+          }, { where: { id } });
+          for (const other of alsoRejected) {
+            try { await appendFeedbackLog(curator.userID, other, pmid as number, "REJECTED"); }
+            catch (e) { console.log("[authorships] feedbacklog (homonym reject) non-fatal:", e); }
+          }
+          break;
+        }
+        if (gate === "mint_and_write") {
+          // Create the identity the rest of this branch is about to write into, from the live
+          // directory record the curator picked. Ordered before every write on
+          // purpose: writeGoldStandard has no identity check of its own (ReCiterController
+          // validates only that the body is non-null), so a failed mint followed by a
+          // successful gold-standard write is exactly the orphaned-attribution shape
+          // reciterIdentitySet exists to prevent. A non-200 aborts with 502 and writes nothing.
+          //
+          // Deliberately NOT followed by a confirm_off_candidate round-trip: a person who did
+          // not exist a moment ago cannot have been one of the producer's candidates.
+          const st = await mintIdentity(mintPayload as Record<string, any>);
+          if (st !== 200) {
+            return res.status(502).send(
+              `Could not create a ReCiter identity for ${target} (${st}) — nothing was written.`);
+          }
+          // …and enrol them for ongoing scoring, so this assign is the START of their record
+          // rather than the whole of it: the nightly cron will retrieve and score their
+          // candidate articles, and /curate/<uid> becomes a page they can actually work.
+          // Non-fatal — see registerForFeatureGenerator.
+          try { await registerForFeatureGenerator(target); }
+          catch (e) { console.log("[authorships] feature-generator enrolment non-fatal:", e); }
+        }
+        // gate === "write": everything below is the authoritative assign, unchanged — and a
+        // just-minted "mint_and_write" falls into it byte-for-byte, which is the point: a person
+        // who exists as of ten lines ago is assigned exactly the way anyone else is. An
+        // off-candidate assign that got confirmed lands here and is byte-for-byte an
+        // on-candidate one — same rejectedpmids guard, same gold-standard write, same
+        // feedback log — which is also what keeps `reopen` sound: it has an identity, so
+        // reopen's "no identity == it was local-only" inference still holds and the
+        // gold-standard DELETE it does is exactly the write this made.
+        if (isExternal && externalStoreMode() === "mysql") {
+          const out = await storeExternalAccept(target, row, reviewer, force, { status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() });
+          if (out.kind === "warning") return res.status(409).json({ message: out.dup.message, matches: out.dup.matches });
+          break;
+        }
+        if (isExternal) {
+          const resp = await addExternalArticle(target, externalArticlePayload(row), reviewer, force);
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
-            if (!dup.blocked) return res.status(409).send(dup.message);
+            if (!dup.blocked) return res.status(409).json({ message: dup.message, matches: dup.matches });
           } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
             return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
           }
-          await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date() }, { where: { id } });
+          await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() }, { where: { id } });
           break;
         }
-        const gs = await writeGoldStandard(chosen, pmid as number, "known", "UPDATE", curator.userID);
+        // Data-integrity guard: never let an assign add pmid to knownpmids while it's still
+        // sitting in rejectedpmids for the same identity (see goldStandardRejections.ts).
+        if ((await getRejectedPmidsByCwid([target]))[target]?.has(pmid as number)) {
+          return res.status(409).send(`${target} already rejected this article — cannot assign without reviewing that rejection first`);
+        }
+        const gs = await writeGoldStandard(target, pmid as number, "known", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
-        await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date() }, { where: { id } });
-        try { await appendFeedbackLog(curator.userID, chosen, pmid as number, "ACCEPTED"); }
+        // ...and the other homonyms. Same write "None of these" makes for each of them, so
+        // /curate, the feedback log and the model all see an ordinary curator "not mine"
+        // rather than a new kind of record. See homonymRejections() for what it excludes.
+        //
+        // Ordering is load-bearing. The positive write goes first because it is the curator's
+        // actual intent: if IT fails, nobody has been rejected for a paper that was never
+        // assigned to anyone. A rejection failing after it 502s and leaves the row open —
+        // `case "reject"`'s shape — which is safe here because every write in this block is an
+        // idempotent MERGE: the curator clicks Assign again, the ones that landed re-land as
+        // no-ops, and only the one that failed actually writes. The alternative (resolve the
+        // row and log the rejection failure) would bury a half-written decision where nothing
+        // in the queue can find it again.
+        const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+        for (const other of alsoRejected) {
+          const rs = await writeGoldStandard(other, pmid as number, "rejected", "UPDATE", curator.userID);
+          if (rs !== 200) return res.status(502).send(`Homonym rejection write failed for ${other} (${rs})`);
+        }
+        await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() }, { where: { id } });
+        try { await appendFeedbackLog(curator.userID, target, pmid as number, "ACCEPTED"); }
         catch (e) { console.log("[authorships] feedbacklog (assign) non-fatal:", e); }
+        for (const other of alsoRejected) {
+          try { await appendFeedbackLog(curator.userID, other, pmid as number, "REJECTED"); }
+          catch (e) { console.log("[authorships] feedbacklog (homonym reject) non-fatal:", e); }
+        }
         break;
       }
       case "reject": {
         if (!cwid) return res.status(409).send("No proposed identity to reject");
-        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
-        if (isScopus) {
-          // scopus reject: never gold standard (no PMID), but durably logged as REJECTED
-          // in FeedbackLog — the actor being a curator is what marks it a curator reject.
-          if (!(await logScopusFeedback(res, cwid, row.external_id, "REJECTED", reviewer))) return;
+        if (isExternal) {
+          // scopus reject = local dismissal, never gold standard (no PMID to reject).
           await models.AuthorshipReview.update({ status: "rejected", reviewer, resolved_at: new Date() }, { where: { id } });
           break;
         }
-        const gs = await writeGoldStandard(cwid, pmid as number, "rejected", "UPDATE", curator.userID);
-        if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
+        // "None of these" on a multi-candidate row asserts none of them wrote it — reject
+        // every candidate, not just top_cwid. reopen() reverses the same set, recomputed
+        // from candidate_cwids_json (stable once a row leaves "open" — see aar_db.py: the
+        // producer never revisits an already-resolved row's upsert).
+        const targets = row.single_candidate ? [cwid] : candidateCwidsFromRow(row);
+        for (const target of targets) {
+          const gs = await writeGoldStandard(target, pmid as number, "rejected", "UPDATE", curator.userID);
+          if (gs !== 200) return res.status(502).send(`Gold-standard write failed for ${target} (${gs})`);
+        }
         await models.AuthorshipReview.update({ status: "rejected", reviewer, resolved_at: new Date() }, { where: { id } });
-        try { await appendFeedbackLog(curator.userID, cwid, pmid as number, "REJECTED"); }
-        catch (e) { console.log("[authorships] feedbacklog (reject) non-fatal:", e); }
+        for (const target of targets) {
+          try { await appendFeedbackLog(curator.userID, target, pmid as number, "REJECTED"); }
+          catch (e) { console.log("[authorships] feedbacklog (reject) non-fatal:", e); }
+        }
         break;
       }
       case "snooze": {
@@ -440,36 +3407,131 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         break;
       }
       case "dismiss": {
-        // Dismiss and reject are deliberately one REJECTED value in FeedbackLog (design
-        // decision, 2026-08-20). Only scopus rows with a proposed identity have a uid to
-        // log against; pmid dismisses stay queue-local (they never touch gold standard).
-        if (isScopus && cwid) {
-          if (!(await logScopusFeedback(res, cwid, row.external_id, "REJECTED", reviewer))) return;
+        // "Same paper" from the PubMed-twin panel: dup_of_matched_pmid composes its own note
+        // server-side from the row's own matched_pmid (never from client-supplied free text —
+        // see `assign`'s local_only note above for the `${row.note ? ... : ""}` append
+        // convention this mirrors). Plain dismiss (no reason) is unchanged.
+        if (body.reason === "dup_of_matched_pmid") {
+          if (row.matched_pmid == null) return res.status(400).send("Row has no matched_pmid to dismiss against");
+          await models.AuthorshipReview.update({
+            status: "dismissed", reviewer, resolved_at: new Date(),
+            note: `${row.note ? `${row.note} | ` : ""}dup of PMID ${row.matched_pmid} (curator)`,
+          }, { where: { id } });
+          break;
         }
         await models.AuthorshipReview.update({ status: "dismissed", reviewer, resolved_at: new Date() }, { where: { id } });
         break;
       }
       case "reopen": {
         const reverseCwid = row.resolution_cwid || cwid;
-        if (isScopus) {
-          // undo a scopus accept/assign = revoke the ExternalArticle (reject/dismiss wrote
-          // none); the Java delete path logs PENDING with the actor passed here.
+        // A scopus row accepted as its PubMed twin ("Same paper — accept PMID N") wrote a gold
+        // standard entry and NO ExternalArticle, so it must take the gold-standard undo branch
+        // below, not the ExternalArticle revoke — otherwise reopen clears the row and leaves the
+        // PMID permanently accepted with nothing left pointing at it. matched_pmid_verdict is the
+        // marker because accept wrote it in the same update as the terminal status.
+        const wasSameWork = isExternal && row.matched_pmid_verdict === "same";
+        // row.pmid is NULL on scopus rows; the gold standard entry to delete is the twin's PMID.
+        const undoPmid = wasSameWork ? Number(row.matched_pmid) : (pmid as number);
+        if (isExternal && !wasSameWork && externalStoreMode() === "mysql") {
+          // EXTERNAL_STORE=mysql: undo of an accept/assign = REMOVED with NO rejection memory, so
+          // the work can come back (plan decision 8; it replaces the hard DELETE), in one
+          // transaction with the row reopen. A record that is no longer ACCEPTED (superseded by
+          // its PubMed twin, or removed in Curate since) is left as it is.
+          await sequelize.transaction(async (t) => {
+            if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
+              const [rec] = await recordsByArticleIds(reverseCwid, [externalArticlePayload(row).articleId], { transaction: t });
+              if (rec && rec.status === "ACCEPTED") {
+                await transitionRecords({
+                  ids: [Number(rec.id)], to: "REMOVED", withoutMemory: true, actor: { cwid: reviewer },
+                  note: `Authorships reopen (review ${id})`, transaction: t,
+                });
+              }
+            }
+            await models.AuthorshipReview.update(
+              { status: "open", snooze_until: null, resolved_at: null, resolution_cwid: null, reviewer }, { where: { id }, transaction: t });
+          });
+          break;
+        }
+        if (isExternal && !wasSameWork) {
+          // undo a scopus accept/assign = revoke the ExternalArticle (reject/dismiss wrote none).
           if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
-            const resp = await deleteExternalArticle(reverseCwid, `SCOPUS:${row.external_id}`, reviewer);
+            const resp = await deleteExternalArticle(reverseCwid, externalArticlePayload(row).articleId);
             if (resp.statusCode !== 200) return res.status(502).send(`ExternalArticle revoke failed (${resp.statusCode})`);
-          } else if ((row.status === "rejected" || row.status === "dismissed") && reverseCwid) {
-            // undo a scopus reject/dismiss: no row to restore, but the reopen belongs in
-            // the durable history (PENDING = back to no assertion).
-            if (!(await logScopusFeedback(res, reverseCwid, row.external_id, "PENDING", reviewer))) return;
           }
         } else if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
-          const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
-          if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
-        } else if (row.status === "rejected" && reverseCwid) {
-          const gs = await writeGoldStandard(reverseCwid, pmid as number, "rejected", "DELETE", curator.userID);
-          if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
+          // A #925 local-only assign wrote no gold standard for the ASSIGNEE, so there is
+          // nothing to delete for THEM specifically. (An earlier comment here claimed the
+          // DELETE would 404 for a uid ReCiter has no Identity row for. It does not — POST
+          // /reciter/goldstandard checks only uid != null and returns 200. The real reason to
+          // skip is simply that nothing was ever written for this uid, so the DELETE would be
+          // a pointless no-op.)
+          // PM#949: local-only now comes from the note marker (src/lib/localOnlyMarker.ts), not
+          // a live identity check — so a row survives an IC#148 identity backfill without
+          // reopen silently flipping to a destructive DELETE. A marker-less legacy row still
+          // falls back to the old live-identity inference (today's behaviour, unchanged). Once a
+          // row carries a marker at all, isLocalOnlyNote reads the note positionally (most
+          // recent marker wins) rather than "local but not reconciled", because the note is
+          // append-only and a row can cycle back through a second local-only assign after being
+          // reconciled — see src/lib/localOnlyMarker.ts.
+          const wasLocalOnly = noteHasLocalOnlyMarker(row.note)
+            ? isLocalOnlyNote(row.note)
+            : !(await reciterIdentitySet([reverseCwid])).size;
+          if (wasLocalOnly) {
+            console.log(`[authorships] reopen ${id}: ${reverseCwid} local-only assign, nothing to undo for the assignee`);
+          } else {
+            const gs = await writeGoldStandard(reverseCwid, undoPmid, "known", "DELETE", curator.userID);
+            if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
+          }
+          // F-2: ...and the homonym rejections that assign wrote alongside it, REGARDLESS of
+          // whether the assignee themselves has an identity — a local-only assign still
+          // recorded "not mine" for every OTHER candidate that DOES have one (see the
+          // local_only branch above), and reopen must take that back even when there is
+          // nothing to undo for the assignee. Without this there is no undo path for them at
+          // all: reopen would clear the row and leave N-1 people permanently rejected on a
+          // decision the curator just took back. Recomputed through the same
+          // homonymRejections() the write used, so the two sets cannot drift; see that
+          // function for why checkAccepted is false here. Covers "accepted" as well as
+          // "assigned": assign is the only ACTION that writes these, but the backfill script
+          // writes them onto already-resolved rows and defaults to assigned,accepted — 30 of
+          // its 170 planned writes land on accepted rows, and scoping this to "assigned" alone
+          // would make exactly those permanent with no undo path. Safe for rows that never had
+          // any: a genuine single-candidate Accept (the "accept" action, gated on
+          // row.single_candidate) never calls homonymRejectionTargets at all, and for an
+          // "assigned"/"accepted" row this recomputes to [] on its own once `others` collapses
+          // to empty — same as at write time. A legacy un-backfilled multi accept issues
+          // DELETEs ReCiter treats as 200 no-ops (DynamoDbGoldStandardService removes a pmid
+          // only `if(rejectedPmids.contains(...))`, so a miss is not an error).
+          for (const other of await homonymRejectionTargets(row, reverseCwid, pmid as number, false)) {
+            const rs = await writeGoldStandard(other, pmid as number, "rejected", "DELETE", curator.userID);
+            if (rs !== 200) return res.status(502).send(`Homonym rejection undo failed for ${other} (${rs})`);
+          }
+        } else if (row.status === "rejected") {
+          const targets = row.single_candidate ? (reverseCwid ? [reverseCwid] : []) : candidateCwidsFromRow(row);
+          for (const target of targets) {
+            const gs = await writeGoldStandard(target, pmid as number, "rejected", "DELETE", curator.userID);
+            if (gs !== 200) return res.status(502).send(`Gold-standard undo failed for ${target} (${gs})`);
+          }
         }
-        await models.AuthorshipReview.update({ status: "open", snooze_until: null, resolved_at: null, resolution_cwid: null, reviewer }, { where: { id } });
+        // Clearing a 'same' verdict is part of the undo, not bookkeeping: openStatusWhere sends
+        // any verdicted row to the open feed, so leaving it set would reopen the row into the
+        // wrong queue instead of back into "Possible duplicates" where the curator found it.
+        // A 'distinct' verdict is deliberately NOT cleared — "never re-flag" outlives a reopen.
+        await models.AuthorshipReview.update({
+          status: "open", snooze_until: null, resolved_at: null, resolution_cwid: null, reviewer,
+          ...(wasSameWork ? { matched_pmid_verdict: null } : {}),
+        }, { where: { id } });
+        break;
+      }
+      case "verdict": {
+        // "Different papers" from the PubMed-twin panel: stops future re-flagging, resolves
+        // nothing, so status/reviewer/resolved_at/note stay untouched and the row drops to the
+        // open queue per openStatusWhere. Open rows ONLY — this writes 'distinct' blind, and on a
+        // resolved row that would clobber the 'same' a same-work accept wrote, which is the flag
+        // telling reopen to undo a gold-standard write rather than an ExternalArticle.
+        if (body.verdict !== "distinct") return res.status(400).send('verdict must be "distinct"');
+        if (row.matched_pmid == null) return res.status(400).send("Row has no matched_pmid to give a verdict on");
+        if (row.status !== "open") return res.status(409).send(`Row is already ${row.status} — reopen it before changing the verdict`);
+        await models.AuthorshipReview.update({ matched_pmid_verdict: "distinct" }, { where: { id } });
         break;
       }
       default:
@@ -478,6 +3540,180 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
 
     const updated = await models.AuthorshipReview.findByPk(id, { attributes: LIST_ATTRIBUTES });
     return res.send({ ok: true, row: updated });
+  } catch (e) {
+    console.log(e);
+    return res.status(500).send(String(e));
+  }
+};
+
+// lowercase + strip everything but [a-z0-9] — the equality test for the Scopus-vs-PubMed
+// comparison below (title/journal/doi and surnames), tolerant of punctuation/hyphen/casing
+// drift between the two sources without needing a fuzzy-match library.
+function normForCompare(s?: string | null): string {
+  return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// Best-effort DOI probe against the two article-id JSON shapes NLM's PubMedArticle XML→JSON
+// conversion typically carries (an elocationid entry tagged EIdType="doi", or an
+// articleidlist entry tagged IdType="doi"). Neither is exercised by any existing PM code —
+// formatPubmedSearch() (controllers/pubmed.controller.ts) never extracts a DOI from this same
+// article JSON — and the Java class backing it (reciter.model.pubmed.PubMedArticle) is an
+// external Maven dependency (ReCiter-Pubmed-Model), not defined in this repo, so this exact
+// field shape was not independently verified against a live payload. Never throws; returns
+// null (never surfaced to the client as an error — see doiEqual below) on any shape mismatch.
+function extractDoiFromArticle(art: any): string | null {
+  try {
+    const idFrom = (entry: any): string | null => {
+      const type = String(entry?.eidtype ?? entry?.idtype ?? entry?.EIdType ?? entry?.IdType ?? "").toLowerCase();
+      if (type !== "doi") return null;
+      const val = entry?.content ?? entry?.value ?? entry?._ ?? (typeof entry === "string" ? entry : null);
+      return typeof val === "string" && val ? val : null;
+    };
+    const eloc = art?.elocationid;
+    for (const e of Array.isArray(eloc) ? eloc : eloc ? [eloc] : []) {
+      const doi = idFrom(e);
+      if (doi) return doi;
+    }
+    const idList = art?.articleidlist ?? art?.pubmeddata?.articleidlist;
+    for (const i of Array.isArray(idList) ? idList : idList ? [idList] : []) {
+      const doi = idFrom(i);
+      if (doi) return doi;
+    }
+  } catch { /* fall through to null */ }
+  return null;
+}
+
+// POST /api/db/authorships/counterpart — read-only Scopus-vs-PubMed comparison for a row the
+// producer flagged with a possible PubMed twin (matched_pmid). Powers CounterpartPanel in
+// AuthorshipsTabs.tsx. No GoldStandard/ExternalArticle/AdminFeedbackLog write — see the
+// "Same paper"/"Different papers" actions in case "dismiss" / case "verdict" above for the
+// writes this panel's buttons actually make.
+export const authorshipCounterpart = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const id = Number(req.body?.id);
+    if (!id || !Number.isInteger(id) || id <= 0) return res.status(400).send("id must be a positive integer");
+
+    const row: any = await models.AuthorshipReview.findByPk(id, { attributes: LIST_ATTRIBUTES });
+    if (!row) return res.status(404).send("Authorship not found");
+    if (row.matched_pmid == null) return res.status(400).send("Row has no matched_pmid");
+    const pmid = Number(row.matched_pmid);
+
+    // Scopus side: straight off the row. authors_json is the same [{given,surname}, ...]
+    // shape formatAuthorsJson() (AuthorshipsTabs.tsx) already renders for the collapsed card.
+    let scopusAuthors: { given: string; surname: string }[] = [];
+    try {
+      const parsed = JSON.parse(row.authors_json || "[]");
+      if (Array.isArray(parsed)) {
+        scopusAuthors = parsed.map((a: any) => ({ given: String(a?.given || ""), surname: String(a?.surname || "") }));
+      }
+    } catch { scopusAuthors = []; }
+    const scopus = {
+      title: row.title || null,
+      journal: row.journal || null,
+      year: row.entrez_date ? String(row.entrez_date).slice(0, 4) : null,
+      doi: row.doi || null,
+      authors: scopusAuthors,
+      external_id: row.external_id || null,
+      pub_type: row.pub_type || null,
+    };
+
+    // PubMed side — the exact same proxy findPubmedByDoi() (pubmedLookup.controller.ts) uses
+    // (same endpoint, same POST shape, PUBMED_API_KEY held entirely by the retrieval tool),
+    // term `<pmid>[PMID]` instead of `<doi>[AID]`. 10s timeout: unlike findPubmedByDoi's
+    // background DOI check, this now drives a UI panel synchronously on card expand, so a
+    // hung upstream call must not hang the panel — degrade to fetchError instead. Any failure
+    // here is HTTP 200 with fetchError set, never a 5xx: the panel's actions (Same paper /
+    // Different papers, and the "already in record" check) work from the Scopus side alone
+    // even when PubMed is unreachable.
+    let pubmed: any = null;
+    let fetchError: string | null = null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    try {
+      const resp = await fetch(reciterConfig.reciterPubmed.searchPubmedEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "User-Agent": "reciter-pub-manager-server" },
+        body: JSON.stringify({ "strategy-query": `${pmid}[PMID]` }),
+        signal: controller.signal,
+      });
+      if (!resp.ok) {
+        fetchError = `pubmed retrieval tool HTTP ${resp.status}`;
+      } else {
+        const data: any = await resp.json();
+        const article = Array.isArray(data) ? data[0] : null;
+        const mc = article?.medlinecitation;
+        if (!mc) {
+          fetchError = "no PubMed record returned";
+        } else {
+          const art = mc.article || {};
+          const pdate = art.journal?.journalissue?.pubdate || {};
+          const authorlist = Array.isArray(art.authorlist) ? art.authorlist : [];
+          pubmed = {
+            pmid: mc.medlinecitationpmid?.pmid ? Number(mc.medlinecitationpmid.pmid) : pmid,
+            title: art.articletitle || null,
+            journal: art.journal?.title || null,
+            year: pdate.year || null,
+            month: pdate.month || null,
+            doi: extractDoiFromArticle(art),
+            authors: authorlist.map((a: any) => ({
+              lastName: a?.lastname || "",
+              foreName: a?.forename || "",
+              initials: a?.initials || "",
+            })),
+          };
+        }
+      }
+    } catch (e: any) {
+      fetchError = e?.name === "AbortError" ? "PubMed retrieval tool timed out after 10s" : String(e?.message || e);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    // inRecordFor: which candidate cwids (top_cwid + candidate_cwids_json, same set case
+    // "assign"'s homonym rejections operate over) already have this PMID in person_article —
+    // a genuinely new query pattern for this file. PM's existing "does cwid X already have
+    // PMID Y" check goes through DynamoDB GoldStandard.knownpmids/rejectedpmids (see
+    // goldStandardRejections.ts), not this MySQL table; person_article is queried nowhere
+    // else in controllers/ or src/ today.
+    const candidateCwids = candidateCwidsFromRow(row);
+    let inRecordFor: string[] = [];
+    if (candidateCwids.length > 0) {
+      const hits = await models.PersonArticle.findAll({
+        where: { personIdentifier: { [Op.in]: candidateCwids }, pmid },
+        attributes: ["personIdentifier"],
+        raw: true,
+      });
+      inRecordFor = Array.from(new Set((hits as any[]).map((h) => String(h.personIdentifier)).filter(Boolean)));
+    }
+
+    // pubmedLaneRow: was this PMID also independently proposed on the pubmed lane (source =
+    // "pubmed" rows come from the identity-matched PubMed retrieval path — an entirely
+    // separate producer pass from this scopus row's matched_pmid flag).
+    const pubmedLaneRow = await models.AuthorshipReview.findOne({
+      where: { source: "pubmed", pmid },
+      attributes: ["id", "status", "top_cwid"],
+      raw: true,
+    });
+
+    const scopusNorm = { title: normForCompare(scopus.title), journal: normForCompare(scopus.journal), doi: normForCompare(scopus.doi) };
+    const pubmedNorm = { title: normForCompare(pubmed?.title), journal: normForCompare(pubmed?.journal), doi: normForCompare(pubmed?.doi) };
+    const scopusSurnames = new Set(scopusAuthors.map((a) => normForCompare(a.surname)).filter(Boolean));
+    const pubmedSurnameList: string[] = (pubmed?.authors || []).map((a: any) => normForCompare(a.lastName)).filter(Boolean);
+    let sharedSurnames = 0;
+    scopusSurnames.forEach((s) => { if (pubmedSurnameList.includes(s)) sharedSurnames++; });
+
+    const compare = {
+      titleEqual: !!scopusNorm.title && scopusNorm.title === pubmedNorm.title,
+      yearEqual: !!scopus.year && !!pubmed?.year && String(scopus.year) === String(pubmed.year),
+      journalEqual: !!scopusNorm.journal && scopusNorm.journal === pubmedNorm.journal,
+      // null (not false) when either side lacks a DOI — "unknown", not "different".
+      doiEqual: scopusNorm.doi && pubmedNorm.doi ? scopusNorm.doi === pubmedNorm.doi : null,
+      sharedSurnames,
+      scopusAuthorCount: scopusAuthors.length,
+      pubmedAuthorCount: (pubmed?.authors || []).length,
+    };
+
+    return res.status(200).send({ scopus, pubmed, fetchError, inRecordFor, pubmedLaneRow: pubmedLaneRow || null, compare });
   } catch (e) {
     console.log(e);
     return res.status(500).send(String(e));

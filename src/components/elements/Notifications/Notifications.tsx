@@ -9,10 +9,10 @@ import { saveNotification } from "../../../redux/actions/actions";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { reciterConfig } from "../../../../config/local";
-import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { allowedPermissions } from "../../../utils/constants";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
+import { sameCwid } from "../../../utils/canonicalCwid";
 
 
 const Notifications = () => {
@@ -50,7 +50,8 @@ const Notifications = () => {
     let curatorAllfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All);
     let superUserRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser);
 
-    if(router.query.userId === session.data.username ){
+    // token.username is canonical; the route can carry the admin_users row's stored case.
+    if (sameCwid(router.query.userId, session.data.username)) {
       if (!curatorSelfRole) {
         if (superUserRole || curatorAllfRole) {
           SetIsSuperUserORCuratorAll(true)
@@ -94,11 +95,7 @@ const Notifications = () => {
           setDisableSaveBtn(true);
           setIsExistingUser(false);
           setEmail(data.email);
-          toast.error("User does not exist", {
-            position: "top-right",
-            autoClose: 2000,
-            theme: 'colored'
-          });
+          toast.error("User does not exist");
         } else if(data.message === "No data found"){
           setEmail(data.email);
           setUserId(data.userID)
@@ -117,11 +114,7 @@ const Notifications = () => {
       .catch(error => {
         console.error("[ERR-6010]", error);
         reportError("ERR-6010", "Unable to load notification preferences", error);
-        toast.error("Unable to load notification preferences. Please try again. (ERR-6010)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to load notification preferences. Please try again. (ERR-6010)");
       });
   }
 
@@ -290,7 +283,6 @@ const Notifications = () => {
               </div>
             </>
           )}
-          <ToastContainerWrapper />
         </>
       ) : (!isCuratorSelf || !isReporterAll) ? (
         <div className={styles.noAccess}>

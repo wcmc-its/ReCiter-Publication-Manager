@@ -14,17 +14,23 @@ const Filter: FunctionComponent<FuncProps> = (props) => {
     const [sort, setSort] = useState<string>("0")
     const [search, setSearch] = useState<string>("")
 
-    // setState is async — pass the incoming value straight through instead of
-    // reading the state variable, which still holds the previous keystroke/sort.
     const handleSearchUpdate = (event: React.ChangeEvent<HTMLInputElement>) => {
         setSearch(event.target.value)
         if (props.isFrom === "pubMed") props.onSearch(event.target.value)
-        else props.onChange({ sort, search: event.target.value })
+        else onFilterUpdate()
+        
     }
 
     const handleSortUpdate = (sortValue: string) => {
         setSort(sortValue)
-        props.onChange({ sort: sortValue, search })
+        onFilterUpdate()
+    }
+
+    const onFilterUpdate = () => {
+        props.onChange({
+            sort,
+            search
+        })
     }
 
     return (

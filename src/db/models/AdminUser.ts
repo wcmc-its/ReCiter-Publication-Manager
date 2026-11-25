@@ -18,12 +18,13 @@ export interface AdminUserAttributes {
   modifyTimestamp: Date;
   scope_person_types?: string[] | null;
   scope_org_units?: string[] | null;
+  scope_institutions?: string[] | null;
   proxy_person_ids?: string[] | null;
 }
 
 export type AdminUserPk = "userID";
 export type AdminUserId = AdminUser[AdminUserPk];
-export type AdminUserOptionalAttributes = "userID" | "personIdentifier" | "nameFirst" | "nameMiddle" | "nameLast" | "email" | "status" | "createTimestamp" | "modifyTimestamp" | "scope_person_types" | "scope_org_units" | "proxy_person_ids";
+export type AdminUserOptionalAttributes = "userID" | "personIdentifier" | "nameFirst" | "nameMiddle" | "nameLast" | "email" | "status" | "createTimestamp" | "modifyTimestamp" | "scope_person_types" | "scope_org_units" | "scope_institutions" | "proxy_person_ids";
 export type AdminUserCreationAttributes = Optional<AdminUserAttributes, AdminUserOptionalAttributes>;
 
 export class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttributes> implements AdminUserAttributes {
@@ -38,6 +39,7 @@ export class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttri
   modifyTimestamp!: Date;
   scope_person_types?: string[] | null;
   scope_org_units?: string[] | null;
+  scope_institutions?: string[] | null;
   proxy_person_ids?: string[] | null;
 
   // AdminUser hasMany AdminFeedbackLog via userID
@@ -150,6 +152,11 @@ export class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttri
       defaultValue: null
     },
     scope_org_units: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: null
+    },
+    scope_institutions: {
       type: DataTypes.JSON,
       allowNull: true,
       defaultValue: null

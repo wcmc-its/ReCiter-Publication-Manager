@@ -1,0 +1,40 @@
+.banner {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 8px 20px;
+  background: var(--pm-amber-tint);
+  border-bottom: 1px solid var(--pm-amber-tint-border);
+  color: var(--pm-amber);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.returnButton {
+  height: 28px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--pm-amber);
+  border: 1px solid var(--pm-amber-tint-border);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.returnButton:hover {
+  background: var(--pm-surface-2);
+}
+
+.returnButton:focus-visible {
+  outline: 2px solid var(--pm-ring);
+  outline-offset: 2px;
+}

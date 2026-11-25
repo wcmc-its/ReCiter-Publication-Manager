@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import moment from 'moment';
 import { Dropdown } from "react-bootstrap";
+import { useClosableDropdown } from "../Common/useClosableDropdown";
 import { setReportFilterLabels } from "../../../utils/constants";
 import styles from './DatePicker.module.css';
 
@@ -14,10 +15,11 @@ const PRESETS = [
   { label: "Last 30 days", days: 30 },
 ];
 
-export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, selectedFilters, handleChange, filterLowerName, filterUpperName }) => {
+export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, selectedFilters, handleChange, filterLowerName, filterUpperName, onClose }) => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  const { show, onToggle, toggleRef } = useClosableDropdown(onClose);
 
   const applyDates = (start: string, end: string) => {
     setStartDate(start);
@@ -61,14 +63,21 @@ export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, sel
   const displayEnd = endDate ? moment(endDate).format("MM/DD/YYYY") : "";
 
   return (
-    <Dropdown className="d-inline-block" autoClose="outside">
-      <Dropdown.Toggle variant={(startDate || endDate) ? "primary" : "white"} id="dropdown-date">
-        {setReportFilterLabels(reportFiltersLabes, name)}
+    <Dropdown className="d-inline-block" autoClose="outside" show={show} onToggle={onToggle}>
+      <Dropdown.Toggle ref={toggleRef} variant={(startDate || endDate) ? "primary" : "white"} id={`dropdown-date-${String(name).toLowerCase().replace(/\W+/g, "-")}`}>
+        {(() => {
+          const l = setReportFilterLabels(reportFiltersLabes, name) || name;
+          if (activePreset) return `${l}: ${activePreset}`;
+          if (displayStart && displayEnd) return `${l}: ${displayStart} – ${displayEnd}`;
+          if (displayStart) return `${l}: since ${displayStart}`;
+          if (displayEnd) return `${l}: through ${displayEnd}`;
+          return l;
+        })()}
       </Dropdown.Toggle>
       <Dropdown.Menu style={{ padding: 0, minWidth: 280 }}>
         {/* Header */}
         <div className={styles.ddHeader}>
-          <span className={styles.ddHeaderLabel}>Date range</span>
+          <span className={styles.ddHeaderLabel}>{name || "Date range"}</span>
           <button className={styles.ddClear} onClick={handleClear}>Clear</button>
         </div>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Form, Container, InputGroup } from "react-bootstrap";
+import { Button, Input } from "../../ui";
 import { orgUnitsFetchAllData, institutionsFetchAllData, personTypesFetchAllData } from '../../../redux/actions/actions';
 import { useSelector, useDispatch } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
@@ -10,7 +10,9 @@ import { Identity } from "../../../../types/identity";
 const SearchBar = ({
   searchData,
   resetData,
-  findPeopleLabels
+  findPeopleLabels,
+  toggles,
+  clearSignal = 0,
 } : {
   searchData: (
     searchQuery: string,
@@ -18,7 +20,13 @@ const SearchBar = ({
     insitutionQuery: Array<string>,
     personTypeQuery: Array<string>,
   ) => void;
-  resetData: () => void, findPeopleLabels :any}) => {
+  resetData: () => void;
+  findPeopleLabels: any;
+  // Switches that act at once (Pending only, the scope checkbox), placed inside the card.
+  toggles?: React.ReactNode;
+  // Bumped by the results card's "Clear filters" button: clears the card as Reset does.
+  clearSignal?: number;
+}) => {
 
   const filters = useSelector((state: RootStateOrAny) => state.filters)
 
@@ -71,6 +79,11 @@ useEffect(() => {
     resetData();
   }
 
+  useEffect(() => {
+    if (clearSignal > 0) clearFilters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearSignal])
+
   const handleFilterUpdate = (filterName: string, values: string[]) => {
     if (filterName === 'orgUnits') setOrgUnitQuery(values);
     else if (filterName === 'institutions') setInstitutionQuery(values);
@@ -83,67 +96,71 @@ useEffect(() => {
   }
 
 
+  // The identifier label is admin-configurable (findPeople "personIdentifier", "CWID" by default).
+  const idLabel = allLabelSettings?.cwidLabel || 'CWID';
+
   return (
-    <Container className={styles.searchFormContainer}>
-      <Form onSubmit={onFormSubmit}>
-        <Form.Group style={{ marginBottom: 0 }}>
-          <Form.Label className={styles.searchFormLabel}> {allLabelSettings?.cwidLabel ? `Name or ${allLabelSettings?.cwidLabel}(s)` : `Name` }</Form.Label>
-          <InputGroup>
-            <Form.Control type="input" placeholder="Search by name or CWID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}></Form.Control>
-          </InputGroup>
-          <div style={{ marginTop: 16, marginBottom: 16 }}>
-            <div className={styles.filterRowLabel}>Filters</div>
-            <div className={styles.filterRow}>
-              <CheckboxSelect
-                reportFiltersLabes={findPeopleLabels}
-                title="organization"
-                options={orgUnitsData}
-                optionLabel="primaryOrganizationalUnit"
-                optionValue="primaryOrganizationalUnit"
-                filterName="orgUnits"
-                onUpdateFilter={handleFilterUpdate}
-                selectedOptions={orgUnitQuery}
-                isFilterClear={filterClearCount}
-                isDynamicFetch={false}
-                onLoadMore={() => {}}
-                value=""
-              />
-              <CheckboxSelect
-                reportFiltersLabes={findPeopleLabels}
-                title="institution"
-                options={institutionsData}
-                optionLabel="primaryInstitution"
-                optionValue="primaryInstitution"
-                filterName="institutions"
-                onUpdateFilter={handleFilterUpdate}
-                selectedOptions={insitutionQuery}
-                isFilterClear={filterClearCount}
-                isDynamicFetch={false}
-                onLoadMore={() => {}}
-                value=""
-              />
-              <CheckboxSelect
-                reportFiltersLabes={findPeopleLabels}
-                title="personType"
-                options={personTypesData}
-                optionLabel="personType"
-                optionValue="personType"
-                filterName="personTypes"
-                onUpdateFilter={handleFilterUpdate}
-                selectedOptions={personTypeQuery}
-                isFilterClear={filterClearCount}
-                isDynamicFetch={false}
-                onLoadMore={() => {}}
-                value=""
-              />
-              <span style={{ flex: 1 }} />
-              <Button className="primary" type="submit" style={{ padding: '6px 20px', background: '#1a2133', borderColor: '#1a2133', borderRadius: '6px', fontSize: '14px', fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Search</Button>
-              <button type="button" className={styles.textButton} onClick={clearFilters} style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: '13px', color: '#a09a92', cursor: 'pointer', whiteSpace: 'nowrap' }}>Reset</button>
-            </div>
-          </div>
-        </Form.Group>
-      </Form>
-    </Container>
+    <form className={styles.filterCard} onSubmit={onFormSubmit} role="search" aria-label="Find people">
+      <div className={styles.queryField}>
+        <Input
+          id="people-search-query"
+          fullWidth
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={`Name or ${idLabel} (comma-separate several ${idLabel}s)`}
+          inputProps={{ 'aria-label': `Name or ${idLabel}` }}
+        />
+      </div>
+      <div className={styles.filterPills}>
+        <CheckboxSelect
+          reportFiltersLabes={findPeopleLabels}
+          title="organization"
+          options={orgUnitsData}
+          optionLabel="primaryOrganizationalUnit"
+          optionValue="primaryOrganizationalUnit"
+          filterName="orgUnits"
+          onUpdateFilter={handleFilterUpdate}
+          selectedOptions={orgUnitQuery}
+          isFilterClear={filterClearCount}
+          isDynamicFetch={false}
+          onLoadMore={() => {}}
+          value=""
+        />
+        <CheckboxSelect
+          reportFiltersLabes={findPeopleLabels}
+          title="institution"
+          options={institutionsData}
+          optionLabel="primaryInstitution"
+          optionValue="primaryInstitution"
+          filterName="institutions"
+          onUpdateFilter={handleFilterUpdate}
+          selectedOptions={insitutionQuery}
+          isFilterClear={filterClearCount}
+          isDynamicFetch={false}
+          onLoadMore={() => {}}
+          value=""
+        />
+        <CheckboxSelect
+          reportFiltersLabes={findPeopleLabels}
+          title="personType"
+          options={personTypesData}
+          optionLabel="personType"
+          optionValue="personType"
+          filterName="personTypes"
+          onUpdateFilter={handleFilterUpdate}
+          selectedOptions={personTypeQuery}
+          isFilterClear={filterClearCount}
+          isDynamicFetch={false}
+          onLoadMore={() => {}}
+          value=""
+        />
+      </div>
+      {toggles}
+      <div className={styles.filterActions}>
+        <Button variant="primary" type="submit">Search</Button>
+        <Button variant="ghost" onClick={clearFilters}>Reset</Button>
+      </div>
+    </form>
   )
 }
 

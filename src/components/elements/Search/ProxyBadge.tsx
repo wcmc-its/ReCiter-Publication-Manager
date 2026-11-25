@@ -1,20 +1,10 @@
 import React from 'react';
-import Badge from 'react-bootstrap/Badge';
+import styles from './Search.module.css';
 
+// "Proxy" label on a Find People row the viewer holds a proxy for. Same neutral pill as the
+// "Cornell Ithaca" label.
 const ProxyBadge: React.FC = () => (
-    <Badge
-        pill
-        style={{
-            backgroundColor: '#2563a8',
-            color: '#fff',
-            fontSize: '11px',
-            fontWeight: 600,
-            marginLeft: '8px',
-            verticalAlign: 'middle',
-        }}
-    >
-        Proxy
-    </Badge>
+    <span className={styles.rowTag} title="You are a proxy for this person">Proxy</span>
 );
 
 export default ProxyBadge;

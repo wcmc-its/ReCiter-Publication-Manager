@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Button, Form, FormGroup, FormControl, Row, Col } from "react-bootstrap";
 import styles from "./Login.module.css";
 import { Footer } from "../Footer/Footer";
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import Router from "next/router"
 import Header from "../Header/Header"
 import { signIn,getSession } from "next-auth/react"
@@ -36,56 +35,26 @@ const Login = () => {
         redirect: false
        })
        if (signInResponse.status == 200) {
-            toast.info("Successful Login", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: "colored"
-            });
             //if(session && session.data && session.data.userRoles)
              getSession().then((session) => {
-                 if (session == null || session.data == null) {
-                     router.push('/noaccess');
-                     return;
-                 }
-                 let userPermissions = [];
-
-                 try {
-                     userPermissions = typeof session.data.userRoles === "string" && session.data.userRoles !== ""
-                         ? JSON.parse(session.data.userRoles)
-                         : Array.isArray(session.data.userRoles)
-                             ? session.data.userRoles
-                             : (typeof session.data.userRoles === "object"
-                                 ? session.data.userRoles
-                                 : []);
-                 } catch (e) {
-                     console.error('Failed to parse userRoles JSON:', e);
-                     userPermissions = [];
-                 }
-                 let userName = session.data.username;
-
-                 if (!Array.isArray(userPermissions) || userPermissions.length === 0) {
-                     router.push('/noaccess');
-                 } else {
-                     let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
-
-                     if (userPermissions.some(role => role?.roleLabel === allowedPermissions.Curator_Self) && userName && personIdentifier) {
-                         router.push(`curate/${personIdentifier}`);
-                     } else {
-                         router.push('/search');
+                if (session) {
+                    let userPermissions = session.data.userRoles && session.data.userRoles !="" && JSON.parse(session.data.userRoles);
+                    let userName = session.data.username;
+                     if(!userPermissions || userPermissions == "" ){
+                         router.push('/noaccess');
+                     }else{
+                        let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
+                        if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier)
+                            router.push(`curate/${personIdentifier}`);
+                        else 
+                           router.push('/search');
                      }
-                 }
-             }).catch((e) => {
-                 console.error('getSession failed:', e);
-                 router.push('/noaccess');
-             });
+                } 
+            });
             
         } else {
             setInvalidCredentialsFlag(true)
-            toast.error("Invalid credentials", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: "colored"
-            });
+            toast.error("Invalid credentials");
         }
     }
 
@@ -145,9 +114,6 @@ const Login = () => {
                     </Button>
                 </Col>
             </Row>
-            {invalidCredentialsFlag ? (
-                <ToastContainerWrapper />
-            ) : null}
             </Form>
         </div>
 

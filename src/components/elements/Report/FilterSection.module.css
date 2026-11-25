@@ -1,28 +1,110 @@
+/* /report filter card: a label column (PEOPLE / PUBLICATIONS) and a row of chip buttons each. */
 .filterContainer {
-  background-color: var(--color-warm-surface);
-  border: 1px solid var(--color-warm-border);
+  position: relative;
+  background-color: var(--pm-surface);
+  border: 1px solid var(--pm-border);
   box-shadow: var(--shadow-sm);
-  border-radius: var(--radius-lg);
-  padding: 16px 20px;
+  border-radius: 12px;
+  padding: 4px 20px;
 }
 
-.filterContainer button {
-  margin: 0 4px;
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
 }
 
-.filterContainer button:first-child {
-  margin-left: 0px;
+.rowDivider {
+  height: 1px;
+  background: var(--pm-border);
 }
 
 .filterName {
-  margin-bottom: 8px;
-  font-size: 10.5px;
-  font-weight: 700;
+  flex: 0 0 104px;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--gray-500);
+  letter-spacing: 0.08em;
+  color: var(--pm-muted-foreground);
 }
 
 .filtersContainer {
-  margin-bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  padding-right: 72px;
+}
+
+/* Chip toggles: outlined pills, Slate tint when the filter is set. Scoped so the react-bootstrap
+   variants keep their look elsewhere. */
+.filtersContainer :global(.dropdown-toggle) {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px !important;
+  margin: 0;
+  border-radius: 999px !important;
+  border: 1px solid var(--pm-border-strong) !important;
+  background: var(--pm-surface) !important;
+  color: var(--pm-foreground) !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+}
+
+.filtersContainer :global(.dropdown-toggle:hover),
+.filtersContainer :global(.dropdown-toggle:focus-visible) {
+  background: var(--pm-surface-2) !important;
+  color: var(--pm-foreground) !important;
+  border-color: var(--pm-border-strong) !important;
+}
+
+.filtersContainer :global(.dropdown-toggle.btn-primary),
+.filtersContainer :global(.dropdown-toggle.btn-primary:hover) {
+  background: var(--pm-slate-tint) !important;
+  border-color: var(--pm-slate-tint-border) !important;
+  color: var(--pm-slate) !important;
+  font-weight: 600 !important;
+}
+
+.filtersContainer :global(.dropdown-toggle::after) {
+  border: 0;
+  width: 7px;
+  height: 7px;
+  margin: -3px 0 0 2px;
+  border-right: 1.75px solid currentColor;
+  border-bottom: 1.75px solid currentColor;
+  transform: rotate(45deg);
+  vertical-align: 0;
+}
+
+.clearAll {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--pm-slate);
+  cursor: pointer;
+}
+
+.clearAll:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .filterRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .filterName {
+    flex: none;
+  }
 }

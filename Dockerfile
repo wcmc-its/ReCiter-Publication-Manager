@@ -18,7 +18,7 @@ WORKDIR /app
 COPY . .
 COPY --from=deps /app/node_modules ./node_modules
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
-ARG NEXT_PUBLIC_RECITER_BACKEND_API_KEY=test
+ARG NEXT_PUBLIC_RECITER_BACKEND_API_KEY=tests
 RUN env
 # COPY . . brought back the corrupt committed lockfile; remove again.
 RUN rm -f package-lock.json && npm run build && npm install --production --ignore-scripts --prefer-offline --legacy-peer-deps
@@ -36,6 +36,8 @@ RUN adduser -S nextjs -u 1001
 COPY --from=builder /app/next.config.js ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/config /app/config/
+# Bundled chart font (bibliometric report charts render with system fonts off; alpine has none).
+COPY --from=builder /app/controllers/db/reports/fonts /app/controllers/db/reports/fonts/
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json

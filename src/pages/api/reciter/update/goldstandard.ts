@@ -3,6 +3,9 @@ import { getToken } from 'next-auth/jwt'
 import { updateGoldStandard } from "../../../../../controllers/goldstandard.controller"
 import { canCurate } from "../../../../../controllers/db/authorization.controller"
 import { reciterConfig } from '../../../../../config/local'
+import { effectiveToken } from '../../../../../src/utils/viewAs'
+import { reconcileSupersedeAfterGoldStandard } from '../../../../../src/lib/externalStore'
+import { parseCwid } from '../../../../../src/utils/canonicalCwid'
 
 type Error = {
     statusCode: number,
@@ -32,15 +35,22 @@ export default async function handler(
             const userID = Number(token?.databaseUser?.userID)
             if (Number.isInteger(userID) && userID > 0) curatedBy = userID
         } catch (e) {
-            console.warn('[goldstandard] could not resolve curatedBy from JWT; recording as unknown')
+            console.warn(`[goldstandard] could not resolve curatedBy from JWT; recording as unknown (uid=${req.body?.uid}, knownPmids=${JSON.stringify(req.body?.knownPmids)}, rejectedPmids=${JSON.stringify(req.body?.rejectedPmids)})`)
         }
 
         // The static backendApiKey check above only proves the request came from this app's
         // own server code -- it says nothing about which curator is behind it or who they're
         // allowed to curate. Enforce that here. Was previously enforced nowhere: Curator_Self
         // and Curator_All were exactly as unchecked as Curator_Scoped is without this. See PM#849.
-        const targetUid = req.body?.uid
-        const allowed = await canCurate(token, targetUid)
+        // Convert the uid on the way in: ReCiter keys GoldStandard by the exact string, so
+        // `Abl9002` or `ggi9001 ` would open a second record beside the real person's.
+        const targetUid = parseCwid(req.body?.uid)
+        if (!targetUid) {
+            res.status(400).send({ statusCode: 400, message: `Not a valid uid: ${JSON.stringify(req.body?.uid)}` })
+            return
+        }
+        req.body.uid = targetUid
+        const allowed = await canCurate(effectiveToken(token), targetUid)
         if (!allowed) {
             res.status(403).send({
                 statusCode: 403,
@@ -51,6 +61,9 @@ export default async function handler(
 
         const apiResponse = await updateGoldStandard(req, curatedBy);
         if(apiResponse.statusCode === 200) {
+            // EXTERNAL_STORE=mysql: supersede / revive the person's external records against the
+            // new knownpmids (plan 3b-3e decision 3). No-op otherwise; never fails the write.
+            await reconcileSupersedeAfterGoldStandard(targetUid)
             res.status(apiResponse.statusCode).send({
                 statusCode: apiResponse.statusCode,
                 goldStandard: apiResponse.statusText

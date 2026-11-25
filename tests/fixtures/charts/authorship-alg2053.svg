@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="672" height="263" viewBox="0 0 672 263" role="img" aria-label="Authorship over time" font-family="Liberation Sans">
+<title>Authorship over time</title>
+<rect x="0" y="0" width="672" height="263" fill="#FFFFFF"/>
+<text x="16" y="32" font-size="16" text-anchor="start" fill="#222222">Authorship over time</text>
+<text x="16" y="50" font-size="12" text-anchor="start" fill="#5F5F5F">Research articles by author role</text>
+<rect x="486.64" y="40" width="11" height="11" fill="#BFBFB3"/>
+<text x="502.64" y="50" font-size="12" text-anchor="start" fill="#5F5F5F">First</text>
+<rect x="539.96" y="40" width="11" height="11" fill="#E4E4DE"/>
+<text x="555.96" y="50" font-size="12" text-anchor="start" fill="#5F5F5F">Middle</text>
+<rect x="605.31" y="40" width="11" height="11" fill="#2878D8"/>
+<text x="621.31" y="50" font-size="12" text-anchor="start" fill="#5F5F5F">Senior</text>
+<text x="16" y="69" font-size="11" text-anchor="start" fill="#5F5F5F">articles</text>
+<text x="24.12" y="241" font-size="11" text-anchor="end" fill="#5F5F5F">0</text>
+<text x="24.12" y="163" font-size="11" text-anchor="end" fill="#5F5F5F">1</text>
+<line x1="30.12" y1="159" x2="656" y2="159" stroke="#E6E6E6" stroke-width="1"/>
+<text x="24.12" y="85" font-size="11" text-anchor="end" fill="#5F5F5F">2</text>
+<line x1="30.12" y1="81" x2="656" y2="81" stroke="#E6E6E6" stroke-width="1"/>
+<rect x="39.27" y="159" width="29.85" height="78" fill="#BFBFB3"/>
+<rect x="87.41" y="81" width="29.85" height="156" fill="#BFBFB3"/>
+<rect x="376.28" y="159" width="29.85" height="78" fill="#E4E4DE"/>
+<rect x="424.42" y="159" width="29.85" height="78" fill="#BFBFB3"/>
+<rect x="424.42" y="81" width="29.85" height="78" fill="#E4E4DE"/>
+<rect x="472.57" y="159" width="29.85" height="78" fill="#E4E4DE"/>
+<rect x="568.86" y="159" width="29.85" height="78" fill="#2878D8"/>
+<rect x="617" y="159" width="29.85" height="78" fill="#2878D8"/>
+<text x="246.77" y="229" font-size="11" text-anchor="middle" fill="#5F5F5F">No research articles 2015 to 2019</text>
+<text x="535.64" y="229" font-size="11" text-anchor="middle" fill="#5F5F5F">None</text>
+<line x1="30.12" y1="237" x2="656" y2="237" stroke="#9E9E9E" stroke-width="1"/>
+<text x="54.19" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2013</text>
+<text x="102.33" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2014</text>
+<text x="150.48" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2015</text>
+<text x="198.62" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2016</text>
+<text x="246.77" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2017</text>
+<text x="294.91" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2018</text>
+<text x="343.06" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2019</text>
+<text x="391.2" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2020</text>
+<text x="439.35" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2021</text>
+<text x="487.49" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2022</text>
+<text x="535.64" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2023</text>
+<text x="583.78" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2024</text>
+<text x="631.93" y="252" font-size="11" text-anchor="middle" fill="#5F5F5F">2025</text>
+</svg>

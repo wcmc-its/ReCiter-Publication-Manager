@@ -31,3 +31,62 @@ export async function findPubmedByDoi(doi: string): Promise<number | null> {
     const pmid = data?.[0]?.medlinecitation?.medlinecitationpmid?.pmid
     return pmid ? Number(pmid) : null
 }
+
+// Direct-add (Scopus tab "Add" button) — fetch the raw PubMedArticle for a known PMID so
+// the caller can format it with the SAME formatter the PubMed Add tab's search results
+// use (formatPubmedSearch in controllers/pubmed.controller.ts) and accept it inline,
+// without the slow feature-generator fetch searchPubmed() makes via getPublications.
+// Returns the first article whose own PMID matches (query-complex can return more than
+// one row for a raw PMID term), or null if the tool found nothing.
+export async function findPubmedByPmid(pmid: number): Promise<any | null> {
+    if (!pmid) return null
+    const res = await fetch(reciterConfig.reciterPubmed.searchPubmedEndpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'reciter-pub-manager-server',
+        },
+        body: JSON.stringify({ 'strategy-query': `${pmid}[UID]` }),
+        signal: AbortSignal.timeout(30000),
+    })
+    if (!res.ok) throw new Error(`pubmed retrieval tool HTTP ${res.status}`)
+    const data: any = await res.json()
+    if (!Array.isArray(data)) return null
+    const match = data.find((article: any) => {
+        const articlePmid = article?.medlinecitation?.medlinecitationpmid?.pmid
+        return articlePmid !== undefined && Number(articlePmid) === Number(pmid)
+    })
+    return match ?? null
+}
+
+// The no-run /curate page (src/pages/api/db/users/stored-publications/[uid].ts): raw
+// PubMedArticles for a list of known PMIDs, keyed by PMID. One query-complex call per 100 PMIDs
+// (`a[UID] OR b[UID] ...`), then findPubmedByPmid for any the batch didn't return. A PMID that
+// still can't be found is left out; never throws.
+export async function findPubmedByPmids(pmids: number[]): Promise<Map<number, any>> {
+    const found = new Map<number, any>()
+    const pmidOf = (a: any) => Number(a?.medlinecitation?.medlinecitationpmid?.pmid)
+    for (let i = 0; i < pmids.length; i += 100) {
+        const chunk = pmids.slice(i, i + 100)
+        try {
+            const res = await fetch(reciterConfig.reciterPubmed.searchPubmedEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'User-Agent': 'reciter-pub-manager-server' },
+                body: JSON.stringify({ 'strategy-query': chunk.map((p) => `${p}[UID]`).join(' OR ') }),
+                signal: AbortSignal.timeout(60000),
+            })
+            if (!res.ok) throw new Error(`pubmed retrieval tool HTTP ${res.status}`)
+            const data: any = await res.json()
+            if (Array.isArray(data)) data.forEach((a) => { if (chunk.includes(pmidOf(a))) found.set(pmidOf(a), a) })
+        } catch (e) {
+            console.log('findPubmedByPmids: batch lookup failed, falling back to single lookups:', e)
+        }
+    }
+    const missing = pmids.filter((p) => !found.has(p))
+    for (let i = 0; i < missing.length; i += 5) {
+        await Promise.all(missing.slice(i, i + 5).map((p) => findPubmedByPmid(p)
+            .then((a) => { if (a) found.set(p, a) })
+            .catch((e) => console.log(`findPubmedByPmids: ${p} lookup failed:`, e))))
+    }
+    return found
+}

@@ -39,9 +39,3 @@ node_modules
 /config/certs
 .planning/
 .superpowers/
-.litcheck/
-.litrecall/
-.litrecall-run.json
-.litquestion-run.json
-.litscreen-run.json
-tsconfig.tsbuildinfo

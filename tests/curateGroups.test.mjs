@@ -1,0 +1,81 @@
+// Unit tests for src/utils/curateGroups.ts. Run with `npm test`.
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { bandOf, yearOf, groupModeFor, groupsOf, yearHistogram, spotCheckSample, GROUP_MIN, fmtCount, authorLine } from '../src/utils/curateGroups.ts'
+
+const p = (score, date) => ({ authorshipLikelihoodScore: score, publicationDateStandardized: date })
+
+test('bandOf: 70/40 cut-offs on the rounded score', () => {
+    assert.equal(bandOf(p(69.5)), 'strong')
+    assert.equal(bandOf(p(69.4)), 'moderate')
+    assert.equal(bandOf(p(40)), 'moderate')
+    assert.equal(bandOf(p(39.4)), 'weak')
+    assert.equal(bandOf({}), 'weak')
+})
+
+test('yearOf: standardized date, then display date, else Undated', () => {
+    assert.equal(yearOf(p(1, '2021-02-03')), '2021')
+    assert.equal(yearOf({ publicationDateDisplay: '2019 Aug 12' }), '2019')
+    assert.equal(yearOf({}), 'Undated')
+})
+
+test('groupModeFor: bands on long Suggested by score, years on long Accepted/Rejected by date', () => {
+    const big = GROUP_MIN + 1
+    assert.equal(groupModeFor('NULL', '0', big), 'band')
+    assert.equal(groupModeFor('NULL', '1', big), 'band')
+    assert.equal(groupModeFor('NULL', '2', big), 'flat')
+    assert.equal(groupModeFor('ACCEPTED', '2', big), 'year')
+    assert.equal(groupModeFor('REJECTED', '4', big), 'year')
+    assert.equal(groupModeFor('ACCEPTED', '1', big), 'flat')
+    assert.equal(groupModeFor('NULL', '0', GROUP_MIN), 'flat')
+})
+
+test('groupsOf: contiguous runs with counts', () => {
+    const l = [p(95), p(80), p(50), p(10), p(5)]
+    assert.deepEqual(groupsOf('band', l), [{ key: 'strong', count: 2 }, { key: 'moderate', count: 1 }, { key: 'weak', count: 2 }])
+    assert.deepEqual(groupsOf('flat', l), [])
+})
+
+test('yearHistogram: fills gaps, oldest first, skips undated', () => {
+    assert.deepEqual(yearHistogram([p(1, '2020-01-01'), p(1, '2022-05-01'), p(1, '2022-07-01'), {}]),
+        [{ year: 2020, count: 1 }, { year: 2021, count: 0 }, { year: 2022, count: 2 }])
+    assert.deepEqual(yearHistogram([]), [])
+})
+
+test('spotCheckSample: riskiest first', () => {
+    const l = [p(99), p(71), p(85), p(70)]
+    assert.deepEqual(spotCheckSample(l, 'ACCEPTED', 2).map(x => x.authorshipLikelihoodScore), [70, 71])
+    assert.deepEqual(spotCheckSample([p(5), p(39), p(20)], 'REJECTED', 2).map(x => x.authorshipLikelihoodScore), [39, 20])
+})
+
+test('fmtCount: full unless compact, then 1.2k / 12k', () => {
+    assert.equal(fmtCount(1234), '1,234')
+    assert.equal(fmtCount(999, true), '999')
+    assert.equal(fmtCount(1234, true), '1.2k')
+    assert.equal(fmtCount(2000, true), '2k')
+    assert.equal(fmtCount(12345, true), '12k')
+})
+
+test('authorLine: splits the byline around the target and shortens long sides', () => {
+    const a = (first, last, targetAuthor = false) => ({ firstName: first, lastName: last, targetAuthor })
+    assert.deepEqual(authorLine({ reCiterArticleAuthorFeatures: [a('Stephen B', 'Johnson'), a('Michael E', 'Bales', true), a('Daniel', 'Dine')] }),
+        { pre: 'Stephen B Johnson, ', tgt: 'Michael E Bales', post: ', Daniel Dine' })
+    const many = ['A', 'B', 'C', 'D', 'E'].map((x) => a(x, 'X'))
+    many.splice(4, 0, a('T', 'Target', true))
+    many.push(a('F', 'X'), a('G', 'X'), a('H', 'X'))
+    assert.deepEqual(authorLine({ reCiterArticleAuthorFeatures: many }),
+        { pre: 'A X, B X, …, D X, ', tgt: 'T Target', post: ', E X, …, H X' })
+    assert.deepEqual(authorLine({ reCiterArticleAuthorFeatures: [a('T', 'Target', true)] }), { pre: '', tgt: 'T Target', post: '' })
+    assert.deepEqual(authorLine({ reCiterArticleAuthorFeatures: [a('A', 'X'), a('B', 'X'), a('C', 'X'), a('D', 'X')] }), { pre: 'A X, B X, …, D X', tgt: '', post: '' })
+    assert.deepEqual(authorLine({}), { pre: '', tgt: '', post: '' })
+})
+
+test('hand-added PubMed articles: unscored, dated from displayDate', async () => {
+    const { isScored } = await import('../src/utils/curateGroups.ts')
+    const { toReciterArticle } = await import('../src/utils/toReciterArticle.ts')
+    const a = toReciterArticle({ pmid: 38442177, title: 'T', authors: [], journal: 'PNAS', displayDate: '2024 Mar 01' })
+    assert.equal(isScored(a), false)
+    assert.equal(yearOf(a), '2024')
+    assert.equal(a.journalTitleVerbose, 'PNAS')
+    assert.equal(isScored({ authorshipLikelihoodScore: 0 }), true)
+})

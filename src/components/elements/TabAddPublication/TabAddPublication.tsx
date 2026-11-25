@@ -16,7 +16,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import { toast } from "react-toastify"
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import { publicationsPreviousDataFetching } from "../../../redux/reducers/reducers";
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
+import { toReciterArticle } from "../../../utils/toReciterArticle";
 
 
 interface FuncProps {
@@ -97,17 +97,13 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         const pubmedPublications: any = [];
         let updatedpubs: any = [];
         // let newReciterData = reciterData.reciter.reCiterArticleFeatures
-        let reCiterArticleFeatures = reciterData?.reciter?.reCiterArticleFeatures
+        let reCiterArticleFeatures = reciterData.reciter.reCiterArticleFeatures
         let newReciterData = reCiterArticleFeatures && reCiterArticleFeatures.length > 0 ? reCiterArticleFeatures : []
         pubmedData.forEach(function (publication: any) {
             if (publication.pmid === id) {
                 publication.evidence = []
-                pubmedPublications.push(publication)
-                let newObject = Object.assign(publication, {
-                    "userAssertion": "ACCEPTED",
-                    "articleTitle": publication.title,
-                    "reCiterArticleAuthorFeatures": mapPubMedAuthorsToReciterAuthors(publication.authors)
-                })
+                let newObject = toReciterArticle(publication, "ACCEPTED")
+                pubmedPublications.push(newObject)
                 newReciterData.push(newObject);
             } else {
                 updatedpubs.push(publication);
@@ -133,7 +129,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         const pubmedPublications: any = []
         let updatedpubs: any = [];
         // let newReciterData = reciterData.reciter.reCiterArticleFeatures
-        let reCiterArticleFeatures = reciterData?.reciter?.reCiterArticleFeatures
+        let reCiterArticleFeatures = reciterData.reciter.reCiterArticleFeatures
         let newReciterData = reCiterArticleFeatures && reCiterArticleFeatures.length > 0 ? reCiterArticleFeatures : []
         pubmedData.forEach(function (publication: any) {
             if (publication.pmid === id) {
@@ -191,12 +187,11 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
     const allReciterPubData = () => {
         let reciterPublications: Array<any> = []
-        // ReCiter-Publication-Manager#873: guard both -- neither is populated until the fetch completes.
-        ;(reciterData?.reciterPending || []).forEach(function (publication: any) {
+        reciterData.reciterPending.forEach(function (publication: any) {
             reciterPublications.push(publication)
         })
 
-        ;(reciterData?.reciter?.reCiterArticleFeatures || []).forEach(function (publication: any) {
+        reciterData.reciter.reCiterArticleFeatures.forEach(function (publication: any) {
             reciterPublications.push(publication)
         })
         return reciterPublications
@@ -398,11 +393,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                 filter()
             }
         } else {
-            toast.error("Earliest year should not be greater than latest year", {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-            });
+            toast.error("Earliest year should not be greater than latest year");
         }
     }
 
@@ -532,7 +523,6 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                     <p>{pubmedFetchingMore.message}</p>
                 </div>
             )}
-            <ToastContainerWrapper />
         </div>
     );
 }

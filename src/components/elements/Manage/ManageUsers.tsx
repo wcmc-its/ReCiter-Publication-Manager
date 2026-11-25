@@ -8,7 +8,6 @@ import { reciterConfig } from '../../../../config/local';
 import UsersTable from "./UsersTable";
 import { useRouter } from 'next/router'
 import { adminUsersListAction, createORupdateUserIDAction, getAdminDepartments, getAdminRoles, sendNotification } from "../../../redux/actions/actions";
-import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { toast } from "react-toastify"
 import { reportError } from "../../../utils/reportError";
 import { useSession } from 'next-auth/react';
@@ -57,38 +56,13 @@ const ManageUsers = () => {
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel.labelUserView)
     } else if (session?.adminSettings) {
-      let adminSettings = typeof session.adminSettings === "string"
-        ? JSON.parse(session.adminSettings)
-        : (typeof session.adminSettings === "object" && session.adminSettings !== null
-          ? session.adminSettings
-          : []);
-
-      if (Array.isArray(adminSettings)) {
-        let data = adminSettings.find(obj => obj?.viewName === "findPeople");
-        if (data?.viewAttributes != null) {
-          viewAttributes = typeof data.viewAttributes === "string"
-            ? JSON.parse(data.viewAttributes)
-            : (typeof data.viewAttributes === "object" && data.viewAttributes !== null
-              ? data.viewAttributes
-              : []);
-        }
-        if (!Array.isArray(viewAttributes)) {
-          viewAttributes = [];
-        }
-        let cwidLabel = viewAttributes.find(item => item?.labelUserKey === "personIdentifier");
-        let notificationsData = adminSettings.find(obj => obj?.viewName === "EmailNotifications");
-        if (notificationsData?.viewAttributes != null) {
-          emailNotifications = typeof notificationsData.viewAttributes === "string"
-            ? JSON.parse(notificationsData.viewAttributes)
-            : (typeof notificationsData.viewAttributes === "object" && notificationsData.viewAttributes !== null
-              ? notificationsData.viewAttributes
-              : []);
-        }
-        if (!Array.isArray(emailNotifications)) {
-          emailNotifications = [];
-        }
-        cwidLabel && setNameOrcwidLabel(cwidLabel.labelUserView);
-      }
+      let adminSettings = JSON.parse(session.adminSettings);
+      let data = adminSettings.find(obj => obj.viewName === "findPeople")
+      viewAttributes = JSON.parse(data.viewAttributes)
+      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+      let notificationsData = adminSettings.find(obj => obj.viewName === "EmailNotifications")
+      emailNotifications = JSON.parse(notificationsData.viewAttributes);
+      cwidLabel && setNameOrcwidLabel(cwidLabel.labelUserView)
     }
     let settingsObj = emailNotifications && emailNotifications.find(data => data.isVisible)
     setVisibleNotification(settingsObj && settingsObj.isVisible || false)
@@ -113,22 +87,14 @@ const ManageUsers = () => {
         setTotalCount(data.totalUsersCount)
         dispatch(adminUsersListAction(data))
         setpageLoading(false);
-        if (createORupdateUserID) toast.success(createORupdateUserID + " successfully", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        if (createORupdateUserID) toast.success(createORupdateUserID + " successfully");
         dispatch(createORupdateUserIDAction(""))
       })
       .catch(error => {
         console.error("[ERR-5010]", error);
         reportError("ERR-5010", "Unable to load user list", error);
         setpageLoading(false);
-        toast.error("Unable to load user list. Please try again. (ERR-5010)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        toast.error("Unable to load user list. Please try again. (ERR-5010)");
       });
   }
 
@@ -304,7 +270,6 @@ const ManageUsers = () => {
           />
         </div>
       )}
-      <ToastContainerWrapper />
     </div>
   )
 }

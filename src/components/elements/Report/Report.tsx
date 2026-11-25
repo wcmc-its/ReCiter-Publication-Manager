@@ -1,14 +1,17 @@
-import React, { useState } from "react"; 
+import React, { useRef, useState } from "react";
+import { Button } from "../../ui";
 import appStyles from '../App/App.module.css';
 import styles from './Report.module.css';
 import QuickReport from './QuickReport';
 import SearchSummary from './SearchSummary';
+import BibliometricExportModal from './BibliometricExportModal';
+import { reciterConfig } from '../../../../config/local';
 import { FilterSection } from './FilterSection';
 import { useDispatch , useSelector } from 'react-redux';
 import { RootStateOrAny } from "../../../types/redux";
 import { useEffect } from 'react';
 import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults, getReportsResultsInitial, fetchReportsResultsIds, showEvidenceByDefault } from '../../../redux/actions/actions';
-import { ReportsResultPane } from "./ReportsResultPane";
+import { initialStatePubSearchFilter } from "../../../redux/reducers/reducers";
 import { usePagination } from "../../../hooks/usePagination";
 import Pagination from "../Pagination/Pagination";
 import { getOffset } from "../../../utils/pagination";
@@ -21,7 +24,6 @@ import { Container } from "react-bootstrap";
 import { ReportResults } from "./ReportResults";
 import { countPersons } from "../../../../controllers/db/person.controller";
 import { useSession } from 'next-auth/react';
-import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -48,6 +50,7 @@ const Report = () => {
   const articleTypeFilterData = useSelector((state: RootStateOrAny) => state.articleTypeFilterData)
   const authorFilterData = useSelector((state: RootStateOrAny) => state.authorFilterData)
   const dateFilterData = useSelector((state: RootStateOrAny) => state.dateFilterData)
+  const peerReviewFilterData = useSelector((state: RootStateOrAny) => state.peerReviewFilterData)
   const journalFilterData = useSelector((state: RootStateOrAny) => state.journalFilterData)
   const journalRankFilterData = useSelector((state: RootStateOrAny) => state.journalRankFilterData)
   const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
@@ -73,6 +76,11 @@ const Report = () => {
   const [reportingWebDisplay, setReportingWebDisplay] = useState([])
   const [isOnlyAuthorFilters, setIsOnlyAuthorFilters] = useState<boolean>(false)
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
+  // Which export modal is open; the buttons sit in the title row, the modals in SearchSummary.
+  const [exportType, setExportType] = useState<"CSV" | "RTF" | null>(null)
+  const [biblioOpen, setBiblioOpen] = useState<boolean>(false)
+  // Filters as of the last search, so closing a filter menu without a change doesn't re-search.
+  const lastAppliedFilters = useRef<string>(JSON.stringify(pubSearchFilter.filters))
 
 
 
@@ -83,127 +91,24 @@ const Report = () => {
   // modal management
   const [openModal, uid, updateUid, handleClose, handleShow] = useModal();
 
+  // labels come from admin settings, which _app fetches asynchronously -- on a direct load of
+  // /report they arrive after mount, so re-derive whenever they land (session.adminSettings is
+  // no longer populated by next-auth)
+  useEffect(() => {
+    if (!updatedAdminSettings?.length) return;
+    const attrs = (viewName) => updatedAdminSettings.find(obj => obj.viewName === viewName).viewAttributes;
+    setReportFiltersLabes(attrs("reportingFilters"));
+    setViewProfileLabels(attrs("viewProfile"));
+    setReportLabelsForSort(attrs("reportingWebViewSort"));
+    setHeadShotLabelData(attrs("headshot"))
+    setExportAuthorShipLabels(attrs("reportingAuthorshipCSV"))
+    setExportArticleLabels(attrs("reportingArticleCSV"))
+    setReportingWebDisplay(attrs("reportingWebDisplay"))
+    setExportArticlesRTF(attrs("reportingArticleRTF"))
+  }, [updatedAdminSettings])
+
   // fetch filters on mount
   useEffect(() => {
-    var viewAttributes = [];
-    var profileViewAttributes = [];
-    var sortLabelViewAttributes = [];
-    var headShotLabels = [];
-    var exportAuthorShipCSVLabels = [];
-    var exportArticleCSVLabels = [];
-    var reportingWeb = [];
-    var exportArticleRTF = [];
-
-
-    if (updatedAdminSettings.length > 0) {
-      // updated settings from manage settings page
-      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "reportingFilters")
-      let viewProfileUpdatedData = updatedAdminSettings.find(obj => obj.viewName === "viewProfile")
-      let sortLabelsUpdatedData = updatedAdminSettings.find(obj => obj.viewName === "reportingWebViewSort")
-      let headShotData = updatedAdminSettings.find(obj => obj.viewName === "headshot")
-      let exportAuthors = updatedAdminSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
-      let exportArticle = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleCSV")
-      let reportingWebDisplay = updatedAdminSettings.find(obj => obj.viewName === "reportingWebDisplay")
-      let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
-
-
-      sortLabelViewAttributes = sortLabelsUpdatedData.viewAttributes;
-      profileViewAttributes = viewProfileUpdatedData.viewAttributes;
-      viewAttributes = updatedData.viewAttributes;
-      headShotLabels = headShotData.viewAttributes;
-      exportArticleCSVLabels = exportArticle.viewAttributes;
-      exportAuthorShipCSVLabels = exportAuthors.viewAttributes;
-      reportingWeb = reportingWebDisplay.viewAttributes;
-      exportArticleRTF = exportRTF.viewAttributes;
-
-    } else if (session?.adminSettings) {
-      // regular settings from session
-      let adminSettings = typeof session.adminSettings === "string" && session.adminSettings !== ""
-        ? JSON.parse(session.adminSettings)
-        : (typeof session.adminSettings === "object" && session.adminSettings !== null
-          ? session.adminSettings
-          : []);
-
-      let data = adminSettings.find(obj => obj.viewName === "reportingFilters")
-      let viewProfileUpdatedData = adminSettings.find(obj => obj.viewName === "viewProfile")
-      let sortLabelsUpdatedData = adminSettings.find(obj => obj.viewName === "reportingWebViewSort")
-      let headShotData = adminSettings.find(obj => obj.viewName === "headshot")
-      let exportAuthors = adminSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
-      let exportArticle = adminSettings.find(obj => obj.viewName === "reportingArticleCSV")
-      let reportingWebDisplay = adminSettings.find(obj => obj.viewName === "reportingWebDisplay")
-      let exportRTF = adminSettings.find(obj => obj.viewName === "reportingArticleRTF")
-
-
-      //sortLabelViewAttributes = typeof sortLabelsUpdatedData.viewAttributes === "string" ? JSON.parse(sortLabelsUpdatedData.viewAttributes) : sortLabelsUpdatedData.viewAttributes;
-      sortLabelViewAttributes = sortLabelsUpdatedData?.viewAttributes != null
-        ? (typeof sortLabelsUpdatedData.viewAttributes === "string" && sortLabelsUpdatedData.viewAttributes !== ""
-          ? JSON.parse(sortLabelsUpdatedData.viewAttributes)
-          : (typeof sortLabelsUpdatedData.viewAttributes === "object" ? sortLabelsUpdatedData.viewAttributes : []))
-        : [];
-      //profileViewAttributes = typeof viewProfileUpdatedData.viewAttributes === "string" ? JSON.parse(viewProfileUpdatedData.viewAttributes) : viewProfileUpdatedData.viewAttributes;
-      
-      profileViewAttributes = viewProfileUpdatedData?.viewAttributes != null
-        ? (typeof viewProfileUpdatedData.viewAttributes === "string" && viewProfileUpdatedData.viewAttributes !== ""
-          ? JSON.parse(viewProfileUpdatedData.viewAttributes)
-          : (typeof viewProfileUpdatedData.viewAttributes === "object" ? viewProfileUpdatedData.viewAttributes : []))
-        : [];
-      //viewAttributes = typeof data.viewAttributes === "string" ? JSON.parse(data.viewAttributes) : data.viewAttributes;
-      
-      viewAttributes = data?.viewAttributes != null
-        ? (typeof data.viewAttributes === "string" && data.viewAttributes !== ""
-          ? JSON.parse(data.viewAttributes)
-          : (typeof data.viewAttributes === "object" ? data.viewAttributes : []))
-        : [];
-
-      //headShotLabels = typeof headShotData.viewAttributes === "string" ? JSON.parse(headShotData.viewAttributes) : headShotData.viewAttributes;
-      
-      headShotLabels = headShotData?.viewAttributes != null
-        ? (typeof headShotData.viewAttributes === "string" && headShotData.viewAttributes !== ""
-          ? JSON.parse(headShotData.viewAttributes)
-          : (typeof headShotData.viewAttributes === "object" ? headShotData.viewAttributes : []))
-        : [];
-
-      exportArticleCSVLabels = exportArticle?.viewAttributes != null
-        ? (typeof exportArticle.viewAttributes === "string" && exportArticle.viewAttributes !== ""
-          ? JSON.parse(exportArticle.viewAttributes)
-          : (typeof exportArticle.viewAttributes === "object" ? exportArticle.viewAttributes : []))
-        : [];
-
-      exportAuthorShipCSVLabels = exportAuthors?.viewAttributes != null
-        ? (typeof exportAuthors.viewAttributes === "string" && exportAuthors.viewAttributes !== ""
-          ? JSON.parse(exportAuthors.viewAttributes)
-          : (typeof exportAuthors.viewAttributes === "object" ? exportAuthors.viewAttributes : []))
-        : [];
-
-      reportingWeb = reportingWebDisplay?.viewAttributes != null
-        ? (typeof reportingWebDisplay.viewAttributes === "string" && reportingWebDisplay.viewAttributes !== ""
-          ? JSON.parse(reportingWebDisplay.viewAttributes)
-          : (typeof reportingWebDisplay.viewAttributes === "object" ? reportingWebDisplay.viewAttributes : []))
-        : [];
-
-      exportArticleRTF = exportRTF?.viewAttributes != null
-        ? (typeof exportRTF.viewAttributes === "string" && exportRTF.viewAttributes !== ""
-          ? JSON.parse(exportRTF.viewAttributes)
-          : (typeof exportRTF.viewAttributes === "object" ? exportRTF.viewAttributes : []))
-        : [];
-      exportArticleCSVLabels = typeof exportArticle.viewAttributes === "string" ? JSON.parse(exportArticle.viewAttributes) : exportArticle.viewAttributes;
-      exportAuthorShipCSVLabels = typeof exportAuthors.viewAttributes === "string" ? JSON.parse(exportAuthors.viewAttributes) : exportAuthors.viewAttributes;
-      reportingWeb = typeof reportingWebDisplay.viewAttributes === "string" ? JSON.parse(reportingWebDisplay.viewAttributes) : reportingWebDisplay.viewAttributes;
-      exportArticleRTF = typeof exportRTF.viewAttributes === "string" ? JSON.parse(exportRTF.viewAttributes) : exportRTF.viewAttributes;
-
-    }
-
-    // view attributes data from session or updated settings
-    setReportFiltersLabes(viewAttributes);
-    setViewProfileLabels(profileViewAttributes);
-    setReportLabelsForSort(sortLabelViewAttributes);
-    setHeadShotLabelData(headShotLabels)
-    setExportAuthorShipLabels(exportAuthorShipCSVLabels)
-    setExportArticleLabels(exportArticleCSVLabels)
-    setReportingWebDisplay(reportingWeb)
-    setExportArticlesRTF(exportArticleRTF)
-
-
     SetIsFirstLoad(true);
     dispatch(showEvidenceByDefault(null));
     const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter.filters;
@@ -306,6 +211,11 @@ const Report = () => {
     articleTypeFilterData : [...articleTypeFilterData],
     authorFilterData: [...authorFilterData],
     dateFilterData: [...dateFilterData],
+    // Publication date bounds ride along on the date endpoint (minPubDate / maxPubDate).
+    pubDateFilterData: dateFilterData
+      .filter((r: any) => r && (r.minPubDate || r.maxPubDate))
+      .map((r: any) => ({ minDate: r.minPubDate, maxDate: r.maxPubDate })),
+    peerReviewFilterData: [...(peerReviewFilterData || [])],
     journalFilterData: [...journalFilterData],
     journalRankFilterData: [...journalRankFilterData],
     orgUnitsData: [...orgUnitsData],
@@ -364,12 +274,37 @@ const Report = () => {
   }
 
   const searchResults = () => {
-
+    lastAppliedFilters.current = JSON.stringify(pubSearchFilter.filters);
     dispatch(getReportsResults(pubSearchFilter));
     handlePaginationUpdate(1);
     if (isInitialLoad) {
       setIsInitialLoad(false);
     }
+  }
+
+  // A filter applies when its menu closes, and only if the selection changed.
+  const applyFilters = () => {
+    if (JSON.stringify(pubSearchFilter.filters) === lastAppliedFilters.current) return;
+    searchResults();
+  }
+
+  const isSet = (v: any) => Array.isArray(v) ? v.length > 0 : v !== undefined && v !== null && v !== "";
+  const hasActiveFilters = Object.values(pubSearchFilter.filters || {}).some(isSet);
+
+  const clearAndSearch = () => {
+    clearFilters();
+    lastAppliedFilters.current = JSON.stringify(initialStatePubSearchFilter.filters);
+    // back to the unfiltered first page (same as a fresh load)
+    setIsInitialLoad(true);
+    setIsFiltersOn(false);
+    handlePaginationUpdate(1);
+    dispatch(getReportsResultsInitial(count, 0));
+  }
+
+  const openExport = (type: "CSV" | "RTF") => {
+    setExportType(type);
+    // Word builds its selection server-side from the filters; only the CSV modal needs the ids.
+    if (type === "CSV") onGetReportsDatabyPubFilters();
   }
 
   const updateSort = (sort: string, order: string) => {
@@ -428,21 +363,59 @@ const Report = () => {
 
   const onGetReportsDatabyPubFilters =()=>{
     const {personIdentifers,personTypes,institutions,orgUnits ,datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound,journalTitleVerbose,publicationTypeCanonical, authorPosition, journalImpactScoreLowerBound,journalImpactScoreUpperBound } = pubSearchFilter.filters;
+    const sourceTypes = pubSearchFilter.filters.sourceTypes || [];
+    // 5c: Publication date range and the grouped Type filter count as article filters too.
+    const { pubDateLowerBound, pubDateUpperBound } = pubSearchFilter.filters;
+    const pubTypes = pubSearchFilter.filters.pubTypes || [];
+    // 5d-1: Peer review is an article filter too.
+    const peerReview = pubSearchFilter.filters.peerReview || [];
+    const has5c = !!pubDateLowerBound || !!pubDateUpperBound || pubTypes.length > 0 || peerReview.length > 0;
     let journalImpactScoreLowerBound1 = journalImpactScoreLowerBound;
     let journalImpactScoreUpperBound2 = journalImpactScoreUpperBound;
     
     if((personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0) 
-    && (datePublicationAddedToEntrezLowerBound != "" || datePublicationAddedToEntrezUpperBound != "" || journalTitleVerbose.length > 0 || publicationTypeCanonical.length > 0 || journalImpactScoreLowerBound || journalImpactScoreUpperBound )) {
+    && (datePublicationAddedToEntrezLowerBound != "" || datePublicationAddedToEntrezUpperBound != "" || journalTitleVerbose.length > 0 || publicationTypeCanonical.length > 0 || sourceTypes.length > 0 || has5c || journalImpactScoreLowerBound || journalImpactScoreUpperBound )) {
       dispatch(fetchReportsResultsIds(pubSearchFilter)) 
-  }else if(personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0 && datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length == 0 && publicationTypeCanonical.length == 0 && journalImpactScoreLowerBound1 == undefined && journalImpactScoreUpperBound2 == undefined){
+  }else if(personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0 && datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length == 0 && publicationTypeCanonical.length == 0 && sourceTypes.length == 0 && !has5c && !journalImpactScoreLowerBound1 && !journalImpactScoreUpperBound2){
     dispatch(fetchReportsResultsIds(pubSearchFilter))
   }
   }
 
+  const canExport = !!(reportsSearchResults && reportsSearchResults.articlesCount);
+  // 5h: the bibliometric analysis is one person's document, so it needs exactly one person in the
+  // Author filter and no other person-level filter (type, institution, organization).
+  const biblioFilters = pubSearchFilter?.filters || {};
+  const biblioUid: string | null =
+    (biblioFilters.personIdentifers || []).length === 1 &&
+    !(biblioFilters.personTypes || []).length && !(biblioFilters.institutions || []).length && !(biblioFilters.orgUnits || []).length
+      ? biblioFilters.personIdentifers[0]
+      : null;
+
+  // Title row: page name on the left, the two exports on the right ("Excel" / "Word" per the 1e
+  // rename; Word downloads a .docx bibliography, 5g).
+  const titleRow = (
+    <div className={styles.titleRow}>
+      <h1 className={styles.header}>Reports</h1>
+      <div className={styles.exportButtons}>
+        <Button variant="primary" disabled={!canExport} onClick={() => openExport("CSV")} data-testid="export-excel" sx={EXCEL_SX}>
+          <ExportIcon /> Export Excel
+        </Button>
+        <Button variant="secondary" disabled={!canExport} onClick={() => openExport("RTF")} data-testid="export-word" sx={WORD_SX}>
+          <ExportIcon /> Export Word
+        </Button>
+        <span title={biblioUid ? undefined : "Choose one person to run a bibliometric analysis"} style={{ display: 'inline-flex' }}>
+          <Button variant="secondary" disabled={!biblioUid} onClick={() => setBiblioOpen(true)} data-testid="export-biblio" sx={BIBLIO_SX}>
+            <ChartIcon /> Bibliometric analysis
+          </Button>
+        </span>
+      </div>
+    </div>
+  );
+
   if (reportingFiltersLoading) {
     return (
       <div className={appStyles.mainContainer}>
-        <h1 className={styles.header}>Create Reports</h1>
+        {titleRow}
         <div>
           <div className={styles.loadingRow}>
             <div className={styles.spinner} />
@@ -457,28 +430,30 @@ const Report = () => {
   } else return (
     <div>
       <div className={appStyles.mainContainer}>
-        <h1 className={styles.header}>Create Reports</h1>
+        {titleRow}
+        <BibliometricExportModal show={biblioOpen && !!biblioUid} onClose={() => setBiblioOpen(false)} uid={biblioUid} />
         <FilterSection 
           filterOptions={filters}
           filterUpdateOptions={filterUpdateOptions}
           onSetSearchFilters={onSetSearchFilters}
           onSetRangeFilters={onSetRangeFilters}
           selectedFilters={pubSearchFilter.filters}
-          clearFilters={clearFilters}
-          searchResults={searchResults}
+          clearFilters={clearAndSearch}
+          searchResults={applyFilters}
+          hasActiveFilters={hasActiveFilters}
           isFilterClear={isFilterClear}
           onLoadMore = {onLoadMore}
           reportFiltersLabes = {reportFiltersLabes}
           />
         {reportsSearchResultsLoading &&
           <div>
-            <div className={styles.loadingRow}>
-              <div className={styles.spinner} />
-              <span>Searching…</span>
-            </div>
-            <div className={styles.skeletonCard}><div className={styles.skTitle} /><div className={styles.skAuthors} /><div className={styles.skMeta} /></div>
-            <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '60%' }} /><div className={styles.skAuthors} style={{ width: '50%' }} /><div className={styles.skMeta} style={{ width: '38%' }} /></div>
-            <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '74%' }} /><div className={styles.skAuthors} style={{ width: '44%' }} /><div className={styles.skMeta} style={{ width: '32%' }} /></div>
+          <div className={styles.loadingRow}>
+            <div className={styles.spinner} />
+            <span>Searching…</span>
+          </div>
+          <div className={styles.skeletonCard}><div className={styles.skTitle} /><div className={styles.skAuthors} /><div className={styles.skMeta} /></div>
+          <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '60%' }} /><div className={styles.skAuthors} style={{ width: '50%' }} /><div className={styles.skMeta} style={{ width: '38%' }} /></div>
+          <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '74%' }} /><div className={styles.skAuthors} style={{ width: '44%' }} /><div className={styles.skMeta} style={{ width: '32%' }} /></div>
           </div>
         }
         {!reportsSearchResultsLoading && 
@@ -498,9 +473,10 @@ const Report = () => {
             page={page}
             onPaginationUpdate={onPaginationUpdate}
             onCountUpdate={onCountUpdate}
+            exportType={exportType}
+            onExportClose={() => setExportType(null)}
             />
             }
-          <ToastContainerWrapper />
           <ReportResults
             results={reportsSearchResults}
             loading={reportsPaginatedResultsLoading}
@@ -522,5 +498,36 @@ const Report = () => {
     </div>
   )
 }
+
+// Mockup: Excel is the filled Slate button, Word the Slate-tint one.
+const EXCEL_SX = {
+  bgcolor: 'var(--pm-slate)', borderColor: 'var(--pm-slate)',
+  '&:hover': { bgcolor: '#2a4159', borderColor: '#2a4159' },
+  '&.Mui-disabled': { color: '#fff', bgcolor: 'var(--pm-slate)', borderColor: 'var(--pm-slate)' },
+};
+const WORD_SX = {
+  color: 'var(--pm-slate)', bgcolor: 'var(--pm-slate-tint)', borderColor: 'var(--pm-slate-tint-border)',
+  '&:hover': { bgcolor: '#e0e8f1', borderColor: 'var(--pm-slate-tint-border)' },
+  '&.Mui-disabled': { color: 'var(--pm-slate)', bgcolor: 'var(--pm-slate-tint)', borderColor: 'var(--pm-slate-tint-border)' },
+};
+
+// Amber tint, matching the Profile drawer's "Bibliometric analysis" button.
+const BIBLIO_SX = {
+  color: 'var(--pm-amber)', bgcolor: 'var(--pm-amber-tint)', borderColor: 'var(--pm-amber-tint-border)',
+  '&:hover': { bgcolor: 'var(--pm-surface)', borderColor: 'var(--pm-amber-tint-border)' },
+  '&.Mui-disabled': { opacity: 0.55, color: 'var(--pm-amber)', bgcolor: 'var(--pm-amber-tint)', borderColor: 'var(--pm-amber-tint-border)' },
+};
+
+const ChartIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 3v18h18" /><path d="M8 17v-5" /><path d="M13 17V8" /><path d="M18 17v-9" />
+  </svg>
+);
+
+const ExportIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6" /><path d="M9 11h2" />
+  </svg>
+);
 
 export default Report;

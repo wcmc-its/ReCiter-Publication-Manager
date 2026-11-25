@@ -1,0 +1,97 @@
+import type { NextApiRequest, NextApiResponse } from 'next'
+import { getToken } from 'next-auth/jwt'
+import { recordExternalArticleFeedback } from '../../../../../controllers/externalArticle.controller'
+import { canCurate } from '../../../../../controllers/db/authorization.controller'
+import { reciterConfig } from '../../../../../config/local'
+import { effectiveToken } from '../../../../../src/utils/viewAs'
+import { externalStoreMode } from '../../../../../src/lib/externalStore'
+import { send, sessionOf, feedbackExternal } from '../../../../../controllers/db/external.controller'
+import { netidFromPartnerKey, PARTNER_EXTERNAL_FEEDBACK_MESSAGE } from '../../../../../src/utils/partnerAccount'
+import { cwidParam } from '../../../../../src/utils/canonicalCwid'
+
+// POST /api/db/external-article/feedback — curate per-source tabs (Option C, Phase 1):
+// Accept / Reject / un-reject an already-added external (non-PubMed) publication. Same
+// gate as authorships/action.ts (app-level backendApiKey), then resolves the curator
+// identity from the next-auth JWT server-side — never trusted from the client body, same
+// as the addedBy handling in external-article/[uid].ts. Proxies to the live Java
+// PATCH /reciter/external-article/feedback, which sets suppressed=true on REJECTED /
+// clears it on ACCEPTED and logs to FeedbackLog.
+//
+// Lives under /api/db/** so it inherits PR #893's session gate once that merges; until
+// then the backendApiKey + JWT-actor pattern is the gate, same as every other /api/db
+// route today.
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+    if (req.method !== 'POST') {
+        return res.status(400).send('HTTP Method supported is POST')
+    }
+    if (req.headers.authorization === undefined) {
+        return res.status(400).send('Authorization header is needed')
+    }
+    if (req.headers.authorization !== reciterConfig.backendApiKey) {
+        return res.status(401).send('Authorization header is incorrect')
+    }
+
+    const { uid: rawUid, articleId, action, note } = req.body || {}
+    if (!rawUid || !articleId || !action) {
+        return res.status(400).send({ statusCode: 400, message: 'uid, articleId, and action are required' })
+    }
+    // Convert the uid on the way in, before both the canCurate check and the write, so the
+    // permission check and the ExternalArticle/FeedbackLog key are the same person.
+    const uid = cwidParam(rawUid)
+    if (!uid) {
+        return res.status(400).send({ statusCode: 400, message: `Not a valid uid: ${JSON.stringify(rawUid)}` })
+    }
+    if (action !== 'ACCEPTED' && action !== 'REJECTED' && action !== 'PENDING') {
+        return res.status(400).send({ statusCode: 400, message: 'action must be ACCEPTED, REJECTED, or PENDING' })
+    }
+
+    // EXTERNAL_STORE=mysql (plan 3b-3e): the same step through the store (Accept -> ACCEPTED,
+    // Reject -> REJECTED or REMOVED, PENDING -> no state change), never Java/DynamoDB.
+    if (externalStoreMode() === 'mysql') {
+        try {
+            return send(res, await feedbackExternal(uid, articleId, action, await sessionOf(req), note))
+        } catch (err) {
+            console.error('[external-article/feedback] Unhandled error:', err)
+            return res.status(500).send({ statusCode: 500, message: 'Internal server error' })
+        }
+    }
+
+    // Resolve the curating user's CWID from the JWT — never trust a client-supplied actor.
+    let actorPersonIdentifier: string | undefined = undefined
+    let token: any = null
+    try {
+        token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+        if (token && token.username) actorPersonIdentifier = String(token.username)
+    } catch (e) {
+        // token decode failed -> no actor resolved; handled by the guard below.
+    }
+    // The Java endpoint rejects a blank actor with a 400. Fail fast with a clear
+    // re-login hint instead of surfacing that as an opaque error mid-curation.
+    if (netidFromPartnerKey(actorPersonIdentifier)) {
+        return res.status(409).send({ statusCode: 409, message: PARTNER_EXTERNAL_FEEDBACK_MESSAGE })
+    }
+    if (!actorPersonIdentifier) {
+        return res.status(401).send({ statusCode: 401, message: 'Your session has expired. Please sign in again.' })
+    }
+
+    // Same canCurate gate as the PubMed accept/reject writes (goldstandard.ts): the api key
+    // only proves the call came from this app's server, not that this curator may curate uid.
+    const allowed = await canCurate(effectiveToken(token), uid)
+    if (!allowed) {
+        return res.status(403).send({
+            statusCode: 403,
+            message: "You do not have permission to curate this person's publications"
+        })
+    }
+
+    try {
+        const apiResponse = await recordExternalArticleFeedback(uid, articleId, action, actorPersonIdentifier, note)
+        if (apiResponse.statusCode === 200) {
+            return res.status(200).send({ statusCode: 200, external: apiResponse.statusText })
+        }
+        return res.status(apiResponse.statusCode || 502).send({ statusCode: apiResponse.statusCode || 502, message: apiResponse.statusText })
+    } catch (err) {
+        console.error('[external-article/feedback] Unhandled error:', err)
+        return res.status(500).send({ statusCode: 500, message: 'Internal server error' })
+    }
+}

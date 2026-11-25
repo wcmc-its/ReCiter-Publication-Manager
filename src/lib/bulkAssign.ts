@@ -1,0 +1,445 @@
+// Pure, dependency-free selection/assignment logic for the Authorships bulk bar (T4 —
+// "Find others like this" + bulk-assign one cwid to many rows, the Vickers case: many open
+// rows for the same author name, each proposing several WCM homonyms). Split out of
+// AuthorshipsTabs.tsx for the same reason as assignGate.ts (src/lib/assignGate.ts): every
+// branch here feeds a selection that ends in a real GoldStandard write, so the table needs to
+// be directly assertable (scripts/check-bulk-assign.mjs) rather than only exercised by hand.
+//
+// Four pieces:
+//   1. eligibility — which OPEN rows are checkbox-selectable at all: the existing
+//                    single-candidate bulk ACCEPT set, multi-candidate bulk-ASSIGN-only rows
+//                    (T4), and (B-8) single-candidate rows whose one proposed person has no
+//                    ReCiter identity — also ASSIGN-only, since the write for them is a
+//                    local-only record, never an Accept
+//   2. candidates  — the union of proposed candidates across a selection, for the
+//                    "Assign selected (N) to…" picker (name/cwid, ranked by how many
+//                    selected rows propose them)
+//   3. partition   — given a cwid the server has already canonicalized and identity-checked
+//                    (B-8's lookup endpoint), which selected rows already have it as a
+//                    candidate (onCandidate) and which don't (offCandidate) — EVERY row still
+//                    submits now, nothing is skipped; assignConfirmFlags derives the one
+//                    confirm flag each row's submit needs from that split plus whether the
+//                    cwid has a ReCiter identity at all, mirroring assignGate()'s own
+//                    dominance rule (src/lib/assignGate.ts) — plus a doBulkAccept-style
+//                    failure bucketing for rows that came back rejected anyway
+//   4. authorKey   — the normalized "same person, different byline spelling" key behind
+//                    "Show N others like this" (T5)
+
+// T5: normalized author key — "same person, different byline spelling" — for "Show N others
+// like this". A curator sees "Bernard Park" on one row and "Bernard J. Park" on another; the
+// free-text search box's LIKE '%Bernard Park%' misses the second one outright (the substring
+// isn't there), so the button needs its own equality key instead: lowercase FIRST whitespace
+// token + '|' + lowercase LAST whitespace token, which both bylines share regardless of what
+// sits in the middle. The SQL side (controllers/db/authorships.controller.ts buildWhere,
+// body.likeAuthor) computes the exact same two tokens with
+// LOWER(SUBSTRING_INDEX(wcm_author,' ',1)) / LOWER(SUBSTRING_INDEX(wcm_author,' ',-1)) — this
+// function is the client/test copy of that same rule, not a second definition of it.
+// ponytail: first/last WHITESPACE TOKEN, not real name parsing. A single-token name keys on
+// itself twice ("Park" -> "park|park"), which matches SUBSTRING_INDEX's own behavior when
+// there's no delimiter to split on. The ceiling this leaves is compound surnames — "van der
+// Berg" keys on "berg" alone (its last token), so it silently merges with any other "…berg" on
+// the same first name. That's a real false-positive class, not a hidden bug: acceptable at
+// today's ~16k-row table with no index and no name library, because the alternative (a real
+// tokenizer/name-parts library) is a much bigger lift for a "propose more candidates to look
+// at" button, not a write path — every row it surfaces still goes through its own per-row
+// assign/accept gate before anything is written.
+export function authorKey(wcmAuthor?: string): string {
+  const tokens = (wcmAuthor || "").trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return "";
+  const first = tokens[0].toLowerCase();
+  const last = tokens[tokens.length - 1].toLowerCase();
+  return `${first}|${last}`;
+}
+
+// Row shape both eligibility checks need — kept minimal/structural (not the full
+// AuthorshipRow) so this file has no dependency on the component module.
+export interface SelectableRow {
+  single_candidate?: boolean;
+  identity_in_reciter?: boolean;
+  top_already_rejected?: boolean;
+  // #1012: WCM ED has retired top_cwid. Sits alongside top_already_rejected because it has the
+  // same consequence for bulk work — the server refuses Accept on it — and would otherwise turn
+  // a bulk accept into a partial failure the curator has to reconcile row by row.
+  top_retired_cwid?: boolean;
+  top_cwid?: string;
+  source?: "pubmed" | "scopus" | "openalex";
+}
+
+// The existing single-candidate bulk-ACCEPT set: toggleSelect's pre-T4 gate, eligibleRows,
+// the "Accept near-certain"/"Select all matching" bar, and authorshipSelectable server-side
+// all agree on this. Unchanged by T4 — a multi-candidate row must never satisfy it, which is
+// what keeps "Accept selected" from ever bulk-accepting one of the newly-selectable rows.
+export function isAcceptEligible(row: SelectableRow): boolean {
+  return !!row.single_candidate && row.identity_in_reciter !== false
+    && !row.top_already_rejected && !row.top_retired_cwid && !!row.top_cwid;
+}
+
+// T4: multi-candidate rows become selectable too, but only for bulk ASSIGN, never accept.
+// Scopus used to be excluded here, on the grounds that homonym-rejection recording
+// (homonymRejectionTargets in authorships.controller.ts) is pubmed-lane only: a scopus row
+// carries no pmid and gold standard is PMID-keyed, so there is no homonym judgment for it to
+// record. True, but that only justifies skipping the SIDE-EFFECT, never blocking the assign —
+// and the per-row "Pick one" panel performs this exact assign on this exact row today
+// (`case "assign"`'s isScopus branch writes an ExternalArticle). Blocking the checkbox left
+// multi-candidate scopus rows as the ONE combination with no bulk path at all. The two confirm
+// dialogs now say when the "not mine" side-effect does not happen, which is what the exclusion
+// was really protecting.
+export function isMultiAssignEligible(row: SelectableRow): boolean {
+  return !row.single_candidate;
+}
+
+// B-8 addendum: an OPEN single-candidate row whose one proposed person (top_cwid) has no
+// ReCiter identity at all (identity_in_reciter === false) — the nns9003 case: 16 rows all
+// propose the same no-identity cwid, each showing the no-identity pill + "Assign…" instead of
+// Accept, and until this predicate existed isAcceptEligible AND isMultiAssignEligible both
+// refused them, so isBulkSelectable was false and even bulk-assign couldn't reach them. On
+// candidate for THIS person's row is exactly assignGate's confirm_no_identity -> local_only
+// branch (src/lib/assignGate.ts) — a real, curator-confirmed decision recorded per row, just
+// never written into a publication record. Bulk ACCEPT must never include these — a no-identity
+// row has nothing Accept could write to — so this is deliberately NOT folded into
+// isAcceptEligible; it only widens isBulkSelectable, below, for assign. Any source: the write is
+// row-scoped local-only regardless of pubmed/scopus (no gold-standard/ExternalArticle write
+// happens for a no-identity target either way).
+export function isNoIdentityAssignEligible(row: SelectableRow): boolean {
+  return !!row.single_candidate && !!row.top_cwid
+    && row.identity_in_reciter === false && !row.top_already_rejected && !row.top_retired_cwid;
+}
+
+// Checkbox-selectable at all, on the currently-viewed queue. statusView is passed in rather
+// than folded into SelectableRow because it's a view-level fact, not a row-level one — the
+// pre-T4 toggleSelect gated the same way, on statusView, not on a `status` field on the row.
+export function isBulkSelectable(row: SelectableRow, statusView: string): boolean {
+  if (statusView !== "open") return false;
+  return isAcceptEligible(row) || isMultiAssignEligible(row) || isNoIdentityAssignEligible(row);
+}
+
+export interface CandidateLite {
+  cwid: string;
+  name?: string;
+  /** Identity-only score, the same number the card's rail and the row's "top IO" show.
+   *  Optional: a caller that has none passes nothing and those entries sort last. */
+  score?: number | null;
+  /** Person type / department off the row's candidate JSON — display only, for the picker. */
+  person_type?: string;
+  dept?: string;
+}
+
+// The union of candidates proposed across a set of selected rows, each annotated with how
+// many of those rows propose it — "Name (cwid) — matches k of N selected" in the bulk-assign
+// picker. `rowCandidateLists` is the caller's own per-row candidate extraction
+// (parseCandidates(row.candidate_cwids_json) for a multi row, a single
+// [{cwid: top_cwid, name: top_name}] for a single-candidate one) — kept out of this file so
+// it carries no JSON-parsing or AuthorshipRow-shaped dependency.
+//
+// SORTED BY SCORE DESC, not by match count. Match count says how much of the SELECTION a
+// candidate covers, which is a property of what the curator happened to tick; score says how
+// likely this person actually wrote the papers, which is the question being answered. Ranking
+// by coverage put a 3-of-3 weak homonym above the high-match candidate on the card below it
+// (dav9002 over dwv2001), i.e. the list disagreed with the cards it summarises. Coverage is
+// still shown on every line and breaks ties.
+//
+// A candidate with no score sorts last rather than as zero: "unscored" and "scored zero" are
+// different claims, and only one of them is evidence against the person.
+export function unionCandidates(rowCandidateLists: CandidateLite[][]): Array<CandidateLite & { matches: number }> {
+  const byCwid = new Map<string, CandidateLite & { matches: number }>();
+  for (const list of rowCandidateLists) {
+    const seen = new Set<string>(); // one row proposing the same cwid twice still counts once
+    for (const c of list) {
+      if (!c?.cwid || seen.has(c.cwid)) continue;
+      seen.add(c.cwid);
+      const existing = byCwid.get(c.cwid);
+      if (existing) {
+        existing.matches += 1;
+        if (!existing.name && c.name) existing.name = c.name;
+        if (!existing.dept && c.dept) existing.dept = c.dept;
+        if (!existing.person_type && c.person_type) existing.person_type = c.person_type;
+        // The same person can carry a different score on each row (different paper, different
+        // evidence). Keep the strongest — it is the one that justifies their position here.
+        if (c.score != null && (existing.score == null || c.score > existing.score)) {
+          existing.score = c.score;
+        }
+      } else {
+        // dept / person_type only when present — check-bulk-assign.mjs deepEquals these
+        byCwid.set(c.cwid, {
+          cwid: c.cwid, name: c.name, score: c.score ?? null, matches: 1,
+          ...(c.person_type ? { person_type: c.person_type } : {}), ...(c.dept ? { dept: c.dept } : {}),
+        });
+      }
+    }
+  }
+  const rank = (c: CandidateLite) => (c.score == null ? -Infinity : c.score);
+  return [...byCwid.values()].sort((a, b) =>
+    rank(b) - rank(a) || b.matches - a.matches || a.cwid.localeCompare(b.cwid));
+}
+
+// Which selected rows already have the chosen cwid as one of THEIR OWN proposed candidates
+// (onCandidate) vs. which don't (offCandidate) — informational now, not a submit/skip split:
+// B-8 replaced the old "off-candidate rows are skipped, never sent" dead end (the sts2022 prod
+// incident — 10/10 rows skipped, Assign disabled) with the bulk equivalent of the per-row
+// OFF_CANDIDATE/NO_RECITER_IDENTITY 422 confirms, so EVERY row in both buckets submits; see
+// assignConfirmFlags below for the one confirm flag each row's submit carries.
+// `candidatesOf` mirrors unionCandidates' own extraction so the two can never disagree about
+// what a row proposes. `cwid` is expected to already be the server-canonicalized form
+// (authorshipLookupCwid's response), same as case "assign"'s own `target`.
+export function partitionForAssign<T>(
+  rows: T[], candidatesOf: (row: T) => CandidateLite[], cwid: string,
+): { onCandidate: T[]; offCandidate: T[] } {
+  const onCandidate: T[] = [];
+  const offCandidate: T[] = [];
+  for (const row of rows) {
+    const has = candidatesOf(row).some((c) => c.cwid === cwid);
+    (has ? onCandidate : offCandidate).push(row);
+  }
+  return { onCandidate, offCandidate };
+}
+
+// Which confirm flag(s) ONE row's bulk-assign submit needs, given (a) whether the chosen cwid
+// is on THAT row's own candidate list (partitionForAssign's offCandidate membership) and (b)
+// whether the lookup found a ReCiter identity for the cwid at all (one fact for the whole
+// batch — the same cwid, looked up once). This is exactly assignGate()'s own dominance rule
+// (src/lib/assignGate.ts) re-expressed for the client: absence of identity is asked first and
+// is NOT stood in for by the off-candidate confirm — they warn about opposite consequences
+// ("nothing is written" vs. "something IS written to a person you didn't pick from a list") —
+// so a no-identity cwid gets confirmNoIdentity regardless of on/off-candidate, and only an
+// on-candidate, has-identity row needs no flag at all (straight to "write", same as an
+// unconfirmed single-row assign today).
+export function assignConfirmFlags(offCandidate: boolean, hasIdentity: boolean): Record<string, "true"> {
+  if (!hasIdentity) return { confirmNoIdentity: "true" };
+  if (offCandidate) return { confirmOffCandidate: "true" };
+  return {};
+}
+
+// Bucket a bulk-assign submit batch's settled failures the way doBulkAccept buckets accept
+// failures (AuthorshipsTabs.tsx), extended with the two 422 codes `case "assign"` in
+// authorships.controller.ts can return. B-8: every selected row submits now, each carrying the
+// confirm flag assignConfirmFlags derived for it, so OFF_CANDIDATE/NO_RECITER_IDENTITY landing
+// here would mean that derivation itself disagreed with what the server just found — a real
+// anomaly to bucket and surface, not the expected outcome the old toSkip pre-submit split used
+// to describe. `conflict409` covers every 409 the assign endpoint can send (a scopus
+// dup-conflict, or the rejectedpmids data-integrity guard) — assign has no MULTI_CANDIDATE code
+// of its own (that's accept-only), so unlike doBulkAccept's dup bucket this one can't be split
+// further by cause.
+export interface AssignFailureReason {
+  status?: number;
+  code?: string;
+}
+export function bucketAssignFailures(reasons: AssignFailureReason[]): {
+  offCandidate: number; noIdentity: number; conflict409: number; other: number;
+} {
+  let offCandidate = 0, noIdentity = 0, conflict409 = 0, other = 0;
+  for (const r of reasons) {
+    if (r.status === 422 && r.code === "OFF_CANDIDATE") offCandidate++;
+    else if (r.status === 422 && r.code === "NO_RECITER_IDENTITY") noIdentity++;
+    else if (r.status === 409) conflict409++;
+    else other++;
+  }
+  return { offCandidate, noIdentity, conflict409, other };
+}
+
+// T-950: bucket a bulk-reject submit batch's settled failures, mirroring bucketAssignFailures'
+// shape. Reject (case "reject" in authorships.controller.ts) has only two failure statuses —
+// 409 when the row has no proposed identity to reject at all (top_cwid null; isBulkSelectable
+// already keeps these out of a bulk selection, so this bucket should stay empty in practice,
+// but the server still guards it) and 502 when a GoldStandard write itself fails partway
+// through the row's candidate list. Unlike assign, reject never asks the curator to confirm an
+// off-candidate or no-identity target — every row acts on its OWN already-proposed
+// candidate(s) — so it has no 422 path at all; OFF_CANDIDATE/NO_RECITER_IDENTITY simply can't
+// come back here.
+export interface RejectFailureReason {
+  status?: number;
+}
+export function bucketRejectFailures(reasons: RejectFailureReason[]): {
+  noProposal: number; writeFailed: number; other: number;
+} {
+  let noProposal = 0, writeFailed = 0, other = 0;
+  for (const r of reasons) {
+    if (r.status === 409) noProposal++;
+    else if (r.status === 502) writeFailed++;
+    else other++;
+  }
+  return { noProposal, writeFailed, other };
+}
+
+// T-NAG: the typed "Someone else" box's inline preview, one lookup-cycle behind the box —
+// idle (nothing typed long enough yet), loading (the debounced POST /api/db/authorships/lookup
+// is in flight), error (that POST rejected — never blocking, just shown text), or resolved (the
+// same {cwid,name,hasIdentity} shape authorshipLookupCwid returns, reused verbatim from the
+// bulk-assign confirm path above rather than re-derived). Pure so the four branches are
+// directly assertable (scripts/check-bulk-assign.mjs) without a component or a network call.
+// What a directory (WCM ED / Cornell Ithaca) knows about an identifier ReCiter does not — the
+// `directory` block authorshipLookupCwid returns when hasIdentity is false, reused verbatim
+// rather than re-derived. `mintable` is false when the record has no given/family name and so
+// cannot satisfy ReCiter's mandatory fields; `wcmCwidHasIdentity` is the duplicate-person
+// bridge, and when it is true the write lands on `wcmCwid`, NOT on what was typed.
+export interface TypedCwidDirectoryHit {
+  source: "wcm" | "cornell";
+  name: string;
+  title: string | null;
+  dept: string | null;
+  wcmCwid: string | null;
+  wcmCwidHasIdentity: boolean;
+  mintable: boolean;
+}
+
+export type TypedCwidLookupState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | {
+    status: "resolved"; cwid: string; name: string | null; hasIdentity: boolean;
+    directory?: TypedCwidDirectoryHit | null;
+    // #1012: WCM ED has RETIRED this identifier. TOP-LEVEL, not inside `directory`, because the
+    // controller only looks a directory up when ReCiter has NO identity — and a retired cwid
+    // very often still has one (it was a real person's cwid until they were re-recorded). Nested
+    // there, the flag would be missing in exactly the case that most needs it.
+    retiredCwid?: boolean;
+    supersededBy?: string | null;
+  };
+
+export interface TypedCwidPreview {
+  text: string;
+  tone: "neutral" | "warn";
+  /** True when the previewed cwid cannot be assigned at all, so the caller disables its Assign
+   *  button rather than letting the curator submit into a server refusal. Only the retired-cwid
+   *  branch sets it: every other `warn` here describes an unusual but legitimate outcome. */
+  blocked?: boolean;
+}
+
+// Mirrors the resolved shapes case "assign"'s own 422s already put in front of a curator
+// (no-identity's "records your decision on this row only", the mint confirm's "creates a
+// ReCiter identity", and off-candidate's "no name on file anywhere" parenthetical) — this just
+// says the same thing ahead of the round-trip instead of after it. The ORDER of the
+// no-identity branches below mirrors assignGate's exactly: bridge, then mintable directory hit,
+// then the pre-existing local-only fallback. Getting that order wrong would promise a curator
+// one outcome and deliver another.
+export function typedCwidPreview(state: TypedCwidLookupState): TypedCwidPreview | null {
+  switch (state.status) {
+    case "idle": return null;
+    case "loading": return { text: "looking up…", tone: "neutral" };
+    case "error": return { text: state.message, tone: "warn" };
+    case "resolved":
+      // FIRST, ahead of the hasIdentity split: ED has retired this identifier, so nothing below
+      // applies — not the bridge, not the mint, not "no ReCiter identity". The server refuses it
+      // (case "assign" 409); this only says so before the round-trip, and names the replacement
+      // so the curator's next keystrokes go somewhere real.
+      if (state.retiredCwid) {
+        return {
+          text: state.supersededBy
+            ? `→ ${state.cwid} is a retired CWID — ${state.supersededBy} replaced it. Use ${state.supersededBy}.`
+            : `→ ${state.cwid} is a retired CWID with no replacement on record — it cannot be assigned`,
+          tone: "warn", blocked: true,
+        };
+      }
+      if (!state.hasIdentity) {
+        const d = state.directory;
+        if (d?.wcmCwid && d.wcmCwidHasIdentity) {
+          return {
+            text: `→ ${d.name}: same person as ${d.wcmCwid} in ReCiter — will assign to ${d.wcmCwid}`,
+            tone: "warn",
+          };
+        }
+        if (d?.mintable) {
+          const where = d.source === "wcm" ? "WCM directory" : "Cornell directory";
+          const desc = [d.title, d.dept].map((v) => String(v || "").trim()).filter(Boolean).join(", ");
+          return {
+            text: `→ ${d.name}${desc ? ` · ${desc}` : ""} (${where}) — not in ReCiter; assigning creates their identity`,
+            tone: "warn",
+          };
+        }
+        return { text: `→ ${state.cwid}: no ReCiter identity — records on this row only`, tone: "warn" };
+      }
+      if (!state.name) {
+        return { text: `→ no name on file for ${state.cwid} — check the identifier`, tone: "warn" };
+      }
+      return { text: `→ ${state.name}`, tone: "neutral" };
+  }
+}
+
+// ---- UI refresh PR 5: parked queues and the bulk-assign popover ------------------------------
+
+// Snoozed and Dismissed: every row can be selected, and the only bulk action is Reopen. Kept
+// apart from isBulkSelectable (open-queue only, and pinned by check-authorships-no-suggestion.mjs)
+// so nothing that reads that predicate, the accept gates above all, can see a parked row.
+export function isParkedQueue(statusView: string): boolean {
+  return statusView === "snoozed" || statusView === "dismissed";
+}
+
+// The page's IO bands (90 / 50), the same cut points as src/utils/authorshipRow.ts's ioBand.
+// Repeated here, not imported, because this module stays free of the UI utilities.
+export type AssignBand = "High" | "Medium" | "Low";
+export function assignBand(v?: number | null): AssignBand | null {
+  return v == null || Number.isNaN(v) ? null : v >= 90 ? "High" : v >= 50 ? "Medium" : "Low";
+}
+
+// One line of the "Assign N selected to" list: the IO range, a count per band, and the amber
+// warning ("Not a candidate on 12 selected rows · 1 low-confidence match"). `scores` holds this
+// candidate's IO on each selected row that proposes them; `matches` is how many rows do.
+export function assignOptionSummary(scores: number[], selectedCount: number, matches: number): {
+  ioText: string; bands: Array<{ band: AssignBand; n: number }>; warn: string;
+} {
+  const floor = (v: number) => String(Math.floor(v));
+  const lo = scores.length ? Math.min(...scores) : null;
+  const hi = scores.length ? Math.max(...scores) : null;
+  const ioText = lo == null || hi == null ? "No IO score" : floor(lo) === floor(hi) ? `IO ${floor(lo)}` : `IO ${floor(lo)}–${floor(hi)}`;
+  const count: Record<AssignBand, number> = { High: 0, Medium: 0, Low: 0 };
+  for (const s of scores) { const b = assignBand(s); if (b) count[b] += 1; }
+  const bands = (["High", "Medium", "Low"] as AssignBand[]).filter((b) => count[b]).map((band) => ({ band, n: count[band] }));
+  const miss = Math.max(0, selectedCount - matches);
+  const warn = [
+    miss ? `Not a candidate on ${miss} selected row${miss === 1 ? "" : "s"}` : "",
+    count.Low ? `${count.Low} low-confidence match${count.Low === 1 ? "" : "es"}` : "",
+  ].filter(Boolean).join(" · ");
+  return { ioText, bands, warn };
+}
+
+// The confirm step's per-row preview for one chosen person: each selected row with this
+// person's IO on it (null when they are not one of the row's candidates), strongest first,
+// "not a candidate" last. A row is SAFE when this person is its candidate at High confidence;
+// "Assign the N high-confidence only" sends just those. The note says what the rest are.
+export function assignPreview<T>(
+  rows: T[], candidatesOf: (row: T) => CandidateLite[], cwid: string,
+): {
+  items: Array<{ row: T; io: number | null; band: AssignBand | null; onCandidate: boolean; safe: boolean }>;
+  safe: T[]; weak: number; offCandidate: number; note: string;
+} {
+  const items = rows.map((row) => {
+    const c = candidatesOf(row).find((x) => x.cwid === cwid);
+    const io = c ? (c.score ?? null) : null;
+    const band = assignBand(io);
+    return { row, io, band, onCandidate: !!c, safe: !!c && band === "High" };
+  });
+  // Array sort is stable, so equal rows keep the page's order.
+  items.sort((a, b) => (b.io ?? -1) - (a.io ?? -1) || Number(b.onCandidate) - Number(a.onCandidate));
+  const offCandidate = items.filter((x) => !x.onCandidate).length;
+  const weak = items.filter((x) => x.onCandidate && !x.safe).length;
+  const note = [
+    weak ? `${weak} row${weak === 1 ? " is" : "s are"} below high confidence.` : "",
+    offCandidate ? `${offCandidate} row${offCandidate === 1 ? " doesn't" : "s don't"} list this person as a candidate, so you'd be overriding the match.` : "",
+    !weak && !offCandidate ? "Every selected row is a high-confidence match." : "",
+  ].filter(Boolean).join(" ");
+  return {
+    items,
+    safe: items.filter((x) => x.safe).map((x) => x.row),
+    weak, offCandidate, note,
+  };
+}
+
+// The bulk "Someone else" box takes a CWID or a full name. A CWID has no spaces and at least one
+// digit (abc1234, ml3392); anything else is searched as a name in the directory.
+export function looksLikeCwid(q: string): boolean {
+  const s = q.trim();
+  return /^[A-Za-z0-9]{1,32}$/.test(s) && /\d/.test(s);
+}
+
+// The popover lists people in the prototype's order: most matches first, then the higher mean
+// IO across the selected rows that propose them (no score sorts last), then cwid. Only the
+// display order; unionCandidates' own order is left as check-bulk-assign.mjs pins it.
+export function orderAssignOptions<T extends { cwid: string; matches: number }>(
+  opts: T[], scoresOf: (cwid: string) => number[],
+): T[] {
+  const mean = (cwid: string) => {
+    const s = scoresOf(cwid);
+    return s.length ? s.reduce((a, b) => a + b, 0) / s.length : -Infinity;
+  };
+  return [...opts].sort((a, b) => b.matches - a.matches || mean(b.cwid) - mean(a.cwid) || a.cwid.localeCompare(b.cwid));
+}

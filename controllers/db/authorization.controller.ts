@@ -1,13 +1,16 @@
 import models from '../../src/db/sequelize'
 import { getCapabilities } from '../../src/utils/constants'
-import { isPersonInScope, isProxyFor } from '../../src/utils/scopeResolver'
+import { hasConfiguredScope, isPersonInScope, isProxyFor } from '../../src/utils/scopeResolver'
+import { canonicalCwid, sameCwid } from '../../src/utils/canonicalCwid'
+import { getToken } from 'next-auth/jwt'
+import { effectiveToken } from '../../src/utils/viewAs'
 
-// Minimal per-person lookup for scope checks -- org unit + person types only, nothing else
+// Minimal per-person lookup for scope checks -- org unit + institution + person types only, nothing else
 // the curate-write path needs.
 const findPersonScopeAttributes = async (personIdentifier: string) => {
     const person: any = await models.Person.findOne({
         where: { personIdentifier },
-        attributes: ['primaryOrganizationalUnit'],
+        attributes: ['primaryOrganizationalUnit', 'primaryInstitution'],
         raw: true,
     })
     const typeRows: any[] = await models.PersonPersonType.findAll({
@@ -17,6 +20,7 @@ const findPersonScopeAttributes = async (personIdentifier: string) => {
     })
     return {
         orgUnit: person?.primaryOrganizationalUnit ?? null,
+        institution: person?.primaryInstitution ?? null,
         personTypes: typeRows.map((r) => r.personType).filter(Boolean),
     }
 }
@@ -41,12 +45,18 @@ export const canCurate = async (token: any, targetUid: any): Promise<boolean> =>
     // equality, which would let a scope check pass against a different (decoy) person than the
     // one actually acted on downstream. Never let that ambiguity past this point.
     if (typeof targetUid !== 'string' || targetUid.trim().length === 0) return false
+    // Compare canonical forms on both sides: a curator whose role row carries `Abl9002` is
+    // still curating abl9002 (and vice versa), and ` abl9002` is not someone else.
+    const uid = canonicalCwid(targetUid)
+    // Only Java-strip whitespace (e.g. U+001C) -> '' here, which a malformed proxy entry would
+    // also canonicalize to. Never a person.
+    if (uid === '') return false
 
     const roles = safeJsonParse(token?.userRoles, [])
     const caps = getCapabilities(roles)
 
     if (caps.canCurate.all) return true
-    if (caps.canCurate.self && caps.canCurate.personIdentifier === targetUid) return true
+    if (caps.canCurate.self && sameCwid(caps.canCurate.personIdentifier, uid)) return true
 
     // A proxy grant is an independent, person-scoped delegation -- it does not require the
     // grantee to hold any curate-capable role. This matches the shipped admin UI ("Grants
@@ -54,17 +64,14 @@ export const canCurate = async (token: any, targetUid: any): Promise<boolean> =>
     // because proxy_person_ids is only writable through isAuthorizedAdmin-gated routes: every
     // entry is a deliberate Superuser grant, never user-controlled.
     const proxyPersonIds = safeJsonParse(token?.proxyPersonIds, [])
-    if (isProxyFor(proxyPersonIds, targetUid)) return true
+    if (Array.isArray(proxyPersonIds) && isProxyFor(proxyPersonIds.map(canonicalCwid), uid)) return true
 
     const scopeData = safeJsonParse(token?.scopeData, null)
     // isPersonInScope treats a scope with neither dimension set as "no restriction," which
     // is the right default for other callers but wrong here: a Curator_Scoped user who was
     // saved with no scope configured (both fields left empty in the UI) must be denied
     // everyone, not treated as Curator_All. Fail closed instead of delegating to that default.
-    const hasScope = scopeData && (
-        (Array.isArray(scopeData.personTypes) && scopeData.personTypes.length > 0) ||
-        (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0)
-    )
+    const hasScope = hasConfiguredScope(scopeData)
 
     // A configured scope is self-sufficient, the same way proxy_person_ids is above: it does
     // not require the token to also carry the Curator_Scoped role. A half-configured admin user
@@ -74,9 +81,23 @@ export const canCurate = async (token: any, targetUid: any): Promise<boolean> =>
     // configured is still denied everyone.
     if (caps.canCurate.scoped || hasScope) {
         if (!hasScope) return false
-        const target = await findPersonScopeAttributes(targetUid)
-        return isPersonInScope(scopeData, target.orgUnit, target.personTypes)
+        const target = await findPersonScopeAttributes(uid)
+        return isPersonInScope(scopeData, target.orgUnit, target.personTypes, target.institution)
     }
 
+    return false
+}
+
+/**
+ * Route guard: true when the signed-in user may curate `uid`; otherwise sends 403 and returns
+ * false. For /api/db routes that act on a person named by the client (feedback log,
+ * notifications, ORCID): the backendApiKey is public and the middleware only proves a session,
+ * so without this any signed-in user -- including a self-registered Cornell NetID account --
+ * could act on anyone.
+ */
+export const refuseUnlessCanCurate = async (req: any, res: any, uid: any): Promise<boolean> => {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+    if (token && await canCurate(effectiveToken(token), uid)) return true
+    res.status(403).send({ statusCode: 403, message: "You do not have permission to curate this person's publications" })
     return false
 }

@@ -1,6 +1,6 @@
 export const reportConfig = {
   authorFilters: {
-    name: "Author Filters",
+    name: "People",
     list: {
       author: {
         name: "Author",
@@ -40,9 +40,11 @@ export const reportConfig = {
       },
       authorPosition: {
         name: "Author Position",
+        // middle = NULL in analysis_summary_author (PubMed and external rows alike)
         options: [
-          {key: "first", label: "First"},
-          {key: "last", label: "Last"}
+          {key: "first", label: "First author", desc: "Article's first listed author"},
+          {key: "middle", label: "Middle author", desc: "Any position between first and last"},
+          {key: "last", label: "Last author", desc: "Corresponding / senior author"}
         ],
         filterType: "Checklist",
         isEnabled: true,
@@ -51,20 +53,57 @@ export const reportConfig = {
     }
   },
   articleFilters: {
-    name: "Article Filters",
+    name: "Publications",
     list: {
+      // Date added: when the record entered PubMed, or (external rows) when a curator added it;
+      // publication date when neither is known (5c, "date added where present, else publication
+      // date"). Keeps its old filter keys (datePublicationAddedToEntrez*Bound).
       date: {
-        name: "Date",
+        name: "Date added",
         options: "dateFilterData",
         isEnabled: true,
         filterType: "DateRange",
       },
+      pubDate: {
+        name: "Publication date",
+        options: "pubDateFilterData",
+        isEnabled: true,
+        filterType: "DateRange",
+      },
+      source: {
+        name: "Source",
+        // analysis_summary_article.source_type; external rows are unioned in by ReCiterDB STEP 6b
+        options: [
+          {key: "PUBMED", label: "PubMed", desc: "Indexed in PubMed"},
+          {key: "SCOPUS", label: "Scopus", desc: "In Scopus, not PubMed"},
+          {key: "OPENALEX", label: "OpenAlex", desc: "Preprints, abstracts and other works"},
+          {key: "CROSSREF", label: "Crossref", desc: "Books, chapters and DOI-only records"},
+          {key: "WOS", label: "Web of Science", desc: "In Web of Science, not PubMed"}
+        ],
+        filterType: "Checklist",
+        isEnabled: true,
+        dynamicFetchOptions: false,
+      },
+      // 5c: the 18 types in their 4 groups (filter key `pubTypes`) once ReCiterDB fills
+      // analysis_summary_article.pubType; until then the flat list of publicationTypeCanonical
+      // values (optionLabel / value, filter key `publicationTypeCanonical`).
       type: {
         name: "Type",
         options: "articleTypeFilterData",
         optionLabel: "publicationTypeCanonical",
         value: "publicationTypeCanonical",
-        filterType: "CheckboxSelect",
+        groupedValue: "pubTypes",
+        filterType: "GroupedChecklist",
+        isEnabled: true,
+        dynamicFetchOptions: false,
+      },
+      // 5d-1: Yes / No / Any on analysis_summary_article.peerReviewed (ReCiterDB v3.10). Options
+      // (with counts) come from filter/peerreview; the chip is hidden while that list is empty.
+      peerReview: {
+        name: "Peer review",
+        options: "peerReviewFilterData",
+        filterType: "Checklist",
+        single: true,
         isEnabled: true,
         dynamicFetchOptions: false,
       },
@@ -77,11 +116,16 @@ export const reportConfig = {
         isEnabled: true,
         dynamicFetchOptions: true,
       },
+      // SJR threshold presets (was a min-max slider). Lower bound is inclusive; the upper bound
+      // only exists because some search paths need both bounds set.
       journalRank: {
         name: "Journal Rank",
-        options: "journalRankFilterData",
+        options: [
+          {key: "1", label: "SJR 1.0 and above", lower: 1, upper: 1000},
+          {key: "3", label: "SJR 3.0 and above", lower: 3, upper: 1000}
+        ],
         isEnabled: true,
-        filterType: "Range",
+        filterType: "Preset",
       }
     }
   }
@@ -93,11 +137,17 @@ export const sortOptions = {
   journalImpactScore2: true,
   percentileNIH: true,
   citationCountNIH: true,
-  trendingPubsScore: true,
-  readersMendeley: true,
+  // TrendingPubs and Mendeley sorts dropped in the UI refresh (5b)
+  trendingPubsScore: false,
+  readersMendeley: false,
+  publicationDateStandardized: true,
+  // legacy admin_settings key spelling; kept so the option stays visible until the setting is renamed
   publicationDateStandarized: true,
   relativeCitationRatioNIH:true,
-  citationCountScopus:true
+  citationCountScopus:true,
+  // 5e: NIH, else Scopus, else OpenAlex (reportSort.ts citationsExpr). Shown even when the
+  // reportingWebViewSort admin setting has no row for it (SearchSummary.tsx).
+  citations: true
 }
 
 export const infoBubblesConfig = {

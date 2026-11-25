@@ -4,6 +4,10 @@ import { GeneratePubsApiBody, GeneratePubsPeopleOnlyApiBody } from "../../../typ
 import { PublicationSearchFilter} from '../../../types/publication.report.search';
 import { Op, Sequelize } from "sequelize";
 import {metrics } from "../../../config/report";
+import { buildReportSort } from "./reportSort";
+import { authorPositionSql, sourceSql, dateTypeSql } from "./reportFilterSql";
+import { PUB_TYPES } from "../../../src/lib/pubTypes";
+import { articleColumns } from "./reportColumns";
 		
 						 
 					 
@@ -16,50 +20,48 @@ models.AnalysisSummaryAuthor.hasOne(models.Person, { constraints: false });
 models.AnalysisSummaryAuthor.hasMany(models.PersonPersonType, {
   constraints: false,
 });
-models.AnalysisSummaryAuthor.hasOne(models.AnalysisSummaryArticle, {
-  constraints: false,
-});
-models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
-  constraints: false,
-  
-});
+import "./reportAssociations";
+
+// ponytail: callers send `exportArticlesRTF[0].maxLimit`, which admin_settings stores as a
+// STRING ("1000") and which is `false` when the setting is missing. The procs end in
+// `limit maxRecords`, and MySQL rejects `LIMIT NULL`, so coerce to a positive int.
+// 1000 = the reportingArticleRTFLimit baseline in insertBaselineDataReciterDb.sql.
+const RTF_LIMIT_DEFAULT = 1000;
+const rtfLimit = (limit: unknown): number => {
+  const n = Number(limit);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : RTF_LIMIT_DEFAULT;
+};
 
 export const generatePubsRtf = async (
   req: NextApiRequest,
   res: NextApiResponse
 ) => {
   try {
-     if (req.body == null) {
-      return res.status(400).send("Request body is required");
-    }
-    let apiBody: GeneratePubsApiBody = typeof req.body === "string" ? JSON.parse(req.body) : (typeof req.body === "object"  && !Array.isArray(req.body) ? req.body : ({} as GeneratePubsApiBody));
- 
+    let apiBody: GeneratePubsApiBody = JSON.parse(req.body);
     let generatePubsRtfOutput: any = [];
 								
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
       generatePubsRtfOutput = await sequelize.query(
-        // generatePubsRTF takes 2 args (personIdentifierArray, pmidArray) — no limit.
-        // Passing :limit caused ER_SP_WRONG_NO_OF_ARGS (SequelizeDatabaseError).
-        "CALL generatePubsRTF (:uids , :pmids)",
+        // ponytail: prod reciterdb.generatePubsRTF is (personIdentifierArray, pmidArray, maxRecords)
+        // and its body ends in `limit maxRecords`, so the 3rd arg is required and must be a
+        // positive int. Verify before changing this, against PROD (reciter-analysis-report-db-kms),
+        // not the PM dev DB, which carries older 2-arg copies:
+        //   SELECT ORDINAL_POSITION, PARAMETER_NAME FROM information_schema.PARAMETERS
+        //   WHERE SPECIFIC_SCHEMA='reciterdb' AND SPECIFIC_NAME='generatePubsRTF';
+        "CALL generatePubsRTF (:uids , :pmids, :limit)",
         {
-          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(',') },
+          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(','), limit: rtfLimit(apiBody.limit) },
           raw: true,
         }
       );
     } else {
 
 																	   
-      // Stored procedure reciterdb.generatePubsNoPeopleRTF accepts a single
-      // arg (pmids); apiBody.limit is not honored here because the procedure
-      // signature was never updated to accept it. Caller applies a limit when
-      // staging the pmid list if it cares about cap.
-      const cappedPmids = typeof apiBody.limit === 'number' && apiBody.limit > 0
-        ? apiBody.pmids.slice(0, apiBody.limit)
-        : apiBody.pmids;
       generatePubsRtfOutput = await sequelize.query(
-        "CALL generatePubsNoPeopleRTF ( :pmids )",
+        // ponytail: prod signature is (pmidArray, maxRecords) — same caveat as above.
+        "CALL generatePubsNoPeopleRTF ( :pmids, :limit)",
         {
-          replacements: { pmids: cappedPmids.join(',') },
+          replacements: { pmids: apiBody.pmids.join(','), limit: rtfLimit(apiBody.limit) },
           raw: true,
         }
       );
@@ -80,16 +82,11 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-     if (req.body == null) {
-      return res.status(400).send("Request body is required");
-     }
-     
-      let apiBody: GeneratePubsApiBody = typeof req.body === "string" ? JSON.parse(req.body) : (typeof req.body === "object"  && !Array.isArray(req.body) ? req.body : ({} as GeneratePubsApiBody));
- 
+      let apiBody: GeneratePubsPeopleOnlyApiBody = JSON.parse(req.body);
       const generatePubsPeopleOnlyRtfOutput: any = await sequelize.query(
         "CALL generatePubsPeopleOnlyRTF (:uids, :limit)",
         {
-          replacements: { uids: apiBody.personIdentifiers?apiBody.personIdentifiers.join(','):'', limit: apiBody.limit },
+          replacements: { uids: apiBody.personIdentifiers?apiBody.personIdentifiers.join(','):'', limit: rtfLimit(apiBody.limit) },
           raw: true,
         }
       );
@@ -108,10 +105,12 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-      if (req.body == null) {
-        return res.status(400).send("Request body is required");
-      }
       let apiBody: PublicationSearchFilter = req.body;
+      const cols = await articleColumns();
+      const hasSourceColumn = cols.sourceType;
+      if (apiBody.filters) {
+        apiBody.filters.authorPosition = (apiBody.filters.authorPosition || []).filter((p) => !!authorPositionSql("x", [p]));
+      }
       const where = {};
       const joinOrgWhere ={};
 								   
@@ -148,11 +147,7 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.authorPosition.length > 0
         ) {
 								 
-          where[Op.and].push({
-            "$AnalysisSummaryAuthor.authorPosition$": {
-              [Op.in]: apiBody.filters.authorPosition,
-            },
-          });
+          where[Op.and].push(Sequelize.literal(authorPositionSql("AnalysisSummaryAuthor", apiBody.filters.authorPosition)));
         }
         if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
 								 
@@ -181,24 +176,12 @@ export const generatePubsPeopleOnlyRtf = async (
             },
           });
         }
-        if (apiBody.filters.datePublicationAddedToEntrezLowerBound) 
-         {
-								  
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-            },
-          });
+        // Date added, Publication date and grouped Type (5c), as on the page (reportFilterSql.ts).
+        for (const clause of dateTypeSql("AnalysisSummaryArticle", apiBody.filters, cols, PUB_TYPES)) {
+          where[Op.and].push(Sequelize.literal(clause));
         }
-        if (apiBody.filters.datePublicationAddedToEntrezUpperBound)
-         {
-								  
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-            },
-          });
-        }
+        const sourceClause = sourceSql("AnalysisSummaryArticle", apiBody.filters.sourceTypes, hasSourceColumn);
+        if (sourceClause) where[Op.and].push(Sequelize.literal(sourceClause));
         if (
           apiBody.filters.publicationTypeCanonical &&
           apiBody.filters.publicationTypeCanonical.length > 0
@@ -216,7 +199,7 @@ export const generatePubsPeopleOnlyRtf = async (
 								  
           where[Op.and].push({
             "$AnalysisSummaryArticle.journalImpactScore1$": {
-              [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+              [Op.gte]: apiBody.filters.journalImpactScoreLowerBound,
             },
           });
         }
@@ -247,30 +230,7 @@ export const generatePubsPeopleOnlyRtf = async (
         });
 
       }
-      const sort = [];
-      if (apiBody && apiBody.sort) {
-        let sortType = apiBody.sort.type;
-        let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
-        if (sortType === 'datePublicationAddedToEntrez')
-          sort.push([Sequelize.literal('isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez '+sortOrder)]) 
-  
-        if (sortType === 'citationCountNIH')
-          sort.push([Sequelize.literal('isnull(citationCountNIH), citationCountNIH '+sortOrder)])
-
-        if (sortType === 'journalImpactScore1')
-          sort.push([Sequelize.literal('isnull(journalImpactScore1), journalImpactScore1 '+sortOrder)])
-  
-        if (sortType === 'percentileNIH') 
-          sort.push([Sequelize.literal('isnull(percentileNIH), percentileNIH '+sortOrder)])
-  
-        if (sortType === 'publicationDateStandarized')
-          sort.push([Sequelize.literal('isnull(publicationDateStandarized), publicationDateStandarized '+sortOrder)])
-  
-        if (sortType === 'readersMendeley') 
-          sort.push([Sequelize.literal('isnull(readersMendeley), readersMendeley '+sortOrder)])
-        if (sortType === 'trendingPubsScore')
-          sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)])
-      }
+      const sort = buildReportSort(apiBody && apiBody.sort, cols, "AnalysisSummaryArticle");
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
       let searchOutput: any[] = [];
 
@@ -355,10 +315,12 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-      if (req.body == null) {
-        return res.status(400).send("Request body is required");
-      }
       let apiBody: PublicationSearchFilter = req.body;
+      const cols = await articleColumns();
+      const hasSourceColumn = cols.sourceType;
+      if (apiBody.filters) {
+        apiBody.filters.authorPosition = (apiBody.filters.authorPosition || []).filter((p) => !!authorPositionSql("x", [p]));
+      }
       const where = {};
       const joinOrgWhere ={};
       let isPersonFilterOn = false;
@@ -390,11 +352,7 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.authorPosition &&
           apiBody.filters.authorPosition.length > 0
         ) {
-          where[Op.and].push({
-            "$AnalysisSummaryAuthor.authorPosition$": {
-              [Op.in]: apiBody.filters.authorPosition,
-            },
-          });
+          where[Op.and].push(Sequelize.literal(authorPositionSql("AnalysisSummaryAuthor", apiBody.filters.authorPosition)));
         }
         if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
           joinOrgWhere[Op.or].push({
@@ -420,38 +378,15 @@ export const generatePubsPeopleOnlyRtf = async (
             },
           });
         }
-        if (
-          apiBody.filters.datePublicationAddedToEntrezLowerBound &&
-          apiBody.filters.datePublicationAddedToEntrezUpperBound
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-            },
-          });
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-            },
-          });
+        // Date added, Publication date and grouped Type (5c), as on the page (reportFilterSql.ts). This
+        // also retires the old end-date-only branch, which compared with > and so returned rows
+        // added AFTER the end date.
+        for (const clause of dateTypeSql("AnalysisSummaryArticle", apiBody.filters, cols, PUB_TYPES)) {
+          where[Op.and].push(Sequelize.literal(clause));
         }
-        else if(apiBody.filters.datePublicationAddedToEntrezLowerBound )
-          {
-            where[Op.and].push({
-              "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-                [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-              },
-            });
-          }
-          else if(apiBody.filters.datePublicationAddedToEntrezUpperBound )
-          {
-            where[Op.and].push({
-              "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-                [Op.gt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-              },
-            });
-          }  
 
+        const sourceClause = sourceSql("AnalysisSummaryArticle", apiBody.filters.sourceTypes, hasSourceColumn);
+        if (sourceClause) where[Op.and].push(Sequelize.literal(sourceClause));
         if (
           apiBody.filters.publicationTypeCanonical &&
           apiBody.filters.publicationTypeCanonical.length > 0
@@ -468,7 +403,7 @@ export const generatePubsPeopleOnlyRtf = async (
         ) {
           where[Op.and].push({
             "$AnalysisSummaryArticle.journalImpactScore1$": {
-              [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+              [Op.gte]: apiBody.filters.journalImpactScoreLowerBound,
             },
           });
           where[Op.and].push({
@@ -489,31 +424,7 @@ export const generatePubsPeopleOnlyRtf = async (
           isPersonFilterOn = true;
         }
       }
-      const sort = [];
-      if (apiBody && apiBody.sort) {
-        let sortType = apiBody.sort.type;
-        let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
-        if (sortType === 'datePublicationAddedToEntrez') 
-          sort.push([Sequelize.literal('isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez '+sortOrder)])    
-  
-        if (sortType === 'citationCountNIH')
-          sort.push([Sequelize.literal('isnull(citationCountNIH), citationCountNIH '+sortOrder)]) 
-  
-        if (sortType === 'journalImpactScore1')
-          sort.push([Sequelize.literal('isnull(journalImpactScore1), journalImpactScore1 '+sortOrder)])
-  
-        if (sortType === 'percentileNIH') 
-          sort.push([Sequelize.literal('isnull(percentileNIH), percentileNIH '+sortOrder)])
-  
-        if (sortType === 'publicationDateStandarized')
-          sort.push([Sequelize.literal('isnull(publicationDateStandarized), publicationDateStandarized '+sortOrder)])
-  
-        if (sortType === 'readersMendeley') 
-          sort.push([Sequelize.literal('isnull(readersMendeley), readersMendeley '+sortOrder)])
-  
-        if (sortType === 'trendingPubsScore')
-          sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)])
-      }
+      const sort = buildReportSort(apiBody && apiBody.sort, cols, "AnalysisSummaryArticle");
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
 										 
       let searchOutput: any[] = [];
@@ -674,9 +585,6 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-      if (req.body == null) {
-        return res.status(400).send("Request body is required");
-      }
       let apiBody: any = req.body;
       const where = {};
 					  

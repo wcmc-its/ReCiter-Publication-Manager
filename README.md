@@ -365,18 +365,25 @@ The following filters are available for articles:
 
 ### Generating a bibliometric report
 
-Here's how to generate a narrative bibliometric summary (see sample) of a full-time faculty at Weill Cornell Medicine. The summary includes h-index, h5-index, NIH-provided article-level bibliometrics, a ranking of an individual's most impactful publications, and a summary statement.
+The "Bibliometric analysis" button produces a Word document (.docx) for one person, saved as `BibliometricAnalysis-<cwid>-<run date>.docx`, where the run date is the ReCiterDB nightly the figures come from. It works for anyone with at least one accepted publication; only the peer comparison is limited to full-time Weill Cornell Medicine faculty.
 
-1. Go to "Create reports"
-1. Search for an author (e.g., "Lyden, David)
-1. In the results, click on the author's name.
-1. A modal window appears.
-1. Click on the "Generate bibliometric report" button.
-1. This will download a bibliometric summary (see below) which you can open up in Word. 
-    
-![Bibliometric report](/files/BibliometricReport.gif)
+There are two ways to run it:
 
+1. **From a profile.** Open a person's profile (for example, click their name in Reports) and click "Bibliometric analysis". The file downloads straight away.
+1. **From Reports.** Put exactly one person in the Author filter, with no person type, institution or organization filter, and click "Bibliometric analysis" next to Export Excel and Export Word. A dialog lists what the document contains; click Download. The analysis always covers all of the person's accepted publications, whatever other filters are set.
 
+The document contains:
+
+- **Summary for reviewers:** a plain-language reading of the figures.
+- **Key figures:** the average NIH percentile of the 5 most influential rated research articles, the median Relative Citation Ratio, the share at or above the 90th NIH percentile, each next to its reference point, plus publications, author roles and the h-index.
+- **Peer comparison** (full-time faculty only): top-5 and top-10 averages by author role, ranked among WCM faculty of the same rank. A rank needs at least 20 qualifying faculty, and "top X%" is shown only for the top half.
+- **Authorship over time** and **Percentile distribution:** one chart each.
+- **Most influential research articles** (top 10), **Reviews and other works**, **Recent work** (too recent to rate) and **Older work** (before 1980).
+- **Methods and sources:** definitions, sources and the run date.
+
+Citation measures use NIH iCite on PubMed research articles only. Reviews, letters, editorials and preprints are listed but not rated, sole-authored articles count as senior-authored, and a missing NIH percentile is never treated as 0. Works from Scopus, OpenAlex, Crossref and manual entry are counted and listed but never rated.
+
+The report needs the ReCiterDB v3.11 columns and tables; until a nightly has filled them, the download answers "Bibliometric v2 data not available yet".
 
 ### Manage notifications
 

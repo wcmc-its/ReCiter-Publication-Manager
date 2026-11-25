@@ -1,8 +1,12 @@
-import React, { FunctionComponent, useState } from "react"
+import React, { FunctionComponent, useEffect, useRef, useState } from "react"
+import { useSelector } from "react-redux"
+import { RootStateOrAny } from "../../../types/redux"
 import styles from './ExternalPublicationCard.module.css'
+// Curation-history popover: reuse Publication.tsx's styling (evidenceBtn, curationWrap,
+// curationLogPopover, clog* rows) rather than duplicating it here.
+import pubStyles from '../Publication/Publication.module.css'
 import CheckIcon from '@mui/icons-material/Check'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
-import UndoIcon from '@mui/icons-material/Undo'
 
 // PM#771 — a source-badged external publication row. Deliberately NO authorship
 // score tile (external pubs are not scored by ReCiter). Two modes:
@@ -10,25 +14,56 @@ import UndoIcon from '@mui/icons-material/Undo'
 //               If the work is in PubMed (PMID from OpenAlex, or found via DOI lookup)
 //               we steer the curator to the scored PubMed path instead of adding an
 //               unscored external record.
-//   'list'    — an already-added external pub, with a Delete (= revoke) affordance
-//               for curators, and (when onDispute/onRetractDispute are wired) the
-//               faculty dispute lifecycle from docs/README-other-publications-tab.md:
-//               "This isn't mine" -> inline note form -> Disputed state -> Undo.
-// Suppression has two distinct causes (Decision 5/6): superseded (suppressed with a
-// supersededByPmid — a duplicate of an accepted PubMed record, muted) and disputed
-// (suppressed with NO supersededByPmid — struck through, red rail, reversible).
+//   'list'    — an already-added external pub, with a Delete (= revoke) affordance, plus
+//               (curate per-source tabs, Option C Phase 1) a reversible Reject / Accept
+//               (un-reject) affordance driven by the parent's suppressed state
 const doiUrl = 'https://doi.org/'
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/'
+
+// Inline styling for the list-mode Reject note textarea, shown only once Reject is
+// clicked (see the inline note/confirm/cancel cluster in the actions section below).
+const rejectNoteInputStyle: React.CSSProperties = {
+    display: 'block',
+    width: '100%',
+    border: '1px solid #cbd3e0',
+    borderRadius: 6,
+    padding: '6px 8px',
+    fontSize: 12,
+    fontFamily: 'inherit',
+    color: '#384152',
+    resize: 'vertical',
+    boxSizing: 'border-box',
+}
+
+// Curation-history entry date — mirrors Publication.tsx's formatClogDate (seconds
+// included so rapid same-session actions stay distinguishable).
+const formatClogDate = (timestamp: string | number | Date): string => {
+    const d = new Date(timestamp)
+    if (Number.isNaN(d.getTime())) return ''
+    return d.toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit',
+    })
+}
+
+// The feedbacklog redux slice normalizes rows with a `modifyTimestamp` ISO string
+// derived from the raw `createTimestamp` (epoch seconds) — prefer it, fall back to
+// converting createTimestamp directly if it's ever absent.
+const dateForEntry = (entry: any): string => {
+    if (entry.modifyTimestamp) return formatClogDate(entry.modifyTimestamp)
+    const epochSec = Number(entry.createTimestamp) || 0
+    return epochSec ? formatClogDate(epochSec * 1000) : ''
+}
 
 const SOURCE_LABELS: Record<string, string> = {
     OPENALEX: 'OpenAlex',
     SCOPUS: 'Scopus',
     WOS: 'Web of Science',
+    CROSSREF: 'Crossref',
 }
 
 // The source id lives in the `SOURCE:<id>` prefix of articleId. Turn it into an outbound
-// link where we can build a stable URL: OpenAlex works always resolve; Scopus only when
-// the id is a 2-s2.0 EID. Otherwise leave it as plain text.
+// link where we can build a stable URL: OpenAlex works always resolve; Crossref ids are DOIs
+// (doi.org link); Scopus only when the id is a 2-s2.0 EID. Otherwise leave it as plain text.
 const idLinkFor = (articleId?: string): string | undefined => {
     if (!articleId) return undefined
     const idx = articleId.indexOf(':')
@@ -37,6 +72,7 @@ const idLinkFor = (articleId?: string): string | undefined => {
     const id = articleId.slice(idx + 1)
     if (!id) return undefined
     if (src === 'OPENALEX') return `https://openalex.org/${id}`
+    if (src === 'CROSSREF') return doiUrl + encodeURIComponent(id).replace(/%2F/gi, '/')
     if (src === 'SCOPUS' && /^2-s2\.0-/.test(id)) {
         return `https://www.scopus.com/record/display.uri?eid=${encodeURIComponent(id)}&origin=resultslist`
     }
@@ -44,7 +80,10 @@ const idLinkFor = (articleId?: string): string | undefined => {
 }
 
 export type AddState = {
-    status: 'idle' | 'adding' | 'checking' | 'blocked' | 'warning' | 'inPubmed' | 'added',
+    // 'accepted' = this PMID-bearing doc was accepted directly from this card
+    // (onAcceptPmid), distinct from 'added' (a Scopus-native doc added as an unscored
+    // ExternalArticle).
+    status: 'idle' | 'adding' | 'checking' | 'blocked' | 'warning' | 'inPubmed' | 'added' | 'accepted',
     message?: string,
     matches?: Array<{ type?: string, matchedId?: string, detail?: string }>,
     pmid?: number,
@@ -57,22 +96,25 @@ interface FuncProps {
     onAdd?: (item: any) => void,
     onAddAnyway?: (item: any) => void,
     onAddViaPubMed?: (pmid: number, item: any) => void,
+    // preview mode, PMID-bearing doc not yet in the record — direct "Add" (bypasses the
+    // PubMed Add tab entirely). Same accept as onAddViaPubMed's tab, without leaving
+    // the current tab.
+    onAcceptPmid?: (pmid: number, item: any) => void,
     // Current status of a PMID in this person's record, for annotating search results.
     recordStatusOf?: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
-    // Dismiss a suggestion (Scopus Authorships feed only); local, not GoldStandard.
-    onReject?: (item: any) => void,
+    // preview mode: dismiss a suggestion (Scopus Authorships feed only); local, not
+    // persisted, `note` is always undefined here. list mode: reject an already-added row
+    // (persists via the feedback route, reversible with onAccept); `note` carries the
+    // optional reject-reason text from the list-mode note field below.
+    onReject?: (item: any, note?: string) => void,
+    // list mode only — un-reject a suppressed row (persists via the feedback route).
+    onAccept?: (item: any) => void,
+    // list mode only — remove the row. Shown to anyone the tab hands it to; the server
+    // gates it with the same canCurate check as PubMed curation, not by who added the row.
     onDelete?: (articleId: string) => void,
-    // Option C (docs/README-other-publications-tab.md, Decision 3): the active source
-    // tab already names the source, so the per-card badge is redundant there.
+    // Curate per-source tabs (Option C Phase 1) — the source tab already names the
+    // source, so its cards drop the redundant badge.
     hideSourceBadge?: boolean,
-    // Faculty dispute lifecycle (list mode). Dispute logs REJECTED, retract logs
-    // ACCEPTED — both via the PM PATCH route, which stamps the actor server-side.
-    onDispute?: (articleId: string, note?: string) => void,
-    onRetractDispute?: (articleId: string) => void,
-    disputeBusy?: boolean,
-    // The signed-in viewer's CWID, for the Decision 4 split: a row the viewer added
-    // themselves shows "Added by you" and no dispute affordance.
-    viewerUid?: string,
 }
 
 // Map the server's duplicate match type(s) to a state-specific, actionable headline.
@@ -88,11 +130,61 @@ function blockedHeadline(matches?: Array<{ type?: string }>): string {
     return "This publication is already in the person's record."
 }
 
+// The PMIDs a 409 WARNING names, for the "Same as PMID N" affordance below.
+//
+// `matchedId` is a free-form string whose meaning depends on `type` — a DOI for the DOI_* types,
+// a PMID for the PMID_* ones — and ReCiter does not promise it parses as a number. So this reads
+// it defensively rather than trusting it: DOI-typed matches are excluded outright, and whatever
+// survives must still look like a PMID (all digits; PubMed is nowhere near 9 of them). Anything
+// unrecognised simply yields no button, leaving today's "Add anyway" as the only affordance —
+// the safe direction, because a missed offer costs a duplicate the curator can still clean up,
+// while a wrong one accepts an unrelated article onto a person's record.
+const samePmidCandidates = (matches?: Array<{ type?: string; matchedId?: string }>): number[] => {
+    const seen = new Set<number>()
+    for (const m of matches || []) {
+        if (m.type && m.type.includes('DOI')) continue
+        const id = (m.matchedId || '').trim()
+        if (!/^\d{1,8}$/.test(id)) continue
+        seen.add(Number(id))
+    }
+    return Array.from(seen)
+}
+
 const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const { item, mode, addState } = props
+    // list-mode Reject note — optional, threaded through onReject on click. Preview-mode
+    // onReject (TabAddExternalPublication / TabScopusAuthorships dismiss) doesn't use this.
+    const [rejectNote, setRejectNote] = useState('')
+    // list mode only — the note textarea is hidden until Reject is clicked, then the
+    // action cluster switches to [note input] [Confirm reject] [Cancel].
+    const [rejectMode, setRejectMode] = useState(false)
+    const [showHistory, setShowHistory] = useState(false)
+    const historyRef = useRef<HTMLSpanElement>(null)
 
-    const [disputeFormOpen, setDisputeFormOpen] = useState(false)
-    const [disputeNote, setDisputeNote] = useState('')
+    // Curation history — same FeedbackLog rows Publication.tsx's History popover reads,
+    // bucketed by articleId; for external rows that's the full "SOURCE:id" string (see
+    // recordExternalArticleFeedback), which is exactly item.articleId here.
+    const feedbacklog = useSelector((state: RootStateOrAny) => state.feedbacklog)
+    const entries: any[] = (item.articleId && feedbacklog && feedbacklog[item.articleId]) || []
+
+    // Close the history popover on outside click or Escape, same as Publication.tsx.
+    useEffect(() => {
+        if (!showHistory) return
+        const handleClickOutside = (e: MouseEvent) => {
+            if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+                setShowHistory(false)
+            }
+        }
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setShowHistory(false)
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        document.addEventListener('keydown', handleEscape)
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+            document.removeEventListener('keydown', handleEscape)
+        }
+    }, [showHistory])
 
     const sourceType: string = item.sourceType || 'OPENALEX'
     const sourceLabel = SOURCE_LABELS[sourceType] || sourceType
@@ -111,22 +203,7 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const doi = item.doi
     const pmid = item.pmid
     const suppressed = mode === 'list' && !!item.suppressed
-    // Two suppression causes (Decision 5/6): a superseding PMID means "duplicate of an
-    // accepted PubMed record" (hideable); no superseding PMID means the row is disputed
-    // (must stay visible and reversible — the Java PATCH clears supersededByPmid on REJECTED).
-    const superseded = suppressed && item.supersededByPmid != null
-    const disputed = suppressed && item.supersededByPmid == null
-    const selfAdded = mode === 'list' && !!(props.viewerUid && item.addedBy && String(item.addedBy) === props.viewerUid)
     const status = addState?.status || 'idle'
-
-    const submitDispute = () => {
-        if (props.onDispute) {
-            const note = disputeNote.trim()
-            props.onDispute(item.articleId, note ? note : undefined)
-        }
-        setDisputeFormOpen(false)
-        setDisputeNote('')
-    }
 
     // The work is in PubMed if OpenAlex gave us a PMID, or a DOI lookup found one.
     // In that case steer to the scored PubMed path rather than an unscored external add.
@@ -138,18 +215,16 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const recStatus = (pubmedPmid && props.recordStatusOf) ? props.recordStatusOf(pubmedPmid) : null
 
     return (
-        <div className={`${styles.card} ${superseded ? styles.cardSuppressed : ''} ${disputed ? styles.cardDisputed : ''}`}>
+        <div className={`${styles.card} ${suppressed ? styles.cardSuppressed : ''}`}>
             <div className={styles.main}>
                 <div className={styles.headerRow}>
                     {!props.hideSourceBadge && <span className={styles.sourceBadge}>{sourceLabel}</span>}
                     <span className={styles.noScoreBadge}>No authorship score</span>
-                    {selfAdded && <span className={styles.selfTag}>Added by you</span>}
-                    {superseded && (
+                    {suppressed && (
                         <span className={styles.suppressedTag}>
-                            Superseded by PMID {item.supersededByPmid}
+                            Superseded{item.supersededByPmid ? ` by PMID ${item.supersededByPmid}` : ''}
                         </span>
                     )}
-                    {disputed && <span className={styles.disputedTag}>Disputed</span>}
                 </div>
 
                 <div className={styles.title}>{item.title || '(untitled)'}</div>
@@ -174,40 +249,6 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                     )}
                 </div>
 
-                {/* Disputed caption (faculty view only) — plain-language suppression meaning */}
-                {disputed && props.onRetractDispute && (
-                    <div className={styles.disputedNote}>
-                        Disputed &mdash; hidden from your profile, flagged for curator review
-                    </div>
-                )}
-
-                {/* Inline dispute form: optional note to the curator, then Submit */}
-                {mode === 'list' && !disputed && disputeFormOpen && props.onDispute && (
-                    <div className={styles.disputeForm}>
-                        <textarea
-                            className={styles.disputeTextarea}
-                            placeholder={'Optional note for the curator (e.g. “different Dana Reyes, not me”)'}
-                            value={disputeNote}
-                            onChange={(e) => setDisputeNote(e.target.value)}
-                        />
-                        <div className={styles.disputeFormRow}>
-                            <button
-                                className={styles.btnGhost}
-                                onClick={() => { setDisputeFormOpen(false); setDisputeNote('') }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className={styles.btnSolid}
-                                disabled={props.disputeBusy}
-                                onClick={submitDispute}
-                            >
-                                {props.disputeBusy ? 'Submitting…' : 'Submit'}
-                            </button>
-                        </div>
-                    </div>
-                )}
-
                 {/* Already in this person's record — inform, no add */}
                 {mode === 'preview' && pubmedPmid && recStatus && status !== 'added' && (
                     recStatus === 'ACCEPTED' ? (
@@ -225,11 +266,16 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                     )
                 )}
 
-                {/* In PubMed but NOT yet in the record — steer to the scored PubMed path */}
-                {mode === 'preview' && pubmedPmid && !recStatus && status !== 'added' && (
+                {mode === 'preview' && !pubmedPmid && item.notAddable && status !== 'added' && (
+                    <div className={styles.warningBox}>{item.notAddable}</div>
+                )}
+
+                {/* In PubMed but NOT yet in the record — direct Add, or steer to the scored
+                    PubMed path (same accept, from the Add tab instead of this card) */}
+                {mode === 'preview' && pubmedPmid && !recStatus && status !== 'added' && status !== 'accepted' && (
                     <div className={styles.pubmedBox}>
                         <div className={styles.pubmedTitle}>This work is in PubMed (PMID {pubmedPmid}).</div>
-                        <div>Add it via PubMed so it counts as scored evidence for this person, instead of as an unscored external record.</div>
+                        <div>Add it to count as scored evidence for this person, instead of as an unscored external record.</div>
                     </div>
                 )}
 
@@ -257,6 +303,41 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                             </div>
                         ))}
                         <div className={styles.warningActions}>
+                            {/* "Same as PMID N" — the third answer this prompt was missing. Until now
+                                the only ways out were "Add anyway" (creates a duplicate record) and
+                                walking away (abandons a real publication); neither is right when the
+                                candidate genuinely IS this work. Routes to the same onAcceptPmid the
+                                DOI-probe path already uses, so it makes a real gold-standard accept
+                                rather than an external record. One button per candidate: the check
+                                can name several, and only the curator can say which — see the
+                                recurring-section-title case (three issues of "Hepatology Highlights",
+                                three different articles) that this prompt cannot distinguish. */}
+                            {props.onAcceptPmid && samePmidCandidates(addState?.matches).map((candidate) => {
+                                // A candidate PMID comes from ReCiter's candidate set for THIS person,
+                                // so it is usually already in their record — including, sometimes, as a
+                                // rejection. Accepting it would then silently un-reject it, because
+                                // Java's UPDATE merge drops the PMID from rejectedPmids. Never offer a
+                                // bare "Same as" for an article the person has already ruled on: say
+                                // what the record holds and let them go change it deliberately.
+                                const known = props.recordStatusOf && props.recordStatusOf(candidate)
+                                if (known) return (
+                                    <span key={candidate} className={styles.matchRow}>
+                                        PMID {candidate} — {known === 'ACCEPTED' ? 'already in this person’s record'
+                                            : known === 'REJECTED' ? 'previously rejected for this person; reverse it in the Rejected tab if it is the same work'
+                                                : 'already a pending suggestion — accept it in the Suggested tab'}
+                                    </span>
+                                )
+                                return (
+                                    <button
+                                        key={candidate}
+                                        className={styles.btnAdd}
+                                        title={`Accept PMID ${candidate} for this person instead of adding a separate external record`}
+                                        onClick={() => props.onAcceptPmid && props.onAcceptPmid(candidate, item)}
+                                    >
+                                        Same as PMID {candidate}
+                                    </button>
+                                )
+                            })}
                             <button
                                 className={styles.btnAnyway}
                                 onClick={() => props.onAddAnyway && props.onAddAnyway(item)}
@@ -272,20 +353,50 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                 {mode === 'preview' && status === 'added' && (
                     <span className={styles.addedTag}>Added &#10003;</span>
                 )}
-                {mode === 'preview' && status !== 'added' && pubmedPmid && recStatus && (
+                {/* Direct-accept take priority over the plain record tag below, same as
+                    'added' does — by the time doAcceptPmid resolves, recordStatusOf
+                    already reports ACCEPTED too (updatePublicationAssertion ran first). */}
+                {mode === 'preview' && status === 'accepted' && (
+                    <span className={styles.addedTag}>Accepted &#10003;</span>
+                )}
+                {mode === 'preview' && status !== 'added' && status !== 'accepted' && pubmedPmid && recStatus && (
                     <span className={styles.recordTag}>
                         {recStatus === 'ACCEPTED' ? 'Accepted' : recStatus === 'REJECTED' ? 'Rejected' : 'Pending'}
                     </span>
                 )}
-                {mode === 'preview' && status !== 'added' && pubmedPmid && !recStatus && (
-                    <button
-                        className={styles.btnPubmed}
-                        onClick={() => props.onAddViaPubMed && props.onAddViaPubMed(pubmedPmid, item)}
-                    >
-                        Add via PubMed &#8594;
+                {mode === 'preview' && status === 'adding' && pubmedPmid && !recStatus && (
+                    <button className={styles.btnAdd} disabled>
+                        Adding&#8230;
                     </button>
                 )}
-                {mode === 'preview' && status !== 'added' && !pubmedPmid && (
+                {/* Gated on onAcceptPmid, not just pubmedPmid: rendering this pair off the PMID alone
+                    is what made the OpenAlex tab's primary "Add" a silent no-op — the handler was
+                    `props.onAcceptPmid && props.onAcceptPmid(...)` against an undefined prop, so the
+                    button looked live and did nothing. A consumer that cannot accept a PMID now shows
+                    only "Add via PubMed →" instead of a button that lies. */}
+                {mode === 'preview' && status !== 'added' && status !== 'accepted' && status !== 'adding' && pubmedPmid && !recStatus && (
+                    <div className={styles.pubmedActions}>
+                        {props.onAcceptPmid && (
+                        <button
+                            className={styles.btnAdd}
+                            onClick={() => props.onAcceptPmid && props.onAcceptPmid(pubmedPmid, item)}
+                        >
+                            <CheckIcon style={{ fontSize: 14 }} /> Add
+                        </button>
+                        )}
+                        <button
+                            className={styles.btnPubmedSecondary}
+                            onClick={() => props.onAddViaPubMed && props.onAddViaPubMed(pubmedPmid, item)}
+                        >
+                            Add via PubMed &#8594;
+                        </button>
+                    </div>
+                )}
+                {/* PM#1060: a Crossref DOI too long for the article id column — say why, no Add. */}
+                {mode === 'preview' && status !== 'added' && !pubmedPmid && item.notAddable && (
+                    <span className={styles.recordTag}>Can&apos;t be added</span>
+                )}
+                {mode === 'preview' && status !== 'added' && !pubmedPmid && !item.notAddable && (
                     <button
                         className={styles.btnAdd}
                         disabled={status === 'adding' || status === 'checking' || status === 'blocked' || status === 'warning'}
@@ -294,7 +405,7 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         <CheckIcon style={{ fontSize: 14 }} /> {status === 'adding' ? 'Adding…' : status === 'checking' ? 'Checking…' : 'Add'}
                     </button>
                 )}
-                {mode === 'preview' && props.onReject && status !== 'added' && (
+                {mode === 'preview' && props.onReject && status !== 'added' && status !== 'accepted' && (
                     <button
                         className={styles.btnReject}
                         onClick={() => props.onReject && props.onReject(item)}
@@ -302,34 +413,95 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         Reject
                     </button>
                 )}
-                {mode === 'list' && props.onDelete && (
-                    <button
-                        className={styles.btnDelete}
-                        onClick={() => props.onDelete && props.onDelete(item.articleId)}
-                    >
-                        <DeleteOutlineIcon style={{ fontSize: 15 }} /> Delete
-                    </button>
+                {/* list mode — one right-aligned row: History (if any), then either
+                    Reject/Accept or the inline reject-note flow, then Delete. */}
+                {mode === 'list' && !rejectMode && (
+                    <div className={styles.listActionsRow}>
+                        {entries.length > 0 && (
+                            <span className={pubStyles.curationWrap} ref={historyRef}>
+                                <button
+                                    className={pubStyles.evidenceBtn}
+                                    onClick={(e) => { e.stopPropagation(); setShowHistory(!showHistory) }}
+                                >
+                                    History
+                                </button>
+                                {showHistory && (
+                                    <div className={pubStyles.curationLogPopover}>
+                                        <div className={pubStyles.clogHead}>Curation history</div>
+                                        {entries.map((entry, i) => {
+                                            const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone'
+                                            const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested'
+                                            const who = entry.curatorName || entry.actorPersonIdentifier || 'Unknown'
+                                            return (
+                                                <div className={pubStyles.clogEntry} key={entry.feedbackID || i}>
+                                                    <div className={pubStyles.clogAction}>
+                                                        <div className={`${pubStyles.clogDot} ${action === 'accepted' ? pubStyles.clogDotAccepted : action === 'rejected' ? pubStyles.clogDotRejected : pubStyles.clogDotUndone}`} />
+                                                        <span className={`${pubStyles.clogVerb} ${action === 'accepted' ? pubStyles.clogVerbAccepted : action === 'rejected' ? pubStyles.clogVerbRejected : pubStyles.clogVerbUndone}`}>{verb}</span>
+                                                        <span className={pubStyles.clogWho}>{who}</span>
+                                                    </div>
+                                                    <span className={pubStyles.clogDate}>{dateForEntry(entry)}</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </span>
+                        )}
+                        {!suppressed && props.onReject && (
+                            <button
+                                className={styles.btnReject}
+                                onClick={() => setRejectMode(true)}
+                            >
+                                Reject
+                            </button>
+                        )}
+                        {suppressed && props.onAccept && (
+                            <button
+                                className={styles.btnAdd}
+                                onClick={() => props.onAccept && props.onAccept(item)}
+                            >
+                                <CheckIcon style={{ fontSize: 14 }} /> Accept
+                            </button>
+                        )}
+                        {props.onDelete && (
+                            <button
+                                className={styles.btnDelete}
+                                onClick={() => props.onDelete && props.onDelete(item.articleId)}
+                            >
+                                <DeleteOutlineIcon style={{ fontSize: 15 }} /> Delete
+                            </button>
+                        )}
+                    </div>
                 )}
-                {/* Faculty dispute lifecycle — one affordance at a time (mockup): idle rows
-                    get "This isn't mine"; disputed rows get a single reversible Undo. A row
-                    the viewer added themselves gets neither (Remove is a future item). */}
-                {mode === 'list' && disputed && props.onRetractDispute && (
-                    <button
-                        className={styles.btnUndoDispute}
-                        disabled={props.disputeBusy}
-                        onClick={() => props.onRetractDispute && props.onRetractDispute(item.articleId)}
-                    >
-                        <UndoIcon style={{ fontSize: 14 }} /> Disputed &mdash; Undo
-                    </button>
-                )}
-                {mode === 'list' && !disputed && !superseded && !selfAdded && props.onDispute && (
-                    <button
-                        className={styles.btnDispute}
-                        disabled={props.disputeBusy}
-                        onClick={() => setDisputeFormOpen((open) => !open)}
-                    >
-                        This isn&rsquo;t mine
-                    </button>
+                {mode === 'list' && rejectMode && (
+                    <div className={styles.rejectInline}>
+                        <textarea
+                            style={rejectNoteInputStyle}
+                            placeholder="Optional note for this rejection…"
+                            value={rejectNote}
+                            onChange={(e) => setRejectNote(e.target.value)}
+                            rows={2}
+                            autoFocus
+                        />
+                        <div className={styles.rejectInlineActions}>
+                            <button
+                                className={styles.btnRejectConfirm}
+                                onClick={() => {
+                                    props.onReject && props.onReject(item, rejectNote.trim() || undefined)
+                                    setRejectMode(false)
+                                    setRejectNote('')
+                                }}
+                            >
+                                Confirm reject
+                            </button>
+                            <button
+                                className={styles.btnCancel}
+                                onClick={() => { setRejectMode(false); setRejectNote('') }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>
