@@ -20,6 +20,8 @@ COPY --from=deps /app/node_modules ./node_modules
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
 ARG NEXT_PUBLIC_RECITER_BACKEND_API_KEY=tests
 RUN env
+# Commit being built (next.config.js generateBuildId); unset = Next's random build id.
+ARG GIT_SHA
 # COPY . . brought back the corrupt committed lockfile; remove again.
 RUN rm -f package-lock.json && npm run build && npm install --production --ignore-scripts --prefer-offline --legacy-peer-deps
 

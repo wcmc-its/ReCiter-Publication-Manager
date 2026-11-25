@@ -72,7 +72,7 @@ phases:
         if expr "${BRANCH}" : ".*master" >/dev/null || \
            expr "${BRANCH}" : ".*dev" >/dev/null || \
            expr "${BRANCH}" : ".*master_Next14" >/dev/null;then
-          docker build --build-arg NEXT_PUBLIC_RECITER_BACKEND_API_KEY=$NEXT_PUBLIC_RECITER_BACKEND_API_KEY --tag $REPOSITORY_URI:$TAG .
+          docker build --build-arg NEXT_PUBLIC_RECITER_BACKEND_API_KEY=$NEXT_PUBLIC_RECITER_BACKEND_API_KEY --build-arg GIT_SHA=$CODEBUILD_RESOLVED_SOURCE_VERSION --tag $REPOSITORY_URI:$TAG .
         fi
 
 
