@@ -59,6 +59,10 @@ test('Cornell rows stay out of the email fallbacks and settings need an admin', 
     const provision = users.slice(users.indexOf('export const provisionPartnerAdminUser'))
     assert.match(provision, /email: null,/)
     assert.match(provision, /models\.Person\.findOne/)
+    // Cornell sends no givenName/sn: the names fall back to the roster row, which must be selected.
+    assert.match(provision, /attributes: \['personIdentifier', 'firstName', 'lastName'\]/)
+    assert.match(provision, /nameFirst: firstName \|\| person\?\.firstName/)
+    assert.match(provision, /nameLast: lastName \|\| person\?\.lastName/)
     assert.match(users, /where: \{ email, personIdentifier: \{ \[Op\.notLike\]: '%@%' \} \}/)
     const settings = readFileSync(new URL('../src/pages/api/db/admin/settings/updateSettings/index.ts', import.meta.url), 'utf8')
     assert.ok(settings.indexOf('isAuthorizedAdmin(req)') > 0 && settings.indexOf('isAuthorizedAdmin(req)') < settings.indexOf('await updateAdminSettings'))

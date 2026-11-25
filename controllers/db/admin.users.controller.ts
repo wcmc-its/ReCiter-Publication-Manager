@@ -144,7 +144,7 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
 export const provisionPartnerAdminUser = async (key: string, email?: string, firstName?: string, lastName?: string) => {
     const netid = netidFromPartnerKey(key)
     if (!netid) return null
-    const person: any = await models.Person.findOne({ where: { personIdentifier: netid }, attributes: ['personIdentifier'], raw: true })
+    const person: any = await models.Person.findOne({ where: { personIdentifier: netid }, attributes: ['personIdentifier', 'firstName', 'lastName'], raw: true })
     const typeRows: any[] = person
         ? await models.PersonPersonType.findAll({ where: { personIdentifier: netid }, attributes: ['personType'], raw: true })
         : []
@@ -159,8 +159,9 @@ export const provisionPartnerAdminUser = async (key: string, email?: string, fir
     if (decision.create) {
         row = await models.AdminUser.create({
             personIdentifier: key,
-            nameFirst: firstName || null,
-            nameLast: lastName || null,
+            // Cornell releases only a display name (no givenName/sn), so the names come from the roster.
+            nameFirst: firstName || person?.firstName || null,
+            nameLast: lastName || person?.lastName || null,
             // No email on Cornell rows: the login and role queries both fall back to matching by
             // email alone, and a WCM login must never land on (or take roles from) this row.
             email: null,
