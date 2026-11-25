@@ -135,10 +135,12 @@ async function byline(k: RowKeys) {
     person_article: await part(async () => rowsOf(
       `SELECT ${await cols('person_article')} FROM \`person_article\` WHERE \`pmid\` IN (:pmids) ` +
       `ORDER BY \`userAssertion\` = 'ACCEPTED' DESC, \`authorshipLikelihoodScore\` DESC LIMIT ${HOLDER_CAP}`, r)),
+    // Through person_article: not every database has an index on person_article_author.pmid alone.
     // LIKE '1%': stored targetAuthor values carry a trailing carriage return.
     target_authors: await part(async () => rowsOf(
-      `SELECT ${await cols('person_article_author')} FROM \`person_article_author\` ` +
-      `WHERE \`pmid\` IN (:pmids) AND \`targetAuthor\` LIKE '1%' LIMIT ${HOLDER_CAP}`, r)),
+      `SELECT ${await cols('person_article_author', 'a.')} FROM \`person_article\` h ` +
+      'JOIN `person_article_author` a ON a.`personIdentifier` = h.`personIdentifier` AND a.`pmid` = h.`pmid` ' +
+      `WHERE h.\`pmid\` IN (:pmids) AND a.\`targetAuthor\` LIKE '1%' LIMIT ${HOLDER_CAP}`, r)),
     analysis_summary_author: await part(async () => rowsOf(
       `SELECT ${await cols('analysis_summary_author')} FROM \`analysis_summary_author\` WHERE \`pmid\` IN (:pmids) LIMIT ${HOLDER_CAP}`, r)),
   })
