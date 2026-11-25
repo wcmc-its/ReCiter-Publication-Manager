@@ -708,6 +708,10 @@ export function bylineCampuses(affil: string | null | undefined): Set<"wcm" | "c
   return out;
 }
 
+/** Per directory asked: people found before the page cap, and whether any were left out (by the
+ *  cap, or by the server's size limit). Filled in for the lookup's `debug` block. */
+export type DirectorySearchStats = Partial<Record<"wcm" | "cornell", { count: number; truncated: boolean }>>;
+
 /** `sources` narrows the search to one directory; both by default. The routine (auto) lookup
  *  on a weak /authorships row asks WCM alone first and Cornell only as a fallback (see
  *  authorshipLookupCwid), so a WCM byline is not padded with Ithaca homonyms.
@@ -716,7 +720,7 @@ export function bylineCampuses(affil: string | null | undefined): Set<"wcm" | "c
  *  so without it the right person has nothing to match the byline's department on. */
 export async function searchDirectoryPeople(q: string, limit = 8, retry = true, affil = "",
   sources: { wcm?: boolean; cornell?: boolean } = {},
-  enrich?: (people: DirectoryPerson[]) => Promise<void>): Promise<DirectoryPerson[]> {
+  enrich?: (people: DirectoryPerson[]) => Promise<void>, stats?: DirectorySearchStats): Promise<DirectoryPerson[]> {
   const term = q.trim();
   if (term.length < 3) return [];
   const wcm = sources.wcm === false ? null : wcmEnv();
@@ -768,8 +772,20 @@ export async function searchDirectoryPeople(q: string, limit = 8, retry = true, 
   // `limit` slots stay for everyone else, so 100 Ithaca homonyms cannot push every WCM person
   // (a dual appointee, a mis-stated byline) off the list.
   const people = [...ranked.filter((p) => lead(p) > 0).slice(0, limit * 3), ...ranked.filter((p) => !lead(p)).slice(0, limit)];
+  if (stats) {
+    const sides = [["wcm", wcm, [wx, w]], ["cornell", cornell, [cx, c]]] as const;
+    for (const [src, asked, raw] of sides) {
+      if (!asked) continue;
+      const count = all.filter((p) => p.source === src).length;
+      stats[src] = {
+        count,
+        truncated: people.filter((p) => p.source === src).length < count ||
+          (!wide && raw.some((r) => r.length >= limit)),
+      };
+    }
+  }
   const cut = !people.length && retry ? nearMissQuery(term) : null;
-  if (cut) return searchDirectoryPeople(cut, limit, false, affil, sources, enrich);
+  if (cut) return searchDirectoryPeople(cut, limit, false, affil, sources, enrich, stats);
   // One extra search, and only when this page actually holds a retired cwid — so the ordinary
   // search pays nothing. Awaited rather than fired-and-forgotten: the successor's name is what
   // makes the blocked row actionable ("retired — use ssy9009") instead of a dead end.
@@ -804,6 +820,15 @@ let retiredCache: { index: Map<string, string | null>; expires: number } | null 
 // promise, the moment the TTL lapses every concurrent request starts its own full census. Await
 // the same one instead. Cleared in a finally so one failure cannot wedge the refresh forever.
 let retiredInFlight: Promise<Map<string, string | null>> | null = null;
+
+/** Is the census wired up, and how old is the snapshot this pod answers from? An empty map from
+ *  retiredCwidIndex() cannot say whether nobody is retired or the directory did not answer. */
+export const retiredCensusInfo = () => ({
+  configured: wcmEnv() !== null,
+  available: retiredCache !== null,
+  ageMs: retiredCache ? Date.now() - (retiredCache.expires - RETIRED_TTL_MS) : null,
+  size: retiredCache?.index.size ?? null,
+});
 
 export function retiredCwidIndex(): Promise<Map<string, string | null>> {
   if (retiredCache && retiredCache.expires > Date.now()) return Promise.resolve(retiredCache.index);

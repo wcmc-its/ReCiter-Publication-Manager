@@ -17,6 +17,8 @@ import { ExternalRejection } from "./ExternalRejection";
 import type { ExternalRejectionAttributes, ExternalRejectionCreationAttributes } from "./ExternalRejection";
 import { ExternalDupVerdict } from "./ExternalDupVerdict";
 import type { ExternalDupVerdictAttributes, ExternalDupVerdictCreationAttributes } from "./ExternalDupVerdict";
+import { AuthorshipFeedback } from "./AuthorshipFeedback";
+import type { AuthorshipFeedbackAttributes, AuthorshipFeedbackCreationAttributes } from "./AuthorshipFeedback";
 import { AdminNotificationLog } from "./AdminNotificationLog";
 import type { AdminNotificationLogAttributes, AdminNotificationLogCreationAttributes } from "./AdminNotificationLog";
 import { AdminNotificationPreference } from "./AdminNotificationPreference";
@@ -101,6 +103,7 @@ export {
   ExternalRecordEvent,
   ExternalRejection,
   ExternalDupVerdict,
+  AuthorshipFeedback,
   AdminDepartment,
   AdminFeedbackLog,
   AuthorshipReview,
@@ -155,6 +158,8 @@ export type {
   ExternalRejectionCreationAttributes,
   ExternalDupVerdictAttributes,
   ExternalDupVerdictCreationAttributes,
+  AuthorshipFeedbackAttributes,
+  AuthorshipFeedbackCreationAttributes,
   AdminDepartmentAttributes,
   AdminDepartmentCreationAttributes,
   AdminFeedbackLogAttributes,
@@ -287,6 +292,7 @@ export function initModels(sequelize: Sequelize) {
   ExternalRecordEvent.initModel(sequelize);
   ExternalRejection.initModel(sequelize);
   ExternalDupVerdict.initModel(sequelize);
+  AuthorshipFeedback.initModel(sequelize);
 
   AdminUsersDepartment.belongsTo(AdminDepartment, { as: "department", foreignKey: "departmentID"});
   AdminDepartment.hasMany(AdminUsersDepartment, { as: "adminUsersDepartments", foreignKey: "departmentID"});
@@ -352,6 +358,7 @@ export function initModels(sequelize: Sequelize) {
     ExternalRecord: ExternalRecord,
     ExternalRecordEvent: ExternalRecordEvent,
     ExternalRejection: ExternalRejection,
-    ExternalDupVerdict: ExternalDupVerdict
+    ExternalDupVerdict: ExternalDupVerdict,
+    AuthorshipFeedback: AuthorshipFeedback
   };
 }

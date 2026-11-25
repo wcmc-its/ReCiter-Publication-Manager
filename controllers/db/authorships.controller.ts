@@ -14,6 +14,7 @@ import {
 import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldStandardRejections";
 import { assignGate, canonicalCwid, homonymRejections, toCanonicalCwid } from "../../src/lib/assignGate";
 import { parseCwid } from "../../src/utils/canonicalCwid";
+import { mayReviewToken } from "../../src/lib/authorshipFeedback";
 import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
 import { dropMiddleInitials } from "../../src/utils/authorshipRow";
@@ -23,7 +24,7 @@ import {
   lookupDirectoryPerson, searchDirectoryPeople, directoryIdentityPayload, directoryConfigured, cornellFallback,
   affiliationDeptMatch, bylineCampuses,
   retiredCwidIndex,
-  type DirectoryPerson,
+  type DirectoryPerson, type DirectorySearchStats,
 } from "../../src/lib/directory";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { scheduleAnalysisRefresh } from "../analysisRefresh";
@@ -457,6 +458,9 @@ function isRowOpenForLike(r: any): boolean {
 
 const ABSENT_CWID_TTL_MS = 5 * 60 * 1000;
 let absentCwidCache: { set: Set<string>; expires: number } | null = null;
+/** This pod's copy, for a problem report's run context: it decides which rows hideNoIdentity hides. */
+export const absentCwidCacheInfo = () => absentCwidCache &&
+  { size: absentCwidCache.set.size, ageMs: Date.now() - (absentCwidCache.expires - ABSENT_CWID_TTL_MS) };
 
 // Which proposed-identity cwids across the OPEN queue have no ReCiter identity at all — the
 // set hideNoIdentity hides. A given cwid can be top_cwid on hundreds of open rows, so resolving
@@ -992,10 +996,15 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
       // Cornell there, because "Population Medicine" matches every WCM "Medicine" dept.
       const campuses = bylineCampuses(affil);
       const wcmFirst = auto && !campuses.has("cornell");
+      let stats: DirectorySearchStats = {};
+      let cornellFallbackUsed = false;
       const searchFor = async (term: string) => {
-        let hits = await searchDirectoryPeople(term, 8, true, affil, wcmFirst ? { cornell: false } : {}, rosterFill);
+        stats = {};
+        cornellFallbackUsed = false;
+        let hits = await searchDirectoryPeople(term, 8, true, affil, wcmFirst ? { cornell: false } : {}, rosterFill, stats);
         if (wcmFirst && cornellFallback(hits, affil)) {
-          hits = [...hits, ...await searchDirectoryPeople(term, 8, true, affil, { wcm: false }, rosterFill)];
+          cornellFallbackUsed = true;
+          hits = [...hits, ...await searchDirectoryPeople(term, 8, true, affil, { wcm: false }, rosterFill, stats)];
         }
         return hits;
       };
@@ -1023,6 +1032,11 @@ export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResp
       return res.send({
         configured: directoryConfigured(),
         widened: widened && found.length ? widened : null,
+        // How this list was built, for "Report a problem"; the page ignores it.
+        debug: {
+          campuses: [...campuses], wcmFirst, cornellFallbackUsed, perDirectory: stats,
+          scores: people.map(score), exactName: people.map((p) => !!p.exactName),
+        },
         matches: people.map((p) => ({
           id: p.id, source: p.source, name: p.name, title: p.title, dept: p.dept,
           // The assembled legal name, which is not always what displayName carries: ED holds a
@@ -2607,9 +2621,7 @@ async function resolveCurator(req: NextApiRequest): Promise<{ userID?: number; c
   if (!token) return {};
   // Same rule as the /authorships page in src/middleware.ts: Curator_All or Superuser only.
   // The api key is public, so without this any signed-in user could curate anyone here.
-  let roles: any[] = [];
-  try { roles = JSON.parse(token.userRoles || "[]"); } catch { roles = []; }
-  const mayReview = Array.isArray(roles) && roles.some((r: any) => r?.roleLabel === "Curator_All" || r?.roleLabel === "Superuser");
+  const mayReview = mayReviewToken(token);
   const cwid: string | undefined = token.username ? String(token.username) : undefined;
   let userID: number | undefined = token.databaseUser?.userID;
   if (!userID && cwid) {
@@ -2974,6 +2986,12 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
     const row: any = await models.AuthorshipReview.findByPk(id);
     if (!row) return res.status(404).send("Authorship not found");
 
+    // The state this action is about to overwrite; nothing else holds it once the write lands.
+    const before = {
+      status: row.status, resolution_cwid: row.resolution_cwid, resolved_at: row.resolved_at,
+      reviewer: row.reviewer, note: row.note, top_cwid: row.top_cwid, matched_pmid_verdict: row.matched_pmid_verdict,
+    };
+
     const isExternal = isExternalSource(row);
     const pmid = row.pmid != null ? Number(row.pmid) : null;
     // Canonical, like every write below it: a producer-baked `Abl9002` must hit the same
@@ -2988,7 +3006,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // JSON (not plain text) so the client can route this into the inline conflict banner
         // and silently refetch the row instead of the generic "nothing was saved" toast — see
         // the card predicate at AuthorshipsTabs.tsx (isMulti) and the kind dispatch below it.
-        if (!row.single_candidate) return res.status(409).json({ code: "MULTI_CANDIDATE", message: "Multiple candidates — use \"Pick one\" to assign" });
+        if (!row.single_candidate) return res.status(409).json({ code: "MULTI_CANDIDATE", message: "Multiple candidates — use \"Pick one\" to assign", before });
         // RETIRED CWID, the single-candidate half of the same block case "assign" applies. This
         // path never sees a client-supplied cwid — it accepts the row's own top_cwid — but the
         // producer baked that months ago and ED has retired it since (63 open rows on the
@@ -3038,7 +3056,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           if (out.kind === "warning") {
             // As the Java path below: the WARNING leaves the open queue for "Possible duplicates".
             await models.AuthorshipReview.update(parkedConflict(row, cwid, out.dup), { where: { id } });
-            return res.status(409).json({ message: out.dup.message, matches: out.dup.matches });
+            return res.status(409).json({ message: out.dup.message, matches: out.dup.matches, before });
           }
           break;
         }
@@ -3053,7 +3071,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
               // Session-scoped conflictLog state already showed this to the curator who hit
               // it; the column is what survives a refresh, another curator, and a bulk run.
               await models.AuthorshipReview.update(parkedConflict(row, cwid, dup), { where: { id } });
-              return res.status(409).json({ message: dup.message, matches: dup.matches });
+              return res.status(409).json({ message: dup.message, matches: dup.matches, before });
             }
           } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
             return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
@@ -3213,6 +3231,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
             cwid: target,
             offCandidate,
             alsoRejected,
+            before,
             message: `${target} has no ReCiter identity. Assigning anyway records your decision on `
               + "this row only — it will NOT be added to the person's publication record, because there "
               + `is no identity to add it to.${alsoRejectedNote} Confirm to proceed.`,
@@ -3263,6 +3282,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
             cwid: target,
             offCandidate: true,
             ...(bridgedFrom ? { bridgedFrom } : {}),
+            before,
             message: bridgeNote
               + `${who ? `${who} · ${target}` : `${target} (no name on file anywhere — check the identifier)`}`
               + " was not one of the candidates proposed for this authorship. Confirming ADDS this article "
@@ -3331,14 +3351,14 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // gold-standard DELETE it does is exactly the write this made.
         if (isExternal && externalStoreMode() === "mysql") {
           const out = await storeExternalAccept(target, row, reviewer, force, { status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() });
-          if (out.kind === "warning") return res.status(409).json({ message: out.dup.message, matches: out.dup.matches });
+          if (out.kind === "warning") return res.status(409).json({ message: out.dup.message, matches: out.dup.matches, before });
           break;
         }
         if (isExternal) {
           const resp = await addExternalArticle(target, externalArticlePayload(row), reviewer, force);
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
-            if (!dup.blocked) return res.status(409).json({ message: dup.message, matches: dup.matches });
+            if (!dup.blocked) return res.status(409).json({ message: dup.message, matches: dup.matches, before });
           } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
             return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
           }
@@ -3539,7 +3559,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
     }
 
     const updated = await models.AuthorshipReview.findByPk(id, { attributes: LIST_ATTRIBUTES });
-    return res.send({ ok: true, row: updated });
+    return res.send({ ok: true, row: updated, before });
   } catch (e) {
     console.log(e);
     return res.status(500).send(String(e));
