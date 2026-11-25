@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { reciterConfig } from "../../../../config/local";
+import { recordedFetch } from "../../../utils/authorshipsCalls";
 import { familyOnByline, isCornellOrg, yearsText } from "../../../lib/orcidRecord";
 import type { OrcidRecord } from "../../../lib/orcidRecord";
 
@@ -18,11 +19,11 @@ const OrcidPanel = ({ rowId, orcid, byline }: { rowId: number; orcid: string; by
     const ctl = new AbortController();
     setRec(undefined);
     setAll(false);
-    fetch("/api/db/authorships/orcid-record", {
+    recordedFetch("/api/db/authorships/orcid-record", {
       credentials: "same-origin", method: "POST", signal: ctl.signal,
       headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: reciterConfig.backendApiKey },
       body: JSON.stringify({ id: rowId }),
-    }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    }, { site: "orcidPanel" }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => setRec(d.record ?? null))
       .catch(() => { if (!ctl.signal.aborted) setRec(null); });
     return () => ctl.abort();

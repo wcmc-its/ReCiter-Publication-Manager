@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { reciterConfig } from "../../../../config/local";
 import { mostEvidenceCwid, tallyOf } from "../../../utils/candidateEvidence";
 import { isDeliberateClick } from "../../../utils/authorshipRow";
+import { recordedFetch } from "../../../utils/authorshipsCalls";
 import type { CandidateFacts, EvidenceCandidate, EvidenceKind, EvidenceRow } from "../../../utils/candidateEvidence";
 
 export interface CandidateEvidenceData {
@@ -28,11 +29,11 @@ const load = (id: number, tag: string) => {
   if (hit?.tag === tag) return hit;
   const entry: { tag: string; p: Promise<CandidateEvidenceData>; data?: CandidateEvidenceData } = {
     tag,
-    p: fetch("/api/db/authorships/candidate-evidence", {
+    p: recordedFetch("/api/db/authorships/candidate-evidence", {
       credentials: "same-origin", method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: reciterConfig.backendApiKey },
       body: JSON.stringify({ id }),
-    }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+    }, { site: "evidence" }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
   };
   entry.p.then((d) => { entry.data = d; }, () => { if (cache.get(id) === entry) cache.delete(id); });
   cache.set(id, entry);

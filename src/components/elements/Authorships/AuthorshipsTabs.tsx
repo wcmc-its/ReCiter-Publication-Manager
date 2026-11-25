@@ -30,6 +30,11 @@ import type { StoredConflict } from "../../../lib/acceptConflictMatches";
 import { CompareGrid, EvidenceTable, orderByEvidence, useCandidateEvidence } from "./CandidateEvidence";
 import { buildCandidateEvidence } from "../../../utils/candidateEvidence";
 import OrcidPanel from "./OrcidPanel";
+import { FeedbackDialog, useAuthorshipFeedback } from "./FeedbackDialog";
+import { markCall, noteBulk, noteRefusal, noteRows, recordedFetch } from "../../../utils/authorshipsCalls";
+import type { CallMeta } from "../../../utils/authorshipsCalls";
+import { captureReport, noteHover } from "../../../utils/authorshipsCapture";
+import type { FeedbackTarget, TriggerPlace } from "../../../utils/authorshipsCapture";
 import {
   bylineParts, compareHint, fgLine, formatRowDate, ioBadge, ioBand as ioBandOf, ioScoreText, rankCandidates, roleLine, shareLine,
   confidenceLevel, confidenceTip, conflictIdentities, conflictKeep, directoryRole, emptyState, isDeliberateClick, netidAfterPaper, orcidLaneBulkOk, orcidMatchTip, parkedNote, shortcutsLine, sourceBadgeText, splitAffiliation, topOrcidSource, venueFitBand,
@@ -1309,6 +1314,7 @@ const IdentityHoverCard = ({ subject, priorNames, byline, pills }: {
     // same answer. Returning the previous object makes React bail out instead of looping.
     setPlace((p) => (p.up === up && p.dx === dx && p.max === max ? p : { up, dx, max }));
   }, [priorNames]);
+  useEffect(() => { noteHover(cardRef.current, r.cwid); }, [priorNames, place, r.cwid]); // for a problem report
   const label: CSSProperties = { fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--pm-muted-foreground)" };
   const muted: CSSProperties = { color: "var(--pm-muted-foreground)" };
   // deptLabel without a title: the card prints the title on its own line below.
@@ -1469,6 +1475,9 @@ const AuthorshipsTabs = () => {
   const [chipMenu, setChipMenu] = useState<string | null>(null);
   // The search box inside the two affiliation lists. Cleared whenever a chip opens.
   const [affilQuery, setAffilQuery] = useState("");
+  // The last list opened, for a problem report: opening the report closes the list.
+  const lastChip = useRef<string | null>(null);
+  useEffect(() => { if (chipMenu) lastChip.current = chipMenu; }, [chipMenu]);
   const [keysAnchor, setKeysAnchor] = useState<HTMLElement | null>(null);
   const keysBtnRef = useRef<HTMLButtonElement>(null);
   // The sort Select's own menu. Tracked so the row shortcuts stand down while it is open.
@@ -1638,6 +1647,10 @@ const AuthorshipsTabs = () => {
   // name, and the card's own hover-intent delay (see the card) keeps a mouse sweeping down the
   // page from asking for every row it passes over.
   const priorNamesAsked = useRef<Set<string>>(new Set());
+  // "Report a problem": off (nothing drawn) until the server says this person may report.
+  const feedback = useAuthorshipFeedback();
+  // What the ⋯ menu's report item is about, captured as the menu opened.
+  const menuReport = useRef<FeedbackTarget | null>(null);
   const clearConflict = useCallback((id: number) => {
     setConflicts((c) => { if (!(id in c)) return c; const n = { ...c }; delete n[id]; return n; });
   }, []);
@@ -1728,7 +1741,7 @@ const AuthorshipsTabs = () => {
   const overlayOpen = !!chipMenu || !!keysAnchor || sortOpen
     || !!reportAnchor
     || !!menu || !!assignMenuAnchor || !!historyAnchor || !!activityAnchor
-    || !!assignLookupCwid || !!assignConfirm || rejectConfirmOpen;
+    || !!assignLookupCwid || !!assignConfirm || rejectConfirmOpen || !!feedback.open;
   useEffect(() => { overlayOpenRef.current = overlayOpen; }, [overlayOpen]);
   const keysOpenRef = useRef(false);
   useEffect(() => { keysOpenRef.current = !!keysAnchor; }, [keysAnchor]);
@@ -1783,19 +1796,23 @@ const AuthorshipsTabs = () => {
   const fetchData = useCallback((silent = false) => {
     const myId = ++seqRef.current;
     const body = listBody();
+    const call: CallMeta = { site: silent ? "fetchData (silent)" : "fetchData", guarded: true };
     if (!silent) setLoading(true);
-    fetch("/api/db/authorships", {
+    recordedFetch("/api/db/authorships", {
       credentials: "same-origin", method: "POST", headers: apiHeaders, body,
-    })
+    }, call)
       // A 500 (e.g. the RDS pool out of connections) still has a JSON-ish body; reading it as a
       // list showed "No authorships match these filters" for a list that never loaded.
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => {
         if (myId !== seqRef.current) return; // superseded by a newer request — drop this response
         if (body !== liveListBody.current) {         // filters moved on while this was in flight
+          markCall(call, "dropped: filters changed");
           refetchLatest.current?.(true);              // ...and re-run, or nothing ever lands
           return;
         }
+        markCall(call, "applied");
+        noteRows(d.rows, call.site);
         setListError(false);
         // never show a row whose removal is still in flight (race protection, same as topUp)
         // uniqueById: rows are keyed by id, so a repeated id (the list query once fanned out on
@@ -1827,18 +1844,22 @@ const AuthorshipsTabs = () => {
   const topUp = useCallback(() => {
     const myId = ++seqRef.current;
     const body = listBody();
-    fetch("/api/db/authorships", {
+    const call: CallMeta = { site: "topUp", guarded: true };
+    recordedFetch("/api/db/authorships", {
       credentials: "same-origin", method: "POST", headers: apiHeaders, body,
-    })
+    }, call)
       // An error body is not an empty page: without this check a failed refill zeroed the count
       // and stepped back a page. Failing quietly leaves the rows on screen as they are.
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => {
         if (myId !== seqRef.current) return; // a newer fetch/topUp started — don't merge stale rows
         if (body !== liveListBody.current) {         // filters moved on — this refill is for a dead view
+          markCall(call, "dropped: filters changed");
           refetchLatest.current?.(true);              // ...and re-run, or nothing ever lands
           return;
         }
+        markCall(call, "applied");
+        noteRows(d.rows, call.site);
         const fetched: AuthorshipRow[] = uniqueById<AuthorshipRow>(d.rows || []).filter(
           (row) => !pendingRemoved.current.has(row.id),
         );
@@ -1918,16 +1939,19 @@ const AuthorshipsTabs = () => {
   const fetchSummary = useCallback(() => {
     const myId = ++summarySeqRef.current;
     const body = summaryBody;
-    fetch("/api/db/authorships/summary", {
+    const call: CallMeta = { site: "fetchSummary", guarded: true };
+    recordedFetch("/api/db/authorships/summary", {
       credentials: "same-origin", method: "POST", headers: apiHeaders, body,
-    })
+    }, call)
       .then((r) => r.json())
       .then((d) => {
         if (myId !== summarySeqRef.current) return;   // a newer summary fetch started
         if (body !== liveSummaryBody.current) {       // filters moved on while this was in flight
+          markCall(call, "dropped: filters changed");
           refetchSummaryLatest.current?.();            // ...and re-run, or the header stays stale
           return;
         }
+        markCall(call, "applied");
         setSummary(d);
         setSummaryFor(body);
       })
@@ -1946,10 +1970,10 @@ const AuthorshipsTabs = () => {
   // "Recent activity" — fixed-size global feed, no filters, so unlike fetchSummary this never
   // needs to re-key off the queue's own filter state.
   const fetchRecentActivity = useCallback(() => {
-    fetch("/api/db/authorships/recent-activity", {
+    recordedFetch("/api/db/authorships/recent-activity", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({}),
-    })
+    }, { site: "fetchRecentActivity" })
       .then((r) => r.json())
       .then((d) => setRecentActivity(d.rows || []))
       .catch(() => setRecentActivity([]));
@@ -1972,13 +1996,15 @@ const AuthorshipsTabs = () => {
     if (!reportView) { setReportData(null); setReportError(""); setReportLoading(false); return; }
     if (!datesReady) return;                       // same hold the first list fetch takes
     const myId = ++reportSeqRef.current;
+    const call: CallMeta = { site: "reports", guarded: true };
     setReportLoading(true);
-    fetch("/api/db/authorships/reports", {
+    recordedFetch("/api/db/authorships/reports", {
       credentials: "same-origin", method: "POST", headers: apiHeaders, body: reportBody,
-    })
+    }, call)
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d: ReportResponse) => {
         if (myId !== reportSeqRef.current) return;
+        markCall(call, "applied");
         setReportData(d);
         setReportError("");
       })
@@ -2076,10 +2102,10 @@ const AuthorshipsTabs = () => {
   const requestPriorNames = useCallback((cwid?: string | null) => {
     if (!cwid || priorNamesAsked.current.has(cwid)) return;
     priorNamesAsked.current.add(cwid);
-    fetch("/api/db/authorships/prior-names", {
+    recordedFetch("/api/db/authorships/prior-names", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ cwid }),
-    })
+    }, { site: "hoverCard" })
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => setPriorNames((p) => ({
         ...p,
@@ -2101,10 +2127,10 @@ const AuthorshipsTabs = () => {
   // reusing them would silently corrupt an unrelated row's count. This posts directly and
   // just re-pulls everything that could have changed.
   const undoRecentActivity = useCallback((entry: ActivityEntry) => {
-    fetch("/api/db/authorships/action", {
+    recordedFetch("/api/db/authorships/action", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ id: entry.id, action: "reopen" }),
-    })
+    }, { site: "undoRecentActivity" })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         // reopened row drops out of the resolved-only feed and may now belong on the
@@ -2179,6 +2205,7 @@ const AuthorshipsTabs = () => {
     // HTTP status at all, so it can't be mistaken for the server's real 409 (duplicate) or 422
     // (no-identity/off-candidate) responses in the catch below or in doBulkAccept's tally.
     if ((action === "accept" || action === "reject") && !row.top_cwid) {
+      noteRefusal(row, action, "no proposed identity");
       return Promise.reject(Object.assign(
         new Error("No proposed identity on this row — use “Someone else” to assign it."),
         { local: true },
@@ -2200,10 +2227,10 @@ const AuthorshipsTabs = () => {
     setRows((rs) => rs.filter((x) => x.id !== row.id));
     setCount((c) => Math.max(0, c - 1));
     setLikeExpected((n) => (n == null ? n : Math.max(0, n - 1)));
-    return fetch("/api/db/authorships/action", {
+    return recordedFetch("/api/db/authorships/action", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ id: row.id, action, ...extra }),
-    })
+    }, { site: "doAction", row })
       .then(async (r) => {
         if (!r.ok) {
           const text = await r.text();
@@ -2331,6 +2358,7 @@ const AuthorshipsTabs = () => {
     };
     runChunks()
       .then((results) => {
+        noteBulk("accept", results);
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) setUndo({ rows: ok, label: actionToast("accept", ok, ok.length === 1 ? targetNameOf(ok[0], "accept") : null) });
@@ -2382,6 +2410,7 @@ const AuthorshipsTabs = () => {
     };
     runChunks()
       .then((results) => {
+        noteBulk("reject", results);
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) setUndo({ rows: ok, label: actionToast("reject", ok) });
@@ -2431,6 +2460,7 @@ const AuthorshipsTabs = () => {
     };
     runChunks()
       .then((results) => {
+        noteBulk(action, results);
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) setUndo({ rows: ok, label: actionToast(action, ok) });
@@ -2468,6 +2498,7 @@ const AuthorshipsTabs = () => {
     };
     runChunks()
       .then((results) => {
+        noteBulk("reopen", results);
         const failures = results.filter((r) => r.status === "rejected").length;
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) toast(actionToast("reopen", ok), { autoClose: 5000 });
@@ -2528,10 +2559,10 @@ const AuthorshipsTabs = () => {
     const seq = assignSeqRef.current;
     setAssignErr("");
     setAssignLookupCwid(typed);
-    fetch("/api/db/authorships/lookup", {
+    recordedFetch("/api/db/authorships/lookup", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ cwid: typed }),
-    })
+    }, { site: "bulkAssign" })
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
         return r.json();
@@ -2557,10 +2588,10 @@ const AuthorshipsTabs = () => {
     const seq = assignSeqRef.current;
     setAssignErr("");
     setAssignLookupCwid(q);
-    fetch("/api/db/authorships/lookup", {
+    recordedFetch("/api/db/authorships/lookup", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ q }),
-    })
+    }, { site: "bulkAssign" })
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
         return r.json();
@@ -2617,6 +2648,7 @@ const AuthorshipsTabs = () => {
     };
     runChunks()
       .then((results) => {
+        noteBulk("assign", results);
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) setUndo({ rows: ok, label: actionToast("assign", ok, assignConfirm?.name || cwid) });
@@ -2648,10 +2680,10 @@ const AuthorshipsTabs = () => {
   const selectAllMatching = useCallback(() => {
     setSelectingAll(true);
     const seq = selectAllSeqRef.current;
-    fetch("/api/db/authorships/selectable", {
+    recordedFetch("/api/db/authorships/selectable", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify(filterBody()),
-    })
+    }, { site: "selectAllMatching" })
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => {
         if (selectAllSeqRef.current !== seq) return;
@@ -2670,10 +2702,10 @@ const AuthorshipsTabs = () => {
     const batch = undo.rows;
     setUndo(null);
     Promise.allSettled(batch.map((row) =>
-      fetch("/api/db/authorships/action", {
+      recordedFetch("/api/db/authorships/action", {
         credentials: "same-origin", method: "POST", headers: apiHeaders,
         body: JSON.stringify({ id: row.id, action: "reopen" }),
-      }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
+      }, { site: "undo", row }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
     )).then((results) => {
       if (results.some((r) => r.status === "rejected")) showError("Undo failed for one or more rows.");
       // silent — undo restores rows in place, same as the action-catch path above.
@@ -2939,9 +2971,10 @@ const AuthorshipsTabs = () => {
         // multi-candidate row is assigned by clicking a person on it (or Tab to one, then Enter):
         // that click is the decision, so there is no pick left for Y to confirm.
         if (statusView === "open" && row.single_candidate) {
-          if (row.identity_in_reciter === false) showError(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Assign it to someone else instead.`);
+          if (row.identity_in_reciter === false) { noteRefusal(row, "accept", "no ReCiter identity"); showError(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Assign it to someone else instead.`); }
           else doAction?.(row, "accept");
         } else if (statusView === "open") {
+          noteRefusal(row, "accept", "several candidates");
           showError("Several people share this name: click the right person on the row to assign it, or Tab to them and press Enter.");
         }
         e.preventDefault();
@@ -2978,7 +3011,7 @@ const AuthorshipsTabs = () => {
     if (!listEmpty) return;
     let cancelled = false;
     const body = widenedSummaryBody, view = filters.statusView;
-    fetch("/api/db/authorships/summary", { credentials: "same-origin", method: "POST", headers: apiHeaders, body })
+    recordedFetch("/api/db/authorships/summary", { credentials: "same-origin", method: "POST", headers: apiHeaders, body }, { site: "queueTotal" })
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d: Summary) => {
         const n = view === "conflicts" ? d.conflicts : view === "duplicates" ? d.duplicates : d.total;
@@ -3135,6 +3168,35 @@ const AuthorshipsTabs = () => {
       });
   };
 
+  // Session conflict if this curator just hit it; otherwise the one persisted on the row.
+  const shownConflict = (r: AuthorshipRow): ConflictEntry | undefined => conflicts[r.id] ?? (r.accept_conflict ? {
+    kind: "dup" as const,
+    id: r.id, action: "accept", message: r.accept_conflict, matches: storedDupMatches(r),
+    wcm_author: r.wcm_author, top_name: r.top_name, ts: 0,
+  } : undefined);
+
+  // A problem report: everything on screen and behind it, taken before any state changes.
+  const captureFor = (place: TriggerPlace, el: Element | null, row: AuthorshipRow | null = null, activity?: ActivityEntry) => captureReport({
+    place, el, row, activity,
+    heading: (row || activity) ? [(row || activity)!.wcm_author, stripHtml((row || activity)!.title || "")].filter(Boolean).join(" · ") : "",
+    people: [
+      ...(row ? [{ cwid: row.top_cwid, name: row.top_name }, ...parseCandidates(row.candidate_cwids_json), ...(row.accepted_by || [])] : []),
+      ...(activity ? [{ cwid: activity.resolution_cwid, name: activity.resolution_name }, { cwid: activity.top_cwid, name: activity.top_name }] : []),
+    ].flatMap((p) => (p.cwid ? [{ cwid: String(p.cwid), name: p.name }] : [])),
+    conflict: row ? (place === "dup_pair" ? conflicts[row.id] : shownConflict(row)) : undefined,
+    conflictLog, activityIds: recentActivity.map((a) => a.id),
+    view: {
+      filters, date_preset: datePreset, search_box: searchInput, list_body: JSON.parse(listBody()), summary_body: JSON.parse(summaryBody),
+      page, queue: statusView, report: reportView, count, rows_on_screen: rows.length, row_index: row ? rows.findIndex((x) => x.id === row.id) : null,
+      loading, list_error: listError, report_error: reportError || null,
+      summary_matches_filters: summaryFor === summaryBody, affiliation_facet_current: affilFacetKey === baseSummaryBody,
+      hide_counts_current: hideCountsKey === baseSummaryBody, last_open_filter: lastChip.current, filter_search_text: affilQuery,
+      expanded, selected: { count: selected.size, ids: [...selected].slice(0, 200), all_matching: allMatching?.length ?? null },
+      in_flight: { acting: actingId, removed: [...pendingRemoved.current], bulk: bulkProgress },
+      like_expected: likeExpected, queue_total: queueTotalNow,
+    },
+  });
+
   return (
     <div style={{ fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif", color: "#0f172a" }}>
       {/* ================= header band (prototype markup ~722-775) ===========================
@@ -3216,6 +3278,11 @@ const AuthorshipsTabs = () => {
             aria-haspopup="true" aria-expanded={!!activityAnchor}>
             Activity · {recentActivity.length}
           </Button>
+          {feedback.enabled && (
+            <Button size="sm" aria-haspopup="dialog" onClick={() => feedback.start(captureFor("page", null))}>
+              Report a problem
+            </Button>
+          )}
           <Button ref={keysBtnRef} variant="ghost" size="sm" aria-label="Keyboard shortcuts" title="Keyboard shortcuts"
             aria-haspopup="true" aria-expanded={!!keysAnchor}
             onClick={(ev) => setKeysAnchor(keysAnchor ? null : ev.currentTarget)}
@@ -3431,6 +3498,7 @@ const AuthorshipsTabs = () => {
           <DuplicatesView rows={rows} loading={loading} listError={listError} actingId={actingId}
             onRetry={() => fetchData()} onAction={(r, action, extra) => doAction(r, action, extra)}
             conflicts={conflicts} onClearConflict={clearConflict}
+            onReport={feedback.enabled ? (r, el) => feedback.start(captureFor("dup_pair", el, r)) : undefined}
             onBack={() => setStatusView("open")}
             empty={listEmpty ? emptyState({ statusView, queueTotal: queueTotalNow, filtersOn: canReset }) : null}
             onReset={resetFiltersKeepQueue}
@@ -3614,7 +3682,11 @@ const AuthorshipsTabs = () => {
             onToggleExpand={() => setExpanded((e) => (e === r.id ? null : r.id))}
             onToggleSelect={() => toggleSelect(r)}
             onAction={(action, extra) => doAction(r, action, extra)}
-            onMenu={(anchor) => setMenu({ anchor, row: r })}
+            onMenu={(anchor) => {
+              if (feedback.enabled) menuReport.current = captureFor(statusView === "open" ? "menu" : "queue", anchor, r);
+              setMenu({ anchor, row: r });
+            }}
+            reportable={feedback.enabled}
             onAssignOther={() => focusAssignOther(r.id, r.wcm_author)}
             // Scopus/OpenAlex rows have no pmid; the server keys their siblings by external_id
             // (siblingKey), and the search box matches external_id, so narrow by that.
@@ -3626,11 +3698,7 @@ const AuthorshipsTabs = () => {
             onHoverIdentity={requestPriorNames}
             // Session conflict if this curator just hit it; otherwise rehydrate the one
             // persisted on the row, so a refresh (or a different curator) still sees why.
-            conflict={conflicts[r.id] ?? (r.accept_conflict ? {
-              kind: "dup" as const,
-              id: r.id, action: "accept", message: r.accept_conflict, matches: storedDupMatches(r),
-              wcm_author: r.wcm_author, top_name: r.top_name, ts: 0,
-            } : undefined)}
+            conflict={shownConflict(r)}
             onClearConflict={() => clearConflict(r.id)}
             conflictQueue={statusView === "conflicts"}
           />
@@ -3930,12 +3998,12 @@ const AuthorshipsTabs = () => {
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}
         PaperProps={{ style: { ...popoverPaper, width: 210 } }}
         MenuListProps={{ dense: true, sx: { p: "6px", "& .MuiMenuItem-root": { fontSize: 13, minHeight: 0, p: "8px 10px", borderRadius: "6px", color: "var(--pm-foreground)", gap: 1 }, "& .MuiMenuItem-root:hover, & .MuiMenuItem-root.Mui-focusVisible": { bgcolor: "var(--pm-surface-2)" } } }}>
-        {menu && (
+        {menu && statusView === "open" && (
           <MenuItem onClick={() => { const { id } = menu.row; setMenu(null); setExpanded((x) => (x === id ? null : id)); }}>
             {expanded === menu.row.id ? "Hide evidence" : "Show evidence"}<MenuKey k="E" />
           </MenuItem>
         )}
-        {menu && (
+        {menu && statusView === "open" && (
           <MenuItem onClick={() => {
             const { id, wcm_author } = menu.row;
             setMenu(null);
@@ -3944,9 +4012,20 @@ const AuthorshipsTabs = () => {
             Assign to someone else…
           </MenuItem>
         )}
-        <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days<MenuKey k="S" /></MenuItem>
-        <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")}>Dismiss</MenuItem>
+        {statusView === "open" && <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days<MenuKey k="S" /></MenuItem>}
+        {statusView === "open" && <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")}>Dismiss</MenuItem>}
+        {feedback.enabled && (
+          // Opened after the menu has closed and given focus back to its ⋯ button, which is
+          // where focus returns when the dialog closes.
+          <MenuItem onClick={() => { const t = menuReport.current; setMenu(null); if (t) setTimeout(() => feedback.start(t), 0); }}>
+            Report a problem…
+          </MenuItem>
+        )}
       </Menu>
+      {feedback.open && (
+        <FeedbackDialog key={feedback.open.target.key} draft={feedback.open} reports={feedback.reports}
+          onHide={feedback.hide} onSend={feedback.send} />
+      )}
 
 
       {/* recent duplicate-conflicts history — each entry's real prompt lives inline on its own
@@ -4010,7 +4089,7 @@ const AuthorshipsTabs = () => {
             ? (entry.resolution_name || (entry.resolution_cwid === entry.top_cwid ? entry.top_name : undefined))
             : entry.top_name;
           return (
-            <div key={entry.id} style={{ padding: "10px 14px", borderBottom: "1px solid var(--pm-border)", display: "flex", flexDirection: "column", gap: 3 }}>
+            <div key={entry.id} data-activity={feedback.enabled ? entry.id : undefined} style={{ padding: "10px 14px", borderBottom: "1px solid var(--pm-border)", display: "flex", flexDirection: "column", gap: 3 }}>
               <div style={{ fontSize: 13, lineHeight: 1.4, color: "var(--pm-foreground)" }}>
                 <strong style={{ fontWeight: 600, color: /Rejected|Dismissed/.test(verb) ? "var(--pm-red)" : "var(--pm-foreground)" }}>{verb}</strong> · {label}
               </div>
@@ -4026,8 +4105,15 @@ const AuthorshipsTabs = () => {
               )}
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--pm-muted-foreground)" }}>
                 <span>{entry.reviewer || "—"} · {formatActivityDate(entry.resolved_at)}</span>
+                {feedback.enabled && (
+                  <button type="button" onClick={(e) => feedback.start(captureFor("activity", e.currentTarget, null, entry))}
+                    aria-label={`Report a problem: ${entry.wcm_author || label}`}
+                    style={{ font: "inherit", marginLeft: "auto", border: 0, background: "none", padding: 0, fontSize: 12, color: "var(--pm-slate)", cursor: "pointer" }}>
+                    Report
+                  </button>
+                )}
                 <button type="button" onClick={() => undoRecentActivity(entry)}
-                  style={{ font: "inherit", marginLeft: "auto", border: 0, background: "none", padding: 0, fontSize: 12, fontWeight: 600, color: "var(--pm-slate)", cursor: "pointer" }}>
+                  style={{ font: "inherit", marginLeft: feedback.enabled ? 0 : "auto", border: 0, background: "none", padding: 0, fontSize: 12, fontWeight: 600, color: "var(--pm-slate)", cursor: "pointer" }}>
                   Undo
                 </button>
               </div>
@@ -4390,6 +4476,8 @@ interface CardProps {
   onHoverIdentity: (cwid?: string | null) => void;
   conflict?: ConflictEntry;
   onClearConflict: () => void;
+  // "Report a problem" is on: the queues without a ⋯ menu get one, for that item alone.
+  reportable?: boolean;
   // PR 6: the row is shown in the Identity-conflicts queue — a red "!" badge, one sub-row per
   // identity with its own Keep, and no ✓ / ✕ / ⋯.
   conflictQueue?: boolean;
@@ -4399,7 +4487,7 @@ const AuthorshipCard = ({
   row: r, statusView, selectable, isExpanded, isSelected, isFocused, acting, assignPrefill,
   registerRef, onFocus, onToggleExpand, onToggleSelect, onAction, onMenu, onAssignOther, onNarrowPmid,
   onFindOthers, priorNamesByCwid, onHoverIdentity,
-  conflict, onClearConflict, conflictQueue = false,
+  conflict, onClearConflict, conflictQueue = false, reportable = false,
 }: CardProps) => {
   // Matches the server accept gate (`!row.single_candidate`) and the sibling gates below
   // (toggleSelect, nearCertain, eligibleRows) — the n_candidates>1 clause let a card keep
@@ -4491,6 +4579,13 @@ const AuthorshipCard = ({
   const topDeptLabel = deptLabel(r.top_dept, topCand?.title);
   const orcidMatch = !!r.top_orcid_match;
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  const moreButton = (
+    <button type="button" className="pm-arow-more" aria-label="More actions" title="More actions" disabled={acting}
+      onClick={(e) => { e.stopPropagation(); onMenu(e.currentTarget); }}
+      style={rowActBtn("more", acting)}>
+      <IconMore size={16} />
+    </button>
+  );
 
   return (
     <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus}
@@ -4796,7 +4891,7 @@ const AuthorshipCard = ({
         {/* actions: ✓ ✕ ⋯ in the open queue, Reopen in the parked ones */}
         {/* 104px in the Open queue; the parked note may run wider ("Snoozed until 2027 Jan 28"). */}
         <div data-actions style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, ...(statusView === "open" ? { width: 104 } : { minWidth: 104 }) }}>
-          {conflictQueue ? null : statusView === "open" ? (
+          {conflictQueue ? (reportable ? moreButton : null) : statusView === "open" ? (
             <>
               {!isMulti && (
                 <button type="button" className="pm-arow-accept" aria-label="Accept"
@@ -4812,11 +4907,7 @@ const AuthorshipCard = ({
                 style={rowActBtn("reject", acting || !!rejectBlock)}>
                 <IconX size={14} style={{ strokeWidth: 2.5 }} />
               </button>
-              <button type="button" className="pm-arow-more" aria-label="More actions" title="More actions" disabled={acting}
-                onClick={(e) => { e.stopPropagation(); onMenu(e.currentTarget); }}
-                style={rowActBtn("more", acting)}>
-                <IconMore size={16} />
-              </button>
+              {moreButton}
             </>
           ) : (
             // Parked queues (prototype markup ~1107-1112): "Snoozed until 2027 Jan 28" or
@@ -4832,6 +4923,7 @@ const AuthorshipCard = ({
                   height: 24, padding: "0 9px", borderRadius: 6, border: "1px solid var(--pm-border-strong)", background: "#fff",
                   font: "inherit", fontSize: 12, fontWeight: 500, color: "var(--pm-foreground)", cursor: acting ? "default" : "pointer", opacity: acting ? 0.5 : 1,
                 }}>Reopen</button>
+              {reportable && moreButton}
             </div>
           )}
         </div>
@@ -5275,13 +5367,13 @@ const AssignOther = ({ rowId, acting, onAction, prefill, autoSearch, authorName,
   actingRef.current = acting;
 
   const post = useCallback((payload: Record<string, string>) =>
-    fetch("/api/db/authorships/lookup", {
+    recordedFetch("/api/db/authorships/lookup", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify(payload),
-    }).then(async (r) => {
+    }, { site: "assignOther", rowId }).then(async (r) => {
       if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
       return r.json();
-    }), []);
+    }), [rowId]);
 
   // One lookup cycle for `val`, guarded by `seq` so an out-of-order reply for a string the
   // curator has since changed is dropped. Identifier-shaped input asks the cwid question
@@ -5666,11 +5758,12 @@ const EmptyState = ({ title, body, canReset, onReset, undoLast }: {
   </div>
 );
 
-const DuplicatesView = ({ rows, loading, listError, actingId, onRetry, onAction, onBack, empty, onReset, pager, conflicts, onClearConflict }: {
+const DuplicatesView = ({ rows, loading, listError, actingId, onRetry, onAction, onBack, empty, onReset, pager, conflicts, onClearConflict, onReport }: {
   rows: AuthorshipRow[]; loading: boolean; listError: boolean; actingId: number | null;
   // A 409/422 reply that asks the curator to confirm (doAction stores it here instead of
   // toasting it) must show on the pair, or the click would fail with no word at all.
   conflicts: Record<number, ConflictEntry>; onClearConflict: (id: number) => void;
+  onReport?: (r: AuthorshipRow, el: Element) => void; // absent = "Report a problem" is off
   onRetry: () => void; onAction: (r: AuthorshipRow, action: string, extra?: Record<string, any>) => void; onBack: () => void;
   empty: { title: string; body: string; canReset: boolean } | null; onReset: () => void;
   pager: { page: number; totalPages: number; count: number; setPage: (f: (p: number) => number) => void } | null;
@@ -5693,7 +5786,8 @@ const DuplicatesView = ({ rows, loading, listError, actingId, onRetry, onAction,
     )}
     {!loading && !listError && rows.map((r) => (
       <DupPair key={r.id} row={r} acting={actingId === r.id} onAction={(action, extra) => onAction(r, action, extra)}
-        conflict={conflicts[r.id]} onClearConflict={() => onClearConflict(r.id)} />
+        conflict={conflicts[r.id]} onClearConflict={() => onClearConflict(r.id)}
+        onReport={onReport && ((el) => onReport(r, el))} />
     ))}
     {!loading && empty && <EmptyState {...empty} onReset={onReset} />}
     {!loading && !listError && pager && (
@@ -5800,7 +5894,7 @@ const useCounterpart = (id: number, enabled: boolean) => {
     if (!enabled) return;
     let cancelled = false;
     setState({ status: "loading" });
-    fetch("/api/db/authorships/counterpart", { credentials: "same-origin", method: "POST", headers: apiHeaders, body: JSON.stringify({ id }) })
+    recordedFetch("/api/db/authorships/counterpart", { credentials: "same-origin", method: "POST", headers: apiHeaders, body: JSON.stringify({ id }) }, { site: "dupPair" })
       .then(async (resp) => { if (!resp.ok) throw new Error(`HTTP ${resp.status}`); return resp.json(); })
       .then((d: CounterpartResponse) => { if (!cancelled) setState({ status: "loaded", data: d }); })
       .catch(() => { if (!cancelled) setState({ status: "error" }); });
@@ -5809,9 +5903,9 @@ const useCounterpart = (id: number, enabled: boolean) => {
   return state;
 };
 
-const DupPair = ({ row: r, acting, onAction, conflict, onClearConflict }: {
+const DupPair = ({ row: r, acting, onAction, conflict, onClearConflict, onReport }: {
   row: AuthorshipRow; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
-  conflict?: ConflictEntry; onClearConflict: () => void;
+  conflict?: ConflictEntry; onClearConflict: () => void; onReport?: (el: Element) => void;
 }) => {
   const twin = r.matched_pmid != null && !r.matched_pmid_verdict;
   const cp = useCounterpart(r.id, twin);
@@ -5868,6 +5962,9 @@ const DupPair = ({ row: r, acting, onAction, conflict, onClearConflict }: {
                 onClick={() => onAction("dismiss")}>Keep the existing record</Button>
             </>
           )}
+          {onReport && (
+            <Button variant="ghost" size="sm" onClick={(e) => onReport(e.currentTarget)}>Report a problem</Button>
+          )}
         </div>
       </div>
       <div className="pm-dup-recs" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
@@ -5909,10 +6006,10 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
-    fetch("/api/db/authorships/counterpart", {
+    recordedFetch("/api/db/authorships/counterpart", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ id: r.id }),
-    })
+    }, { site: "counterpartPanel" })
       .then(async (resp) => {
         if (!resp.ok) throw new Error((await resp.text()) || `HTTP ${resp.status}`);
         return resp.json();
