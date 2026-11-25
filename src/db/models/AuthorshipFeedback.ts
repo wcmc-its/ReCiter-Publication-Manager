@@ -1,7 +1,7 @@
 import * as Sequelize from 'sequelize';
 import { DataTypes, Model, Optional } from 'sequelize';
 
-// reciterdb `authorship_feedback` (ReCiterDB setup/table_authorship_feedback_v3.19.sql): one problem
+// reciterdb `authorship_feedback` (ReCiterDB setup/table_authorship_feedback_v3.20.sql): one problem
 // report from /authorships. PM writes the report and its snapshots once; status, claimed_*,
 // duplicate_of, diagnosis, resolution_ref and handled_at belong to the diagnosing skill.
 //
