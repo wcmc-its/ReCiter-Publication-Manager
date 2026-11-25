@@ -9,7 +9,7 @@ import Loader from "../Common/Loader";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import moment from 'moment-timezone';
-import { displayName, isHiddenSetting, displayDesc, isWordExportSetting, exceedsWordExportLimit, settingSummary, settingSnapshot, settingsSnapshot } from "../../../lib/adminSettingsDisplay";
+import { displayName, displayDesc, isWordExportSetting, exceedsWordExportLimit, settingSummary, settingSnapshot, settingsSnapshot } from "../../../lib/adminSettingsDisplay";
 
 /* ── Group classification ── */
 const getGroup = (viewLabel: string): string => {
@@ -124,7 +124,8 @@ const AdminSettings = () => {
             viewAttributes: c,
             viewLabel: obj.viewLabel
           }
-          if (!isHiddenSetting(parsedSettings)) parsedSettingsArray.push(parsedSettings)
+          // The page edits attribute arrays only; skip a row holding anything else.
+          if (Array.isArray(c)) parsedSettingsArray.push(parsedSettings)
         })
         setSettings(parsedSettingsArray);
         setSavedSettings(parsedSettingsArray);

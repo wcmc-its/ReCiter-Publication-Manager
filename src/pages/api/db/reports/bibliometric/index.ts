@@ -2,9 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { reciterConfig } from '../../../../../../config/local';
 import { BibliometricExportError, generateBibliometricDocx } from '../../../../../../controllers/db/reports/bibliometric.docx.controller';
 
-// POST { uid } -> BibliometricAnalysis-<uid>-<run date>.docx, the v2 report (5h P4). Same checks as
-// the v1 RTF route (bibliometric-analysis/[uid].ts): the backend API key here, and /api/db/** is
-// next-auth session-gated by src/middleware.ts. Nothing in the UI calls this route until P5.
+// POST { uid } -> BibliometricAnalysis-<uid>-<run date>.docx, the bibliometric analysis (5h). Auth:
+// the backend API key here, and /api/db/** is next-auth session-gated by src/middleware.ts.
 // 503 "Bibliometric v2 data not available yet" while the ReCiterDB v3.11 columns or flags are absent.
 export const config = { api: { bodyParser: { sizeLimit: '16kb' }, responseLimit: false } };
 
