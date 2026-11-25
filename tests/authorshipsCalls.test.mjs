@@ -329,4 +329,7 @@ test('Enter on a focused control, or one already handled, is not the row shortcu
   const inside = { closest: () => ({}) }, card = { closest: () => null }
   assert.deepEqual([[false, inside], [true, card], [false, card], [false, null]].map(([defaultPrevented, target]) => enterIsTaken({ defaultPrevented, target })),
     [true, true, false, false])
+  // a control left focused inside another row: pressing it would act on the wrong row
+  const inRow = (id) => ({ closest: (s) => (s === '[data-arow]' ? { getAttribute: () => id } : { closest: inRow(id).closest }) })
+  assert.deepEqual([7, 8, null].map((focusedId) => enterIsTaken({ defaultPrevented: false, target: inRow('7') }, focusedId)), [true, false, true])
 })

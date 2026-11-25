@@ -106,7 +106,7 @@ export function parseTypedRef(ref: string | null): { pmid: number | null; doi: s
 /** The "who should it be" box takes a cwid, a NetID or a name: the identifier in it, if any. */
 export function expectedCwid(expected: string | null): string | null {
   // parseCwid is not shape-checked, so the whole text counts only when it cannot be a surname or a PMID.
-  const whole = parseCwid(expected)
+  const whole = parseCwid(String(expected ?? '').replace(/[.\-_\s]+$/, ''))
   if (whole && /[a-z]/i.test(whole) && /[\d_]/.test(whole) && !/^pmid/.test(whole)) return whole
   return parseCwid(/\b(?!pmid)[a-z]{2,4}\d{1,5}\b/i.exec(String(expected || ''))?.[0])
 }

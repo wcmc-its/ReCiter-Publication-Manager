@@ -23,7 +23,7 @@ import {
   rowKeys, snapshotState, statusBlock, typedKeys,
 } from './authorshipFeedback'
 
-const SIBLING_CAP = 50
+const SIBLING_CAP = 20
 const COHORT_CAP = 200
 const HOLDER_CAP = 500
 
@@ -107,8 +107,8 @@ async function siblings(k: RowKeys, selfId: number | null) {
   if (!have) throw new BlockStop('unavailable')
   const list = [...have].filter((c) => !SIBLING_OMIT.includes(c)).map((c) => `\`${c}\``).join(', ')
   // Separate queries: an OR over these columns cannot use their indexes. The PubMed twin goes both
-  // ways through matched_pmid, and comes first so the cap never cuts it. Blank ids are null here
-  // and never asked about.
+  // ways through matched_pmid. Capped per query, so a paper with many rows cannot crowd out the
+  // twin or the same-DOI rows. Blank ids are null here and never asked about.
   const wheres: Array<[string, Record<string, any>] | null> = [
     k.matchedPmid != null ? ['`pmid` = :v', { v: k.matchedPmid }] : null,
     k.pmid != null ? ['`matched_pmid` = :v', { v: k.pmid }] : null,
@@ -117,12 +117,15 @@ async function siblings(k: RowKeys, selfId: number | null) {
     k.externalId ? ['`external_id` = :v', { v: k.externalId }] : null,
   ]
   const found: any[] = []
+  let capped = false
   for (const w of wheres) {
     if (!w) continue
-    found.push(...await q(`SELECT ${list} FROM \`authorship_review\` WHERE ${w[0]} ORDER BY \`id\` LIMIT ${SIBLING_CAP + 2}`, w[1]))
+    const rows = (await q(`SELECT ${list} FROM \`authorship_review\` WHERE ${w[0]} ORDER BY \`id\` LIMIT ${SIBLING_CAP + 2}`, w[1]))
+      .filter((r: any) => Number(r.id) !== selfId)
+    capped = capped || rows.length > SIBLING_CAP
+    found.push(...rows.slice(0, SIBLING_CAP))
   }
-  const rows = uniqueBy(found, (r) => String(r.id)).filter((r) => Number(r.id) !== selfId)
-  return { rows: rows.slice(0, SIBLING_CAP), capped: rows.length > SIBLING_CAP }
+  return { rows: uniqueBy(found, (r) => String(r.id)), capped }
 }
 
 // EVERY holder of the article, not only the people on the card: the real one is often someone else.

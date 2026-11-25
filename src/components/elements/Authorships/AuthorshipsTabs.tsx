@@ -9,7 +9,7 @@ import { toast } from "react-toastify";
 import { showUndoToast } from "../ToastHost/ToastHost";
 import { Button, Input, Select } from "../../ui";
 import { actionErrorToast, actionToast, plainReason } from "../../../utils/authorshipMessages";
-import { KEY_LEGEND, chipText, drillBanner, enterIsTaken, keyCommand, singleChipText } from "../../../utils/authorshipChips";
+import { KEY_LEGEND, chipText, drillBanner, enterIsTaken, keyCommand, releaseControl, singleChipText } from "../../../utils/authorshipChips";
 import FilterChip, { Chevron, optionRowClass, popoverPaper } from "./FilterChip";
 import type { ChipOption } from "./FilterChip";
 import { reciterConfig } from "../../../../config/local";
@@ -2134,7 +2134,7 @@ const AuthorshipsTabs = () => {
     recordedFetch("/api/db/authorships/action", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ id: entry.id, action: "reopen" }),
-    }, { site: "undoRecentActivity" })
+    }, { site: "undoRecentActivity", row: lastCall("/action", entry.id)?.row })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         // reopened row drops out of the resolved-only feed and may now belong on the
@@ -2934,7 +2934,7 @@ const AuthorshipsTabs = () => {
       if (tag === "input" || tag === "select" || tag === "textarea") return;
       const cmd = keyCommand(e);
       if (!cmd) return;
-      if (cmd === "open" && enterIsTaken(e)) return;
+      if (cmd === "open" && enterIsTaken(e, focusedIdRef.current)) return;
       // "?" opens and closes the shortcut list itself, so it is the one key that works while that
       // list (an overlay) is up; every other overlay still blocks it.
       if (cmd === "legend") {
@@ -2962,7 +2962,7 @@ const AuthorshipsTabs = () => {
       const idx = focusedId == null ? -1 : visible.findIndex((r) => r.id === focusedId);
       const focus = (i: number) => {
         const r = visible[Math.max(0, Math.min(visible.length - 1, i))];
-        if (r) { setFocusedId(r.id); cardRefs.current[r.id]?.scrollIntoView({ block: "nearest" }); }
+        if (r) { releaseControl(document.activeElement); setFocusedId(r.id); cardRefs.current[r.id]?.scrollIntoView({ block: "nearest" }); }
       };
       if (cmd === "next") { focus(idx + 1); e.preventDefault(); return; }
       if (cmd === "prev") { focus(idx < 0 ? 0 : idx - 1); e.preventDefault(); return; }

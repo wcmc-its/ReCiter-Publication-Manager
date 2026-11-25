@@ -78,9 +78,23 @@ export const keyCommand = (e: { key: string; metaKey?: boolean; ctrlKey?: boolea
   return KEYS[e.key.toLowerCase()] ?? null;
 };
 
-/** Enter belongs to the control that has focus, or to whatever already handled it, not to the row. */
-export const enterIsTaken = (e: { defaultPrevented: boolean; target: EventTarget | null }): boolean =>
-  e.defaultPrevented || !!(e.target as Element | null)?.closest?.("button,a,summary,[role=button],[role=menuitem],[role=option],[role=checkbox],[role=radio]");
+const CONTROL = "button,a,summary,[role=button],[role=menuitem],[role=option],[role=checkbox],[role=radio]";
+
+/** Enter belongs to the control that has focus, or to whatever already handled it, not to the row.
+ *  Except a control left focused inside ANOTHER row: pressing it would act on a row the curator has
+ *  moved off, so the row shortcut takes Enter (and its preventDefault cancels the press). */
+export const enterIsTaken = (e: { defaultPrevented: boolean; target: EventTarget | null }, focusedId: number | null = null): boolean => {
+  if (e.defaultPrevented) return true;
+  const control = (e.target as Element | null)?.closest?.(CONTROL);
+  if (!control) return false;
+  const row = control.closest?.("[data-arow]")?.getAttribute?.("data-arow");
+  return row == null || focusedId == null || row === String(focusedId);
+};
+
+/** J/K move the row highlight, not DOM focus: let go of a control so the next Enter is the row's. */
+export const releaseControl = (el: Element | null): void => {
+  if (el?.matches?.(CONTROL)) (el as HTMLElement).blur();
+};
 
 // The "?" legend, in the prototype's order. Enter is this page's own addition.
 export const KEY_LEGEND: Array<{ key: string; label: string }> = [
