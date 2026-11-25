@@ -1,0 +1,31 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22          # what the app actually ships on: every stage of the Dockerfile is node:22-alpine.
+
+      # --ignore-scripts SKIPS THE PREINSTALL, ON PURPOSE. package.json's preinstall re-runs
+      # `npm install --package-lock-only && npx npm-force-resolutions`, which rewrites package-lock.json
+      # underneath the very command that is installing from it and pulls npm-force-resolutions off the
+      # registry on every run. It buys nothing here: the resolutions (@types/react, @types/react-dom
+      # pinned to 18.2.0) are already baked INTO the committed lockfile, so a scriptless `npm ci`
+      # installs exactly 18.2.0 anyway — verified. This is also what the Dockerfile does.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - run: npx tsc --noEmit
+
+      # `npm run build` would re-run that same preinstall dance before next build. node_modules is
+      # already installed by then, so all it can do is mutate the lockfile and cost a registry round
+      # trip. Call the build directly.
+      - run: npx next build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+      - run: npm test
