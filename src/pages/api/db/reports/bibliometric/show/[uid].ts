@@ -3,13 +3,10 @@ import { reciterConfig } from '../../../../../../../config/local';
 import {
     BibliometricExportError,
     bibliometricAvailability,
-    bibliometricReportVersion,
 } from '../../../../../../../controllers/db/reports/bibliometric.docx.controller';
 
-// GET -> which bibliometric report the Profile drawer offers for this person (5h P5).
-//   flag "rtf" or missing: { version: "rtf" } and nothing else; the drawer then asks the v1
-//     show-button route exactly as before.
-//   flag "docx": { version: "docx", show, works, name }; show is true for anyone with a counted work.
+// GET -> { show, works, name }: whether this person can have a bibliometric analysis (5h). show is
+// true for anyone with a counted work.
 // Same auth as POST /api/db/reports/bibliometric: the backend API key here, and /api/db/** is
 // session-gated by src/middleware.ts.
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -25,13 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.status(401).send('Authorization header is incorrect');
         return;
     }
-    const version = await bibliometricReportVersion();
-    if (version !== 'docx') {
-        res.status(200).json({ version });
-        return;
-    }
     try {
-        res.status(200).json({ version, ...(await bibliometricAvailability(req.query.uid)) });
+        res.status(200).json(await bibliometricAvailability(req.query.uid));
     } catch (e) {
         if (e instanceof BibliometricExportError) {
             res.status(e.status).json({ error: e.message });

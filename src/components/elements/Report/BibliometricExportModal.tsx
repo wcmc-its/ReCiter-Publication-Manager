@@ -6,9 +6,8 @@ import { reciterConfig } from "../../../../config/local";
 import { reportError } from "../../../utils/reportError";
 import { downloadBibliometricDocx } from "../../../utils/bibliometricDownload";
 
-// Bibliometric analysis v2 (5h P5): one person's .docx with headings, tables and two charts. Shown
-// only while the admin_settings bibliometricReport flag is "docx". The list follows the document's
-// sections (bibliometricDocx.ts); sections with nothing to show are left out of the file.
+// Bibliometric analysis (5h): one person's .docx with headings, tables and two charts. The list
+// follows the document's sections (bibliometricDocx.ts); sections with nothing to show are left out of the file.
 const SECTIONS: Array<{ name: string; rows: string; cols: string }> = [
   { name: "Summary for reviewers", rows: "1–2 paragraphs", cols: "Plain-language reading of the figures below, for a promotion or review committee" },
   { name: "Key figures", rows: "table", cols: "Top-5 average NIH percentile, median Relative Citation Ratio and share at or above the 90th percentile, each next to its reference point; publications, author roles and h-index" },
@@ -38,8 +37,7 @@ const BibliometricExportModal = ({ show, onClose, uid }: { show: boolean; onClos
       headers: { Accept: "application/json", Authorization: reciterConfig.backendApiKey },
     })
       .then((r) => (r.ok ? r.json() : null))
-      // { version: "rtf" } (flag switched back mid-session) carries no counts; keep the uid.
-      .then((d) => { if (live && d && d.version === "docx") setInfo(d); })
+      .then((d) => { if (live && d) setInfo(d); })
       .catch(() => { /* the description falls back to the uid */ });
     return () => { live = false; };
   }, [show, uid]);

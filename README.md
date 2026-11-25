@@ -365,22 +365,7 @@ The following filters are available for articles:
 
 ### Generating a bibliometric report
 
-Here's how to generate a narrative bibliometric summary (see sample) of a full-time faculty at Weill Cornell Medicine. The summary includes h-index, h5-index, NIH-provided article-level bibliometrics, a ranking of an individual's most impactful publications, and a summary statement.
-
-1. Go to "Create reports"
-1. Search for an author (e.g., "Lyden, David)
-1. In the results, click on the author's name.
-1. A modal window appears.
-1. Click on the "Generate bibliometric report" button.
-1. This will download a bibliometric summary (see below) which you can open up in Word. 
-    
-![Bibliometric report](/files/BibliometricReport.gif)
-
-This is the default (v1, an RTF file). Which report the app offers is set by the `admin_settings` row `bibliometricReport`, described below.
-
-#### Bibliometric analysis v2 (Word document)
-
-When the `bibliometricReport` setting is `docx`, the "Bibliometric analysis" button produces the v2 report instead: a Word document (.docx) for one person, saved as `BibliometricAnalysis-<cwid>-<run date>.docx`, where the run date is the ReCiterDB nightly the figures come from. It works for anyone with at least one accepted publication; only the peer comparison is limited to full-time Weill Cornell Medicine faculty.
+The "Bibliometric analysis" button produces a Word document (.docx) for one person, saved as `BibliometricAnalysis-<cwid>-<run date>.docx`, where the run date is the ReCiterDB nightly the figures come from. It works for anyone with at least one accepted publication; only the peer comparison is limited to full-time Weill Cornell Medicine faculty.
 
 There are two ways to run it:
 
@@ -398,19 +383,7 @@ The document contains:
 
 Citation measures use NIH iCite on PubMed research articles only. Reviews, letters, editorials and preprints are listed but not rated, sole-authored articles count as senior-authored, and a missing NIH percentile is never treated as 0. Works from Scopus, OpenAlex, Crossref and manual entry are counted and listed but never rated.
 
-The setting is changed in SQL, with no deploy; the next profile or Reports page load picks it up. It does not appear on the Configuration page. A missing row, or any value other than `docx`, means the v1 RTF.
-
-```sql
--- Switch to v2
-INSERT INTO admin_settings (viewName, viewAttributes, viewLabel)
-VALUES ('bibliometricReport', '{"version":"docx"}', 'Bibliometric report')
-ON DUPLICATE KEY UPDATE viewAttributes = '{"version":"docx"}';
-
--- Back to v1
-UPDATE admin_settings SET viewAttributes = '{"version":"rtf"}' WHERE viewName = 'bibliometricReport';
-```
-
-
+The report needs the ReCiterDB v3.11 columns and tables; until a nightly has filled them, the download answers "Bibliometric v2 data not available yet".
 
 ### Manage notifications
 
